@@ -27,11 +27,24 @@ if(isset($_GET['ccdr'])){
   	$ExWs=createWorksheet($excel,$workSheetName,"openActive");
 	
 	$rowCount=0;	
+
+	$ccdr_date2=$_GET['ccdr2'];	
+	if($ccdr_date2==""){
+		 $dClause=" like '".$ccdr_date."%%' ";
+			 
+	}
+	else {
+		$dClause=" between '".$ccdr_date." 00:00:00' and '".$ccdr_date2." 23:23:59' ";
+	}
+	
+	
+	
+	
 	
 	
 	$db=new mysqli("localhost","root","","transport");
 
-	$sql="select * from incident_report inner join incident_description on incident_report.id=incident_description.incident_id where incident_date like '".$ccdr_date."%%' order by incident_date";
+	$sql="select * from incident_report inner join incident_description on incident_report.id=incident_description.incident_id where incident_date ".$dClause." order by substring(incident_no,1,position('' in incident_no))*1 ";
 	$rs=$db->query($sql);
 
 	$nm=$rs->num_rows;
@@ -56,7 +69,81 @@ if(isset($_GET['ccdr'])){
 		
 	}	
 
+	$personnel_date=$ccdr_date;
 
+	$db2=new mysqli("localhost","root","","user_transport");
+	$psql="select * from duty_personnel where personnel_date like '".$personnel_date."%%' and shift='3'";
+	//echo $psql;
+	$prs=$db2->query($psql);
+	$pnm=$prs->num_rows;
+
+	if($pnm>0){
+		$prow=$prs->fetch_assoc();
+		$recording=getTrainDriver($db,$prow['recording']);
+		$clerk=getTrainDriver($db,$prow['clerk']);
+		$duty_manager=getTrainDriver($db,$prow['duty_manager']);
+				
+		addContent(setRange("D190","F190"),$excel,$recording,"true",$ExWs);
+		addContent(setRange("A190","C190"),$excel,$clerk,"true",$ExWs);
+		addContent(setRange("G190","I190"),$excel,$duty_manager,"true",$ExWs);
+
+				
+				
+			
+	}		
+
+	
+	$signatorySQL="select * from signatories order by signatory_date DESC";
+	$signatoryRS=$db2->query($signatorySQL);
+	$signatoryNM=$signatoryRS->num_rows;
+
+	if($signatoryNM>0){
+		$signatoryRow=$signatoryRS->fetch_assoc();
+		if(strtotime($personnel_date)>=strtotime($signatoryRow['signatory_date'])){
+			$chief=$signatoryRow['chief_transport'];	
+			$gm=$signatoryRow['general_manager'];
+			$gm_office=$signatoryRow['gm_office'];
+			$director=$signatoryRow['director_ops'];
+			$maintenance=$signatoryRow['maintenance_provider'];
+			
+			addContent(setRange("J190","M190"),$excel,$chief,"false",$ExWs);
+
+			addContent(setRange("J13","M13"),$excel,$maintenance,"false",$ExWs);
+
+			addContent(setRange("B8","B8"),$excel,$gm,"false",$ExWs);
+			addContent(setRange("B9","B9"),$excel,$gm_office,"false",$ExWs);
+			addContent(setRange("G8","H8"),$excel,$director,"false",$ExWs);
+
+		}
+		else {
+			$sig2="select * from signatories where signatory_date>'".$personnel_date."' order by signatory_date asc";
+
+			$sigRS=$db2->query($sig2);
+			$sigRow=$sigRS->fetch_assoc();
+			
+			$chief=$sigRow['chief_transport'];	
+			$gm=$sigRow['general_manager'];
+			$gm_office=$sigRow['gm_office'];
+			$director=$sigRow['director_ops'];
+			$maintenance=$sigRow['maintenance_provider'];
+
+			addContent(setRange("J13","M13"),$excel,$maintenance,"false",$ExWs);
+
+			addContent(setRange("J190","M190"),$excel,$chief,"false",$ExWs);
+			addContent(setRange("B8","B8"),$excel,$gm,"false",$ExWs);
+			addContent(setRange("B9","B9"),$excel,$gm_office,"false",$ExWs);
+			addContent(setRange("G8","H8"),$excel,$director,"false",$ExWs);
+			
+		
+		
+		
+		
+		}
+		
+	
+	}	
+	
+	
 	
 	for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
@@ -153,6 +240,25 @@ if(isset($_GET['ccdr'])){
 			$rowCount++;	
 		}
 	
+		
+
+	
+		if($i==($nm-1)){
+		
+			$excel->getActiveSheet()->mergeCells("J".($rowCount+1).":M".($rowCount+1));
+
+			$excel->getActiveSheet()->unmergeCells("J".($rowCount+1).":M".($rowCount+1));
+			$excel->getActiveSheet()->mergeCells("J".($rowCount+5).":M".($rowCount+5));
+
+			$excel->getActiveSheet()->unmergeCells("J".($rowCount+5).":M".($rowCount+5));
+
+			
+		
+			$row_delete=186-$rowCount;
+			$excel->getActiveSheet()->removeRow(($rowCount),$row_delete);
+			
+		}
+	
 	}
 	
 	save($ExWb,$excel,$newFilename); 	
@@ -161,6 +267,17 @@ if(isset($_GET['ccdr'])){
 
 
 
+
+}
+
+function getTrainDriver($db,$td_id){
+	$sql="select * from train_driver where id='".$td_id."' limit 1";
+
+	$rs=$db->query($sql);
+	$row=$rs->fetch_assoc();
+	
+	$name=$row['firstName']." ".substr($row['midName'],0,1).". ".$row['lastName'];
+	return $name;
 
 }
 ?>

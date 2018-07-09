@@ -1,0 +1,21 @@
+[{		
+	"value":"STDO",	
+	"text":"Senior TDO",
+	"level":3	
+},{		
+	"value":"SVTDO",
+	"text":"Supervising TDO",
+	"level":1	
+},{
+	"value":"CLERK III",
+	"text":"CLERK III",
+	"level":2	
+},{
+	"value":"CLERK IV",
+	"text":"CLERK IV",
+	"level":2	
+},{
+	"value":"CHIEF TDO",
+	"text":"CHIEF TDO",
+	"level":1	
+}]

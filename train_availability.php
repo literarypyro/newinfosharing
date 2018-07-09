@@ -1,9 +1,12 @@
-<?php
-session_start();
-?>
-<?php
+<?php 
+require("Tmenu.php");
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
+<!--- Modified by Jun
+//--- Date: 8/1/2014
+//--- Modify: Screen layout and color
+//--- Marker: @mjun
+//--------------------------------------------------->
 <?php
 $db=new mysqli("localhost","root","","transport");
 
@@ -152,14 +155,21 @@ if(isset($_POST['index_no'])){
 		$update="update train_availability set status='cancelled' where id='".$index_id."'";
 		$rs=$db->query($update);
 
+
 		echo "<script language='javascript'>";	
 		echo "window.open('incident report.php?cancel=".$index_id."');";
 		echo "</script>";
 		
+		
+		
 	}
 	
 	$update="insert into train_ava_time(train_ava_id,boundary_time) values ('".$index_id."','".$availability_date."')";
+	
 	$rs=$db->query($update);		
+	
+	
+	
 }
 
 if(isset($_POST['other_index_no'])){
@@ -278,15 +288,23 @@ if(isset($_POST['insertion_id'])){
 	}
 	
 	
-
-	$sql="update train_ava_time set insert_time='".$availability_date."',insert_driver='".$train_driver."' where train_ava_id='".$_POST['insertion_id']."'";
+	$sql="select * from train_ava_time where train_ava_id='".$_POST['insertion_id']."'";
 	$rs=$db->query($sql);
+	$nm=$rs->num_rows;
+
+	if($nm>0){
+		$sql="update train_ava_time set insert_time='".$availability_date."',insert_driver='".$train_driver."' where train_ava_id='".$_POST['insertion_id']."'";
+		$rs=$db->query($sql);
 
 
-	$sql="update train_ava_time set inserted_to='".$_POST['inserted_to']."' where train_ava_id='".$_POST['insertion_id']."'";
-	$rs=$db->query($sql);
-	
-	
+		$sql="update train_ava_time set inserted_to='".$_POST['inserted_to']."' where train_ava_id='".$_POST['insertion_id']."'";
+		$rs=$db->query($sql);
+	}
+	else {
+		$sql="insert into train_ava_time(train_ava_id,insert_time,insert_driver,inserted_to) values ('".$_POST['insertion_id']."','".$availability_date."','".$train_driver."','".$_POST['inserted_to']."')";
+		$rs=$db->query($sql);	
+		
+	}	
 	
 	
 	$change="select * from train_availability where id='".$_POST['insertion_id']."'";
@@ -424,7 +442,7 @@ if(isset($_POST['switch_id'])){
 			
 		}
 		else {
-		}
+}
 	
 	}
 	else {
@@ -449,9 +467,6 @@ if(isset($_POST['switch_id'])){
 		$update="update train_availability set type='revenue' where id='".$_POST['switch_id']."'";
 		$updateRS=$db->query($update);
 	}
-
-	
-
 }
 
 if(isset($_POST['edit_id'])){
@@ -480,112 +495,128 @@ if(isset($_POST['edit_car'])){
 	
 
 }
-
-
 ?>
 
+<link href="css/modal_only.css" rel="stylesheet" />
+<!-- <link href="css/style.min.css" rel="stylesheet" /> -->
+
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
+
+
 <style type='text/css'>
+
+/* header */
 .rowClass {
-	background-color:#eaf2d3;
+	 background-color:#f5f5f5; 
 }
+
 .rowHeading {
-	background-color:#a7c942;
-
-	color:rgb(0,51,153);
-	color:white;	
-	
+	background-color:#cccccc;
 }
+
 .train_ava td{
-	border: 1px solid #a7c942;
-	color: rgb(0,51,153);
+	border: 1px solid #A9A9A9;
 	cellpadding: 5px;
-
 }
+
+/* outline header */
  .train_ava th {
-	border: 1px solid #a7c942;
+	border: 1px solid #A9A9A9;
 	cellpadding: 5px;
-	
 }
-body {
-	margin-left:30px;
-	margin-right:30px;
 
-}
+/* input color */
 input[type="text"]{ 
 	height:25px; 
 	font-weight:bold; 
 	font-size:15px; 
 	font-family:courier; 
-	border: 1px solid #C6C6C6; 
-	background-color: rgb(185, 201, 254);  
-	color: rgb(0,51,153);
-	border-radius: 3px;
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;  
+	border-radius: 3px
 }
-#cellHeading {
-	background-image: -o-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
-	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
-	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
-	background-image: -webkit-gradient(linear, left bottom, left top, color-stop(0.38, rgb(185, 201, 254)), color-stop(0.62, #4ad));
-	background-image: -webkit-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
-	background-image: -ms-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
-	background-image: linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
 
-	background-color: rgb(185, 201, 254);  
-
-	color: rgb(0,51,153);
+#cellHeading {	
+	background-image: -webkit-gradient(linear, left bottom, left top, color-stop(0.38, #A9A9A9), color-stop(0.62, #cccccc));
+	color: black;
 	padding:5px;
 	-moz-border-radius: 5px;
 	border-radius: 5px;
-
 }
+
+
 input[type="text"]:focus {
-	background-color:rgb(158,27,32);
-	color:white;
-
+	background-color:#FFFFF0;
+	/* color:white; */
 }
+
 textarea:focus {
-	background-color:rgb(158,27,32);
-	color:white;
+	background-color:#FFFFF0;
+	/*color:white;*/
 	font-weight:bold;
-
 }
+
 .date {
 	text-style:bold;
 	font-size:20px;
-
 }
+
 textarea{ 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: rgb(185, 201, 254);  
-	color: rgb(0,51,153);
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
 	border-radius: 3px;
 }
+
+
+/* Add form below */
+/* header */
 #add_form th{
-background-color: #4ad;  
+background-color: #cccccc;
 }
 
 #add_form td:nth-child(odd) {
-background-color: #33aa55; 
-color:white;
+background-color: #DCDCDC; 
+color:black;
 font-weight:bold;
 padding:5px;
-
 }
+
 #add_form td:last-child{
 background-color:white;
-
 }
-
 
 #add_form td:nth-child(even) {
-background-color: rgb(185, 201, 254);  
-border:1px solid #4ad;
-
+background-color: #f5f5f5;
+border:1px solid #cccccc;
 }
 
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD;  }
 
-select { border: 1px solid rgb(185, 201, 254); color: rgb(0,51,153); background-color: rgb(185, 201, 254);  }
+/* --- mjun -- generate */
+a.two:visited {color:black;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
+
+/* unvisited link */
+a.Llink:link { color: #FF0000;}
+a.Llink:visited {color: black;}
+a.Llink:hover { color: Orange;}
+a.Llink:active {color: #0000FF;}
+
+a.liR { text-decoration: none; }
+a.liR:hover { font-weight: bold; color:red; border-bottom: solid 1px; border-top: solid 1px; }
+
+a.LEdit:visited {color:blue;}
+a.LDel:visited {color:red;}
+
+.alink a.disabled {
+        color: #666;
+        text-decoration: none;
+    }
 </style>
+
+
 <script language='javascript' src='ajax.js'></script>
 <script language="javascript">
 var driverHTML="";
@@ -844,10 +875,12 @@ function setDate(){
 	dateHTML+="</select>";
 	
 	document.getElementById('cell').innerHTML=dateHTML;
+		
 }
 
 function changeForm(form_type,form_id,form_extra){
 	var htmlCode="";
+
 	if(form_type=="insertion"){
 		htmlCode="<table>";
 		htmlCode+="<tr>";
@@ -912,6 +945,9 @@ function changeForm(form_type,form_id,form_extra){
 //			setHTML();	
 		
 //		}		
+		
+		
+		
 		htmlCode+="</tr>";
 
 		htmlCode+="<tr>";
@@ -963,17 +999,24 @@ function changeForm(form_type,form_id,form_extra){
 		else if(form_extra=="test"){
 //			htmlCode+="<td ><input type=text name='unimog_train_driver' />";
 			htmlCode+="<td id='ph_trams_tag' name='ph_trams_tag' >";
+			
 			htmlCode+="</td>";
+
 		}
 
 		else if(form_extra=="reserve"){
 			htmlCode+="<td><input type=text name='unimog_train_driver' />";
+			
 			htmlCode+="</td>";
+
 		}
 		else if(form_extra=="schooling"){
 //			htmlCode+="<td><input type=text name='unimog_train_driver' />";
+
 			htmlCode+="<td id='school_tag' name='school_tag' >";
+			
 			htmlCode+="</td>";
+			
 
 		}
 		
@@ -1305,7 +1348,8 @@ function changeForm(form_type,form_id,form_extra){
 	
 	
 	document.getElementById('add_form').innerHTML=htmlCode;
-	
+	$('#addModal').modal('show');
+
 	setDate();
 	
 	if((form_type=="removal")||(form_type=="insertion")){
@@ -1319,6 +1363,8 @@ function changeForm(form_type,form_id,form_extra){
 			setHTML();	
 		}
 	}
+		
+
 }
 function setPreset(check){
 	var remarksHTML="";
@@ -1482,6 +1528,7 @@ function fillCar(position,car){
 	
 	
 	}
+	$('#addModal').modal('show');
 
 
 	
@@ -1493,29 +1540,26 @@ function confirmCar(ajaxHTML){
 	if(ajaxHTML=="No car"){
 	}
 	else {
+
 		alert("Car already in Compo of another Train!");
 		document.getElementById(ajaxHTML).value="";
-	
-	
 	}
 	
 
 }
 
-
+$(function() {
+    $( "#search_date" ).datepicker({
+      changeMonth: true,
+      changeYear: true,
+      showAnim: "clip"
+    });    
+});
 
 </script>
-<?php
 
-
-
-
-?>
 <body>
-
-<?php
-require("monitoring menu.php");
-?>
+<br>
 <br>
 <br>
 <form action='<?php echo $PHP_SELF; ?>' method='post'>
@@ -1528,86 +1572,76 @@ $hh=date("h");
 
 $min=date("i");
 $aa=date("a");
+	$availability_date=date("F d, Y");
 
+	$availability_date_code=date("Y-m-d");
 
-if(isset($_POST['day'])){
-	$yy=$_POST['year'];
-	$mm=$_POST['month'];
-	$dd=$_POST['day'];
+if(isset($_POST['search_date'])){
+//	$yy=$_POST['year'];
+//	$mm=$_POST['month'];
+//	$dd=$_POST['day'];
 	
-	$_SESSION['day']=$_POST['day'];
-	$_SESSION['month']=$_POST['month'];
-	$_SESSION['year']=$_POST['year'];
+//	$_SESSION['day']=$_POST['day'];
+//	$_SESSION['month']=$_POST['month'];
+//	$_SESSION['year']=$_POST['year'];
 
-	
+	$_SESSION['search_date']=$_POST['search_date'];
+
+	$availability_date=date("F d, Y",strtotime($_POST['search_date']));
+
+	$availability_date_code=date("Y-m-d",strtotime($_POST['search_date']));
+
+
 	
 }	
+if(isset($_SESSION['search_date'])){
+	$availability_date=date("F d, Y",strtotime($_SESSION['search_date']));
 
-
-
-?>
-
-<select name='month'>
-<?php
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
+	$availability_date_code=date("Y-m-d",strtotime($_SESSION['search_date']));
 }
+
 ?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
+<!--
+<input type='text' name='search_date' id='search_date' class='datepicker' /> -->
+
+<input type="text" name='search_date' id='search_date'>
+
 <input type=submit value='Retrieve Date' />
+
 </form>
+
+<script type="text/javascript">
+$(document).ready(function(){
+    $(".alink a").each(function(){
+        if($(this).hasClass("disabled")){
+            $(this).removeAttr("href");
+        }
+    });
+});
+</script>
+
+<?php
+if ($ULev>=2){
+	$SRemove = "Llink"; 
+	$SRemove2 = "two pull-left";
+	$SRemove3 = "liR grow";
+	$SRemove4 = "LEdit";
+	$SRemove5 = "LDel";
+} else {
+	$SRemove = "disabled";
+	$SRemove2 = "disabled";
+	$SRemove3 = "disabled";
+	$SRemove4 = "disabled";
+	$SRemove5 = "disabled";
+}
+?>
+
+<div class="alink">
+
+<a href='#' class="<?php echo $SRemove; ?>" style='text-underline: none;' onclick='changeForm("add_train","","")'>+Add Train</a> | <a href='#' class="Llink" style='text-underline: none;' onclick='changeForm("unimog","<?php echo $row['id']; ?>","")'>UNIMOG</a>
+<br>
+<a href='#' class="<?php echo $SRemove2; ?>" onclick='window.open("generate_tar.php?tar=<?php echo $availability_date_code; ?>");'><b>Generate Printout</b></a>
+
 <br>
 <table id='cellHeading' width=100%>
 <tr>
@@ -1616,25 +1650,38 @@ for($i=1999;$i<=$dateRecent;$i++){
 <b>
 <?php
 
-if(isset($_POST['day'])){
-	$year=$_POST['year'];
-	$month=$_POST['month'];
-	$day=$_POST['day'];
+if(isset($_POST['search_date'])){
+//	$year=$_POST['year'];
+//	$month=$_POST['month'];
+//	$day=$_POST['day'];	
+//	$availability_date=date("F d, Y",strtotime($year."-".$month."-".$day));
+//	$availability_date_code=date("Y-m-d",strtotime($year."-".$month."-".$day));
 
-
+	$availability_date=date("F d, Y",strtotime($_POST['search_date']));
 	
-	$availability_date=date("F d, Y",strtotime($year."-".$month."-".$day));
-	$availability_date_code=date("Y-m-d",strtotime($year."-".$month."-".$day));
-
+	$_SESSION['month']=date("m",strtotime($availability_date));
+	$_SESSION['day']=date("d",strtotime($availability_date));
+	$_SESSION['year']=date("Y",strtotime($availability_date));
+	
+	
+	$availability_date_code=date("Y-m-d",strtotime($_POST['search_date']));
 	echo $availability_date;
 }	
-else if(isset($_SESSION['day'])){
-	$year=$_SESSION['year'];
-	$month=$_SESSION['month'];
-	$day=$_SESSION['day'];
+else if(isset($_SESSION['search_date'])){
+//	$year=$_SESSION['year'];
+//	$month=$_SESSION['month'];
+//	$day=$_SESSION['day'];
 	
-	$availability_date=date("F d, Y",strtotime($year."-".$month."-".$day));
-	$availability_date_code=date("Y-m-d",strtotime($year."-".$month."-".$day));
+	$availability_date=date("F d, Y",strtotime($_SESSION['search_date']));
+
+	$availability_date_code=date("Y-m-d",strtotime($_SESSION['search_date']));	
+	
+//	$availability_date=date("F d, Y",strtotime($year."-".$month."-".$day));
+//	$availability_date_code=date("Y-m-d",strtotime($year."-".$month."-".$day));
+
+	$_SESSION['month']=date("m",strtotime($availability_date));
+	$_SESSION['day']=date("d",strtotime($availability_date));
+	$_SESSION['year']=date("Y",strtotime($availability_date));
 
 	echo $availability_date;
 }	
@@ -1648,9 +1695,6 @@ else {
 	$availability_date_code=date("Y-m-d",strtotime($year."-".$month."-".$day));
 
 	echo $availability_date;
-
-
-
 }
 	
 	
@@ -1661,7 +1705,7 @@ else {
 <td valign=center align=right><b>Timetable Code: 
 <?php
 $db=new mysqli("localhost","root","","transport");
-$timeTableSQL="select *,timetable_day.id as timeId from timetable_day inner join timetable.timetable on timetable_day.timetable_code=timetable.timetable.id where train_date='".$availability_date_code."'";
+$timeTableSQL="select *,timetable_day.id as timeId from timetable_day inner join timetable_code on timetable_day.timetable_code=timetable_code.id where train_date='".$availability_date_code."'";
 
 $timeTableRS=$db->query($timeTableSQL);
 $timeTableNM=$timeTableRS->num_rows;
@@ -1669,7 +1713,7 @@ if($timeTableNM>0){
 	$timeTableRow=$timeTableRS->fetch_assoc();
 	echo $timeTableRow['code'];
 ?>
- <a href='#' style='text-underline:none;' onclick='window.open("timetable_set.php?reset=<?php echo $timeTableRow['timeId']; ?>","code","height=300, width=350")'>Set/Reset Code</a>
+ <a class="<?php echo $SRemove3; ?>" href='#' style='text-underline:none; color: #fffdfd' onclick='window.open("timetable_set.php?reset=<?php echo $timeTableRow['timeId']; ?>","code","height=300, width=350")'>Set/Reset Code</a>
 <?php	
 
 	}
@@ -1677,7 +1721,7 @@ else {
 
 	echo "________";
 ?>
- <a href='#' style='text-underline:none;' onclick='window.open("timetable_set.php?set=1","code","height=300, width=350")'>Set/Reset Code</a>
+ <a href='#' class="<?php echo $SRemove3; ?>" style='text-underline:none; color: #fffdfd' onclick='window.open("timetable_set.php?set=1","code","height=300, width=350")'>Set/Reset Code</a>
 <?php	
 }
 ?>
@@ -1696,6 +1740,8 @@ else {
 </td>
 </tr>
 </table>
+</div>
+<div class='alink'>
 <table class='train_ava'>
 <tr class='rowHeading'>
 <th rowspan=2>
@@ -1736,7 +1782,7 @@ Switch
 	$year=date("Y");
 	$month=date("m");
 	$day=date("d");
-	
+	/*
 	if(isset($_POST['day'])){
 	$year=$_POST['year'];
 	$month=$_POST['month'];
@@ -1750,17 +1796,16 @@ Switch
 	
 	
 	}
+	*/
 	
-	
-	$availability_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
+//	$availability_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 
-	
+	$availability_date=$availability_date_code;
 	
 	
 	$db=new mysqli("localhost","root","","transport");
 	
 	$sql="select * from train_availability where date between '".$availability_date." 00:00:00' and '".$availability_date." 23:59:59' order by date";
-
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
 
@@ -1782,15 +1827,21 @@ Switch
 			if($i%2>0){ echo "class='rowClass'"; } 
 			}
 			else {
-			echo "style='background-color:pink;';";
+//			echo "style='background-color:#f5f5f5;';";
+		//	echo "style='background-color:#67c2ef;';";
+echo "style='background-color:#67c2ef'";
 			}
 		}
 		else {
-			echo "style='background-color:pink;';";
-		}
+//			echo "style='background-color:#f5f5f5;';";
+ echo "style='background-color:#67c2ef'";
+
+//			echo "style='background-color:#67c2ef;';";
+
+			}
 		?>
 		>	
-		<td align=center rowspan=3><?php echo $row['index_no']; ?> <a href='#' onclick='changeForm("editIndex","<?php echo $row['id']; ?>","")'>Edit</a></td>
+		<td align=center rowspan=3><?php echo $row['index_no']; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick='changeForm("editIndex","<?php echo $row['id']; ?>","")'>Edit</a></td>
 <?php
 	$sql3="select * from train_switch where train_ava_id='".$row['id']."' order by date_change";
 	
@@ -1803,7 +1854,7 @@ Switch
 	for($n=0;$n<$nm3;$n++){
 		$row3=$rs3->fetch_assoc();
 ?>
-		<td align=center rowspan=3><?php echo $row3['new_index']." /<br> ".date("H:i",strtotime($row3['date_change'])); ?> <a href='#' onclick='deleteSwitch("<?php echo $row3['id']; ?>")'>X</a> </td>
+		<td align=center rowspan=3><?php echo $row3['new_index']." /<br> ".date("H:i",strtotime($row3['date_change'])); ?> <a href='#' class="<?php echo $SRemove5; ?>"  onclick='deleteSwitch("<?php echo $row3['id']; ?>")'>X</a> </td>
 <?php
 	
 	
@@ -1815,7 +1866,7 @@ Switch
 	for($n=0;$n<$blank;$n++){	
 		if($n==0){
 			?>	
-		<td rowspan=3><a href='#add_form' onclick='changeForm("index_switch","<?php echo $row['id']; ?>","")'>Switch Index No.</a></td>
+		<td rowspan=3><a href='#add_form' class="<?php echo $SRemove; ?>"  onclick='changeForm("index_switch","<?php echo $row['id']; ?>","")'>Switch Index No.</a></td>
 			<?php
 		}
 		else {
@@ -1825,7 +1876,7 @@ Switch
 		}
 }
 ?>	
-		<td align=center><a href='#' onclick='window.open("car_history.php?car_id=<?php echo $row['car_a']; ?>")'><?php echo $row['car_a']; ?></a></td><td rowspan=3><a href='#add_form' onclick='changeForm("editCar","<?php echo $row['id']; ?>","")'>Edit</a></td>
+		<td align=center><a href='#' class="<?php echo $SRemove?>"  onclick='window.open("car_history.php?car_id=<?php echo $row['car_a']; ?>")'><?php echo $row['car_a']; ?></a></td><td rowspan=3><a href='#add_form' class="<?php echo $SRemove4?>"  onclick='changeForm("editCar","<?php echo $row['id']; ?>","")'>Edit</a></td>
 	<?php	
 		
 		$sql2="select * from train_ava_time where train_ava_id='".$row['id']."'";
@@ -1956,14 +2007,14 @@ Switch
 					$order=getLevel($cancelRow['incident_id'],$db);
 					
 					if($m==0){
-						$incidentClause.="<a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
+						$incidentClause.="<a href='#' class='$SRemove'  onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
 					
 					
 					
 					}
 					else {
 						$incidentClause.=",<br>";
-						$incidentClause.="<a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
+						$incidentClause.="<a href='#' class='$SRemove'  onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
 						
 					}
 					
@@ -2034,20 +2085,28 @@ Switch
 				}
 				
 			}
+			
+			
 	?>
+	
+	
+
+		
+		
+		
 		<td rowspan=3><?php echo $boundary_time; ?></td>
 		<td align=center rowspan=3><?php echo $row['lpam_id']; ?></td>		
 
-		<td rowspan=3><?php echo $inserted_to.$insert_time; ?> <a href='#add_form' onclick='changeForm("insertion","<?php echo $row['id']; ?>","<?php if($row['type']=="unimog"){ echo "unimog"; } else if($row['type']=="test"){ echo "test"; } else if($row['type']=="reserve"){ echo "reserve"; } else if($row['type']=="schooling"){ echo "schooling"; } ?>")'>Edit</a> / <a href='#' onclick='cancelTrain("<?php echo $row['id']; ?>")'>Cancel</a></td>
+		<td rowspan=3><?php echo $inserted_to.$insert_time; ?> <a href='#add_form' class="<?php echo $SRemove4; ?>" onclick='changeForm("insertion","<?php echo $row['id']; ?>","<?php if($row['type']=="unimog"){ echo "unimog"; } else if($row['type']=="test"){ echo "test"; } else if($row['type']=="reserve"){ echo "reserve"; } else if($row['type']=="schooling"){ echo "schooling"; } ?>")'>Edit</a> / <a href='#'  class="<?php echo $SRemove; ?>" onclick='cancelTrain("<?php echo $row['id']; ?>")'>Cancel</a></td>
 		<td rowspan=3><?php echo str_replace("SUP","STDO",$insert_driver); ?></td>
 
 <!--<a href='#' onclick='changeForm("index_switch","")'>Switch Index No.</a>-->
-		<td rowspan=3><?php echo $removed_from.$remove_time; ?> <a href='#add_form' onclick='changeForm("removal","<?php echo $row['id']; ?>","<?php if($row['type']=="unimog"){ echo "unimog"; } else if($row['type']=="test"){ echo "test"; } else if($row['type']=="reserve"){ echo "reserve"; } else if($row['type']=="schooling"){ echo "schooling"; } ?>")'>Edit</a></td>
+		<td rowspan=3><?php echo $removed_from.$remove_time; ?> <a href='#add_form'  class="<?php echo $SRemove4; ?>" onclick='changeForm("removal","<?php echo $row['id']; ?>","<?php if($row['type']=="unimog"){ echo "unimog"; } else if($row['type']=="test"){ echo "test"; } else if($row['type']=="reserve"){ echo "reserve"; } else if($row['type']=="schooling"){ echo "schooling"; } ?>")'>Edit</a></td>
 		<td rowspan=3><?php echo str_replace("SUP","STDO",$remove_driver); ?></td>
 		<td rowspan=3><?php echo $remove_remarks; ?>
 		<?php echo $incidentClause; ?>
-		<br><a href='#add_form' onclick='changeForm("remarks","<?php echo $row['id']; ?>","<?php  echo $remove_remarks;   ?>")'>Add/Edit Remarks </a>
-		<br><a href='#add_form' onclick='window.open("incident report.php?add_incident=<?php echo $row['id']; ?>")'>Add Incident </a>
+		<br><a href='#add_form'  class="<?php echo $SRemove; ?>" onclick='changeForm("remarks","<?php echo $row['id']; ?>","<?php  echo $remove_remarks;   ?>")'>Add/Edit Remarks </a>
+		<br><a href='#add_form'  class="<?php echo $SRemove; ?>" onclick='window.open("incident report.php?add_incident=<?php echo $row['id']; ?>")'>Add Incident </a>
 		
 		
 		</td>
@@ -2177,8 +2236,8 @@ Switch
 		<td rowspan=3>
 		<?php echo $remove_remarks; ?>
 		<?php echo $incidentClause; ?>
-		<br><a href='#add_form' onclick='changeForm("remarks","<?php echo $row['id']; ?>","<?php echo $remove_remarks;  ?>")'>Add/Edit Remarks </a>
-		<br><a href='#' onclick='window.open("incident report.php?add_incident=<?php echo $row['id']; ?>")'>Add Incident </a></td>
+		<br><a href='#add_form'  class="<?php echo $SRemove; ?>" onclick='changeForm("remarks","<?php echo $row['id']; ?>","<?php echo $remove_remarks;  ?>")'>Add/Edit Remarks </a>
+		<br><a href='#'  class="<?php echo $SRemove; ?>" onclick='window.open("incident report.php?add_incident=<?php echo $row['id']; ?>")'>Add Incident </a></td>
 		<td rowspan=3><?php echo $level2Clause; ?></td>
 		<td rowspan=3><?php echo $level3Clause; ?></td>
 		<td rowspan=3><?php echo $level4Clause; ?></td>
@@ -2186,7 +2245,7 @@ Switch
 		<?php
 		}
 	?>
-		<td rowspan=3 valign=center align=center><a href='#' onclick='deleteRow("<?php echo $row['id']; ?>")'>X</a></td>	
+		<td rowspan=3 valign=center align=center><a href='#'  class="<?php echo $SRemove5; ?>" onclick='deleteRow("<?php echo $row['id']; ?>")'>X</a></td>	
 	</tr>
 	<tr 
 		<?php 
@@ -2195,12 +2254,16 @@ Switch
 			if($i%2>0){ echo "class='rowClass'"; } 
 			}
 			else {
-			echo "style='background-color:pink;';";
+//			echo "style='background-color:#f5f5f5;';";
+			echo "style='background-color:#67c2ef;'";
+
 			}
 		
 		}
 		else {
-			echo "style='background-color:pink;';";
+//			echo "style='background-color:#f5f5f5;';";
+			echo "style='background-color:#67c2ef;'";
+
 		}
 		
 		
@@ -2211,7 +2274,7 @@ Switch
 		
 		
 		>
-		<td align=center><a href='#' onclick='window.open("car_history.php?car_id=<?php echo $row['car_b']; ?>")'><?php echo $row['car_b']; ?></a></td>
+		<td align=center><a href='#'  class="<?php echo $SRemove; ?>" onclick='window.open("car_history.php?car_id=<?php echo $row['car_b']; ?>")'><?php echo $row['car_b']; ?></a></td>
 	</tr>	
 	<tr 
 	<?php 
@@ -2220,12 +2283,15 @@ Switch
 			if($i%2>0){ echo "class='rowClass'"; } 
 			}
 			else {
-			echo "style='background-color:pink;';";
+//			echo "style='background-color:#f5f5f5;';";
+			echo "style='background-color:#67c2ef;'";
+
 			}
 		
 		}
 		else {
-			echo "style='background-color:pink;';";
+//			echo "style='background-color:#f5f5f5;';";
+			echo "style='background-color:#67c2ef;'";
 		}
 		
 		
@@ -2235,7 +2301,7 @@ Switch
 	
 	
 	>
-		<td align=center><a href='#' onclick='window.open("car_history.php?car_id=<?php echo $row['car_c']; ?>")'><?php echo $row['car_c']; ?></a></td>
+		<td align=center><a href='#'  class="<?php echo $SRemove; ?>" onclick='window.open("car_history.php?car_id=<?php echo $row['car_c']; ?>")'><?php echo $row['car_c']; ?></a></td>
 
 	</tr>	
 	<?php
@@ -2243,209 +2309,47 @@ Switch
 	?>
 
 
-
-
-
 </table>
-<a href='#' style='text-underline: none;' onclick='changeForm("add_train","","")'>+Add Train</a> | <a href='#' style='text-underline: none;' onclick='changeForm("unimog","<?php echo $row['id']; ?>","")'>UNIMOG</a>
+<a href='#' class="Llink" style='text-underline: none;' onclick='changeForm("add_train","","")'>+Add Train</a> | <a href='#' class="Llink" style='text-underline: none;' onclick='changeForm("unimog","<?php echo $row['id']; ?>","")'>UNIMOG</a>
 <br>
 <br>
-<a href='#' onclick='window.open("generate_tar.php?tar=<?php echo $availability_date; ?>");'>Generate Printout</a>
-
+<?php
+if ($nm<>0) { ?>
+<a href='#' class="two" onclick='window.open("generate_tar.php?tar=<?php echo $availability_date; ?>");'><b>Generate Printout</b></a>
+<?php
+} ?>
 <br>
 <br>
 
-<form name='add_form' id='add_form' action='train_availability.php' method='post'>
-<table>
-<tr><th colspan=2>Add/Prep Train</th></tr>
-<tr>
-<td>
-Type
-</td>
-<td>
-<select name='type' id='type' onchange='setTrain(this.value)'>
-<option value='revenue'>Revenue Train</option>
-<option value='reserve'>Reserve Train</option>
-<option value='schooling'>Schooling Train</option>
-<option value='finance'>Finance Train</option>
-<option value='test'>Test Train</option>
-</select>
-</td>
-</tr>
-<tr>
-<td>
-Index No.
-</td>
-<td id='index_tag' name='index_tag'>
-<input type=text name='index_no' autocomplete="off"  />
-</td>
-</tr>
-<tr>
-<td>
-Car 1
-</td>
-<td>
-<input type=text name='car_1' id='car_1' autocomplete="off"  onblur='fillCar("first",this.value)'/>
-</td>
-</tr>
-<tr>
-<td>
-Car 2
-</td>
-<td>
-<input type=text name='car_2' id='car_2' autocomplete="off" onblur='fillCar("mid",this.value)' />
-</td>
-</tr>
-<tr>
-<td>
-Car 3
-</td>
-<td>
-<input type=text name='car_3' id='car_3' autocomplete="off"  onblur='fillCar("last",this.value)' />
-</td>
-</tr>
-<tr>
-<td>
-LPAM No.
-</td>
-<td>
-<input type=text autocomplete="off"  name='lpam_id' />
-</td>
-</tr>
-<tr>
-<th colspan=2>
-<input type=checkbox name='cancel_departure' id='cancel_departure' />Cancelled
-</th>
-</tr>
-<tr>
-<td>I336 Time</td>
-<td id='cell' name='cell'>
-<?php
-$mm=date("m");
-$yy=date("Y");
-$dd=date("d");
 
-$hh=date("h");
+		<div class="modal hide fade" id="addModal">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">×</button>
+				<h3>Edit</h3>
+			</div>
 
-$min=date("i");
-$aa=date("a");
-?>
-<select name='month'>
-<?php
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<br>
+				<div class="modal-body">	
+						<form  name='add_form' id='add_form' action='train_availability.php' method='post'>
 
-<select name='hour'>
-<?php
-for($i=1;$i<=12;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i*1==$hh*1){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='minute'>
-<?php
-for($i=0;$i<=59;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i*1==$min*1){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	if($i<10){
-	echo "0".$i;
-	}
-	else {
-	echo $i;
-	}
-	?>	
-	</option>
-<?php
-}
-?>
-</select>
-<select name='amorpm'>
-<option value='am' <?php if($aa=="am"){ echo "selected"; } ?>>AM</option>
-<option value='pm' <?php if($aa=="pm"){ echo "selected"; } ?>>PM</option>
-</select>
-</td>
-</tr>
-<tr>
-<td align=center class='submit' colspan=2>
-<input type='submit' value='Add' />
-</td>
-</tr>
-</table>
-</form>
+				</form>
+
+				</div>
+						
+			<div class="modal-footer">
+				<a href="#" class="btn" data-dismiss="modal">Close</a>
+				<button type='submit' class="btn btn-primary" id='Suc' value='Submit'>Edit </button>
+			</div>
+		</div>
+
+
+
 </body>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+		<script src="js/bootstrap.min.js"></script>	
+		
 
+<script src="js/date.js"></script>	
+<script src='js/form.js'></script>

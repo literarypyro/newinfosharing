@@ -102,6 +102,12 @@ th {
 
 }
 
+
+
+
+
+
+
 #dataentry tr td:first-child {
 	background-color: rgb(185, 201, 254);
 	color: rgb(0,51,153);

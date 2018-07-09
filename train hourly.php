@@ -1,6 +1,10 @@
 <?php
-session_start();
+require("Tmenu.php");
 ?>
+<!--Modify: mjun
+ Modified date: Aug 5, 2014
+ Modified: Change screen layout
+-->
 <?php
 function is_decimal( $val )
 {
@@ -9,14 +13,15 @@ function is_decimal( $val )
 ?>
 <?php
 if(isset($_POST['reserve'])){
-	if($_SESSION['month']==""){
+	if($_SESSION['search_date']==""){
 	}
 	else {
-		$month=$_SESSION['month'];
-		$day=$_SESSION['day'];
-		$year=$_SESSION['year'];
+//		$month=$_SESSION['month'];
+//		$day=$_SESSION['day'];
+//		$year=$_SESSION['year'];
 		
-		$train_date=$year."-".$month."-".$day;
+//		$train_date=$year."-".$month."-".$day;
+		$train_date=date("Y-m-d",strtotime($_SESSION['search_date']));
 		
 		$db=new mysqli("localhost","root","","transport");
 		
@@ -57,14 +62,15 @@ if(isset($_POST['reserve'])){
 }
 
 if(isset($_POST['remarks'])){
-	if($_SESSION['month']==""){
+	if($_SESSION['search_date']==""){
 	}
 	else {
-		$month=$_SESSION['month'];
-		$day=$_SESSION['day'];
-		$year=$_SESSION['year'];
+//		$month=$_SESSION['month'];
+//		$day=$_SESSION['day'];
+//		$year=$_SESSION['year'];
+		$train_date=date("Y-m-d",strtotime($_SESSION['search_date']));
 		
-		$train_date=$year."-".$month."-".$day;
+//		$train_date=$year."-".$month."-".$day;
 		
 		$db=new mysqli("localhost","root","","transport");
 		
@@ -95,14 +101,17 @@ if(isset($_POST['remarks'])){
 ?>
 <?php
 if(isset($_POST['cars_provided'])){
-	if($_SESSION['month']==""){
+	if($_SESSION['search_date']==""){
 	}
 	else {
-		$month=$_SESSION['month'];
-		$day=$_SESSION['day'];
-		$year=$_SESSION['year'];
+//		$month=$_SESSION['month'];
+//		$day=$_SESSION['day'];
+//		$year=$_SESSION['year'];
 		
-		$train_date=$year."-".$month."-".$day;
+//		$train_date=$year."-".$month."-".$day;
+		
+		
+		$train_date=date("Y-m-d",strtotime($_SESSION['search_date']));
 		
 		$db=new mysqli("localhost","root","","transport");
 		
@@ -142,41 +151,58 @@ if(isset($_POST['cars_provided'])){
 	}
 }
 ?>
+<!--
+<link href="css/style.min.css" rel="stylesheet" />
+
+
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/gray/easyui.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/icon.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/demo/demo.css" />
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.min.js"></script>
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.easyui.min.js"></script>
+-->
+
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
 
 <style type='text/css'>
-.rowClass {
-	background-color:#eaf2d3;
-}
-.rowHeading {
-	background-color:#a7c942;
-	color:rgb(0,51,153);
-}
+
+.rowClass {background-color: #F3F3F3;}
+
+/* color header */
+.rowHeading {background-color: #cccccc;}
+
 .train_ava td{
-	border: 1px solid #a7c942;
+	border: 1px solid #FBCC2A;
 	color: rgb(0,51,153);
 	cellpadding: 5px;
 
 }
  .train_ava th {
-	border: 1px solid #a7c942;
-	cellpadding: 5px;
-	
+	border: 1px solid #FBCC2A;;
+	cellpadding: 5px;	
 }
+
+/*
 body {
 	margin-left:30px;
 	margin-right:30px;
-
 }
+*/
+
+/* input color */
 input[type="text"]{ 
 	height:25px; 
 	font-weight:bold; 
 	font-size:15px; 
 	font-family:courier; 
-	border: 1px solid #C6C6C6; 
-	background-color: rgb(185, 201, 254);  
-	color: rgb(0,51,153);
-	border-radius: 3px;
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;  
+	border-radius: 3px
 }
+
+/*
 #cellHeading {
 	background-image: -o-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
 	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
@@ -194,156 +220,133 @@ input[type="text"]{
 	border-radius: 5px;
 
 }
+*/
+
 input[type="text"]:focus {
-	background-color:rgb(158,27,32);
-	color:white;
-
+	background-color:#FFFFF0;
 }
+
 textarea:focus {
-	background-color:rgb(158,27,32);
-	color:white;
+	background-color:#FFFFF0;
 	font-weight:bold;
-
 }
+
 .date {
 	text-style:bold;
 	font-size:20px;
-
 }
+
 textarea{ 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: rgb(185, 201, 254);  
-	color: rgb(0,51,153);
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
 	border-radius: 3px;
 }
-#add_form th{
-background-color: #4ad;  
-}
+
+#add_form th{background-color: #cccccc;}
 
 #add_form td:nth-child(odd) {
-background-color: #33aa55; 
-color:white;
+background-color: #DCDCDC;  
+color:black;
 font-weight:bold;
 padding:5px;
-
 }
-#add_form td:last-child{
-background-color:white;
+#add_form td:last-child{background-color:white;}
 
-}
+#add_form td:nth-child(even) { background-color: #f5f5f5; border:1px solid #cccccc; }
+
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; }
+
+/* --- mjun -- generate */
+a.two:visited {color:black;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
+
+.alink a.disabled {
+        color: #666;
+        text-decoration: none;
+    }
 
 
-#add_form td:nth-child(even) {
-background-color: rgb(185, 201, 254);  
-border:1px solid #4ad;
-
-}
-
-
-select { border: 1px solid rgb(185, 201, 254); color: rgb(0,51,153); background-color: rgb(185, 201, 254);  }
 </style>
-<body>
-<?php
-require("monitoring menu.php");
 
+<script language='javascript'>
+
+$(function() {
+    $( "#search_date" ).datepicker({
+      changeMonth: true,
+      changeYear: true,
+      showAnim: "clip"
+    });    
+});
+$(document).ready(function(){
+    $(".alink a").each(function(){
+        if($(this).hasClass("disabled")){
+            $(this).removeAttr("href");
+        }
+    });
+});
+</script>
+
+
+
+<?php
+$datenow=date("m/d/Y");
+if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
+	if(isset($_POST['search_date'])){
+		
+		$datenow=date("m/d/Y",strtotime($_POST['search_date']));
+//		$year=$_POST['year'];
+//		$month=$_POST['month'];
+//		$day=$_POST['day'];
+	}
+	
+	else if(isset($_SESSION['search_date'])){
+		$datenow=date("m/d/Y",strtotime($_SESSION['search_date']));
+
+		//$year=$_SESSION['year'];
+		//$month=$_SESSION['month'];
+		//$day=$_SESSION['day'];
+	
+	
+	}
+}
 ?>
+
+<body>
+<br>
 <br>
 <br>
 <form action='train hourly.php' method='post'>
-<select name='month'>
-<?php
-$mm=date("m");
-$yy=date("Y");
-$dd=date("d");
+<!--
+<input type='text' name='search_date' id='search_date' class="easyui-datebox" value='<?php echo $datenow; ?>' />
+-->
+<input type="text" name='search_date' id='search_date' />
 
-$hh=date("h");
-
-$min=date("i");
-$aa=date("a");
-
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
 <input type=submit value='Access Monitoring' />
 </form>
 <?php
 $db=new mysqli("localhost","root","","transport");
 
 $timetable_code="";
-if((isset($_POST['month']))||(isset($_SESSION['month']))){
-	if(isset($_POST['month'])){
-		$month=$_POST['month'];
-		$day=$_POST['day'];
-		$year=$_POST['year'];
-		
-		$_SESSION['month']=$_POST['month'];
-		$_SESSION['day']=$_POST['day'];
-		$_SESSION['year']=$_POST['year'];
-	
-	}
-	else if(isset($_SESSION['month'])){
-		$month=$_SESSION['month'];
-		$day=$_SESSION['day'];
-		$year=$_SESSION['year'];
-	
-	
-	}
 
-	$timetable=date("Y-m-d",strtotime($year."-".$month."-".$day));
+if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
+	if(isset($_POST['search_date'])){
+		
+		$ava_date=date("Y-m-d",strtotime($_POST['search_date']));
+//		$year=$_POST['year'];
+//		$month=$_POST['month'];
+//		$day=$_POST['day'];
+	}
+	
+	else if(isset($_SESSION['search_date'])){
+		$ava_date=date("Y-m-d",strtotime($_SESSION['search_date']));
+
+		//$year=$_SESSION['year'];
+		//$month=$_SESSION['month'];
+		//$day=$_SESSION['day'];
+	
+	
+	}
+	$timetable=$ava_date;
 	
 	$sql="select * from timetable_day where train_date like '".$timetable."%%'";
 	$rs=$db->query($sql);
@@ -363,6 +366,17 @@ echo "<h2>".date("F d, Y",strtotime($timetable))."</h2><br>";
 
 
 ?>
+<?php
+if ($ULev>=2){
+	$SRemove = ""; 
+	$SRemove2 = "two";	
+} else {
+	$SRemove = "disabled";
+	$SRemove2 = "disabled";	
+}
+?>
+<div class="alink">
+
 <table class='train_ava' width=100%>
 <tr class='rowHeading'>
 <th>Time</th>
@@ -623,7 +637,7 @@ else {
 				$incident_row=$incident_rs->fetch_assoc();
 	
 				if($m==0){
-					echo "<a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$incident_row['incident_id']."\")'>IN ".$incident_row['incident_no'];
+					echo "<a href='#' class='$SRemove' onclick='window.open(\"edit_ccdr.php?ir=".$incident_row['incident_id']."\")'>IN ".$incident_row['incident_no'];
 					if(($incident_row['incident_type']=="rolling")||($incident_row['incident_type']=="unload")||($incident_row['incident_type']=="nload")){
 					echo "(".$incident_row['index_no'].")";
 
@@ -631,7 +645,7 @@ else {
 					echo "</a>";
 				}
 				else {
-					echo ", <a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$incident_row['incident_id']."\")'>IN ".$incident_row['incident_no'];
+					echo ", <a href='#' class='$SRemove' onclick='window.open(\"edit_ccdr.php?ir=".$incident_row['incident_id']."\")'>IN ".$incident_row['incident_no'];
 					if(($incident_row['incident_type']=="rolling")||($incident_row['incident_type']=="unload")||($incident_row['incident_type']=="nload")){
 					echo "(".$incident_row['index_no'].")";
 
@@ -677,10 +691,19 @@ else {
 
 ?>
 </table>
-<a href='#' onclick='window.open("generate_star.php?star_id=<?php echo $timetable_code; ?>&timetable=<?php echo $timetable; ?>");'>Generate Printout</a>
+<!-- mjun -->
+<?php
+if ($timetable_code<>'') { ?>
+	
+<a href='#' class="<?php echo $SRemove2; ?>" onclick='window.open("generate_star.php?star_id=<?php echo $timetable_code; ?>&timetable=<?php echo $timetable; ?>");'><b>Generate Printout</b></a>
+
 <br>
 
-<a href='#' onclick='window.open("generate_ccip.php?ccip_id=<?php echo $timetable_code; ?>&ccip_date=<?php echo $timetable; ?>");'>Generate Insertion Form</a>
+<a href='#' class="<?php echo $SRemove2; ?>"  onclick='window.open("generate_ccip.php?ccip_id=<?php echo $timetable_code; ?>&ccip_date=<?php echo $timetable; ?>");'><b>Generate Insertion Form</b></a>
+
+<?php }
+?>
+</div>
 <br>
 <br>
 <form action='train hourly.php' method='post'>
@@ -716,7 +739,18 @@ for($i=0;$i<$nm;$i++){
 </tr>
 <tr>
 <td colspan=2 align=center>
+
+<?php
+if ($ULev>=2){
+?>
 <input type=submit value='Submit' />
+<?php
+} else {
+?>
+<input type=submit value='Submit' disabled />
+<?php
+}
+?>
 </td>
 </tr>
 </table>
@@ -759,7 +793,18 @@ for($i=0;$i<$nm;$i++){
 
 <tr>
 <td colspan=2 align=center>
+
+<?php
+if ($ULev>=2){
+?>
 <input type=submit value='Submit' />
+<?php
+} else {
+?>
+<input type=submit value='Submit' disabled />
+<?php
+}
+?>
 </td>
 </tr>
 </table>
@@ -798,9 +843,30 @@ for($i=0;$i<$nm;$i++){
 </tr>
 <tr>
 <td colspan=2 align=center>
+
+<?php
+if ($ULev>=2){
+?>
 <input type=submit value='Submit' />
+<?php
+} else {
+?>
+<input type=submit value='Submit' disabled />
+<?php
+}
+?>
 </td>
 </tr>
 </table>
 </form>
 </body>
+		<script src="js/jquery-1.10.2.min.js"></script>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+		<script src="js/bootstrap.min.js"></script>	
+
+<!--
+<script src="js/date.js"></script>	
+-->

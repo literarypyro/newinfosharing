@@ -1,30 +1,61 @@
 <?php
-session_start();
+require("Tmenu.php");
 ?>
-<style type='text/css'>
-.rowClass {
-	background-color:#eaf2d3;
-}
-.rowHeading {
-	background-color:#a7c942;
-	color:rgb(0,51,153);
-}
-.train_ava td{
-	border: 1px solid #a7c942;
-	color: rgb(0,51,153);
-	cellpadding: 5px;
 
-}
- .train_ava th {
-	border: 1px solid #a7c942;
-	cellpadding: 5px;
+<!--- Modified by Jun
+//--- Date: 7/29/2014
+//--- Modify: modify screen layout
+//--- Marker: @mjun
+//--------------------------------------------------->
+
+<!--
+	<link href="css/style.min.css" rel="stylesheet" /> -->
+<!--	
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/gray/easyui.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/icon.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/demo/demo.css" />
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.min.js"></script>
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.easyui.min.js"></script> 
+-->	
+
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>	
 	
+<style type='text/css'>
+
+/* color background */
+.rowClass {
+	background-color: #F3F3F3;
 }
-body {
+
+/* color header */
+.rowHeading {
+	background-color: #cccccc; 
+	 /* color:rgb(0,51,153); */
+}
+
+/* outline  color result */
+.train_ava td{
+	border: 1px solid #A9A9A9;
+	/* color: rgb(0,51,153); */
+	cellpadding: 5px; 
+}
+
+/* outline header */
+ .train_ava th {
+	border: 1px solid #A9A9A9;
+	cellpadding: 5px;	
+}
+
+/*
+body { 
 	margin-left:30px;
 	margin-right:30px;
-
+	font-size: 3px;
 }
+*/
+
 input[type="text"]{ 
 	height:25px; 
 	font-weight:bold; 
@@ -35,6 +66,7 @@ input[type="text"]{
 	color: rgb(0,51,153);
 	border-radius: 3px;
 }
+
 #cellHeading {
 	background-image: -o-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
 	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
@@ -50,30 +82,32 @@ input[type="text"]{
 	padding:5px;
 	-moz-border-radius: 5px;
 	border-radius: 5px;
-
 }
+
 input[type="text"]:focus {
 	background-color:rgb(158,27,32);
 	color:white;
 
 }
+
 textarea:focus {
 	background-color:rgb(158,27,32);
 	color:white;
 	font-weight:bold;
-
 }
+
 .date {
 	text-style:bold;
 	font-size:20px;
-
 }
+
 textarea{ 
 	border: 1px solid rgb(185, 201, 254);
 	background-color: rgb(185, 201, 254);  
 	color: rgb(0,51,153);
 	border-radius: 3px;
 }
+
 #add_form th{
 background-color: #4ad;  
 }
@@ -87,19 +121,25 @@ padding:5px;
 }
 #add_form td:last-child{
 background-color:white;
-
 }
-
 
 #add_form td:nth-child(even) {
 background-color: rgb(185, 201, 254);  
 border:1px solid #4ad;
-
 }
 
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; } 
 
-select { border: 1px solid rgb(185, 201, 254); color: rgb(0,51,153); background-color: rgb(185, 201, 254);  }
+/* --- mjun */
+a.two:visited {color:black;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
+
+a.two2:visited {color:#ca0000;}
+a.two2:hover, a.two:active {font-size:105%; color:orange;}
+h2 { font-size:20px; font-weight:bold; }
+a.LDel:visited {color:red;}
 </style>
+
 <script language='javascript' src='ajax.js'></script>
 <script language='javascript'>
 function deleteIncident(index){
@@ -115,12 +155,23 @@ function reloadPage(ajaxHTML){
 
 }
 
+
+$(function() {
+    $( "#search_date" ).datepicker({
+      changeMonth: true,
+      changeYear: true,
+      showAnim: "clip"
+    });    
+    $( "#search_date2" ).datepicker({
+      changeMonth: true,
+      changeYear: true,
+      showAnim: "clip"
+    });    
+
+});
+
 </script>
 <body>
-<?php
-require("monitoring menu.php");
-
-?>
 <br>
 <br>
 <br>
@@ -134,80 +185,36 @@ $hh=date("h");
 $min=date("i");
 $aa=date("a");
 
+$datenow=date("m/d/Y");
+$availability_date=date("Y-m-d");
 
-if(isset($_SESSION['month'])){
-$month=$_SESSION['month'];
-$day=$_SESSION['day'];
-$year=$_SESSION['year'];
+if(isset($_SESSION['search_date'])){
+//$month=$_SESSION['month'];
+//$day=$_SESSION['day'];
+//$year=$_SESSION['year'];
 
+$availability_date=$_SESSION['search_date'];
+
+$datenow=date("m/d/Y",strtotime($availability_date));
 }
 ?>
-<form action='incident summary.php' method='post'>
-<select name='month'>
+<form  action='incident summary.php' method='post'>
+<!--
+<input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo $datenow; ?>'/> -->
+<!--
+<input name='search_date' id='search_date' type="text" class="easyui-datebox" value='<?php echo $datenow; ?>'/> 
+-->
+From <input type="text" name='search_date2' id='search_date2'>
+<br>
 
-<?php
+<br>
+To <input type="text" name='search_date' id='search_date'>
 
-
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
 <input type=submit value='Access Monitoring' />
 </form>
-<br>
+
+<!-- Sort form -->
+
 <form action='incident summary.php' method='post'>
 Sort By:
 <select name='sort_by' id='sort_by'>
@@ -221,39 +228,84 @@ Sort By:
 <input type='submit' value='Sort' />
 </form>
 
-<br>
 <?php
-if(isset($_POST['month'])){
-$month=$_POST['month'];
-$day=$_POST['day'];
-$year=$_POST['year'];
+if(isset($_POST['search_date2'])){
+//$month=$_POST['month'];
+//$day=$_POST['day'];
+//$year=$_POST['year'];
 
-$_SESSION['month']=$month;
-$_SESSION['day']=$day;
-$_SESSION['year']=$year;
+//$_SESSION['month']=$month;
+//$_SESSION['day']=$day;
+//$_SESSION['year']=$year;
+
+$availability_date=date("Y-m-d",strtotime($_POST['search_date2']));
+$datenow=date("m/d/Y",strtotime($_POST['search_date2']));
+
+
+if(isset($_POST['search_date'])){
+	$availability_date2=date("Y-m-d",strtotime($_POST['search_date']));
+//	$datenow=$datenow.=" - ".date("m/d/Y",strtotime($_POST['search_date']));
+	$_SESSION['search_date']=$_POST['search_date'];
+	
+	
+}
+else {
+	$_SESSION['search_date']="";
+	$availability_date2="";
+}
+
+
+
+$_SESSION['search_date2']=$_POST['search_date2'];
+
+}
+else {
+if(isset($_SESSION['search_date2'])){
+
+$availability_date=date("Y-m-d",strtotime($_SESSION['search_date2']));
+$datenow=date("m/d/Y",strtotime($_SESSION['search_date2']));
+
+if(isset($_SESSION['search_date'])){
+	$availability_date2=date("Y-m-d",strtotime($_SESSION['search_date']));
+//	$datenow=$datenow.=" - ".date("m/d/Y",strtotime($_SESSION['search_date']));
+	$_SESSION['search_date']=$_POST['search_date'];
+	
+	
+}
+
+
 
 
 }
 else {
-if(isset($_SESSION['month'])){
-$month=$_SESSION['month'];
-$day=$_SESSION['day'];
-$year=$_SESSION['year'];
 
+$availability_date=date("Y-m-d");
+$datenow=date("m/d/Y");
+
+}
+
+}
+//$timetable=date("Y-m-d",strtotime($_POST['search_date']));
+
+$displayDate=date("F d, Y",strtotime($availability_date));
+
+if($availability_date2==""){
 }
 else {
-$month=date("m");
-$day=date("d");
-$year=date("Y");
+	$displayDate.=" - ".date("F d, Y",strtotime($availability_date2));
 }
 
-}
-	$timetable=date("Y-m-d",strtotime($year."-".$month."-".$day));
-
-echo "<h2>".date("F d, Y",strtotime($timetable))."</h2><br>";
-
+//$timetable=date("Y-m-d",strtotime($_POST['search_date']));
+echo "<h2>".$displayDate."</h2>";
 ?>
-<table width=100% class='train_ava'>
+<a href='#' class="two pull-right"  onclick='window.open("generate_ccdr.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate Printout</b></a>
+ | 
+<a href='#' class="two pull-right"  onclick='window.open("generate_nis.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate (New Format) Printout</b></a>
+|
+<a href='#' class="two pull-right"  onclick='window.open("weekly_printout.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate Weekly Printout</b></a>
+
+<!-- header -->
+<table width=95% class='train_ava'>
 <tr class='rowHeading'>
 <th rowspan=2>Incident No.</th>
 <th rowspan=2>Time<br> (H)</th>
@@ -267,12 +319,15 @@ echo "<h2>".date("F d, Y",strtotime($timetable))."</h2><br>";
 <th>DOTC</th>
 <th>Maintenance Provider</th>
 </tr>
-<?php
 
-$ccdr_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
+<?php
+$db2=new mysqli("localhost","root","","external");
+
+//$ccdr_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
+$ccdr_date=$availability_date;
 $db=new mysqli("localhost","root","","transport");
 
-$clause=" order by incident_report.id";
+$clause=" order by substring(incident_no,1,position('' in incident_no))*1 ";
 
 if(isset($_POST['sort_by'])){
 	if($_POST['sort_by']==""){
@@ -372,7 +427,7 @@ for($i=0;$i<$nm;$i++){
 	
 ?>
 <tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
-<td align=center><a href='#' onclick='window.open("edit_ccdr.php?ir=<?php echo $row['incident_id']; ?>")'><?php echo $row['incident_no']; ?></a></td>
+<td align=center><a href='#' class="two2" onclick='window.open("edit_ccdr.php?ir=<?php echo $row['incident_id']; ?>")'><?php echo $row['incident_no']; ?></a></td>
 <td align=center><?php echo $hourStamp; ?></td>
 <td><?php echo $row['duration']; ?></td>
 <td><?php echo $description; ?></td>
@@ -381,8 +436,8 @@ for($i=0;$i<$nm;$i++){
 <td align=center><?php echo $row['level']; ?></td>
 <td>
 <?php
-$db2=new mysqli("localhost","root","","external");
 $defectsSQL="select * from incident_defects where incident_id='".$row['incident_id']."'";
+
 $defectsRS=$db2->query($defectsSQL);
 $defectsNM=$defectsRS->num_rows;
 if($defectsNM>0){
@@ -408,18 +463,32 @@ if($defectsNM>0){
 }
 ?>
 </td>
-<td valign=center align=center><a href='#' onclick='deleteIncident("<?php echo $row['incident_id']; ?>")'>X</a></td>
+<td valign=center align=center><a href='#' class="LDel" onclick='deleteIncident("<?php echo $row['incident_id']; ?>")'>X</a></td>
 </tr>
 <?php
 }
 ?>
 </table>
+<!--
 <?php
-
+if ($nm<>0) {
 ?>
 <br>
-<a href='#' onclick='window.open("generate_ccdr.php?ccdr=<?php echo $ccdr_date; ?>");'>Generate Printout</a>
-
-
-
+<a href='#' class="two" onclick='window.open("generate_ccdr.php?ccdr=<?php echo $ccdr_date; ?>");'><b>Generate Printout</b></a>
+<?php
+}
+?>
+-->
 </body>
+
+<!--
+		<script src="js/jquery-1.10.2.min.js"></script>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+		<script src="js/bootstrap.min.js"></script>	
+
+
+<script src="js/date.js"></script>	
+-->

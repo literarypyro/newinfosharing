@@ -1,0 +1,22 @@
+data-source='[
+<?php
+$db=new mysqli("localhost","root","","transport");
+$sql="SELECT *,reported_by as report FROM incident_description group by reported_by";
+$rs=$db->query($sql);
+$nm=$rs->num_rows;
+for($i=0;$i<$nm;$i++){
+	$row=$rs->fetch_assoc();
+	if($i==0){
+?>	
+		"<?php echo $row['report']; ?>"
+<?php	
+	}
+	else {
+	?>	
+		,"<?php echo $row['report']; ?>"
+	
+<?php
+	}
+}	
+?>
+]' />

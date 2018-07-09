@@ -13,11 +13,43 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
 <?php
 $db=new mysqli("localhost","root","","transport");
 
-if(isset($_GET['year'])){
-	$year=$_GET['year'];
+if(isset($_GET['sd'])){
+$year=date("Y",strtotime($_GET['sd']));
+$start_date=date("Y-m-d",strtotime($_GET['sd']));
+
+if($_GET['range']=="daily"){
+$end_date=$start_date;	
+}
+else if($_GET['range']=="weekly"){
+$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 week"));
+	
+}
+
+else if($_GET['range']=="monthly"){
+$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 month"));
+	
+}
+else if($_GET['range']=="yearly"){
+$end_date=date("Y-m-d",strtotime($_GET['sd']."+365 days"));
+	
+}
+else if($_GET['range']=="custom"){
+$end_date=date("Y-m-d",strtotime($_GET['sd']));
+	
+}
+}
+else {
+$start_date=date("Y")."-01-01";
+$end_date=date("Y")."-12-31";	
+	
+}
+
+
+if(isset($_GET['sd'])){
+	//$year=$_GET['year'];
 	$level=$_GET['level'];
 
-	$filename="Statistics Report.xls";
+	$filename="Statistics Report 2.xls";
 
 	$oldfilename="forms/".$filename;
 	$dateSlip=date("Y-m-d His");
@@ -32,139 +64,261 @@ if(isset($_GET['year'])){
 
 
 	
-	for($i=1;$i<=12;$i++){
-		$equipt_count["Month_".$i]["Equipt_114"]=0;
-		$equipt_count["Month_".$i]["Equipt_102"]=0;
-		$equipt_count["Month_".$i]["Equipt_110"]=0;
-		$equipt_count["Month_".$i]["Equipt_11"]=0;
-		$equipt_count["Month_".$i]["Equipt_113"]=0;
-		$equipt_count["Month_".$i]["Equipt_104"]=0;
-		$equipt_count["Month_".$i]["Equipt_108"]=0;
-		$equipt_count["Month_".$i]["Equipt_109"]=0;
-		$equipt_count["Month_".$i]["Equipt_103"]=0;
-		$equipt_count["Month_".$i]["Equipt_124"]=0;
-		$equipt_count["Month_".$i]["Equipt_67"]=0;
-		$equipt_count["Month_".$i]["Equipt_111"]=0;
-		$equipt_count["Month_".$i]["Equipt_112"]=0;
-		$equipt_count["Month_".$i]["Equipt_Others"]=0;
+	$db=new mysqli("localhost","root","","transport");
+	$sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
+
+	$rs=$db->query($sql);
+
+	$nm=$rs->num_rows;
+
+	
+
+
+
+	for($i=0;$i<$nm;$i++){
+		$row=$rs->fetch_assoc();
+
+		$equipt[$i]['id']=$row['id'];
+		$equipt[$i]['equipment']=$row['equipment_name'];
+		for ($k=1;$k<=12;$k++){
+			$equipt_count["Equipt_".$row['id']]["Month_".$k]=0;
+			
+		}
+	}
+	
+
+
+
+
+
+
+	
+
+	$styleArray = array(
+				'borders' => array(
+					'outline' => array(
+						'style' => PHPExcel_Style_Border::BORDER_THICK,
+					),
+				),
+			);	
+			$styleArray2 = array(
+				'borders' => array(
+					'outline' => array(
+						'style' => PHPExcel_Style_Border::BORDER_THIN,
+					),
+				),
+			);	
+			
+
+			
+			
+			
+if(isset($_GET['sd'])){
+
+$year=date("Y",strtotime($_GET['sd']));
+
+$start_date=date("Y-m-d",strtotime($_GET['sd']));
+
+$init_start=$start_date;
+
+
+if($_GET['range']=="daily"){
+$end_date=$start_date;	
+}
+else if($_GET['range']=="weekly"){
+$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 week"));
+	
+}
+
+else if($_GET['range']=="monthly"){
+$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 month"));
+	
+}
+else if($_GET['range']=="yearly"){
+$end_date=date("Y-m-d",strtotime($_GET['sd']."+365 days"));
+	
+}
+else if($_GET['range']=="custom"){
+$end_date=date("Y-m-d",strtotime($_GET['ed']));
+	
+}
+
+
+	$start=(date("m",$start_date))*1;
+	$end=date("m",strtotime($end_date))*1;
+
+	$period=date("F", strtotime($start_date))." - ".date("F Y", strtotime($end_date));
+	
+}
+else {
+$start_date=date("Y")."-01-01";
+$end_date=date("Y")."-12-31";	
+	
+	$start=1;
+	$end=12;
+
+
+	$period=date("F", strtotime($start_date))." - ".date("F Y", strtotime($end_date));
+
+	
+}
+
+
+
+
+
+	$rowCount=2;
+
+	
+	$ssql="select * from incident_report where incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:23:59' and level_condition='5'";
+
+	$srs=$db->query($ssql);
+
+	$snm=$rs->num_rows;
+	
+	
+
+	addContent(setRange("A".$rowCount,"G".$rowCount),$excel,"Summary of DOTr-MRT3 Causes of Passengers Unloading Data","true",$ExWs);
+$excel->getActiveSheet()->getStyle("A".$rowCount.":P".$rowCount)->getFont()->setBold(true);
+
+	$rowCount++;
+	addContent(setRange("A".$rowCount,"G".$rowCount),$excel,"Total No. of Unloading Incidents: ".$snm,"true",$ExWs);
+$excel->getActiveSheet()->getStyle("A".$rowCount.":P".$rowCount)->getFont()->setBold(true);
+
+	$rowCount++;
+	
+	addContent(setRange("A".$rowCount,"G".$rowCount),$excel,"Period: ".$period,"true",$ExWs);
+$excel->getActiveSheet()->getStyle("A".$rowCount.":P".$rowCount)->getFont()->setBold(true);
+
+	$rowCount+=2;
+
+
+
+
+for($k=$start;$k<=$end;$k++){
+		$prefix=chr((65*1+$k));
+		$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray);
+
+
+		addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,date("F",strtotime(date("Y")."-".$k."-01")),"true",$ExWs);
+
 		
 
-		$equipt_count["Month_".$i]["Equipt_105"]=0;
-		$equipt_count["Month_".$i]["Equipt_81"]=0;
-		$equipt_count["Month_".$i]["Equipt_118"]=0;
-		$equipt_count["Month_".$i]["Equipt_119"]=0;
-		$equipt_count["Month_".$i]["Equipt_64"]=0;
-		$equipt_count["Month_".$i]["Equipt_115"]=0;
-		$equipt_count["Month_".$i]["Equipt_89"]=0;
-		$equipt_count["Month_".$i]["Equipt_120"]=0;
-		$equipt_count["Month_".$i]["Equipt_123"]=0;
-		$equipt_count["Month_".$i]["Equipt_121"]=0;
-		$equipt_count["Month_".$i]["Equipt_116"]=0;
-		$equipt_count["Month_".$i]["Equipt_2"]=0;
-		$equipt_count["Month_".$i]["Equipt_122"]=0;
-		$equipt_count["Month_".$i]["Equipt_117"]=0;		
-	
+		
 	}
-
-	$rowCount=4;
-	for($i=1;$i<=12;$i++){	
+	
+	
+for($i=$start;$i<=$end;$i++){
 		$month_heading=date("F",strtotime($year."-".$i."-01"));
 		$date_limit=date("t",strtotime($year."-".$i."-01"));
 		
 		$start_date=date("Y-m-d",strtotime($year."-".$i."-01"));
 		$end_date=date("Y-m-d",strtotime($year."-".$i."-".$date_limit));
 		
-		$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112') group by equipt";
+		$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
 		$rs=$db->query($sql);
 		$nm=$rs->num_rows;
 		
 		for($k=0;$k<$nm;$k++){
 			$row=$rs->fetch_assoc();
-			$equipt_count["Month_".$i]["Equipt_".$row['equipt']]=$row['equipt_count'];
+			$equipt_count["Equipt_".$row['equipt']]["Month_".$i]=$row['equipt_count'];
 			
 		}
 
-		$sql="select *,count(1) as equipt_count from incident_report inner join external.incident_defects on incident_report.id=external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112') group by equipt"; 
+		$sql="select *,count(1) as equipt_count from incident_report inner join external.incident_defects on incident_report.id=external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt"; 
 		$rs=$db->query($sql);
 		$nm=$rs->num_rows;
 		
 		for($k=0;$k<$nm;$k++){
 			$row=$rs->fetch_assoc();
-			$equipt_count["Month_".$i]["Equipt_".$row['equipt_id']]+=$row['equipt_count'];
+			$equipt_count["Equipt_".$row['equipt_id']]["Month_".$i]+=$row['equipt_count'];
 		}		
-		
-		
-		$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
-		$rs=$db->query($sql);
-		$nm=$rs->num_rows;
-		
-		for($k=0;$k<$nm;$k++){
-			$row=$rs->fetch_assoc();
-			$equipt_count["Month_".$i]["Equipt_".$row['equipt']]=$row['equipt_count'];
-			$equipt_count["Month_".$i]["Equipt_Others"]+=$row['equipt_count']*1;
+
+	}
+
+
+
+	$sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
+
+	$rs=$db->query($sql);
+
+	$nm=$rs->num_rows;
+
+
+	$rowCount++;
+	for($i=0;$i<$nm;$i++){
+		$row=$rs->fetch_assoc();
+
+		$prefix="A";
+		$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray2);
+
+
+		addContent(setRange("A".$rowCount,"A".$rowCount),$excel,$row['equipment_name'],"true",$ExWs);
+
+		for($k=1;$k<=12;$k++){
+			$prefix=chr((65*1+$k));
 			
+			$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray2);
 			
-			
+			addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,$equipt_count["Equipt_".$equipt[$i]['id']]["Month_".$k],"true",$ExWs);
+		
+
 		}
 
-		$sql="select *,count(1) as equipt_count from incident_report inner join external.incident_defects on incident_report.id=external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id in ('105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt"; 
-		$rs=$db->query($sql);
-		$nm=$rs->num_rows;
-		
-		for($k=0;$k<$nm;$k++){
-			$row=$rs->fetch_assoc();
-			$equipt_count["Month_".$i]["Equipt_".$row['equipt_id']]+=$row['equipt_count'];
-			$equipt_count["Month_".$i]["Equipt_Others"]+=$row['equipt_count']*1;
 
-			
-		}			
-		addContent(setRange("B".$rowCount,"B".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_114"],"true",$ExWs);
-		addContent(setRange("C".$rowCount,"C".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_102"],"true",$ExWs);
-		addContent(setRange("D".$rowCount,"D".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_110"],"true",$ExWs);
-		addContent(setRange("E".$rowCount,"E".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_11"],"true",$ExWs);
-		addContent(setRange("F".$rowCount,"F".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_113"],"true",$ExWs);
-		addContent(setRange("G".$rowCount,"G".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_104"],"true",$ExWs);
-		addContent(setRange("H".$rowCount,"H".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_124"],"true",$ExWs);
-		addContent(setRange("I".$rowCount,"I".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_109"],"true",$ExWs);
-		addContent(setRange("J".$rowCount,"J".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_103"],"true",$ExWs);
-		addContent(setRange("K".$rowCount,"K".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_108"],"true",$ExWs);
-		addContent(setRange("L".$rowCount,"L".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_67"],"true",$ExWs);
-		addContent(setRange("M".$rowCount,"M".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_111"],"true",$ExWs);
-		addContent(setRange("N".$rowCount,"N".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_112"],"true",$ExWs);
-		addContent(setRange("O".$rowCount,"O".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_Others"],"true",$ExWs);
-
-		$rowCount++;
-	}		
-		
-	$ExWs=setActiveWorksheet($excel,"",1);
-		
-	
-	$rowCount=4;	
-	for($i=1;$i<=12;$i++){	
-		
-		addContent(setRange("B".$rowCount,"B".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_105"],"true",$ExWs);
-		addContent(setRange("C".$rowCount,"C".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_81"],"true",$ExWs);
-		addContent(setRange("D".$rowCount,"D".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_118"],"true",$ExWs);
-		addContent(setRange("E".$rowCount,"E".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_119"],"true",$ExWs);
-		addContent(setRange("F".$rowCount,"F".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_64"],"true",$ExWs);
-		addContent(setRange("G".$rowCount,"G".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_115"],"true",$ExWs);
-		addContent(setRange("H".$rowCount,"H".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_89"],"true",$ExWs);
-		addContent(setRange("I".$rowCount,"I".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_120"],"true",$ExWs);
-		addContent(setRange("J".$rowCount,"J".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_123"],"true",$ExWs);
-		addContent(setRange("K".$rowCount,"K".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_121"],"true",$ExWs);
-		addContent(setRange("L".$rowCount,"L".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_116"],"true",$ExWs);
-		addContent(setRange("M".$rowCount,"M".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_2"],"true",$ExWs);
-		addContent(setRange("N".$rowCount,"N".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_122"],"true",$ExWs);
-		addContent(setRange("O".$rowCount,"O".$rowCount),$excel,$equipt_count["Month_".$i]["Equipt_117"],"true",$ExWs);
-
-
-	
-		
-		$rowCount++;
-		
-		
+		$rowCount++;	
 	}
-	
+
+
+$rowCount++;
+
+addContent(setRange("A".$rowCount,"G".$rowCount),$excel,"Legend:","true",$ExWs);
+$rowCount++;
+
+addContent(setRange("A".$rowCount,"G".$rowCount),$excel,"ATP - Automatic Train Protection:","true",$ExWs);
+
+addContent(setRange("I".$rowCount,"M".$rowCount),$excel,"ACU - Air Condition Unit","true",$ExWs);
+
+$rowCount++;
+
+addContent(setRange("A".$rowCount,"G".$rowCount),$excel,"DCI -  Drive Circuit Interlocking","true",$ExWs);
+$rowCount++;
+
+addContent(setRange("A".$rowCount,"G".$rowCount),$excel,"FUV - Filter Under Voltage","true",$ExWs);
+$rowCount++;
+$rowCount++;
+$rowCount++;
+
+addContent(setRange("C".$rowCount,"F".$rowCount),$excel,"Prepared By: ","true",$ExWs);
+addContent(setRange("J".$rowCount,"L".$rowCount),$excel,"Reviewed By: ","true",$ExWs);
+
+$rowCount++;
+$rowCount++;
+$rowCount++;
+
+
+addContent(setRange("C".$rowCount,"F".$rowCount),$excel,"ENGR. EDWIN S. HILARIO","true",$ExWs);
+addContent(setRange("J".$rowCount,"L".$rowCount),$excel,"ENGR. OLIVER S. CASILI","true",$ExWs);
+
+$excel->getActiveSheet()->getStyle("C".$rowCount.":P".$rowCount)->getFont()->setBold(true);
+
+$rowCount++;
+
+
+
+addContent(setRange("C".$rowCount,"F".$rowCount),$excel,"Senior TDO, Transport Division","true",$ExWs);
+addContent(setRange("J".$rowCount,"L".$rowCount),$excel,"OIC, Transport Division","true",$ExWs);
+
+$rowCount++;
+
+
+
+
+
+
+
+
+
 
 	save($ExWb,$excel,$newFilename); 	
 	echo "Statistics Report has been generated!  Press right click and Save As: <a href='".$newFilename."'>Here</a>";

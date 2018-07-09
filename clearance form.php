@@ -1,40 +1,59 @@
 <?php
-session_start();
+require("Tmenu.php");
+global $varR;
 ?>
+
+<!--Modify: mjun
+ Modified date: Aug 5, 2014
+ Modified: Change screen layout
+-->
+
+<link href="css/style.min.css" rel="stylesheet" /> 
+<link href="css/bootstrap.min.css" rel="stylesheet" /> 
+
+
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
+
 <style type='text/css'>
-.rowClass {
-	background-color:#eaf2d3;
+table{
+	border-collapse:collapse;
 }
-.rowHeading {
-	background-color:#a7c942;
-	color:rgb(0,51,153);
-}
+.rowClass {background-color: #F3F3F3;}
+
+/* color header */
+.rowHeading {background-color: #cccccc}
+
 .train_ava td{
-	border: 1px solid #a7c942;
+	border: 1px solid #FBCC2A;
 	color: rgb(0,51,153);
 	cellpadding: 5px;
+}
 
-}
  .train_ava th {
-	border: 1px solid #a7c942;
-	cellpadding: 5px;
-	
+	border: 1px solid #FBCC2A;;
+	cellpadding: 5px;	
 }
+/*
 body {
 	margin-left:30px;
 	margin-right:30px;
-
 }
+*/
+
+/* input color */
 input[type="text"]{ 
 	height:25px; 
 	font-weight:bold; 
 	font-size:15px; 
 	font-family:courier; 
-	border: 1px solid #C6C6C6; 
-	background-color: rgb(185, 201, 254);  
-	color: rgb(0,51,153);
-	border-radius: 3px;
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;  
+	border-radius: 3px
 }
+
+/*
 #cellHeading {
 	background-image: -o-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
 	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
@@ -50,56 +69,72 @@ input[type="text"]{
 	padding:5px;
 	-moz-border-radius: 5px;
 	border-radius: 5px;
-
 }
+*/
+
 input[type="text"]:focus {
-	background-color:rgb(158,27,32);
-	color:white;
-
+	background-color:#FFFFF0;
 }
+
 textarea:focus {
-	background-color:rgb(158,27,32);
-	color:white;
+	background-color:#FFFFF0;
 	font-weight:bold;
-
 }
+
 .date {
 	text-style:bold;
 	font-size:20px;
-
 }
+
 textarea{ 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: rgb(185, 201, 254);  
-	color: rgb(0,51,153);
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
 	border-radius: 3px;
 }
+
+/* header */
 #add_form th{
-background-color: #4ad;  
+background-color: #cccccc;
 }
 
 #add_form td:nth-child(odd) {
-background-color: #33aa55; 
-color:white;
+background-color: #DCDCDC; 
+color:black;
 font-weight:bold;
 padding:5px;
-
 }
+
 #add_form td:last-child{
 background-color:white;
-
 }
-
 
 #add_form td:nth-child(even) {
-background-color: rgb(185, 201, 254);  
-border:1px solid #4ad;
-
+background-color: #f5f5f5;
+border:1px solid #cccccc;
 }
 
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; }
 
-select { border: 1px solid rgb(185, 201, 254); color: rgb(0,51,153); background-color: rgb(185, 201, 254);  }
+/* --- mjun -- generate */
+a.two:visited {color:black;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
+
+/* unvisited link */
+a.Llink:link { color: #FF0000;}
+a.Llink:visited {color: black;}
+a.Llink:hover { color: Orange;}
+a.Llink:active {color: #0000FF;}
+
+a.LEdit:visited {color:blue;}
+a.LDel:visited {color:red;}
+
+.alink a.disabled {
+        color: #666;
+        text-decoration: none;
+    }
+    
 </style>
+
 <?php
 function setTime($hour,$minute,$amorpm){
 
@@ -130,12 +165,15 @@ function setTime($hour,$minute,$amorpm){
 if(isset($_POST['clearanceId'])){
 	$db=new mysqli("localhost","root","","transport");
 	
+	
+	/**
 	$day=$_SESSION['day'];
 	$month=$_SESSION['month'];
 	$year=$_SESSION['year'];	
-
-	$clearance_date=$year."-".$month."-".$day;
-
+	*/
+	
+//	$clearance_date=$year."-".$month."-".$day;
+	$clearance_date=date("Y-m-d",strtotime($_SESSION['search_date']));
 	$update="update clearance ";
 
 	if(($_POST['formElement']=="logout")||($_POST['formElement']=="login")){
@@ -173,6 +211,8 @@ if(isset($_POST['clearanceId'])){
 
 }
 ?>
+
+<script src="js/jquery-1.10.2.min.js"></script>
 <script language='javascript' src='ajax.js'></script>
 <script language='javascript'>
 function deleteRow(index,index_date){
@@ -349,6 +389,7 @@ function fillEdit(element,clearance_id){
 	makeajax("processing.php?received_by=Y","fillReceived");			
 	
 	}
+	$('#addModal').modal('show');
 	
 }
 function fillReceived(ajaxHTML){
@@ -373,11 +414,26 @@ function fillReceived(ajaxHTML){
 
 }
 
+
+$(function() {
+    $( "#search_date" ).datepicker({
+      changeMonth: true,
+      changeYear: true,
+      showAnim: "clip"
+    });    
+});
+
+$(document).ready(function(){
+    $(".alink a").each(function(){
+        if($(this).hasClass("disabled")){
+            $(this).removeAttr("href");
+        }
+    });
+});
+
 </script>
 <body>
-<?php
-require("monitoring menu.php");
-?>
+<br>
 <br>
 <br>
 <form action='clearance form.php' method='post'>
@@ -391,15 +447,20 @@ $hh=date("h");
 $min=date("i");
 $aa=date("a");
 
-
-if(isset($_POST['day'])){
-	$yy=$_POST['year'];
-	$mm=$_POST['month'];
-	$dd=$_POST['day'];
+$datenow=date("m/d/Y");
+$clearance_date=date("Y-m-d");
+if(isset($_POST['search_date'])){
+	//$yy=$_POST['year'];
+	//$mm=$_POST['month'];
+	//$dd=$_POST['day'];
 	
-	$_SESSION['day']=$_POST['day'];
-	$_SESSION['month']=$_POST['month'];
-	$_SESSION['year']=$_POST['year'];
+	$_SESSION['search_date']=$_POST['search_date'];
+//	$_SESSION['day']=$_POST['day'];
+//	$_SESSION['month']=$_POST['month'];
+//	$_SESSION['year']=$_POST['year'];
+	
+	$datenow=date("m/d/Y",strtotime($_POST['search_date']));
+	$clearance_date=date("Y-m-d",strtotime($_POST['search_date']));
 	
 }	
 
@@ -407,69 +468,40 @@ if(isset($_POST['day'])){
 
 ?>
 
-<select name='month'>
 <?php
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
+if ($ULev>=2){
+	$SRemove = "Llink"; 
+	$SRemove2 = "two";
+	$SRemove3 = "liR grow";
+	$SRemove4 = "LEdit";
+	$SRemove5 = "LDel";
+} else {
+	$SRemove = "disabled";
+	$SRemove2 = "disabled";
+	$SRemove3 = "disabled";
+	$SRemove4 = "disabled";
+	$SRemove5 = "disabled";
 }
 ?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
+
+
+
+<!--
+<input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo $datenow; ?>' />
+-->
+
+<input type="text" name='search_date' id='search_date' />
+
 <input type=submit value='Retrieve Date' />
 </form>
+<div class="alink">
+<!-- <div class='pull-left'> -->
+<a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("clearance entry.php");'><b>Add New Entry</b></a>
+|
+<a href='#' class="<?php echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'><b>Generate Printout</b></a>
 
-<br>
+<!-- </div> -->
+
 <table class='train_ava' width=100%>
 <tr class='rowHeading'>
 	<th>Clearance No.</th>
@@ -483,22 +515,28 @@ for($i=1999;$i<=$dateRecent;$i++){
 	<th>Work Permit/Control No.</th>
 </tr>
 <?php
-if((isset($_POST['day']))||(isset($_SESSION['day']))){
-	if(isset($_POST['day'])){
-		$year=$_POST['year'];
-		$month=$_POST['month'];
-		$day=$_POST['day'];
+//if((isset($_POST['day']))||(isset($_SESSION['day']))){
+
+if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
+	if(isset($_POST['search_date'])){
+		
+		$ava_date=date("Y-m-d",strtotime($_POST['search_date']));
+//		$year=$_POST['year'];
+//		$month=$_POST['month'];
+//		$day=$_POST['day'];
 	}
 	
-	if(isset($_SESSION['day'])){
-		$year=$_SESSION['year'];
-		$month=$_SESSION['month'];
-		$day=$_SESSION['day'];
+	else if(isset($_SESSION['search_date'])){
+		$ava_date=date("Y-m-d",strtotime($_SESSION['search_date']));
+
+		//$year=$_SESSION['year'];
+		//$month=$_SESSION['month'];
+		//$day=$_SESSION['day'];
 	
 	
 	}
-	
-	$clearance_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
+	$clearance_date=$ava_date;
+//	$clearance_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 
 	$db=new mysqli("localhost","root","","transport");	
 	
@@ -507,6 +545,7 @@ if((isset($_POST['day']))||(isset($_SESSION['day']))){
 	$nm=$rs->num_rows;	
 	
 	if($nm>0){
+		$varR=1;
 		for($i=0;$i<$nm;$i++){
 			$row=$rs->fetch_assoc();
 			$clearance_no=$row['clearance_no'];
@@ -548,16 +587,16 @@ if((isset($_POST['day']))||(isset($_SESSION['day']))){
 ?>			
 			<tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
 				<td align=center><?php echo $clearance_no; ?></td>	
-				<td><?php echo $location; ?> <a href='#' onclick="fillEdit('location','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><?php echo $location; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('location','<?php echo $clearance_no; ?>')">Edit</a></td>
 
-				<td><?php echo $activity; ?> <a href='#' onclick="fillEdit('activity','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $person; ?> <a href='#' onclick="fillEdit('person','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $position." / ".$company; ?> <a href='#' onclick="fillEdit('position','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $received_by; ?> <a href='#' onclick="fillEdit('received_by','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $login; ?> <a href='#' onclick="fillEdit('login','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $logout; ?>  <a href='#' onclick="fillEdit('logout','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $control_no; ?>  <a href='#' onclick="fillEdit('control_no','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><a href='#' onclick="deleteRow('<?php echo $clearance_no; ?>','<?php echo $clearance_date; ?>')">X</a></td>
+				<td><?php echo $activity; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('activity','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><?php echo $person; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('person','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><?php echo $position." / ".$company; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('position','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><?php echo $received_by; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('received_by','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><?php echo $login; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('login','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><?php echo $logout; ?>  <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('logout','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><?php echo $control_no; ?>  <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('control_no','<?php echo $clearance_no; ?>')">Edit</a></td>
+				<td><a href='#' class="<?php echo $SRemove5; ?>" onclick="deleteRow('<?php echo $clearance_no; ?>','<?php echo $clearance_date; ?>')">X</a></td>
 			</tr>	
 			
 <?php		
@@ -570,20 +609,57 @@ if((isset($_POST['day']))||(isset($_SESSION['day']))){
 
 ?>
 </table>
-<a href='#' onclick='window.open("clearance entry.php");'>Add New Entry</a>
-<br>
-<a href='#' onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'>Generate Printout</a>
-
-
-<br>
-<br>
-
-<form action='clearance form.php' method='post'>
-<div id='clearance_edit' name='clearance_edit'>
-
-
-
-
 </div>
-</form>
+
+<!--
+<a href='#' class="Llink" onclick='window.open("clearance entry.php");'><b>Add New Entry</b></a>
+<br>
+
+<?php
+if ($varR<>0) { ?>
+<a href='#' class="two" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'><b>Generate Printout</b></a>
+<?php 
+$varR=0;
+} 
+?>
+-->
+<br>
+<br>
+		<div class="modal hide fade" id="addModal">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">×</button>
+				<h3>Edit</h3>
+			</div>
+			<form action='clearance form.php' method='post'>
+
+			<div class="modal-body">	
+				<div id='clearance_edit' name='clearance_edit'>
+
+
+
+
+				</div>
+
+
+				
+			</div>
+						
+			<div class="modal-footer">
+				<a href="#" class="btn" data-dismiss="modal">Close</a>
+				<button type='submit' class="btn btn-primary" value='Submit'>Submit </button>
+			</div>
+			  </form>
+		</div>
+
+
+
 </body>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+		<script src="js/bootstrap.min.js"></script>	
+		
+
+<script src="js/date.js"></script>	
+<script src='js/form.js'></script>

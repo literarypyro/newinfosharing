@@ -1,27 +1,49 @@
+<?php
+require("Tmenu.php");
+?>
+<!--Modify: mjun
+ Modified date: Aug 5, 2014
+ Modified: Change screen layout
+-->
+<!--
+<link href="css/style.min.css" rel="stylesheet" />
+
+
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/gray/easyui.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/icon.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/demo/demo.css" />
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.min.js"></script>
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.easyui.min.js"></script>
+-->
+
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
+
 <style type='text/css'>
-.rowClass {
-	background-color:#eaf2d3;
-}
-.rowHeading {
-	background-color:#a7c942;
-	color:rgb(0,51,153);
-}
+
+.rowClass {background-color: #F3F3F3;}
+
+/* color header */
+.rowHeading {background-color: #cccccc}
+
 .train_ava td{
-	border: 1px solid #a7c942;
+	border: 1px solid #FBCC2A;
 	color: rgb(0,51,153);
 	cellpadding: 5px;
+}
 
-}
  .train_ava th {
-	border: 1px solid #a7c942;
-	cellpadding: 5px;
-	
+	border: 1px solid #FBCC2A;;
+	cellpadding: 5px;	
 }
+/*
 body {
 	margin-left:30px;
 	margin-right:30px;
-
 }
+*/
+
 input[type="text"]{ 
 	height:25px; 
 	font-weight:bold; 
@@ -32,6 +54,7 @@ input[type="text"]{
 	color: rgb(0,51,153);
 	border-radius: 3px;
 }
+/*
 #cellHeading {
 	background-image: -o-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
 	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
@@ -47,30 +70,32 @@ input[type="text"]{
 	padding:5px;
 	-moz-border-radius: 5px;
 	border-radius: 5px;
-
 }
+*/
+
 input[type="text"]:focus {
 	background-color:rgb(158,27,32);
 	color:white;
-
 }
+
 textarea:focus {
 	background-color:rgb(158,27,32);
 	color:white;
 	font-weight:bold;
-
 }
+
 .date {
 	text-style:bold;
 	font-size:20px;
-
 }
+
 textarea{ 
 	border: 1px solid rgb(185, 201, 254);
 	background-color: rgb(185, 201, 254);  
 	color: rgb(0,51,153);
 	border-radius: 3px;
 }
+
 #add_form th{
 background-color: #4ad;  
 }
@@ -80,113 +105,66 @@ background-color: #33aa55;
 color:white;
 font-weight:bold;
 padding:5px;
-
 }
+
 #add_form td:last-child{
 background-color:white;
-
 }
-
 
 #add_form td:nth-child(even) {
 background-color: rgb(185, 201, 254);  
 border:1px solid #4ad;
+}
+
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; }
+
+/* --- mjun -- generate */
+a.two:visited, a.two.link {color:black;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
 
 }
 
 
-select { border: 1px solid rgb(185, 201, 254); color: rgb(0,51,153); background-color: rgb(185, 201, 254);  }
 </style>
+
+<script language='javascript'>
+$(function() {
+    $( "#search_date" ).datepicker({
+      changeMonth: true,
+      changeYear: true,
+      showAnim: "clip"
+    });    
+});
+
+</script>
+
+
 <body>
-<?php
-require("monitoring menu.php");
-?>
+<br>
 <br>
 <br>
 <form action='onboard equipment.php' method='post'>
-<select name='month'>
+<!--
+<input type='text' name='search_date' id='search_date' class='datepicker' />
 
-<?php
-$mm=date("m");
-$yy=date("Y");
-$dd=date("d");
+<input name='search_date' id='search_date' type="text" class="easyui-datebox" />
+-->
 
-$hh=date("h");
+<input type="text" name='search_date' id='search_date' />
 
-$min=date("i");
-$aa=date("a");
-
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
 <input type=submit value='Access Monitoring' />
 </form>
-<br>
 <?php
-if(isset($_POST['month'])){
+if(isset($_POST['search_date'])){
 
 ?>
 <?php
 
-$month=$_POST['month'];
-$day=$_POST['day'];
-$year=$_POST['year'];
+//$month=$_POST['month'];
+//$day=$_POST['day'];
+//$year=$_POST['year'];
 
-$ccdr_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
+$ccdr_date=date("Y-m-d",strtotime($_POST['search_date']));
 $ccdr_label=date("F d, Y",strtotime($ccdr_date));
 
 $db=new mysqli("localhost","root","","transport");
@@ -211,7 +189,6 @@ for($i=0;$i<$nm;$i++){
 
 
 	$sqlCount="select *, equipt from incident_description inner join incident_cars on incident_description.incident_id=incident_cars.incident_id where incident_description.incident_id in (select incident_id from train_union where trainDate like '".$ccdr_date."%%') and equipt='".$row['id']."' group by incident_cars.car_no";
-	
 	$countrs=$db->query($sqlCount);
 	$countnm=$countrs->num_rows;
 
@@ -234,11 +211,12 @@ for($i=0;$i<$nm;$i++){
 }
 */
 ?>
+<a href='#' class="two pull-right" onclick='window.open("generate_onboard.php?onboard_date=<?php echo $ccdr_date; ?>");'><b>Generate Printout</b></a>
 
 <table width=100%  class='train_ava'>
 <tr class='rowHeading'>
 <th rowspan=2><?php echo $ccdr_label; ?></th>
-<th colspan=2>No. Of Cars</th>
+<th colspan=2>No. of Cars</th>
 <th rowspan=2>Remarks</th>
 </tr>
 <tr class='rowHeading'>
@@ -253,16 +231,16 @@ for($i=0;$i<$nm;$i++){
 	$count=$cars;
 ?>
 <tr>
-	<td><?php echo $equipment["Equipment_".$row['id']]['name']; ?></td>
+	<td><font color="black"><?php echo $equipment["Equipment_".$row['id']]['name']; ?></font></td>
 	<td align=center>
-	<?php 
+	<font color="black"><?php 
 	$provided=$cars-($equipment["Equipment_".$row['id']]['nw_count']*1); 
 	
 	if($provided<0){ $provided=0; }
 	echo $provided;
 	?>
-	</td>
-	<td align=center><?php echo $equipment["Equipment_".$row['id']]['nw_count']*1; ?></td>
+	</font></td>
+	<td align=center><font color="black"><?php echo $equipment["Equipment_".$row['id']]['nw_count']*1; ?></font></td>
 	<td>
 	<?php
 	$nw_count=$equipment["Equipment_".$row['id']]['nw_count'];
@@ -333,30 +311,38 @@ $trainNM*=1;
 $test=$trainNM;
 
 ?>
-<td class=''>
-Number of LRV Used:
+<td><font color="black">Number of LRV Used:</font>
 </td>
-<td><?php echo $lrv; ?></td>
+<td align="center"><?php echo $lrv; ?></td>
 </tr>
 <tr>
-<td>Finance Train</td>
-<td><?php echo $finance; ?></td>
+<td><font color="black">Finance Train</font></td>
+<td align="center"><?php echo $finance; ?></td>
 </tr>
 <tr>
-<td>Test Train</td>
-<td><?php echo $test; ?></td>
+<td><font color="black">Test Train</font></td>
+<td align="center"><?php echo $test; ?></td>
 </tr>
 <tr>
-<td>UNIMOG</td>
-<td><?php echo $unimog; ?></td>
+<td><font color="black">UNIMOG</font></td>
+<td align="center"><?php echo $unimog; ?></td>
 </tr>
 
 </table>
+<!--
 <br>
-<a href='#' onclick='window.open("generate_onboard.php?onboard_date=<?php echo $ccdr_date; ?>");'>Generate Printout</a>
-
-
+<a href='#' class="two" onclick='window.open("generate_onboard.php?onboard_date=<?php echo $ccdr_date; ?>");'><b>Generate Printout</b></a>
+-->
 <?php
 }
 ?>
 </body>
+		<script src="js/jquery-1.10.2.min.js"></script>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+
+
+<script src="js/date.js"></script>	
+

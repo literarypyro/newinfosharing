@@ -1,10 +1,16 @@
 <?php
 ini_set("date.timezone","Asia/Kuala_Lumpur");
+require("Tmenu.php");
 ?>
+<!--- Modified by Jun
+//--- Date: 7/11/2014
+//--- Modify: Incident No. no longer system generate no. input manually
+//--- Marker: @jun
+//--------------------------------------------------->
 <?php
 if(isset($_POST['equipment'])){
 	
-	$incident_id=$_POST['incident_no'];
+	$incident_id=$_POST['incident_no']." ".$_POST['incident_suffix'];
 	$description=$_POST['description'];
 	$dotc_taken="";
 
@@ -21,9 +27,13 @@ if(isset($_POST['equipment'])){
 	$level=$_POST['level'];
 	$duration=$_POST['duration'];
 	
-	$year=$_POST['year'];
-	$month=$_POST['month'];
-	$day=$_POST['day'];
+//	$year=$_POST['year'];
+//	$month=$_POST['month'];
+//	$day=$_POST['day'];
+	
+	
+	
+	$incident_day=date("Y-m-d",strtotime($_POST['incident_date']));
 	
 	$hour=$_POST['hour'];
 	$minute=$_POST['minute'];
@@ -48,11 +58,10 @@ if(isset($_POST['equipment'])){
 	
 	$reported_by=$_POST['reported_by'];
 	$received_by=$_POST['received_by'];
-
 		
 	$level_condition=$_POST['condition'];
 	
-	$incident_date=date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
+	$incident_date=date("Y-m-d H:i",strtotime($_POST['incident_day']." ".$hour.":".$minute));
 	$incidentYear=$year;
 	
 	
@@ -87,13 +96,14 @@ if(isset($_POST['equipment'])){
 	$db=new mysqli("localhost","root","","transport");
 	$sql="insert into incident_report ";
 	$sql.="(incident_type,incident_no,level,incident_date,";
-	$sql.="description,action_dotc,action_maintenance,duration,equipt,cancel,unit_no,level_condition)";
+	$sql.="description,action_dotc,action_maintenance,duration,equipt,cancel,unit_no,level_condition,recommending_approval,approving_person,action_type)";
 	$sql.=" values ";
 	$sql.="(\"".$type."\",\"".$incident_id."\",'".$level."','".$incident_date."',";
-	$sql.="\"".$description."\",\"".$dotc_taken."\",\"".$maintenance_taken."\",\"".$duration."\",'".$equipment."','".$cancel."','".$unit_no."','".$level_condition."')";
+	$sql.="\"".$description."\",\"".$dotc_taken."\",\"".$maintenance_taken."\",\"".$duration."\",'".$equipment."','".$cancel."','".$unit_no."','".$level_condition."','".$_POST['recommending_approval']."','".$_POST['approving_person']."','".$_POST['action_type']."')";
 
 	$rs=$db->query($sql);
 	$incident_code=$db->insert_id;
+	
 
 	
 	if($level==2){
@@ -144,8 +154,15 @@ if(isset($_POST['equipment'])){
 
 		
 	}	
-
-	$incidentSQL="select * from incident_no where incident_id='".$incident_code."'";
+	
+	//-------------------------------------------@jun
+	//-- system generate number
+	//-- disable 7/11/2014
+	
+	
+	//-- reenabled and re-coded
+	
+	$incidentSQL="select * from user_transport.incident_no where incident_id='".$incident_code."'";
 	$incidentRS=$db->query($incidentSQL);
 	$incidentNM=$incidentRS->num_rows;
 	
@@ -154,28 +171,32 @@ if(isset($_POST['equipment'])){
 	
 	}
 	else {
-		$insert="insert into incident_no(year,incident_id) values ('".$incidentYear."','".$incident_code."')";
+		$insert="insert into user_transport.incident_no(year,incident_id,incident_number,suffix) values ('".$incidentYear."','".$incident_code."','".$_POST['incident_no']."','".$_POST['incident_suffix']."')"; 
 		$insertRS=$db->query($insert);
 		
 	}
 	
-	$noRS=$db->query($incidentSQL);
-	$noRow=$noRS->fetch_assoc();
-	$incident_term=$noRow['incident_no'];
+	//-- system generate number:
+	//	
+	//$noRS=$db->query($incidentSQL);
+	//$noRow=$noRS->fetch_assoc();
+	//$incident_term=$noRow['incident_no'];
+	
 	
 	//Calculate the Suffix for the Incident No.
 	
-	$suffixSQL="select * from equipment_type where equipment_code='".$type."'";
-	$suffixRS=$db->query($suffixSQL);
-	$suffixRow=$suffixRS->fetch_assoc();
+	//$suffixSQL="select * from equipment_type where equipment_code='".$type."'";
+	//$suffixRS=$db->query($suffixSQL);
+	//$suffixRow=$suffixRS->fetch_assoc();
 	
-	$incident_suffix=$suffixRow['incident_code'];
+	//$incident_suffix=$suffixRow['incident_code'];
 	
-	$incident_number=$incident_term." ".$incident_suffix;
+	//$incident_number=$incident_term." ".$incident_suffix;
 	
-	$update="update incident_report set incident_no='".$incident_number."' where id='".$incident_code."'";
-	$updateRS=$db->query($update);
-
+	//$update="update incident_report set incident_no='".$incident_number."' where id='".$incident_code."'";
+	//$updateRS=$db->query($update);
+	//
+	//--- disable system generate number --- by jun 7/11/2014 End-- @jun
 	
 	if($_POST['incident_link']==""){
 	}
@@ -292,6 +313,38 @@ if(isset($_POST['equipment'])){
 }
 
 ?>
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
+
+<style type='text/css'>
+.dropdown-menu{
+position:absolute;
+top:100%;
+left:0;
+z-index:1000;
+display:none;
+float:left;
+min-width:160px;
+padding:5px 0;
+margin:2px 0 0;
+list-style:none;
+background-color:#fff;
+border:1px solid #ccc;
+border:1px solid rgba(0,0,0,0.2);
+*border-right-width:2px;
+*border-bottom-width:2px;
+-webkit-border-radius:6px;
+-moz-border-radius:6px;
+border-radius:6px;
+-webkit-box-shadow:0 5px 10px rgba(0,0,0,0.2);
+-moz-box-shadow:0 5px 10px rgba(0,0,0,0.2);box-shadow:0 5px 10px rgba(0,0,0,0.2);-webkit-background-clip:padding-box;-moz-background-clip:padding;background-clip:padding-box}.dropdown-menu.pull-right{right:0;left:auto}.dropdown-menu .divider{*width:100%;height:1px;margin:9px 1px;*margin:-5px 0 5px;overflow:hidden;background-color:#e5e5e5;border-bottom:1px solid #fff}.dropdown-menu>li>a{display:block;padding:3px 20px;clear:both;font-weight:normal;line-height:20px;color:#333;white-space:nowrap}.dropdown-menu>li>a:hover,.dropdown-menu>li>a:focus,.dropdown-submenu:hover>a,.dropdown-submenu:focus>a{color:#fff;text-decoration:none;background-color:#0081c2;background-image:-moz-linear-gradient(top,#08c,#0077b3);background-image:-webkit-gradient(linear,0 0,0 100%,from(#08c),to(#0077b3));background-image:-webkit-linear-gradient(top,#08c,#0077b3);background-image:-o-linear-gradient(top,#08c,#0077b3);background-image:linear-gradient(to bottom,#08c,#0077b3);background-repeat:repeat-x;filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#ff0088cc',endColorstr='#ff0077b3',GradientType=0)}.dropdown-menu>.active>a,.dropdown-menu>.active>a:hover,.dropdown-menu>.active>a:focus{color:#fff;text-decoration:none;background-color:#0081c2;background-image:-moz-linear-gradient(top,#08c,#0077b3);background-image:-webkit-gradient(linear,0 0,0 100%,from(#08c),to(#0077b3));background-image:-webkit-linear-gradient(top,#08c,#0077b3);background-image:-o-linear-gradient(top,#08c,#0077b3);background-image:linear-gradient(to bottom,#08c,#0077b3);background-repeat:repeat-x;outline:0;filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#ff0088cc',endColorstr='#ff0077b3',GradientType=0)}.dropdown-menu>.disabled>a,.dropdown-menu>.disabled>a:hover,.dropdown-menu>.disabled>a:focus{color:#999}.dropdown-menu>.disabled>a:hover,.dropdown-menu>.disabled>a:focus{text-decoration:none;cursor:default;background-color:transparent;background-image:none;filter:progid:DXImageTransform.Microsoft.gradient(enabled=false)}.open{*z-index:1000}.open>.dropdown-menu{display:block}.dropdown-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;z-index:990}.pull-right>.dropdown-menu{right:0;left:auto}.dropup .caret,.navbar-fixed-bottom .dropdown .caret{border-top:0;border-bottom:4px solid #000;content:""}.dropup .dropdown-menu,.navbar-fixed-bottom .dropdown .dropdown-menu{top:auto;bottom:100%;margin-bottom:1px}.dropdown-submenu{position:relative}.dropdown-submenu>.dropdown-menu{top:0;left:100%;margin-top:-6px;margin-left:-1px;-webkit-border-radius:0 6px 6px 6px;-moz-border-radius:0 6px 6px 6px;border-radius:0 6px 6px 6px}.dropdown-submenu:hover>.dropdown-menu{display:block}.dropup .dropdown-submenu>.dropdown-menu{top:auto;bottom:0;margin-top:0;margin-bottom:-2px;-webkit-border-radius:5px 5px 5px 0;-moz-border-radius:5px 5px 5px 0;border-radius:5px 5px 5px 0}.dropdown-submenu>a:after{display:block;float:right;width:0;height:0;margin-top:5px;margin-right:-10px;border-color:transparent;border-left-color:#ccc;border-style:solid;border-width:5px 0 5px 5px;content:" "}.dropdown-submenu:hover>a:after{border-left-color:#fff}.dropdown-submenu.pull-left{float:none}.dropdown-submenu.pull-left>.dropdown-menu{left:-100%;margin-left:10px;-webkit-border-radius:6px 0 6px 6px;-moz-border-radius:6px 0 6px 6px;border-radius:6px 0 6px 6px}.dropdown .dropdown-menu .nav-header{padding-right:20px;padding-left:20px}.typeahead{z-index:1051;margin-top:2px;-webkit-border-radius:4px;-moz-border-radius:4px;border-radius:4px}.well{min-height:20px;padding:19px;margin-bottom:20px;background-color:#f5f5f5;border:1px solid #e3e3e3;-webkit-border-radius:4px;-moz-border-radius:4px;border-radius:4px;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,0.05);-moz-box-shadow:inset 0 1px 1px rgba(0,0,0,0.05);box-shadow:inset 0 1px 1px rgba(0,0,0,0.05)}.well blockquote{border-color:#ddd;border-color:rgba(0,0,0,0.15)}
+</style>
+
+<script language='javascript' src='js/jquery-1.10.2.min.js'></script>
+	<!-- <link href="css/style.min.css" rel="stylesheet" /> -->
+
+
 <script language='javascript' src='ajax.js'></script>
 <script language='javascript'>
 function openLink(){
@@ -320,8 +373,18 @@ function scrollCat(){
 	}
 
 }
-function scrollType(){
+function scrollType(element){
 	var problemType=document.getElementById('type').value;
+
+	if($("#type").find("option:selected").data("incident_type")==""){
+	}
+	else {
+		
+		
+		$('#incident_suffix').val($("#type").find("option:selected").data("incident_type"));
+	
+	}
+
 	var rollingHTML="";
 	
 	if((problemType=="rolling")||(problemType=="unload")){
@@ -486,12 +549,7 @@ function scrollRolling(ajaxHTML){
 	
 	}
 
-
-
-
-	
-	document.getElementById('equipment').innerHTML=rollingHTML;
-	
+	document.getElementById('equipment').innerHTML=rollingHTML;	
 	document.getElementById('sub_item_space').innerHTML="";	
 /*
 	var rollingType=document.getElementById('rolling_type').value;
@@ -537,6 +595,7 @@ function getLevel(element){
 		conditionHTML+="<option></option>";
 		conditionHTML+="<option value='1'>Train is removed without replacement</option>";
 		conditionHTML+="<option value='2'>Cancellation of loops and insertion</option>";
+		conditionHTML+="<option value='5'>With Passenger Unloading</option>";
 		conditionHTML+="</select>";
 	}
 	else if(level==4){
@@ -612,8 +671,6 @@ function activateMultiple(){
 		var multipleTable="<table name='multi_list' id='multi_list' width=80%>";
 		
 		
-		
-		
 		multipleTable+="</table>";
 		multipleTable+="<a href='#' onclick=\"window.open('multiple_defects.php?problemType=RS')\">Update</a>";	
 		
@@ -661,87 +718,147 @@ function getAdditional(ajaxHTML){
 
 
 }
-</script>
-<style type='text/css'>
-body {
-	background-color: #gray;
-	color: #fff;
-	margin-left:30px;
-	margin-right:30px;	
-	
-	
-<!--	margin: 0;
-	padding: 0;
--->	
+
+function checkIncidentNo(element){
+	var year=$('#year').val();
+	var incident_no=element.value;
+	  $.ajax({url:"processing.php?checkIncidentNo="+incident_no+"&year="+year,success:function(result){
+		confirmIncidentNo(result);
+	  }});
+//	makeajax("processing.php?checkIncidentNo="+incident_no+"&year="+year,"confirmIncidentNo");	
+
 }
+
+function confirmIncidentNo(ajaxHTML){
+	
+
+	if(ajaxHTML=="No number"){
+	}
+	else {
+		alert("Incident Number is taken!");
+		document.getElementById('incident_no').value="";
+	
+	
+	}
+	
+
+}
+
+
+</script>
+
+<style type='text/css'>
+/*
+body {
+	/*background-color: gray; 
+	color: #fff;		
+	margin-left:30px;
+	margin-right:30px;		*/
+/*	
+	background-color: #dfe7f2;
+	color: #000000;
+} 
+ */
+ 
 .content {
 	width: 80%;
-	margin: 20px auto 40px auto;
+	margin: 20px auto 40px auto; 
 	background-color: #ffa;
 	color: #333;
-	border: 2px solid #1a3c2d;
+	border: 2px solid #1a3c2d; 
 	padding: .75em;
-	spacing: .5px;
+	spacing: .5px; 
 }
 
-.ir table {
-	//margin: .75em auto auto auto;
+
+/* table border */
+ .ir table {
+margin: .75em auto auto auto; 
 	color: #000;
-	border: 1px solid rgb(185, 201, 254);
+	border: 1px solid rgb(185, 201, 254); 	
+} 
+
+
+/* Title header */
+ .ir th {
+	background-color: #cccccc; 
+	text-align: center;
+	border: 1px solid black;
+	color:  black; 
+	font-family: "Comic Sans MS"; 
+	font-size: 17px	
 }
 
-.ir th {
-	background-color: #33aa55;
-	color: #fff;
-	border: 1px solid rgb(185, 201, 254);
-	
 
+/* left-side color txt background */
+  .ir tr td:first-child {
+ 	background-color: #F3F3F3;
+/* 	width: 45%;  */
+ 	padding: 5px
+ 	
+/*	 background-color: rgb(185, 201, 254);
+	color: rgb(0,51,153); */
+} 
 
-}
+/* gray background right-side */
+ .ir tr td:last-child {
+ 	background-color: rgb(240,240,240);
+ 	padding: 5px
+ 		
+/*	 background-color: #dfe7f2;
+	color: #fff; */
+} 
 
-.ir tr td:first-child {
-	background-color: rgb(185, 201, 254);
-	color: rgb(0,51,153);
-
-}
-.ir tr td:last-child {
-	background-color: #dfe7f2;
-	color: #fff;
-
-}
-
-.ir td {
-	border: 1px solid rgb(185, 201, 254);
-
+/* border line blue outline */ 
+  .ir td {
+	/* border: 1px solid rgb(185, 201, 254); */
+	border: 1px solid #808080	
 }
 
 input[type="text"]{ 
-	height:25px; 
-	font-weight:bold; 
+	height:25px; 	
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
+	border-radius: 3px;	
+	
+/*	font-weight:bold; 
 	font-size:15px; 
-	font-family:courier; 
+	font-family:ariel; 	
 	border: 1px solid #dfe7f2;
-	background-color: #dfe7f2;
+    background-color: #dfe7f2;
 	color: rgb(0,51,153);
-	border-radius: 3px;
+	border-radius: 3px; */
 }
+
+
 textarea{ 
-	border: 1px solid #dfe7f2;
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
+	border-radius: 3px;	
+	
+/*	border: 1px solid #dfe7f2;
 	background-color: #dfe7f2;
 	color: rgb(0,51,153);
-	border-radius: 3px;
+	border-radius: 3px; */
 }
+
 input[type="text"]:focus {
-	background-color:rgb(158,27,32);
-	color:white;
+	background-color:#FFFFF0;
+	
+/*	background-color:rgb(158,27,32);
+	color:white; */
 
 }
+
 textarea:focus {
-	background-color:rgb(158,27,32);
+	background-color:#FFFFF0;
+	
+/*	background-color:rgb(158,27,32);
 	color:white;
-	font-weight:bold;
-
+	font-weight:bold; */
 }
+
+
 ul.nav li {
 	list-style-type:none;
 	display: inline;
@@ -764,16 +881,15 @@ ul.nav li {
 	-moz-box-shadow: 3px 3px 3px 3px rgba(43, 43, 77, 0.5);
 	box-shadow: 3px 3px 3px 3px rgba(43, 43, 77, 0.5);
 }
-select { border: 1px solid #dfe7f2; color: rgb(0,51,153); background-color:  #dfe7f2;  }
+
+/*-- disable the color of drop down
+ select { border: 1px solid #dfe7f2; color: rgb(0,51,153); background-color:  #dfe7f2;  } */
 
 ul.nav li a{
 	text-decoration: none;
-
 }
 
-
 .removal {
-
 	color: rgb(0,51,153);
 }
 
@@ -783,7 +899,6 @@ ul.nav li a{
 }
 
 .ir #multi_list tr th {
-
 	background-color: #33aa55;
 	color: #fff;
 	border: 1px solid rgb(185, 201, 254);
@@ -797,19 +912,13 @@ ul.nav li a{
 
 }
 .ir #multi_list tr:nth-child(n+2) td{
-
 	background-color: #dfe7f2;
 	color: rgb(0,51,153);
 
 }
 
-
 </style>
-
 <body>
-<?php
-require("monitoring menu.php");
-?>
 <br>
 <br>
 <div>
@@ -817,28 +926,32 @@ require("monitoring menu.php");
 <br>
 <!--<a href='monitoring menu.php'>Go Back to Monitoring Menu</a>-->
 <form action='incident report.php<?php if(isset($_GET['cancel'])){ echo "?cancel=".$_GET['cancel']; } else if(isset($_GET['add_incident'])){ echo "?add_incident=".$_GET['add_incident']; } ?>' method='post'>
+
+
+
+
 <table class='ir'>
 <tr>
 <th colspan=2>Incident Report</th>
 </tr>
 <tr>
-<td>Type of Problem</td>
+<td>Type of Problem</td> 
 <td>
-<select name='type' id='type' onchange='scrollType()'>
-<option value='rolling' <?php if((isset($_GET['cancel']))||(isset($_GET['add_incident']))){ echo "selected"; } ?>>Rolling Stock</option>
-<option value='cc_equipt'>CC Equipment</option>
-<option value='communication'>Communication</option>
-<option value='depot_equipt'>Depot Equipment</option>
-<option value='power'>Power</option>
-<option value='signaling'>Signaling</option>
-<option value='tracks'>Tracks</option>
-<option value='afc'>AFC Equipment</option>
-<option value='station_equipt'>Station Equipment</option>
-<option value='gradual'>Gradual Removal</option>
-<option value='c_loops'>Cancelled Loops; Acc. Delay/Failure</option>
-<option value='r_trains'>Running Trains</option>
-<option value='unload'>Unloading of Passengers</option>
-<option value='nload'>Not Loading</option>
+<select name='type' id='type' onchange='scrollType(this)'>
+<option data-incident_type="RS" value='rolling' <?php if((isset($_GET['cancel']))||(isset($_GET['add_incident']))){ echo "selected"; } ?>>Rolling Stock</option>
+<option data-incident_type="CEQ" value='cc_equipt'>CC Equipment</option>
+<option data-incident_type="COM" value='communication'>Communication</option>
+<option data-incident_type="DEQ" value='depot_equipt'>Depot Equipment</option>
+<option data-incident_type="PWR" value='power'>Power</option>
+<option data-incident_type="SIG" value='signaling'>Signaling</option>
+<option data-incident_type="TRK" value='tracks'>Tracks</option>
+<option data-incident_type="AFC" value='afc'>AFC Equipment</option>
+<option data-incident_type="SEQ" value='station_equipt'>Station Equipment</option>
+<option data-incident_type="a" value='gradual'>Gradual Removal</option>
+<option data-incident_type="a" value='c_loops'>Cancelled Loops; Acc. Delay/Failure</option>
+<option data-incident_type="a"  value='r_trains'>Running Trains</option>
+<option data-incident_type="RS" value='unload'>Unloading of Passengers</option>
+<option  data-incident_type="RS" value='nload'>Not Loading</option>
 
 <!--
 <option value='ser_int'>Service Interruption</option>
@@ -900,8 +1013,10 @@ $row=$rs->fetch_assoc();
 <span name='equipment_space' id='equipment_space'>
 </span>
 <span id='sub_item_space' name='sub_item_space'>
+
 </span>
 <span id='unit_space' name='unit_space'>
+
 </span>
 
 </td>
@@ -1055,10 +1170,35 @@ else {
 <input type=text name='cancel_more' id='cancel_more' size=5 style='border:1px solid gray' disabled />
 </td>
 </tr>
+
+<!--modification by jun july 10, 2014 @jun -->
 <tr>
-<td>Incident No.</td><td> <!--<input type=text name='incident_no' />--> <font color='blue'>**System Generated**</font>
+<td>Incident No.</td>
+<td></font><input style='border: 1px solid gray' type="text" name='incident_no' id='incident_no' onblur='checkIncidentNo(this)'/>
+<!--<td><font color=red>System Generated:</font><br><input style='border: 1px solid gray' type="text" name='incident_no'/> -->
+
+<select name='incident_suffix' id='incident_suffix'>
+<?php
+$sql_suffix="SELECT * FROM equipment_type where sequence is not null order by sequence";
+$rs_suffix=$db->query($sql_suffix);
+$nm=$rs_suffix->num_rows;
+for($i=0;$i<$nm;$i++){
+	$row=$rs_suffix->fetch_assoc();
+?>
+
+<option value='<?php echo $row['incident_code']; ?>'><?php echo $row['incident_code']; ?></option>
+
+<?php
+
+}
+?>
+
+</select>
+
 </td>
 </tr>
+<!----  end -->
+
 <tr>
 <td>Location/Direction</td>
 <td>
@@ -1092,79 +1232,16 @@ else {
 <font id='remove' name='remove' class='removalnone' >Order of Removal</font>
 -->
 <span id='condition' name='condition'>
+
+
+
+
 </span>
 </td>
 </tr>
 <tr>
 <td>Date:</td><td>
-<select name='month'>
-<?php
-$mm=date("m");
-$yy=date("Y");
-$dd=date("d");
-
-$hh=date("h");
-
-$min=date("i");
-$aa=date("a");
-
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
+<input type='text' name='incident_date' id='incident_date' class='datepicker' value='<?php echo date("m/d/Y"); ?>' />
 </td></tr>
 <tr><td>Time: </td><td>
 <select name='hour'>
@@ -1217,18 +1294,85 @@ for($i=0;$i<=59;$i++){
 </td>
 </tr>
 <tr>
-<td>Incident Duration</td>
-<td><input type=text name='duration' /></td>
+<td>Type of Action</td>
+<td><input type=text name='action_type' /></td>
 </tr>
 
 
 <tr>
-<td valign=top>Details:</td><td> <textarea rows=5 cols=50 name='description'></textarea></td></tr>
+<td>Incident Duration</td>
+<td><input type=text name='duration' /></td>
+</tr>
+<tr>
+<td valign=top>Details</td>
+<td> <textarea rows=5 cols=50 name='description'  class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
+data-source='[""
+<?php
+$db2=new mysqli("localhost","root","","external");
+$sql="select * from preencoded";
+
+$rs=$db2->query($sql);
+$nm=$rs->num_rows;
+for($i=0;$i<$nm;$i++){
+	$row=$rs->fetch_assoc();
+?>
+	,"<?php echo $row['content']; ?>"
+<?php
+}
+
+?>
+]'></textarea></td></tr>
 <tr>
 <th colspan=2>Reporting</th></tr>
 <tr>
 <td>Reported By</td>
-<td><input type=text name='reported_by' id='reported_by' /></td>
+<td>
+<input type="text" autocomplete='off' name='reported_by' id='reported_by' class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
+data-source='[
+<?php
+$db=new mysqli("localhost","root","","transport");
+$sql="select * from train_driver order by lastName";
+$rs=$db->query($sql);
+$nm=$rs->num_rows;
+for($i=0;$i<$nm;$i++){
+	$row=$rs->fetch_assoc();
+	if($i==0){
+?>	
+		"<?php echo $row['position']." ".substr($row['firstName'],0,1).". ".$row['lastName']; ?>"
+<?php	
+	}
+	else {
+	?>	
+		,"<?php echo $row['position']." ".substr($row['firstName'],0,1).". ".$row['lastName']; ?>"
+	
+<?php
+	}
+}	
+?>
+
+]' />
+
+<?php
+/**
+$db2=new mysqli("localhost","root","","station");
+$sql="select * from ticket_seller order by last_name";
+$rs=$db2->query($sql);
+$nm=$rs->num_rows;
+for($i=0;$i<$nm;$i++){
+	$row=$rs->fetch_assoc();
+?>
+		,"<?php echo  substr($row['first_name'],0,1).". ".$row['last_name'].", STN"; ?>"
+
+
+<?php
+
+}	
+?>
+*/
+?>
+
+
+</td>
 </tr>
 <tr>
 <td>Received By</td>
@@ -1242,26 +1386,60 @@ $nm=$rs->num_rows;
 for($i=0;$i<$nm;$i++){
 	$row=$rs->fetch_assoc();
 ?>	
-	<option value='<?php echo $row['id']; ?>'><?php echo $row['lastName'].", ".$row['firstName']; ?></option>
+	<option value='<?php echo $row['id']; ?>'
+<?php
+
+	if($row['id']==$_SESSION['recording']){ echo "selected"; } ?>
+	><?php echo $row['lastName'].", ".$row['firstName']; ?></option>
 
 
 <?php
 }
 
-
-
-
-
 ?>
 </select>
 </td>
 </tr>
+<tr>
+<td>Recommending Approval</td>
+<td>
+<input type='text' name='recommending_approval' />
 
+</td>
+</tr>
+<tr>
+<td>Approving Person</td>
+<td>
+
+<input type='text' name='approving_person' />
+
+</td>
+</tr>
 
 <tr>
 <th colspan=2>Action Taken</th></tr>
 <tr>
-<td valign=top>DOTC:</td><td><span name='remarks_space' id='remarks_space'> <textarea rows=5 cols=50 name='dotc' id='dotc'></textarea></span>
+<td valign=top>DOTR</td><td><span name='remarks_space' id='remarks_space'> <textarea rows=5 cols=50 name='dotc' id='dotc'  class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
+data-source='[""
+<?php
+$db2=new mysqli("localhost","root","","external");
+$sql="select * from preencoded";
+
+$rs=$db2->query($sql);
+$nm=$rs->num_rows;
+for($i=0;$i<$nm;$i++){
+	$row=$rs->fetch_assoc();
+?>
+	,"<?php echo $row['content']; ?>"
+<?php
+}
+
+?>
+]'></textarea></span>
+
+
+
+<!--
 <br>
 <select name='dotc_coordinated' id='dotc_coordinated'>
 <option value='c_with'>Coordinated with</option>
@@ -1271,14 +1449,31 @@ for($i=0;$i<$nm;$i++){
 
 </select>
 <input style='border: 1px solid gray' type=text name='coordinated_to' id='coordinated_to' /><input type=button value='Add' onclick='addCoordinate()' />
-
+-->
 <!--
 <input type=checkbox name='remarks_check' id='remarks_check' onclick='setPreset(this)' /><font color=blue>Preset Values</font>
 -->
 
 </td></tr>
 <tr>
-<td valign=top>Maintenance Provider:</td><td> <textarea rows=5 cols=50 name='maintenance'></textarea></td></tr>
+<!-- -->
+<td valign=top>Verified</td><td><textarea rows=5 cols=50  name='maintenance' id='maintenance' class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
+data-source='[""
+<?php
+$db2=new mysqli("localhost","root","","external");
+$sql="select * from preencoded";
+
+$rs=$db2->query($sql);
+$nm=$rs->num_rows;
+for($i=0;$i<$nm;$i++){
+	$row=$rs->fetch_assoc();
+?>
+	,"<?php echo $row['content']; ?>"
+<?php
+}
+
+?>
+]'></textarea></td></tr>
 <tr>
 <th colspan=2><input type=submit value='Submit' /></th>
 </tr>
@@ -1287,3 +1482,15 @@ for($i=0;$i<$nm;$i++){
 </div>
 <!--index number and car no.-->
 </body>
+		<script src="js/jquery-1.10.2.min.js"></script>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+		<script src="js/bootstrap.min.js"></script>	
+
+		<script src="js/additional2.js"></script>	
+		
+		<script src="js/date.js"></script>	
+		
+		

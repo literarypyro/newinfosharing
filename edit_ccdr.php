@@ -1,8 +1,17 @@
 <?php
+require("Tmenu.php");
 $db=new mysqli("localhost","root","","transport");
 $db2=new mysqli("localhost","root","","external");
-
+global $Mup;
 ?>
+<!---- Modified: Jun
+ Date: July 11, 2014
+ Modify: Updating of fields
+ Marks: Mjun@
+ ----->
+ 
+<!-- php -->
+
 <?php
 function getOrdinal($number){
 $ends = array('th','st','nd','rd','th','th','th','th','th','th');
@@ -16,397 +25,27 @@ else
 
 }
 ?>
-<?php
-if(isset($_POST['fieldType'])){
-	$sql="update incident_report ";
-	$incident_report=$_POST['incident_report'];
-	switch($_POST['fieldType']){
-		case "onboard_equipt":
-			$sql.="set equipt='".$_POST['equipment']."' ";
-			break;
-		case "dotc":
-			if(isset($_POST['dotc'])){
-				$dotc_taken=$_POST['dotc'];
 
-			}
-			else if(isset($_POST['dotc_coordinated'])){
-				$dotc_taken=$_POST['dotc_coordinated']." ".$_POST['coordinated_to'];
-			}		
-		
-			$sql.="set action_dotc='".$dotc_taken."' ";
-			break;
-		case "maintenance":
-			$sql.="set action_maintenance='".$_POST['maintenance_provider']."' ";
-			break;
-		case "level":
-			$level_condition=$_POST['condition'];
+<!--  http://faulknercs.github.io/Knockstrap/#alert sample 
 
-			$sql.="set level='".$_POST['level']."',level_condition='".$level_condition."' ";
-			break;
-		case "description":
-			$sql.="set description='".$_POST['description']."' ";
-			break;
+<script src="dist/js/knockout-bootstrap.min.js"></script>
+<link href="dist/css/bootstrap.css" rel="stylesheet">
+<div data-bind="alerts">
+    <div data-bind="alert: $data"></div>
+</div>
 
-		case "duration":
-			$sql.="set duration='".$_POST['duration']."' ";
-			break;
-			
-			
-		case "linked_to":
-			$sql.="set linked_to='".$_POST['incident_link']."' ";
-			break;
-		
-		case "incident_no":
-			
-			$incidentSQL="select * from incident_report where id='".$incident_report."'";
-			$incidentRS=$db->query($incidentSQL);
-			$incidentRow=$incidentRS->fetch_assoc();
-			
-			$suffixSQL="select * from equipment_type where equipment_code='".$incidentRow['incident_type']."'";
-			$suffixRS=$db->query($suffixSQL);
-			
-			$suffixRow=$suffixRS->fetch_assoc();
-			$suffix=$suffixRow['incident_code'];
-		
-		
-		
-			$sql.="set incident_no='".$_POST['incident_number']." ".$suffix."' ";
-			//$_POST['incident_report']=$_POST['incident_number'];
-			break;
-		case "problem":
-			$sql.="set incident_type='".$_POST['type']."',equipt='',";
+<script src="jquery-1.11.1.js"></script>
+<script src="Freeow/jquery.freeow.js"></script>
+<script src="Freeow/jquery.freeow.min.js"></script>
+<link href="Freeow/style/freeow/freeow.css" rel="stylesheet"/>
 
-			$incidentSQL="select * from incident_report where id='".$incident_report."'";
-			$incidentRS=$db->query($incidentSQL);
-			$incidentRow=$incidentRS->fetch_assoc();
-			
-			$suffixSQL="select * from equipment_type where equipment_code='".$_POST['type']."'";
-			$suffixRS=$db->query($suffixSQL);
-			$suffixRow=$suffixRS->fetch_assoc();
-			$suffix=$suffixRow['incident_code'];
-		
-		
-		
-			$sql.="incident_no='".$incidentRow['id']." ".$suffix."' ";
+-->
+<link href="css/modal_only.css" rel="stylesheet" />
+<script src="jquery-1.11.1.js"></script>
+<script src="Freeow/jquery.freeow.js"></script>
+<script src="Freeow/jquery.freeow.min.js"></script>
+<link href="Freeow/style/freeow/freeow.css" rel="stylesheet"/>
 
-
-			
-			if($_POST['type']=="ser_int"){
-				echo "<script language='javascript'>";
-				echo "window.open('service interruption.php?incident=".$incident_report."');";
-				echo "</script>";
-			}
-			
-			
-			
-			
-			break;
-		case "cancelled":
-		
-			$cancelTerm=$_POST['cancel'];
-			if($cancelTerm=="whole"){
-				$cancel=1;
-			}
-			else if($cancelTerm=="half"){
-				$cancel=.5;
-			}
-			else if($cancelTerm=="more"){
-				$cancel=$_POST['cancel_more'];
-			}
-			$sql.="set cancel='".$cancel."' ";
-			break;	
-		case "date":
-			$year=$_POST['year'];
-			$month=$_POST['month'];
-			$day=$_POST['day'];
-			
-			$hour=$_POST['hour'];
-//			echo $hour;
-			$minute=$_POST['minute'];
-//			echo $minute;
-			$amorpm=$_POST['amorpm'];
-//			echo $amorpm;
-			$equipment=$_POST['equipment'];
-			if($amorpm=="pm"){
-				if($hour<12){
-					$hour+=12;
-				}
-				else {
-				}
-			}
-			else {
-				if($hour=="12"){
-					$hour=0;
-				}
-			}
-			
-			$incident_date=$year."-".$month."-".$day." ".$hour.":".$minute;
-			//date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
-	//		echo $incident_date;
-			$sql.="set incident_date='".$incident_date."' ";
-			break;
-		}
-	$sql.=" where id='".$incident_report."'";
-
-	$rs=$db->query($sql);
-	
-	if($_POST['fieldType']=='onboard_equipt'){
-		$update="update incident_description set equipt='".$_POST['equipment']."', subitem='".$_POST['subitem']."' where incident_id='".$incident_report."'";
-
-		$rs=$db->query($update);
-	}
-	if($_POST['fieldType']=='problem'){
-		$update="update incident_description set equipt='', subitem='' where incident_id='".$incident_report."'";
-		$rs=$db->query($update);
-	}
-	else if($_POST['fieldType']=="additional_defects"){
-		$update="delete from incident_defects where incident_id='".$incident_report."'";
-		$rs=$db2->query($update);
-		
-		$update="insert into incident_defects(incident_id,equipt_id,sub_item_id) (select '".$incident_report."',equipt_id,sub_item_id from temp_multiple)";
-		$rs=$db2->query($update);
-		
-		$update="delete from temp_multiple";
-		$rs=$db2->query($update);
-			
-	
-	
-	}
-	
-
-	else if($_POST['fieldType']=="level"){
-		$levelSQL="select * from level where incident_id='".$incident_report."'";
-		$levelRS=$db->query($levelSQL);
-
-
-		
-		$levelNM=$levelRS->num_rows;
-
-		if($_POST['level']=="2"){
-			//$update="update incident_report set l2='".$_POST['order']."',l3='',l4='' where id='".$incident_report."'";
-			//$rs=$db->query($update);
-			
-			
-			if($levelNM>0){
-//				$update="update level set level='2',order='".$_POST['order']."' where id='".$incident_report."'";
-//				$rs=$db->query($update);
-			}
-			else {
-//				$update="insert into level(level,order,incident_id
-			
-			}
-
-		}
-		else if($_POST['level']=="3"){
-			//$update="update incident_report set l3='".$_POST['order']."',l2='',l4='' where id='".$incident_report."'";
-		//	$rs=$db->query($update);
-		
-			if($levelNM>0){
-			
-			
-			}
-			else {
-			
-			
-			}
-
-		}
-		else if($_POST['level']=="4"){
-		//	$update="update incident_report set l4='".$_POST['order']."',l2='',l3='' where id='".$incident_report."'";
-			//$rs=$db->query($update);
-			
-			if($levelNM>0){
-			
-			
-			}
-			else {
-			
-			}
-
-		}
-
-		$incidentSQL="select * from incident_report where id='".$incident_report."'";
-		$incidentRS=$db->query($incidentSQL);
-		$incidentRow=$incidentRS->fetch_assoc();
-
-		$incident_date=date("Y-m-d",strtotime($incidentRow['incident_date']));
-
-		
-		$updateSQL="delete from level where incident_id='".$incident_report."'";
-		$updateRS=$db->query($updateSQL);
-		
-		$updateSQL="insert into level(date,incident_id,level) values ";
-		$updateSQL.="('".$incident_date."','".$incident_report."','".$_POST['level']."')";
-		$updateRS=$db->query($updateSQL);
-		
-		
-		
-	}
-	else if($_POST['fieldType']=="index"){
-		$update="update incident_description set index_no='".$_POST['index_id']."', car_no='".$_POST['car']."' where incident_id='".$incident_report."'";
-		$rs=$db->query($update);
-		
-		$update="delete from incident_cars where incident_id='".$incident_report."'";
-		$rs=$db->query($update);
-
-		if($_POST['car']==""){
-		}
-		else {
-			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car']."')";
-			$rs=$db->query($update);
-
-		}
-		
-		if($_POST['car_2']==""){
-		}
-		else {
-			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car_2']."')";
-			$rs=$db->query($update);
-		
-		}
-		
-		if($_POST['car_3']==""){
-		}
-		else {
-			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car_3']."')";
-			$rs=$db->query($update);
-		
-		}
-		
-		
-		
-	}
-	
-	else if($_POST['fieldType']=="location"){
-		$update="update incident_description set location='".$_POST['location']."',direction='".$_POST['direction']."' where incident_id='".$incident_report."'";
-
-		$rs=$db->query($update);
-
-	}
-
-	else if($_POST['fieldType']=="reported_by"){
-		$update="update incident_description set reported_by='".$_POST['reported_by']."' where incident_id='".$incident_report."'";
-
-		$rs=$db->query($update);
-
-	}
-
-	else if($_POST['fieldType']=="received_by"){
-		$update="update incident_description set received_by='".$_POST['received_by']."' where incident_id='".$incident_report."'";
-
-		$rs=$db->query($update);
-
-	}
-
-	
-	echo "Data updated.";
-
-}
-
-?>
-<style type='text/css'>
-.ccdr tr:nth-child(odd)
-{
-background-color: #dfe7f2;
-color: #000000;
-}
-.ccdr tr th:first-child {
-	color: rgb(0,51,153);
-
-}
-
-.ccdr td, .ccdr th {
-border: 1px solid rgb(185, 201, 254);
-padding: 0.3em;
-}
-.ccdr {
-border: 1px solid rgb(185, 201, 254);
-
-}
-.ccdr #ccdr_heading {
-background-color:rgb(185, 201, 254);
-color: rgb(0,51,153);
-}
-body {
-	margin-left:30px;
-	margin-right:30px;
-
-}
-
-
-textarea{ 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: #dfe7f2;
-	color: rgb(0,51,153);
-	border-radius: 3px;
-}
-
-#edit_form th {
-	background-color: rgb(185, 201, 254);
-	color: rgb(0,51,153);
-
-}
-#edit_form input[type="text"] {
-	height:25px; 
-	font-weight:bold; 
-	font-size:15px; 
-	font-family:courier; 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: #dfe7f2;
-	color: rgb(0,51,153);
-	border-radius: 3px;
-
-}
-
-.label {
-	background-color: rgb(185, 201, 254);
-	color: rgb(0,51,153);
-	spacing: 2px;
-	padding: 5px;
-}
-
-.text_input {
-	height:25px; 
-	font-weight:bold; 
-	font-size:15px; 
-	font-family:courier; 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: #dfe7f2;
-	color: rgb(0,51,153);
-	border-radius: 3px;
-
-}
-
-
-.rowHeading {
-	color: rgb(0,51,153);
-	font-weight:bold;
-}
-
-#multi_list tr th,#multi_list2 tr th {
-
-	background-color: #33aa55;
-	color: #fff;
-	border: 1px solid rgb(185, 201, 254);
-
-}
-
-#multi_list tr:nth-child(2) td,#multi_list2 tr:nth-child(2) td  {
-	background-color: rgb(185, 201, 254);
-	color: rgb(0,51,153);
-
-
-}
-#multi_list tr:nth-child(n+2) td,#multi_list2 tr:nth-child(n+2) td{
-
-	background-color: #dfe7f2;
-	color: rgb(0,51,153);
-
-}
-
-
-select { border: 1px solid rgb(185, 201, 254); color: rgb(0,51,153); background-color: #dfe7f2;  }
-</style>
 <script language='javascript' src='ajax.js'></script>
 <script language='javascript'>
 function openLink(){
@@ -522,13 +161,15 @@ function fillEdit(elementName){
 
 
 	}
+	/*
 	else if(elementName=="incident_no"){
 		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
-		elementContents+="<tr><th width=20%>Incident Number</th><td><input type=text name='incident_number' /></td></tr>";
+//		elementContents+="<tr><th width=20%>Incident Number</th><td><input type=text name='incident_number' /></td></tr>";
 		document.getElementById('fieldType').value='incident_no';
 
 
 	}
+	*/
 	else if(elementName=="link_incident"){
 		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
 		elementContents+="<tr><th width=20%>Linked Incident Number</th>";
@@ -631,6 +272,36 @@ function fillEdit(elementName){
 		
 		
 	}
+	else if(elementName=="recommend_approval"){
+		
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Reporting Details</td></tr>";
+		elementContents+="<tr><th width=20%>Recommend Approval</th>";
+		elementContents+="<td>";
+		elementContents+="<input type=text name='recommend_approval' id='recommend_approval' />";
+
+		elementContents+="</td></tr>";
+
+		
+		document.getElementById('fieldType').value='recommend_approval';
+		
+		
+	}
+	else if(elementName=="approving_officer"){
+		
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Reporting Details</td></tr>";
+		elementContents+="<tr><th width=20%>Approving Officer</th>";
+		elementContents+="<td>";
+		elementContents+="<input type=text name='approving_officer' id='approving_officer' />";
+
+		elementContents+="</td></tr>";
+
+		
+		document.getElementById('fieldType').value='approving_officer';
+		
+		
+	}
+
+
 	else if(elementName=="reported_by"){
 
 		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Reporting Details</td></tr>";
@@ -675,6 +346,33 @@ function fillEdit(elementName){
 	
 	
 	}
+	else if(elementName=="incident_no"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Incident Number</td></tr>";
+		elementContents+="<tr><th width=20%>Incident Number</th>";
+		elementContents+="<td>";
+		elementContents+="<input type='text' name='incident_digit'/>";
+		
+		elementContents+="<select name='incident_suffix'>";
+		elementContents+="<option value=''></option>";
+		elementContents+="<option value='RS'>RS</option>";
+		elementContents+="<option value='SEQ'>SEQ</option>";
+		elementContents+="<option value='SIG'>SIG</option>";
+		elementContents+="<option value='PWR'>PWR</option>";
+		elementContents+="<option value='AFC'>AFC</option>";
+		elementContents+="<option value='DEQ'>DEQ</option>";
+		elementContents+="<option value='COM'>COM</option>";
+		elementContents+="<option value='TRK'>TRK</option>";
+		elementContents+="<option value='CEQ'>CEQ</option>";
+		elementContents+="<option value='OTR'>OTR</option>";
+		elementContents+="</select>";
+		
+		elementContents+="</td></tr>";
+
+		document.getElementById('fieldType').value='incident_no';
+	
+		
+		
+	}
 	else if(elementName=="additional_defects"){
 		var multipleTable="<table name='multi_list' id='multi_list' width=80%>";
 		
@@ -717,7 +415,7 @@ function fillEdit(elementName){
 	}
 	
 	
-	
+	$('#addModal').modal('show');
 }
 
 function okayDefects(ajaxHTML){
@@ -907,10 +605,13 @@ function fillEquipt(problemType,equiptId){
 		else if(equiptId=="others"){
 			makeajax("processing.php?scrollOthers="+problemType,"fillOnboard");		
 		}
+	
 		else {
 			makeajax("processing.php?scrollRolling="+problemType,"fillOnboard");		
 		}
 	}
+	$('#addModal').modal('show');
+
 }
 
 function fillItem(equiptId,categoryId){
@@ -1211,20 +912,483 @@ function getCategory(problemType){
 	}
 }
 
-
+function sampleFreeow(){	
+$("#freeow").freeow("Success!", "Data Update..", {
+    classes: ["gray", "append"],
+    autoHide: true
+});
+	
+}
 
 </script>
+
+<?php
+if(isset($_POST['fieldType'])){			
+//$incident_report=$_POST['incident_report'];
+	//Mjun@
+	$fieldT=$_POST['fieldType'];
+	if ($fieldT<>"") {			
+	$incident_report=$_POST['inc_report'];	
+	$sql="update incident_report ";		
+	switch($_POST['fieldType']){
+		case "onboard_equipt":
+			$sql.="set equipt='".$_POST['equipment']."' ";
+			break;
+		case "dotc":
+			if(isset($_POST['dotc'])){
+				$dotc_taken=$_POST['dotc'];
+
+			}
+			else if(isset($_POST['dotc_coordinated'])){
+				$dotc_taken=$_POST['dotc_coordinated']." ".$_POST['coordinated_to'];
+			}		
+		
+			$sql.="set action_dotc='".$dotc_taken."' ";
+			break;
+		case "maintenance":
+			$sql.="set action_maintenance='".$_POST['maintenance_provider']."' ";
+			break;
+		case "level":
+			$level_condition=$_POST['condition'];
+
+			$sql.="set level='".$_POST['level']."',level_condition='".$level_condition."' ";
+			break;
+		case "description":
+			$sql.="set description='".$_POST['description']."' ";
+			break;
+
+		case "duration":
+			$sql.="set duration='".$_POST['duration']."' ";
+			break;
+			
+			
+		case "linked_to":
+			$sql.="set linked_to='".$_POST['incident_link']."' ";
+			break;
+			
+		case "recommend_approval":
+			$sql.="set recommending_approval='".$_POST['recommend_approval']."' ";
+			break;
+			
+		case "approving_officer":
+			$sql.="set approving_person='".$_POST['approving_officer']."' ";
+			break;			
+			
+		case "incident_no":
+			
+			$incidentSQL="select * from incident_report where id='".$incident_report."'";
+			$incidentRS=$db->query($incidentSQL);
+			$incidentRow=$incidentRS->fetch_assoc();
+			
+			$suffixSQL="select * from equipment_type where equipment_code='".$incidentRow['incident_type']."'";
+			$suffixRS=$db->query($suffixSQL);
+			
+			$suffixRow=$suffixRS->fetch_assoc();
+			$suffix=$suffixRow['incident_code'];
+		
+		
+		
+			$sql.="set incident_no='".$_POST['incident_number']." ".$suffix."' ";
+			//$_POST['incident_report']=$_POST['incident_number'];
+			break;
+		case "problem":
+			$sql.="set incident_type='".$_POST['type']."',equipt='',";
+
+			$incidentSQL="select * from incident_report where id='".$incident_report."'";
+			$incidentRS=$db->query($incidentSQL);
+			$incidentRow=$incidentRS->fetch_assoc();
+			
+			$suffixSQL="select * from equipment_type where equipment_code='".$_POST['type']."'";
+			$suffixRS=$db->query($suffixSQL);
+			$suffixRow=$suffixRS->fetch_assoc();
+			$suffix=$suffixRow['incident_code'];
+				
+		
+			$sql.="incident_no='".$incidentRow['id']." ".$suffix."' ";
+
+			
+			if($_POST['type']=="ser_int"){
+				echo "<script language='javascript'>";
+				echo "window.open('service interruption.php?incident=".$incident_report."');";
+				echo "</script>";
+			}
+						
+			break;
+		case "cancelled":
+		
+			$cancelTerm=$_POST['cancel'];
+			if($cancelTerm=="whole"){
+				$cancel=1;
+			}
+			else if($cancelTerm=="half"){
+				$cancel=.5;
+			}
+			else if($cancelTerm=="more"){
+				$cancel=$_POST['cancel_more'];
+			}
+			$sql.="set cancel='".$cancel."' ";
+			break;	
+		case "date":
+			$year=$_POST['year'];
+			$month=$_POST['month'];
+			$day=$_POST['day'];
+			
+			$hour=$_POST['hour'];
+//			echo $hour;
+			$minute=$_POST['minute'];
+//			echo $minute;
+			$amorpm=$_POST['amorpm'];
+//			echo $amorpm;
+			$equipment=$_POST['equipment'];
+			if($amorpm=="pm"){
+				if($hour<12){
+					$hour+=12;
+				}
+				else {
+				}
+			}
+			else {
+				if($hour=="12"){
+					$hour=0;
+				}
+			}
+			
+			$incident_date=$year."-".$month."-".$day." ".$hour.":".$minute;
+			//date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
+	//		echo $incident_date;
+			$sql.="set incident_date='".$incident_date."' ";
+			break;
+		}
+	$sql.=" where id='".$incident_report."'";
+	
+	$rs=$db->query($sql);
+	$Mup = 1;
+	
+	if($_POST['fieldType']=='onboard_equipt'){
+		$update="update incident_description set equipt='".$_POST['equipment']."', subitem='".$_POST['subitem']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+	}
+	if($_POST['fieldType']=='problem'){
+		$update="update incident_description set equipt='', subitem='' where incident_id='".$incident_report."'";
+		$rs=$db->query($update);
+	}
+	else if($_POST['fieldType']=="additional_defects"){
+		$update="delete from incident_defects where incident_id='".$incident_report."'";
+		$rs=$db2->query($update);
+		
+		$update="insert into incident_defects(incident_id,equipt_id,sub_item_id) (select '".$incident_report."',equipt_id,sub_item_id from temp_multiple)";
+		$rs=$db2->query($update);
+		
+		$update="delete from temp_multiple";
+		$rs=$db2->query($update);
+			
+	
+	}
+	
+
+	else if($_POST['fieldType']=="level"){
+		$levelSQL="select * from level where incident_id='".$incident_report."'";
+		$levelRS=$db->query($levelSQL);
+
+
+		
+		$levelNM=$levelRS->num_rows;
+
+		if($_POST['level']=="2"){
+			//$update="update incident_report set l2='".$_POST['order']."',l3='',l4='' where id='".$incident_report."'";
+			//$rs=$db->query($update);
+			
+			
+			if($levelNM>0){
+//				$update="update level set level='2',order='".$_POST['order']."' where id='".$incident_report."'";
+//				$rs=$db->query($update);
+			}
+			else {
+//				$update="insert into level(level,order,incident_id
+			
+			}
+
+		}
+		else if($_POST['level']=="3"){
+			//$update="update incident_report set l3='".$_POST['order']."',l2='',l4='' where id='".$incident_report."'";
+		//	$rs=$db->query($update);
+		
+			if($levelNM>0){
+			
+			
+			}
+			else {
+			
+			
+			}
+
+		}
+		else if($_POST['level']=="4"){
+		//	$update="update incident_report set l4='".$_POST['order']."',l2='',l3='' where id='".$incident_report."'";
+			//$rs=$db->query($update);
+			
+			if($levelNM>0){
+			
+			
+			}
+			else {
+			
+			}
+
+		}
+
+		$incidentSQL="select * from incident_report where id='".$incident_report."'";
+		$incidentRS=$db->query($incidentSQL);
+		$incidentRow=$incidentRS->fetch_assoc();
+
+		$incident_date=date("Y-m-d",strtotime($incidentRow['incident_date']));
+
+		
+		$updateSQL="delete from level where incident_id='".$incident_report."'";
+		$updateRS=$db->query($updateSQL);
+		
+		$updateSQL="insert into level(date,incident_id,level) values ";
+		$updateSQL.="('".$incident_date."','".$incident_report."','".$_POST['level']."')";
+		$updateRS=$db->query($updateSQL);
+		
+		
+		
+	}
+	else if($_POST['fieldType']=="index"){
+		$update="update incident_description set index_no='".$_POST['index_id']."', car_no='".$_POST['car']."' where incident_id='".$incident_report."'";
+		$rs=$db->query($update);
+		
+		$update="delete from incident_cars where incident_id='".$incident_report."'";
+		$rs=$db->query($update);
+
+		if($_POST['car']==""){
+		}
+		else {
+			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car']."')";
+			$rs=$db->query($update);
+
+		}
+		
+		if($_POST['car_2']==""){
+		}
+		else {
+			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car_2']."')";
+			$rs=$db->query($update);
+		
+		}
+		
+		if($_POST['car_3']==""){
+		}
+		else {
+			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car_3']."')";
+			$rs=$db->query($update);
+		
+		}
+		
+		
+		
+	}
+	
+	else if($_POST['fieldType']=="location"){
+		$update="update incident_description set location='".$_POST['location']."',direction='".$_POST['direction']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+
+	}
+
+	else if($_POST['fieldType']=="reported_by"){
+		$update="update incident_description set reported_by='".$_POST['reported_by']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+
+	}
+
+	else if($_POST['fieldType']=="received_by"){
+		$update="update incident_description set received_by='".$_POST['received_by']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+
+	}
+	else if($_POST['fieldType']=="incident_no"){
+		$update="update incident_report set incident_no='".$_POST['incident_digit']." ".$_POST['incident_suffix']."' where id='".$incident_report."'";
+		$rs=$db->query($update);
+		
+		
+		$update="update incident_no set incident_number='".$_POST['incident_digit']."', suffix='".$_POST['incident_suffix']."' where incident_id='".$incident_report."'";
+		$db2=new mysqli("localhost","root","","user_transport");
+		$rs=$db2->query($update);
+	}
+		
+	
+	
+	// echo "<script typ=javascript> sampleFreeow();</script>"; 
+	
+	// echo "<script type='text/javascript'>Samplefreeow();</script>";	
+	
+	// echo '<script type="text/javascript">window.onload = function () { alert("Data Update!"); }</script>';
+	
+	
+	//Mjun@ initialize
+	$incident_report="";
+	
+	}
+}
+?>
+
+
+
+<style type='text/css'>
+
+.ccdr tr:nth-child(odd)
+{
+background-color: #F3F3F3; 
+/* color: #000000; */
+}
+
+/* color text */
+.ccdr tr th:first-child {
+	color: black;
+	text-indent: 0.3em;
+	/* color: rgb(0,51,153);*/
+}
+
+/* outline color */
+.ccdr td, .ccdr th {
+	border: 1px solid #A9A9A9;	
+/* border: 1px solid rgb(185, 201, 254);
+padding: 0.3em; */
+}
+
+/* outline border */
+.ccdr {
+	border: 1px solid #FBCC2A;
+/* border: 1px solid rgb(185, 201, 254); */
+}
+
+.ccdr #ccdr_heading {
+	background-color: #cccccc;     /*rgb(184,184,184); */
+	/* color: #FFFFFF; */
+	font-family: "Comic Sans MS"; 
+	font-size: 18px;
+	border: 1px solid black	
+/* background-color:rgb(185, 201, 254);
+color: rgb(0,51,153); */
+}
+
+textarea{ 
+	/* border: 1px solid rgb(185, 201, 254);
+	background-color: #dfe7f2;
+	color: rgb(0,51,153);
+	border-radius: 3px; */
+	
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
+	border-radius: 3px;	
+}
+
+/* Incident ID label background 
+#edit_form th */
+
+#edit_form th {
+	background-color:rgb(184,184,184);
+}
+
+.inc th {
+	background-color:rgb(184,184,184);	
+	/* background-color: rgb(185, 201, 254);
+	 color: rgb(0,51,153); */
+}
+
+#edit_form input[type="text"] {
+	height:25px; 
+	font-weight:bold; 
+	font-size:15px; 
+	font-family:courier; 
+	/* border: 1px solid rgb(185, 201, 254);
+	 background-color: #dfe7f2; */
+	/* color: rgb(0,51,153); */
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
+	border-radius: 3px;
+}
+
+
+/* Search label disable*/
+/*
+.label {	
+	
+	/* background-color: rgb(184,184,184); */	
+	/*background-color: rgb(185, 201, 254);
+	color: rgb(0,51,153);
+	spacing: 2px;
+	padding: 5px;  
+}
+*/
+/* search Incident Numeer */
+.text_input {
+	/* height:25px; 
+	font-weight:bold; 
+	font-size:15px; 
+	font-family:courier; 
+	border: 1px solid rgb(185, 201, 254);
+	background-color: #dfe7f2;
+	color: rgb(0,51,153);
+	border-radius: 3px; */
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
+	border-radius: 3px;
+}
+
+
+.rowHeading {
+	color: rgb(0,51,153);
+	font-weight:bold; 
+} 
+
+/* equip and sub */
+#multi_list tr th,#multi_list2 tr th {
+
+	background-color: #cccccc;
+	/* color: #fff; */
+	border: 1px solid #F3F3F3;
+	text-align: center;
+}
+
+
+#multi_list tr:nth-child(2) td,#multi_list2 tr:nth-child(2) td  {
+	background-color: rgb(185, 201, 254);
+	color: rgb(0,51,153);
+}
+
+#multi_list tr:nth-child(n+2) td,#multi_list2 tr:nth-child(n+2) td{
+
+	background-color: #dfe7f2;
+	color: rgb(0,51,153);
+}
+
+select { border: 1px solid #FFD700; color: black; background-color: #FFFACD;  }
+
+.alink a.disabled {
+        color: #666;
+        text-decoration: none;
+    }
+</style>
+
+
+<!-- orig javascrip    -->
+
 <body>
 <br>
-<?php
-require("monitoring menu.php");
-
-?>
 <br>
 <br>
 <br>
 
-<form action='edit_ccdr.php' method='post'><span class='label'>Search Incident Number</span><input class='text_input' type=text name='search_incident_number' /><input type=submit value='Search' /></form>
+<div id="freeow" class="freeow freeow-bottom-right"></div>
+<form action='edit_ccdr.php' method='post'><font face="verdana" size="2" color="black"><b>Search Incident Number </b> </font><input class='text_input' type=text name='search_incident_number'/><input type=submit value='Search' /></form>
+
+
+
 
 <?php
 $db=new mysqli("localhost","root","","transport");
@@ -1237,11 +1401,7 @@ if(isset($_POST['search_incident_number'])){
 	$nm=$rs->num_rows;
 	if($nm>0){
 	?>	
-<form action='edit_ccdr.php' method=post>
-	<span class='label'>
-	Retrieve Incident Report: 
-	</span>
-	<select  class='text_input' name='incident_report'>
+<form action='edit_ccdr.php' method=post><font face="verdana" size="2" color="black"><b>Retrieve Incident Report </b></font><select  class='text_input' name='incident_report'>
 	<?php
 		for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
@@ -1354,6 +1514,8 @@ if(isset($_POST['search_incident_number'])){
 		$description=$row['description'];
 		$dotc_action=$row['action_dotc'];
 		$maintenance_action=$row['action_maintenance'];
+		$recommend_approval=$row['recommending_approval'];
+		$approving_officer=$row['approving_person'];
 		
 		$category=$row['category'];
 
@@ -1515,18 +1677,42 @@ if(isset($_POST['search_incident_number'])){
 
 ?>
 
+<!-- table for Control -->
+<script type="text/javascript">
+$(document).ready(function(){
+    $(".alink a").each(function(){
+        if($(this).hasClass("disabled")){
+            $(this).removeAttr("href");
+        }
+    });
+});
+</script>
 
 
+<?php
+if ($ULev>=2){
+	$SRemove = "";
+} else {
+	$SRemove = "disabled";
+}
+?>
 
-<table  width=80% class='ccdr'>
-<tr id='ccdr_heading'><th colspan=3>Control Center Daily Report</th></tr>
-<tr><th width=20%>Incident Number:</th><td width=70%><?php echo $incident_no; ?></td><td width=10%>
+<!-- table for Control -->
+
+<div class="alink">
+
+<table width=70% class='ccdr'>
+<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Control Center Daily Report</th></tr>
+<tr><th width=20%>Incident Number</th><td width=50%><?php echo $incident_no; ?></td><td align=center><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("incident_no")'>Edit</a></td>
+
+
 <!--
+
 <a href='#edit_form' onclick='fillEdit("incident_no")'>Edit</a>
 -->
 &nbsp;
-</td></tr>
-<tr><th>Type of Problem:</th>
+</tr>
+<tr><th>Type of Problem</th>
 <td>
 <?php echo $problem_type; ?>
 <?php
@@ -1548,9 +1734,11 @@ if($level_condition=="3"){
 }
 
 ?>
-</td><td><a href='#edit_form' onclick='fillEdit("problem")'>Edit</a></td></tr>
+</td>
 
-<tr><th>On-board Equipt/Accessories:</th>
+<td align="center"><a href='#edit_form' onclick='fillEdit("problem")'  class="<?php echo $SRemove; ?>">Edit</a></td></tr>
+
+<tr><th>On-board Equipt/Accessories</th>
 
 
 <td><?php echo $onboard_equipt; ?>
@@ -1577,7 +1765,7 @@ $row=$rs->fetch_assoc();
 </select>
 </span>
 </td>
-<td><a href='#edit_form' onclick='fillEquipt("onboard_equipt","<?php echo $problem_type2; ?>")'>Edit</a></td>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEquipt("onboard_equipt","<?php echo $problem_type2; ?>")'>Edit</a></td>
 </tr>
 <tr>
 <th>Additional Defects
@@ -1593,7 +1781,7 @@ $row=$rs->fetch_assoc();
 		?>
 
 </td>
-<td><a href='#edit_form' onclick='fillEdit("additional_defects")'>Edit</a></td>
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("additional_defects")'>Edit</a></td>
 </tr>
 
 
@@ -1605,13 +1793,13 @@ if($link_no==""){
 }
 else {
 ?>
-See <a href='#' onclick='window.open("edit_ccdr.php?ir=<?php echo $linked_to; ?>","_blank")'><?php echo $link_no; ?></a>
+See <a href='#'  class="<?php echo $SRemove; ?>" onclick='window.open("edit_ccdr.php?ir=<?php echo $linked_to; ?>","_blank")'><?php echo $link_no; ?></a>
 
 <?php
 }
 ?>
 </td>
-<td><a href='#edit_form' onclick='fillEdit("link_incident")'>Edit</a></td>
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("link_incident")'>Edit</a></td>
 </tr>
 <tr>
 <th>Index No./Car No.</th>
@@ -1630,7 +1818,7 @@ else {
 ?>
 
 
-</td><td><a href='#edit_form' onclick='fillEdit("index")'>Edit</a></td></tr>
+</td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
 
 <tr>
 <th>Cancelled Loops</th>
@@ -1638,46 +1826,56 @@ else {
 <?php echo $cancel; ?>
 
 </td>
-<td>
-<a href='#edit_form' onclick='fillEdit("cancel")'>Edit</a>
+<td align="center">
+<a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("cancel")'>Edit</a>
 </td>
 </tr>
 
 </tr>
-<tr><th>Level:</th><td><?php echo $level; echo $levelClause; echo ". ".$condition; ?></td><td><a href='#edit_form' onclick='fillEdit("level")'>Edit</a></td></tr>
+<tr><th>Level</th><td><?php echo $level; echo $levelClause; echo ". ".$condition; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("level")'>Edit</a></td></tr>
 
 
 
-<tr><th>Date:</th><td><?php echo $date; ?></td><td><a href='#edit_form' onclick='fillEdit("date")'>Edit</a></td></tr>
-<tr><th>Time:</th><td><?php echo $time; ?></td><td><a href='#edit_form' onclick='fillEdit("date")'>Edit</a></td></tr>
-<tr><th>Incident Duration:</th><td><?php echo $duration; ?></td><td><a href='#edit_form' onclick='fillEdit("duration")'>Edit</a></td></tr>
+<tr><th>Date</th><td><?php echo $date; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
+<tr><th>Time</th><td><?php echo $time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
+<tr><th>Incident Duration</th><td><?php echo $duration; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("duration")'>Edit</a></td></tr>
 
-<tr><th>Location/Direction:</th><td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td><a href='#edit_form' onclick='fillEdit("location")'>Edit</a></td></tr>
-
-
+<tr><th>Location/Direction</th><td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
 
 
-<tr><th>Description:</th><td><?php echo $description; ?></td><td><a href='#edit_form' onclick='fillEdit("description")'>Edit</a></td></tr>
+
+
+<tr><th>Description</th><td><?php echo $description; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("description")'>Edit</a></td></tr>
 		
 		
 
 </table>
 <br>
-<table  class='ccdr' width=80% border=1>
-<tr id='ccdr_heading'><th colspan=3>Reporting</th></tr>
-<tr><th width=20%>Reported By</th><td width=70%><?php echo $reported_by; ?></td><td width=10%><a href='#edit_form' onclick='fillEdit("reported_by")'>Edit</a></td></tr>
-<tr><th>Received By:</th><td><?php echo $received_by; ?></td><td><a href='#edit_form' onclick='fillEdit("received_by")'>Edit</a></td></tr>
+
+<!-- table for Report -->
+
+<table  class='ccdr' width=70% border=1>
+<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Reporting</th></tr>
+<tr><th width=20%>Reported By</th><td width=50%><?php echo $reported_by; ?></td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("reported_by")'>Edit</a></td></tr>
+<tr><th>Received By</th><td><?php echo $received_by; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("received_by")'>Edit</a></td></tr>
+<tr><th width=20%>Recommending Approval</th><td width=50%><?php echo $recommend_approval; ?></td><td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("recommend_approval")'>Edit</a></td></tr>
+<tr><th>Approving Officer</th><td><?php echo $approving_officer; ?></td><td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("approving_officer")'>Edit</a></td></tr>
 
 </table>
 <br>
-<table  class='ccdr' width=80% border=1>
-<tr id='ccdr_heading'><th colspan=3>Action Taken</th></tr>
-<tr><th width=20%>DOTC:</th><td width=70%><?php echo $dotc_action; ?></td><td width=10%><a href='#edit_form' onclick='fillEdit("dotc")'>Edit</a></td></tr>
-<tr><th>Maintenance Provider:</th><td><?php echo $maintenance_action; ?></td><td><a href='#edit_form' onclick='fillEdit("maintenance")'>Edit</a></td></tr>
+
+<!-- table for maintenance -->
+
+<table  class='ccdr' width=70% border=1>
+<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Action Taken</th></tr>
+<tr><th width=20%>DOTR</th><td width=50%><?php echo $dotc_action; ?></td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("dotc")'>Edit</a></td></tr>
+<tr><th>Maintenance Provider</th><td><?php echo $maintenance_action; ?></td><td align="center">&nbsp;</td></tr>
+
 </table>
 <br>
 <br>
-<form id='edit_form' name='edit_form' action='edit_ccdr.php'  method='post'>
+
+<!--<form id='edit_form' name='edit_form' action='edit_ccdr.php'  method='post'>
 	<table id='edit_table' name='edit_table' width=80%>	
 	</table>
 	<table width=80%>
@@ -1685,5 +1883,59 @@ else {
 	</table>
 	<br>
 	<div align=left><font color=white>| | | | | | | | | | | | | | | | | | | |</font><input type=hidden name='fieldType' id='fieldType' /><input type=submit value='Edit' /></div>
-</form>
+	
+	
+	------------
+	<div align=left><font color=white>| | | | | | | | | | | | | | | | | | | |</font><input type="hidden" name='fieldType' id='fieldType' /> <input type="hidden" name="inc_report" value='<?php echo $incident_report?>' /> <input type=button id=submit onclick="sampleFreeow()" value='Edit' /></div>
+	</form>
+	
+</form> -->
+
+<!-- Mjun@ -->
+		<div class="modal hide fade" id="addModal">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">×</button>
+				<h3>Edit</h3>
+			</div>
+<form id='edit_form' name='edit_form' action='edit_ccdr.php?ir=<?php echo $incident_report; ?>'  method='post'>
+
+			<div class="modal-body">	
+				<table id='edit_table' name='edit_table' width=80%>	
+				</table>
+				<table width=80%>
+				<tr><th width=20%>Incident ID</th><td><input type="Text" id='incident_report' name='incident_report' value='<?php echo $incident_report; ?>' disabled/></td></tr> 
+				</table>
+				<br>
+				<div align=left><font color=white>| | | | | | | | | | | | | | | | | | | |</font><input type="hidden" name='fieldType' id='fieldType' /> <input type="hidden" name="inc_report" value='<?php echo $incident_report?>' /> </div>
+
+
+				
+			</div>
+						
+			<div class="modal-footer">
+				<a href="#" class="btn" data-dismiss="modal">Close</a>
+				<button type='submit' class="btn btn-primary" id='Suc' value='Submit'>Edit </button>
+			</div>
+			  </form>
+		</div>
+
+
+
+<?php	
+if(isset($_POST['submit'])){	
+	if ($Mup==1) {		
+	echo "<script typ=javascript> sampleFreeow();</script>"; 
+	$Mup=0;
+	}
+}
+	?>
 </body>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+		<script src="js/bootstrap.min.js"></script>	
+		
+
+<script src="js/date.js"></script>	
+<script src='js/form.js'></script>

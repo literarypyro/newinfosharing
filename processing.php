@@ -6,6 +6,7 @@ $db=new mysqli("localhost","root","","transport");
 
 $db2=new mysqli("localhost","root","","external");
 $db3=new mysqli("localhost","root","","timetable");
+$db4=new mysqli("localhost","root","","user_transport");
 
 ?>
 <?php
@@ -271,7 +272,7 @@ if(isset($_GET['checkCar'])){
 			echo "No car";
 		}
 		else  {
-		echo $_GET['car'];
+			echo $_GET['car'];
 		}
 	}
 	else {
@@ -399,5 +400,40 @@ if(isset($_GET['ph_trams'])){
 
 
 }
+if(isset($_GET['checkIncidentNo'])){
 
+	$year=$_GET['year'];
+	$incident_no=$_GET['checkIncidentNo'];
+
+	$sql="select * from incident_no where incident_number='".$incident_no."' and year='".$year."'";
+	$rs=$db4->query($sql);
+	$nm=$rs->num_rows;
+	if($nm>0){
+		echo $_GET['checkIncidentNo'];
+	}
+	else {
+		echo "No number";
+	}
+}
+
+if(isset($_GET['search_preencoded'])){
+
+	$db2=new mysqli("localhost","root","","external");
+	$sql="select * from preencoded";
+
+	//	$sql="select * from preencoded where content like '%".$_GET['query']."%%'";
+	$rs=$db2->query($sql);
+	$nm=$rs->num_rows;
+	for($i=0;$i<$nm;$i++){
+		$row=$rs->fetch_assoc();
+		
+		$data[]=$row['content'];
+		
+	}
+	echo json_encode($data);
+	
+	
+	
+
+}
 ?>

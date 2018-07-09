@@ -1,3 +1,8 @@
+<!--- Modified by Jun
+//--- Date: 8/11/2014
+//--- Modify: Screen layout and color
+//--- Marker: @mjun
+//--------------------------------------------------
 <form action='statistics_report_afc.php' method='post'>
 <table>
 <!--
@@ -10,6 +15,37 @@
 </td>
 </tr>
 -->
+
+<style type='text/css'>
+
+.rowClass {background-color: #F3F3F3;}
+
+/* color header */
+.rowHeading {background-color: #cccccc;
+			color:black
+}
+.train_ava td{
+	border: 1px solid #FBCC2A;
+	color: black;
+	cellpadding: 5px
+}
+
+.train_ava th {
+	border: 1px solid #FBCC2A;;
+	cellpadding: 5px;	
+	color: black
+}
+
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; }
+
+/* --- mjun -- generate */
+a.two:visited {color:black;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
+
+</style>
+
+<form action='statistics_report_afc.php' method='post'>
+<table>
 <tr>
 <th>Year</th>
 <td>
@@ -57,10 +93,62 @@ for($k=$startYear;$k<=$endYear;$k++){
 <tr>
 <th colspan=2><input type=submit value='Submit' /></th>
 </tr>
-</table>
+ </table> 
+
 </form>
 
 <?php
+
+
+if(isset($_POST['year'])){
+	$year=$_POST['year'];
+	$level=$_POST['level'];
+	
+		if($_POST['station']=='D'){
+			$stationClause=" and direction='".$_POST['station']."' ";	
+			$equiptClause=" and id in ('75','76 ')";
+			$station="Depot";
+		}
+		else {
+			$stationClause=" and location='".$_POST['station']."' ";	
+			$equiptClause=" and id not in ('75','76 ')";
+			$sql="select * from station where id='".$_POST['station']."'";
+			$rs=$db->query($sql);
+			$row=$rs->fetch_assoc();
+			
+			$station=$row['station_name'];
+
+		}
+
+
+
+}
+	
+	
+	
+	
+else {
+	$year=date("Y");
+	$level="2";
+	$station=$_GET['station_name'];
+}
+
+if(isset($_GET['station'])){
+	if($_GET['station']=="D"){
+		$stationClause=" and direction='".$_GET['station']."' ";	
+		$equiptClause=" and id in ('75','76 ')";
+		
+		
+	}
+	else {
+		$stationClause=" and location='".$_GET['station']."' ";
+		$equiptClause=" and id not in ('75','76 ')";
+
+	}
+	$station=$_GET['station_name'];
+}
+
+
 $db=new mysqli("localhost","root","","transport");
 
 $sql="select * from equipment where type='AFC'";
@@ -78,43 +166,15 @@ for($i=0;$i<$nm;$i++){
 	}
 	
 }
-
-if(isset($_POST['year'])){
-	$year=$_POST['year'];
-	$level=$_POST['level'];
-	
-		if($_POST['station']=='D'){
-		$stationClause=" and direction='".$_POST['station']."' ";	
-		}
-		else {
-		$stationClause=" and location='".$_POST['station']."' ";	
-		}
-	}
-else {
-	$year=date("Y");
-	$level="2";
-	$station=$_GET['station_name'];
-}
-
-if(isset($_GET['station'])){
-	if($_GET['station']=="D"){
-		$stationClause=" and direction='".$_GET['station']."' ";	
-		
-	}
-	else {
-	$stationClause=" and location='".$_GET['station']."' ";
-	}
-	$station=$_GET['station_name'];
-}
 ?>
 <h2><?php echo "Year ".$year; ?></h2>
 <h2><?php echo " ".$station; ?></h2>
 
-<table border=1px style='border-collapse:collapse;' width=100%>
-<tr>
+<table class="train_ava" border=1px style='border-collapse:collapse;' width=100%>
+<tr class='rowHeading'>
 <th>&nbsp;</th>
 <?php
-$sql="select * from equipment where type='AFC'";
+$sql="select * from equipment where type='AFC' ".$equiptClause;
 
 $rs=$db->query($sql);
 
@@ -166,10 +226,10 @@ for($i=1;$i<=12;$i++){
 
 ?>
 
-	<tr>
+	<tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
 	<td align=center><?php echo strtoupper($month_heading); ?></td>
 	<?php
-		$sql="select * from equipment where type='AFC'";
+		$sql="select * from equipment where type='AFC' ".$equiptClause;
 
 		$rs=$db->query($sql);
 
@@ -177,7 +237,7 @@ for($i=1;$i<=12;$i++){
 
 		for($n=0;$n<$nm;$n++){
 			$row=$rs->fetch_assoc();
-		?>
+		?>						
 			<td align=center><?php echo $equipt_count["Month_".$i]["Equipt_".$row['id']]; ?></td>
 		<?php	
 		}

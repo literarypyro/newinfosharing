@@ -1,42 +1,80 @@
 <?php
-session_start();
-?>
-<?php
+require("Tmenu.php");
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
+<!--- Modified by Jun
+//--- Date: 7/21/2014
+//--- Modify: screen layout
+//--- Marker: @jun
+//--------------------------------------------------->
+<!--
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/gray/easyui.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/icon.css" />
+<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/demo/demo.css" />
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.min.js"></script>
+<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.easyui.min.js"></script>
+-->
+
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
+
 <style type='text/css'>
+
 .ccdr tr:nth-child(odd)
 {
-background-color: #dfe7f2;
-color: #000000;
+	background-color: #F3F3F3;
+	color: #000000;	
+		
+/*background-color: #dfe7f2;
+color: #000000; */
 }
+
+/* nothing */
 .ccdr2 tr:nth-child(odd):not(:last-child)
 {
-background-color: #dfe7f2;
-color: #000000;
+	background-color: #dfe7f2;
+	color: #000000; 
 }
+
+/* fonts */
 .ccdr tr th:first-child {
-	color: rgb(0,51,153);
-
+	color: black;
+	
+	/* color: rgb(0,51,153); */
 }
 
+/* border color */
 .ccdr td, .ccdr th,.ccdr2 td, .ccdr2 th {
-border: 1px solid rgb(185, 201, 254);
-padding: 0.3em;
-}
-.ccdr, .ccdr2 {
-border: 1px solid rgb(185, 201, 254);
 
+border: 1px solid #808080;
+padding: 0.3em;
+
+/* border: 1px solid rgb(185, 201, 254);
+padding: 0.3em; */
 }
+
+.ccdr, .ccdr2 {
+	
+border: 1px solid red;
+
+/* border: 1px solid rgb(185, 201, 254); */
+}
+
+/* nothing */
 .ccdr #ccdr_heading, .ccdr2 #ccdr_heading {
 background-color:rgb(185, 201, 254);
-color: rgb(0,51,153);
+color: rgb(0,51,153); 
 }
-body {
+
+
+/*
+ body {
 	margin-left:30px;
 	margin-right:30px;
-
+	
 }
+*/
 
 
 textarea{ 
@@ -84,17 +122,40 @@ textarea{
 
 
 .rowHeading {
-	color: rgb(0,51,153);
+	
+	color: black;
 	font-weight:bold;
+	text-align: center;
+	
+	/* color: rgb(0,51,153);
+	font-weight:bold; */
 }
 
-select { border: 1px solid rgb(185, 201, 254); color: rgb(0,51,153); background-color: #dfe7f2;  }
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD;  }
+
+/* --- mjun */
+a.two:visited {color:black;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
+h2 { font-size:20px; font-weight:bold; }
+
 </style>
-<?php
-require("monitoring menu.php");
-?>
+
+<script language='javascript'>
+$(function() {
+    $( "#search_date" ).datepicker({
+      changeMonth: true,
+      changeYear: true,
+      showAnim: "clip"
+    });    
+});
+
+</script>
+
+
 <br>
 <br>
+<br>
+
 <form action='ccdr_summary.php' method='post'>
 <?php
 $mm=date("m");
@@ -106,85 +167,45 @@ $hh=date("h");
 $min=date("i");
 $aa=date("a");
 
-
-if(isset($_POST['day'])){
-	$yy=$_POST['year'];
-	$mm=$_POST['month'];
-	$dd=$_POST['day'];
+if(isset($_POST['search_date'])){
+//	$yy=$_POST['year'];
+//	$mm=$_POST['month'];
+//	$dd=$_POST['day'];
 	
-	$_SESSION['day']=$_POST['day'];
+/*	$_SESSION['day']=$_POST['day'];
 	$_SESSION['month']=$_POST['month'];
 	$_SESSION['year']=$_POST['year'];
-	
-}	
+*/	
+	$_SESSION['search_date']=$_POST['search_date'];
+	$availability_date=date("Y-m-d",strtotime($_POST['search_date']));
+	$datenow=$_POST['search_date'];
+}
+else {
+$datenow=date("m/d/Y");	
+	$availability_date=date("Y-m-d");
 
-
-
-?>
-
-<select name='month'>
-<?php
-for($i=1;$i<13;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$mm){
-		echo "selected";
-	}
-	?>
-	>
-	<?php
-	echo date("F",strtotime(date("Y")."-".$i."-01"));
-	?>
-	</option>
-<?php
 }
 ?>
-</select>
-<select name='day'>
-<?php
-for($i=1;$i<=31;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$dd){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<select name='year'>
-<?php
-$dateRecent=date("Y")*1+16;
-for($i=1999;$i<=$dateRecent;$i++){
-?>
-	<option value='<?php echo $i; ?>' 
-	<?php
-	if($i==$yy){
-		echo "selected";
-	}
-	?>		
-	>
-	<?php
-	echo $i;
-	?>
-	</option>
-<?php
-}
-?>
-</select>
-<input type=submit value='Retrieve Date' />
+<!--
+<input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo date("m/d/Y",strtotime($datenow)); ?>'/>
+-->
+<!--
+<input name='search_date' id='search_date' type="text" class="easyui-datebox" value='<?php echo date("m/d/Y",strtotime($datenow)); ?>'/>
+-->
+
+<input type="text" name='search_date' id='search_date' />
+
+<input type=submit value='Retrieve Date'  />
+
+
 </form>
 
 
+<a class="two" style=margin-left:10px href='#' onclick='window.open("generate_sccdr.php?sccdr=<?php echo $availability_date; ?>");'><b>Generate Printout</b></a>
+
+
+<br>
+<br>
 <table>
 <tr>
 <td align=center valign=top>
@@ -200,10 +221,15 @@ for($i=1999;$i<=$dateRecent;$i++){
 <th class='rowHeading'>4</th>
 </tr>
 <?php
-	if(isset($_POST['day'])){
-	$year=$_POST['year'];
-	$month=$_POST['month'];
-	$day=$_POST['day'];
+	
+	$availability_date=date("Y-m-d");
+	if(isset($_POST['search_date'])){
+//	$year=$_POST['year'];
+//	$month=$_POST['month'];
+//	$day=$_POST['day'];
+	
+	$availability_date=date("Y-m-d",strtotime($_POST['search_date']));
+	
 	}
 	
 	if(isset($_SESSION['day'])){
@@ -211,11 +237,13 @@ for($i=1999;$i<=$dateRecent;$i++){
 	$month=$_SESSION['month'];
 	$day=$_SESSION['day'];
 	
-	
+	$availability_date=date("Y-m-d",strtotime($_SESSION['search_date']));
+
 	}
+
 	
-	
-	$availability_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
+//	$availability_date=date("Y-m-d",strtotime($_POST['search_date']));
+//	$availability_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 ?>	
 <?php
 $db=new mysqli("localhost","root","","transport");
@@ -246,7 +274,6 @@ for($i=0;$i<$nm;$i++){
 	for($n=0;$n<$incident_nm;$n++){
 		$incident_row=$incident_rs->fetch_assoc();
 		$incident[$incident_row['level']]=$incident_row['level_count'];
-	
 	}
 	if($problem_type=="rolling"){
 		$incident_sql="select count(*) as level_count,level,level_condition from incident_report where incident_type in ('rolling','unload','nload') and incident_date like '".$availability_date."%%' group by level,level_condition";
@@ -360,7 +387,7 @@ for($i=0;$i<$nm;$i++){
 <td align=center valign=top>
 <table class='ccdr' border='1px' style='border-collapse:collapse;'>
 <tr>
-<td rowspan=2>
+<td rowspan=2 bgcolor=#FFA500 style="color:white">
 LEVEL 1
 </td>
 <td>
@@ -372,13 +399,13 @@ Fault normalized
 </td>
 </tr>
 <tr>
-<td>
+<td bgcolor=#FFA500 style="color:white">
 LEVEL 2
 </td>
 <td>Train is removed with replacement</td>
 </tr>
 <tr>
-<td rowspan=2>
+<td rowspan=2 bgcolor=#FFA500 style="color:white">
 LEVEL 3
 </td>
 <td>
@@ -388,7 +415,7 @@ Train is removed without replacement</td>
 <td>Cancellation of loops and insertion</td>
 </tr>
 <tr>
-<td rowspan=2>
+<td rowspan=2 bgcolor=#FFA500 style="color:white">
 LEVEL 4
 </td>
 <td>Service interruption</td>
@@ -409,8 +436,8 @@ LEVEL 4
 <?php
 for($i=0;$i<2;$i++){
 ?>
-	<td align=center>Cancelled<br> Departure</td>
-	<td align=center>Loop<br> Cancelled</td>
+	<td align=center style="color:#F62817"><b>Cancelled<br> Departure</td></b>
+	<td align=center style="color:#F62817"><b>Loop<br> Cancelled</td></b>
 
 <?php
 }
@@ -497,18 +524,18 @@ if($am_nm>0){
 
 
 ?>
-<td align=center><?php echo $am; ?></td>
-<td align=center><?php if($am_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$am_cancel); }?></td>
-<td align=center><?php echo $pm; ?></td>
-<td align=center><?php if($pm_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$pm_cancel); }?></td>
-
+<td align=center><b><?php echo $am; ?></b></td>
+<td align=center><b><?php if($am_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$am_cancel); }?></b></td>
+<td align=center><b><?php echo $pm; ?></b></td>
+<td align=center><b><?php if($pm_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$pm_cancel); }?></b></td>
 </tr>
 <tr>
-<td colspan=2 align=center>Planned Loops <br> Per day</td>
-<td colspan=2 align=center>Actual Loops <br>Per day</td>
+<td colspan=2 align=center style="color:#F62817"><b>Planned Loops <br> Per day</b></td>
+<td colspan=2 align=center style="color:#F62817"><b>Actual Loops <br>Per day</b></td>
 </tr>
 <tr>
 <?php
+
 $planned=0;
 $actual=0;
 $percentage=0;
@@ -532,8 +559,8 @@ if($planned_nm>0){
 	$percentage=number_format(($actual/$planned)*100,2);
 }
 ?>
-<td colspan=2 align=center><?php echo $planned; ?></td>
-<td colspan=2 align=center><?php if($actual=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$actual); }?></td>
+<td colspan=2 align=center><b><?php echo $planned; ?></b></td>
+<td colspan=2 align=center><b><?php if($actual=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$actual); }?></b></td>
 
 
 </tr>
@@ -546,20 +573,15 @@ $train_rs=$db->query($train_sql);
 $train_nm=$train_rs->num_rows;
 
 ?>
-<td colspan=2 align=center>Actual Loops<br>Performed</td>
-<td colspan=2 align=center>No. Of LRV<br>Utilized/day</td>
+<td colspan=2 align=center style="color:#F62817"><b>Actual Loops<br>Performed</b></td>
+<td colspan=2 align=center style="color:#F62817"><b>No. of LRV<br>Utilized/day</b></td>
 
 </tr>
 <tr>
-<td colspan=2 align=center><?php echo $percentage."%"; ?></td>
-<td colspan=2 align=center><?php echo $train_nm; ?></td>
+<td colspan=2 align=center style="color:#FFA62F"><b><?php echo $percentage."%"; ?></b></td>
+<td colspan=2 align=center><b><?php echo $train_nm; ?></b></td>
 
 </table>
 </td>
 </tr>
-
-
-
-</table>
-<br>
-<a href='#' onclick='window.open("generate_sccdr.php?sccdr=<?php echo $availability_date; ?>");'>Generate Printout</a>
+</table>	
