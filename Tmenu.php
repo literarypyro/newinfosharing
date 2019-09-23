@@ -223,6 +223,8 @@ body { height: 100%; overflow: hidden; }
 		<li><a style='text-decoration:none;' href='train_availability.php'>Train Availability</a></li>  
 		<li><a style='text-decoration:none;' href='train hourly.php'>Train Hourly Monitoring Report</a></li>
 		<li><a style='text-decoration:none;' href='onboard equipment.php'>Onboard Equipment and Accessories</a></li>
+		<li><a style='text-decoration:none;' href='depot_insertion.php'>Depot Insertion Program</a></li>
+
 	</ul>
 	</li>	
 		<li><a href='clearance form.php' id='dr'>Clearance Form</a></li>

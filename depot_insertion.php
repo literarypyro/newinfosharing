@@ -448,7 +448,7 @@ $min=date("i");
 $aa=date("a");
 
 $datenow=date("m/d/Y");
-$clearance_date=date("Y-m-d");
+$insertion_date=date("Y-m-d");
 if(isset($_POST['search_date'])){
 	//$yy=$_POST['year'];
 	//$mm=$_POST['month'];
@@ -460,7 +460,7 @@ if(isset($_POST['search_date'])){
 //	$_SESSION['year']=$_POST['year'];
 	
 	$datenow=date("m/d/Y",strtotime($_POST['search_date']));
-	$clearance_date=date("Y-m-d",strtotime($_POST['search_date']));
+	$insertion_date=date("Y-m-d",strtotime($_POST['search_date']));
 	
 }	
 
@@ -542,12 +542,12 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 	
 	
 	}
-	$clearance_date=$ava_date;
+	$insertion_date=$ava_date;
 //	$clearance_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 
 	$db=new mysqli("localhost","root","","transport");	
 	
-	$sql="select * from clearance where date like '".$clearance_date."%%' order by clearance_no";
+	$sql="select * from depot_insertion where insertion_date like '".$insertion_date."%%' order by id";
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;	
 	
@@ -555,55 +555,52 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 		$varR=1;
 		for($i=0;$i<$nm;$i++){
 			$row=$rs->fetch_assoc();
-			$clearance_no=$row['clearance_no'];
-			$location=$row['location'];
-			$activity=$row['activity'];
-			$person=$row['person'];
-			$position=$row['position'];
-			$company=$row['company'];
-			$received_by=$row['received_by'];
-			$login=$row['login'];
-			$logout=$row['logout'];
+
+			$index_no=$row['index_no'];
+			$tar_time=$row['tar_time'];
+			$actual_completion=$row['actual_completion'];
+			$remarks=$row['remarks'];
+
 		
-			$sql2="select * from train_driver where id='".$received_by."'";
+			$sql2="select * from stabling_departure where depot_insertion_id='".$row['id']."'";
 			$rs2=$db->query($sql2);
 			$nm2=$rs2->num_rows;
 			
 			if($nm2>0){
-				$row2=$rs2->fetch_assoc();
-				$received_by=$row2['position']." ".substr($row2['firstName'],0,1).". ".$row2['lastName'];
+
+
+				
+			
+				for($k=0;$k<$nm2;$k++){
+					$row2=$rs2->fetch_assoc();
+				
+				
+					$planned[$row2['loop']]=$row2['planned'];	
+					$actual[$row2['loop']]=$row2['actual'];	
+				}
+				
+				
+				
 			
 			}
 
 		
-			if($login=="0000-00-00 00:00:00"){
-				$login="";
-			}
-			else {
-				$login=date("H:i",strtotime($row['login']));
-			}
-			
-			if($logout=="0000-00-00 00:00:00"){
-				$logout="";
-			}
-			else {
-				$logout=date("H:i",strtotime($row['logout']));
-			}
-			$control_no=$row['control_no'];
-			
 ?>			
 			<tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
-				<td align=center><?php echo $clearance_no; ?></td>	
-				<td><?php echo $location; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('location','<?php echo $clearance_no; ?>')">Edit</a></td>
+			
+				<td><?php echo $index_no; ?></td>
+				<td><?php echo $tar_time; ?></td>
+				<td><?php echo $actual_completion; ?></td>
+				
+				<td><?php echo $planned[1]; ?></td>
+				<td><?php echo $actual[1]; ?></td>
+				<td><?php echo $planned[2]; ?></td>
+				<td><?php echo $actual[2]; ?></td>
+				<td><?php echo $planned[3]; ?></td>
+				<td><?php echo $actual[3]; ?></td>
 
-				<td><?php echo $activity; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('activity','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $person; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('person','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $position." / ".$company; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('position','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $received_by; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('received_by','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $login; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('login','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $logout; ?>  <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('logout','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><?php echo $control_no; ?>  <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('control_no','<?php echo $clearance_no; ?>')">Edit</a></td>
-				<td><a href='#' class="<?php echo $SRemove5; ?>" onclick="deleteRow('<?php echo $clearance_no; ?>','<?php echo $clearance_date; ?>')">X</a></td>
+				<td><?php echo $remarks; ?></td>
+
 			</tr>	
 			
 <?php		
