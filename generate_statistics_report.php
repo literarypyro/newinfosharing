@@ -80,7 +80,7 @@ if(isset($_GET['sd'])){
 
 		$equipt[$i]['id']=$row['id'];
 		$equipt[$i]['equipment']=$row['equipment_name'];
-		for ($k=1;$k<=12;$k++){
+		for ($k=$start;$k<=$end;$k++){
 			$equipt_count["Equipt_".$row['id']]["Month_".$k]=0;
 			
 		}
@@ -127,27 +127,44 @@ $end_date=$start_date;
 }
 else if($_GET['range']=="weekly"){
 $end_date=date("Y-m-d",strtotime($_GET['sd']."+1 week"));
+
+	$start=(date("m",strtotime($start_date)))*1;
+	$end=date("m",strtotime($end_date."-1 day"))*1;
+
+	$period=date("F d, Y", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
 	
 }
 
 else if($_GET['range']=="monthly"){
 $end_date=date("Y-m-d",strtotime($_GET['sd']."+1 month"));
+
+	$start=date("m",strtotime($start_date))*1;
+	$end=date("m",strtotime($end_date))*1;
+	$end--;
+
+	$period=date("F Y", strtotime($start_date));
 	
 }
 else if($_GET['range']=="yearly"){
 $end_date=date("Y-m-d",strtotime($_GET['sd']."+365 days"));
+
+	$start=(date("m",strtotime($start_date)))*1;
+	$end=date("m",strtotime($end_date."-1 day"))*1;
+
+	$period=date("F", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
 	
 }
 else if($_GET['range']=="custom"){
 $end_date=date("Y-m-d",strtotime($_GET['ed']));
+
+	$start=(date("m",strtotime($start_date)))*1;
+	$end=date("m",strtotime($end_date))*1;
+
+	$period=date("F d, Y", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
 	
 }
 
 
-	$start=(date("m",$start_date))*1;
-	$end=date("m",strtotime($end_date))*1;
-
-	$period=date("F", strtotime($start_date))." - ".date("F Y", strtotime($end_date));
 	
 }
 else {
@@ -162,8 +179,6 @@ $end_date=date("Y")."-12-31";
 
 	
 }
-
-
 
 
 
@@ -192,20 +207,34 @@ $excel->getActiveSheet()->getStyle("A".$rowCount.":P".$rowCount)->getFont()->set
 
 	$rowCount+=2;
 
+		$prefix=chr((65*1));
+		$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray);
 
 
+		addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,"Cause of Failure","true",$ExWs);
 
+
+		$n=1;
+	
 for($k=$start;$k<=$end;$k++){
-		$prefix=chr((65*1+$k));
+		
+		$prefix=chr((65*1+$n));
 		$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray);
 
 
 		addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,date("F",strtotime(date("Y")."-".$k."-01")),"true",$ExWs);
 
 		
-
+		$n++;
 		
 	}
+	
+		$prefix=chr((65*1+($n)));
+		$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray);
+
+
+		addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,"Total","true",$ExWs);
+	
 	
 	
 for($i=$start;$i<=$end;$i++){
@@ -246,6 +275,10 @@ for($i=$start;$i<=$end;$i++){
 
 
 	$rowCount++;
+	
+	
+	$start_count=$rowCount;
+	
 	for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
 
@@ -255,19 +288,35 @@ for($i=$start;$i<=$end;$i++){
 
 		addContent(setRange("A".$rowCount,"A".$rowCount),$excel,$row['equipment_name'],"true",$ExWs);
 
-		for($k=1;$k<=12;$k++){
+		
+		for($n=0;$n<=($end-$start);$n++){
+			
+			$k=$n+1;
 			$prefix=chr((65*1+$k));
-			
+			if($n==0){
+				$start_pref=$prefix;
+			}
+		
 			$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray2);
-			
-			addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,$equipt_count["Equipt_".$equipt[$i]['id']]["Month_".$k],"true",$ExWs);
+			addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,$equipt_count["Equipt_".$equipt[$i]['id']]["Month_".($start+$n)],"true",$ExWs);
 		
 
 		}
+		
+		$end_pref=$prefix;
+		$k++;
+		$prefix=chr((65*1+($k)));
+		addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,"=sum(".$start_pref.$rowCount.":".$end_pref.$rowCount.")","true",$ExWs);
+		$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray2);
+		$end_pref=$prefix;
 
+		$prefix2=chr((65*1+($k+1)));
 
+		addContent(setRange($prefix2.$rowCount,$prefix2.$rowCount),$excel,"=if(".$prefix.$rowCount.">Z8,1,0)","true",$ExWs);
 		$rowCount++;	
 	}
+	addContent(setRange("Z7","Z7"),$excel,"=MAX(".$end_pref.$start_count.":".$end_pref.($start_count*1+$nm).")","true",$ExWs);
+	addContent(setRange("Z8","Z8"),$excel,"=Z7*.6","true",$ExWs);
 
 
 $rowCount++;

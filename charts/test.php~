@@ -1,0 +1,409 @@
+<style>
+.chart {
+    width: 200px;
+    height: 200px;
+  -webkit-box-shadow: 4px 4px 15px -3px rgba(0,0,0,0.39);
+  -moz-box-shadow: 4px 4px 15px -3px rgba(0,0,0,0.39);
+  box-shadow: 4px 4px 15px -3px rgba(0,0,0,0.39);
+  border-radius: 4px;
+  margin: 20px;
+  float: left;
+  position: relative;
+}
+
+
+
+<div id="chart1" class="chart"></div>
+<div id="chart2" class="chart"></div>
+<div id="chart3" class="chart"></div>
+<div id="chart4" class="chart"></div>
+<div id="chart5" class="chart"></div>
+<div id="chart6" class="chart"></div>
+<div id="chart7" class="chart"></div>
+<div id="chart8" class="chart"></div>
+<div id="chart9" class="chart"></div>
+<div id="chart10" class="chart"></div>
+<div id="chart11" class="chart"></div>
+<div id="chart12" class="chart"></div>
+</style>
+
+
+
+<script src="//www.amcharts.com/lib/3/amcharts.js"></script>
+<script src="//www.amcharts.com/lib/3/serial.js"></script>
+<script src="//www.amcharts.com/lib/3/pie.js"></script>
+<script src="//www.amcharts.com/lib/3/xy.js"></script>
+<script src="//www.amcharts.com/lib/3/themes/light.js"></script>
+<script>
+/**
+ * Initialize a chart update queue
+ */
+AmCharts.updateQueue = [];
+
+/**
+ * Queues data update for the chart
+ */
+AmCharts.queueDataUpdate = function(chart, data) {
+
+  // chart is already in queue?
+  for (var i = 0; i < AmCharts.updateQueue; i++) {
+    if (AmCharts.updateQueue[i].chart = chart) {
+      AmCharts.updateQueue[i].data = data
+      return;
+    }
+  }
+
+  // insert into queue
+  AmCharts.updateQueue.push({
+    "chart": chart,
+    "data": data
+  });
+  
+  // process next item
+  AmCharts.processUpdateQueue();
+};
+
+/**
+ * Updates the next chart in queue
+ */
+AmCharts.processUpdateQueue = function() {
+  if (AmCharts.updateQueue.length) {
+    var item = AmCharts.updateQueue.shift();
+    item.chart.dataProvider = item.data;
+    item.chart.validateData();
+  }
+};
+
+/**
+ * Add handlers dataUpdated handlers for each chart
+ */
+AmCharts.addInitHandler(function(chart) {
+
+  chart.addListener("dataUpdated", function() {
+    // process the next update in queue
+    AmCharts.processUpdateQueue();
+  })
+
+}, ["serial", "pie", "xy"]);
+
+/**
+ * Set up interval to update charts at 2 second intervals
+ */
+setInterval(function() {
+  
+  for(var i = 0; i < AmCharts.charts.length; i++) {
+    AmCharts.queueDataUpdate(AmCharts.charts[i], generateData());
+  }
+  
+}, 2000);
+
+/**
+ * Generates random sample data
+ */
+function generateData() {
+  var data = [];
+  for (var i = 1; i <= 5; i++) {
+    data.push({
+      "country": i,
+      "visits": Math.ceil(Math.random() * 2000 + 500)
+    });
+  }
+  return data;
+}
+
+/**
+ * Chart 1
+ */
+AmCharts.makeChart("chart1", {
+  "type": "serial",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #1"
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "fillAlphas": 0.9,
+    "lineAlpha": 0.2,
+    "type": "column",
+    "valueField": "visits"
+  }],
+  "categoryField": "country",
+  "valueAxes": [{
+    "labelsEnabled": false
+  }],
+  "categoryAxis": {
+    "minHorizontalGap": 5
+  }
+});
+
+/**
+ * Chart 2
+ */
+AmCharts.makeChart("chart2", {
+  "type": "serial",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #2"
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "fillAlphas": 0.9,
+    "lineAlpha": 0.2,
+    "type": "column",
+    "valueField": "visits"
+  }],
+  "categoryField": "country",
+  "valueAxes": [{
+    "labelsEnabled": false
+  }],
+  "categoryAxis": {
+    "minHorizontalGap": 5
+  }
+});
+
+/**
+ * Chart 3
+ */
+AmCharts.makeChart("chart3", {
+  "type": "serial",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #3"
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "fillAlphas": 0.9,
+    "lineAlpha": 0.2,
+    "type": "column",
+    "valueField": "visits"
+  }],
+  "categoryField": "country",
+  "valueAxes": [{
+    "labelsEnabled": false
+  }],
+  "categoryAxis": {
+    "minHorizontalGap": 5
+  }
+});
+
+/**
+ * Chart 4
+ */
+AmCharts.makeChart("chart4", {
+  "type": "serial",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #4"
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "fillAlphas": 0.9,
+    "lineAlpha": 0.2,
+    "type": "column",
+    "valueField": "visits"
+  }],
+  "categoryField": "country",
+  "valueAxes": [{
+    "labelsEnabled": false
+  }],
+  "categoryAxis": {
+    "minHorizontalGap": 5
+  }
+});
+
+/**
+ * Chart 5
+ */
+AmCharts.makeChart("chart5", {
+  "type": "pie",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #5"
+  }],
+  "valueField": "visits",
+  "titleField": "country",
+  "pullOutRadius": 0,
+  "labelRadius": -22,
+  "labelText": "[[percents]]%",
+  "percentPrecision": 1
+});
+
+/**
+ * Chart 6
+ */
+AmCharts.makeChart("chart6", {
+  "type": "pie",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #6"
+  }],
+  "valueField": "visits",
+  "titleField": "country",
+  "pullOutRadius": 0,
+  "labelRadius": -22,
+  "labelText": "[[percents]]%",
+  "percentPrecision": 1
+});
+
+/**
+ * Chart 7
+ */
+AmCharts.makeChart("chart7", {
+  "type": "pie",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #7"
+  }],
+  "valueField": "visits",
+  "titleField": "country",
+  "pullOutRadius": 0,
+  "labelRadius": -22,
+  "labelText": "[[percents]]%",
+  "percentPrecision": 1
+});
+
+/**
+ * Chart 8
+ */
+AmCharts.makeChart("chart8", {
+  "type": "pie",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #8"
+  }],
+  "valueField": "visits",
+  "titleField": "country",
+  "pullOutRadius": 0,
+  "labelRadius": -22,
+  "labelText": "[[percents]]%",
+  "percentPrecision": 1
+});
+
+/**
+ * Chart 9
+ */
+AmCharts.makeChart("chart9", {
+  "type": "xy",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #9"
+  }],
+  "valueAxes": [{
+    "position": "bottom"
+  }, {
+    "minMaxMultiplier": 1.2,
+    "position": "left",
+    "labelsEnabled": false
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "bullet": "circle",
+    "bulletBorderAlpha": 0.2,
+    "bulletAlpha": 0.8,
+    "lineAlpha": 0,
+    "fillAlphas": 0,
+    "xField": "country",
+    "yField": "visits",
+    "maxBulletSize": 100
+  }]
+});
+
+/**
+ * Chart 10
+ */
+AmCharts.makeChart("chart10", {
+  "type": "xy",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #10"
+  }],
+  "valueAxes": [{
+    "position": "bottom"
+  }, {
+    "minMaxMultiplier": 1.2,
+    "position": "left",
+    "labelsEnabled": false
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "bullet": "circle",
+    "bulletBorderAlpha": 0.2,
+    "bulletAlpha": 0.8,
+    "lineAlpha": 0,
+    "fillAlphas": 0,
+    "xField": "country",
+    "yField": "visits",
+    "maxBulletSize": 100
+  }]
+});
+
+/**
+ * Chart 11
+ */
+AmCharts.makeChart("chart11", {
+  "type": "xy",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #11"
+  }],
+  "valueAxes": [{
+    "position": "bottom"
+  }, {
+    "minMaxMultiplier": 1.2,
+    "position": "left",
+    "labelsEnabled": false
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "bullet": "circle",
+    "bulletBorderAlpha": 0.2,
+    "bulletAlpha": 0.8,
+    "lineAlpha": 0,
+    "fillAlphas": 0,
+    "xField": "country",
+    "yField": "visits",
+    "maxBulletSize": 100
+  }]
+});
+
+/**
+ * Chart 12
+ */
+AmCharts.makeChart("chart12", {
+  "type": "xy",
+  "theme": "light",
+  "dataProvider": generateData(),
+  "titles": [{
+    "text": "Chart #12"
+  }],
+  "valueAxes": [{
+    "position": "bottom"
+  }, {
+    "minMaxMultiplier": 1.2,
+    "position": "left",
+    "labelsEnabled": false
+  }],
+  "startDuration": 1.5,
+  "graphs": [{
+    "bullet": "circle",
+    "bulletBorderAlpha": 0.2,
+    "bulletAlpha": 0.8,
+    "lineAlpha": 0,
+    "fillAlphas": 0,
+    "xField": "country",
+    "yField": "visits",
+    "maxBulletSize": 100
+  }]
+});
+</script>

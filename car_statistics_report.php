@@ -132,19 +132,41 @@ $rs=$db->query($sql);
 $nm=$rs->num_rows;
 
 if($nm>0){
+	$highestCount=0;
+	
 	for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
 		$car_id=$row['car_no']*1;
 		$month=$row['mo']*1;
 		
 		$stats["Car_".$car_id]["Month_".$month]=$row['count'];
+
+		$stats["Car_".$car_id]["total"]+=$row['count'];
+		
+		$highestCount=sortCar($highestCount,$stats["Car_".$car_id]["total"]);
+		
+		
+		
 		
 	}
 }
 
 for($i=1;$i<=73;$i++){
 ?>
-<tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
+<tr 
+<?php 
+if(($highestCount*0.60)<$stats["Car_".$i]["total"]){
+		echo "style='background-color:red; color:white;'";
+
+}
+else {
+
+	if($i%2>0){ echo "class='rowClass'"; } 
+
+}
+
+
+?>>
 <th class='stat_hover'><a href='#' style='text-decoration:none; color:black;'  onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>",target="_self")' ><?php echo $i; ?></a></th>
 <?php
 for($k=1;$k<=12;$k++){
@@ -169,3 +191,21 @@ for($k=1;$k<=12;$k++){
 
 
 </style>
+<?php
+
+
+
+function sortCar($count_a,$count_b){
+	
+	if($count_a>$count_b){
+		
+		return $count_a;
+
+	}
+	else {
+		return $count_b;	
+
+	}
+	
+}
+?>

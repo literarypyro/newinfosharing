@@ -160,6 +160,10 @@ Incident History
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width=80% id='add_form' name='add_form' >
 	<thead>
 	<tr>
+	<th colspan=5><div align=center>Car #<?php echo $car_id; ?></div></th>
+	</tr>
+	
+	<tr>
 	<th>Index No</th>
 	<th>Incident Date</th>
 	<th>Problem Type</th>
