@@ -436,7 +436,7 @@ $(document).ready(function(){
 <br>
 <br>
 <br>
-<form action='clearance form.php' method='post'>
+<form action='depot_insertion.php' method='post'>
 <?php
 $mm=date("m");
 $yy=date("Y");
@@ -496,17 +496,18 @@ if ($ULev>=2){
 </form>
 <div class="alink">
 <!-- <div class='pull-left'> -->
-<a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("clearance entry.php");'><b>Add New Entry</b></a>
+<a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("insertion_entry.php");'><b>Add New Entry</b></a>
+<!--
 |
-<a href='#' class="<?php echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'><b>Generate Printout</b></a>
-
+<a href='#' class="<?php //echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php //echo $clearance_date; ?>");'><b>Generate Printout</b></a>
+-->
 <!-- </div> -->
 
 <table class='train_ava' width=100%>
 <tr class='rowHeading'>
 	<th rowspan=2>Index</th>
 	<th rowspan=2>Time of <br>Train <br>Availability <br>at Stabling Area</th>
-	<th rowspan=2>Actual time of completion of train preparation (Ready for insertion)</th>
+	<th rowspan=2>Actual time of completion <br>of train preparation (Ready for insertion)</th>
 	<th colspan=2>Departure at Stabling Area for 1st loop</th>
 	<th colspan=2>Departure at Stabling Area for 2nd loop</th>
 	<th colspan=2>Departure at Stabling Area for 3rd loop</th>
@@ -525,6 +526,7 @@ if ($ULev>=2){
 //if((isset($_POST['day']))||(isset($_SESSION['day']))){
 
 if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
+	
 	if(isset($_POST['search_date'])){
 		
 		$ava_date=date("Y-m-d",strtotime($_POST['search_date']));
@@ -575,8 +577,8 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 					$row2=$rs2->fetch_assoc();
 				
 				
-					$planned[$row2['loop']]=$row2['planned'];	
-					$actual[$row2['loop']]=$row2['actual'];	
+					$planned[$row2['loop_no']]=$row2['planned'];	
+					$actual[$row2['loop_no']]=$row2['actual'];	
 				}
 				
 				

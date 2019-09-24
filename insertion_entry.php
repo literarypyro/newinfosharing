@@ -60,12 +60,12 @@ if(isset($_POST['year'])){
 	$sql="insert into depot_insertion(index_no,insertion_date,tar_time,actual_completion,remarks)";
 	$sql.=" values ";
 	
-	$sql.="('".$index_no."','".$insertion_date."','".$tar_time."','".$actual_completion."',\"".$remarks."\"')";
+	$sql.="('".$index_no."','".$insertion_date."','".$tar_time."','".$actual_completion."',\"".$remarks."\")";
 	$rs=$db->query($sql);
 	
 	$insertion_id=$db->insert_id;
 	
-	$sql="insert into depot_insertion(depot_insertion_id,planned,actual,loop)";
+	$sql="insert into stabling_departure(depot_insertion_id,planned,actual,loop_no)";
 	$sql.=" values ";
 	
 	$sql.="('".$insertion_id."','".$planned_1."','".$actual_1."','1'),";
@@ -73,7 +73,6 @@ if(isset($_POST['year'])){
 	$sql.="('".$insertion_id."','".$planned_3."','".$actual_3."','3')";
 	$rs=$db->query($sql);
 	
-	$rs=$db->query($sql);
 	
 	echo "<script language='javascript'>";
 	echo "window.opener.location='depot_insertion.php';";
@@ -293,7 +292,7 @@ for($i=1999;$i<=$dateRecent;$i++){
 </tr>
 <tr>
 <td>Actual time of Completion</td>
-<td><input type=text name='actual_time' /></td>
+<td><input type=text name='actual_completion' /></td>
 </tr>
 
 <tr>
