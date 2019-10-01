@@ -499,7 +499,7 @@ if ($ULev>=2){
 <a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("insertion_entry.php");'><b>Add New Entry</b></a>
 <!--
 |
-<a href='#' class="<?php //echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php //echo $clearance_date; ?>");'><b>Generate Printout</b></a>
+<a href='#' class="<?php // echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php //echo $clearance_date; ?>");'><b>Generate Printout</b></a>
 -->
 <!-- </div> -->
 
@@ -641,20 +641,14 @@ $varR=0;
 			<div class="modal-body">	
 				<div id='clearance_edit' name='clearance_edit'>
 
-
-
-
 				</div>
-
-
-				
 			</div>
-						
+				
 			<div class="modal-footer">
 				<a href="#" class="btn" data-dismiss="modal">Close</a>
 				<button type='submit' class="btn btn-primary" value='Submit'>Submit </button>
 			</div>
-			  </form>
+   		    </form>
 		</div>
 
 
