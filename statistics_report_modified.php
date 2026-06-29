@@ -84,9 +84,9 @@ $(function() {
 <tr><th>Level</th>
 <td>
 <select name='level'>
-<option value='1'>1</option>
-<option value='2'>2</option>
-<option value='3'>3</option>
+<option <?php if($_POST['level']==1){ echo "selected"; } ?> value='1'>1</option>
+<option <?php if($_POST['level']==2){ echo "selected"; } ?> value='2'>2</option>
+<option <?php if($_POST['level']==3){ echo "selected"; } ?> value='3'>3</option>
 </select>
 </td>
 </tr>
@@ -100,19 +100,24 @@ From</td><td> <input type="text" name='search_date2' id='search_date2'>
 To</td><td> <input type="text" name='search_date' id='search_date'>
 </td>
 </tr>
+<!--
+
 <tr>
 <th>Range</th>
 <td>
+
 <select name='range'>
 <option value='daily'>Daily</option>
 <option value='weekly'>Weekly</option>
 <option value='monthly'>Monthly</option>
 <option value='yearly'>Yearly</option>
-<option value='custom'>Custom Range</option>
+<option value='custom'>Range</option>
 
 </select>
 
 </tr>
+-->
+
 <tr>
 
 <th colspan=2><input type=submit value='Submit' /></th>
@@ -121,7 +126,7 @@ To</td><td> <input type="text" name='search_date' id='search_date'>
 </form>
 
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
 
 //$sql="select * from equipment where type='RS' order by equipment_name";
@@ -130,18 +135,31 @@ $rs=$db->query($sql);
 
 $nm=$rs->num_rows;
 
-/*
 if(isset($_POST['search_date2'])){
-$year=date("Y",strtotime($_POST['search_date2']));
+//$year=date("Y",strtotime($_POST['search_date2']));
+
+//$start_date=date("Y-m-d",strtotime($_POST['search_date2']));
+
+
 
 $start_date=date("Y-m-d",strtotime($_POST['search_date2']));
-/*$dates=explode(" - ",$_POST['search_date2']);
 
 
-$start_date=date("Y-m-d",strtotime($dates[0]));
-$end_date=date("Y-m-d",strtotime($dates[1]));
-*/
+$end_date=date("Y-m-d",strtotime($_POST['search_date']));
 
+
+$dates=explode(" - ",$_POST['search_date2']);
+	$period=date("F d Y", strtotime($start_date))." - ".date("F d Y", strtotime($end_date));
+
+
+}
+else {
+$start_date=date("Y-m-d",strtotime("first day of this month"));
+$end_date=date("Y-m-d",strtotime("last day of this month"));
+	$period=date("F d", strtotime($start_date))." - ".date("F d Y", strtotime($end_date));
+
+	$level=2;
+}
 
 /**
 if($_POST['range']=="daily"){
@@ -172,13 +190,14 @@ $end_date=date("Y")."-12-31";
 }
 
 */
-if(isset($_POST['search_date2'])){
+//if(isset($_POST['search_date2'])){
 
-$year=date("Y",strtotime($_POST['search_date2']));
+//$year=date("Y",strtotime($_POST['search_date2']));
 
-$start_date=date("Y-m-d",strtotime($_POST['search_date2']));
+//$start_date=date("Y-m-d",strtotime($_POST['search_date2']));
 
-$init_start=$start_date;
+//$init_start=$start_date;
+/*
 if($_POST['range']=="daily"){
 $end_date=$start_date;	
 }
@@ -203,7 +222,7 @@ $end_date=date("Y-m-d",strtotime($_POST['search_date2']."+1 month"));
 	
 }
 else if($_POST['range']=="yearly"){
-$end_date=date("Y-m-d",strtotime($_POST['search_date']."+365 days"));
+$end_date=date("Y-m-d",strtotime($_POST['search_date2']."+365 days"));
 
 	$start=(date("m",strtotime($start_date)))*1;
 	$end=date("m",strtotime($end_date."-1 day"))*1;
@@ -211,8 +230,19 @@ $end_date=date("Y-m-d",strtotime($_POST['search_date']."+365 days"));
 	$period=date("F", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
 	
 }
-else if($_POST['range']=="custom"){
-$end_date=date("Y-m-d",strtotime($_POST['search_date']));
+
+*/
+
+/*
+if($_POST['range']=="custom"){
+
+$dates=explode(" - ",$_POST['search_date2']);
+
+
+$start_date=date("Y-m-d",strtotime($dates[0]));
+$end_date=date("Y-m-d",strtotime($dates[1]));
+
+//$end_date=date("Y-m-d",strtotime($_POST['search_date']));
 
 	$start=(date("m",strtotime($start_date)))*1;
 	$end=date("m",strtotime($end_date."-1 day"))*1;
@@ -221,21 +251,22 @@ $end_date=date("Y-m-d",strtotime($_POST['search_date']));
 	
 }
 
+*/
+	
+//}
+//else {
+	
+//	$start=1;
+//	$end=12;
+
+
 
 	
-}
-else {
-$start_date=date("Y")."-01-01";
-$end_date=date("Y")."-12-31";	
-	
-	$start=1;
-	$end=12;
+//}
 
 
-	$period=date("F", strtotime($start_date))." - ".date("F Y", strtotime($end_date));
 
-	
-}
+
 
 
 for($i=0;$i<$nm;$i++){
@@ -269,25 +300,77 @@ else {
 <tr class='rowHeading'>
 <th>&nbsp;</th>
 <?php
+
+
 if(isset($_POST['search_date2'])){
-	$start=date("m",strtotime($start_date));
-	$end=date("m",strtotime($end_date));
+
+	
+	//Convert to seconds, then convert to months
+	
+	
+	$difference=date("m",strtotime(date("Y-m-t",strtotime($end_date)))-strtotime(date("Y-m-01",strtotime($start_date))))-1;
+
+//	$difference2=strtotime(date("Y-m-t",strtotime($end_date)))-strtotime(date("Y-m-01",strtotime($start_date)));
+//	$day=((($difference2/60*1)/60*1)/24*1)
+
+	/* change from months to days */	
+
+	$start=date("Ym",strtotime($start_date));
+	$end=date("Ym",strtotime($end_date));
+	
 	
 	if($_POST['range']=="yearly"){
-		$end=12;
+	//	$end=12;
 	}
 	
+//	echo date("F d, Y",strtotime($start_date."+".$day." days"));
 	
 }
 else {
-	$start=1;
-	$end=12;
-}
+	
+$difference=0;	
+	
+$start=date("Ym",strtotime($start_date));
+$end=date("Ym",strtotime($end_date));
 
-for($k=$start;$k<=$end;$k++){
+
+
+
+
+//	$start=1;
+//	$end=12;
+}
+	$tag_date=date("Y-m-01",strtotime($start_date));
+
+
+
+$limit=date("t",strtotime($tag_date));
+	
+	
+	
+
+
+for($k=0;$k<=$difference;$k++){
+
+	
+	
+//	$mon=substr($k,4,2);
+//	$yy=substr($k,0,4);
+
+	
 ?>	
 	<th>
-	<?php echo date("F",strtotime(date("Y")."-".$k."-01")); ?>
+	<?php 
+	if($k==0){
+		echo date("F",strtotime($start_date));
+	}
+	else {
+	echo date("F",strtotime($tag_date."+".$k." months"));
+
+
+	}
+	
+	?>
 	</th>
 	
 <?php
@@ -311,7 +394,7 @@ $ee=$end;
 
 </tr>
 <?php
-
+/*
 if(isset($_POST['search_date2'])){
 	$start=date("m",$start_date);
 	$end=date("m",strtotime($end_date));
@@ -323,25 +406,81 @@ if(isset($_POST['search_date2'])){
 	
 }
 else {
-	$start=1;
-	$end=12;
+//	$start=1;
+//	$end=12;
 }
+*/
 
 
 
-for($i=$ss;$i<=$ee;$i++){
-	$month_heading=date("F",strtotime($year."-".$i."-01"));
+
+for($i=0;$i<=$difference;$i++){
+
+
+
+
+
+
+
+/*	if($i==($ee-1)){
+		$year=date("Y",strtotime($end_date));
+			
+	}
+	else {
+		$year=date("Y",strtotime($start_date));
+	}
+	*/
+	
+
+	if($i==0){
+	$month_heading=date("F",strtotime($start_date));
+	}
+	else {
+	
+	$month_heading=date("F",strtotime($tag_date."+".$i." months"));
+	}
+
+
+	if($i==0){
+	$date_limit=date("t",strtotime($start_date));
+	}
+	else {
+	
+
+	
+	$date_limit=date("t",strtotime($tag_date."+".$i." months"));
+
+	}
+
+	
+
+
+
+	if($i==0){
+	$yy=date("Y",strtotime($start_date));
+
+	$mon=date("m",strtotime($start_date));
+		
+	}
+	else {
+	$yy=date("Y",strtotime($tag_date."+".$i." months"));
+
+	$mon=date("m",strtotime($tag_date."+".$i." months"));
+	
+	$fn=date("F",strtotime($tag_date."+".$i." months"));
 	
 	
-	$date_limit=date("t",strtotime($year."-".$i."-01"));
-	$start_date=date("Y-m-d",strtotime($year."-".$i."-01"));
-	$end_date=date("Y-m-d",strtotime($year."-".$i."-".$date_limit));
+	}
+	$label=$yy.$mon;
+
+
+
+	$start_date1=date("Y-m-d",strtotime($yy."-".$mon."-01"));
+	$end_date1=date("Y-m-d",strtotime($yy."-".$mon."-".$date_limit));
 
 	
-	$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
+	$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
 	if($i==1){
-//		echo $sql;
-//		echo "<br>";
 	}
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
@@ -349,15 +488,15 @@ for($i=$ss;$i<=$ee;$i++){
 	for($k=0;$k<$nm;$k++){
 		
 		$row=$rs->fetch_assoc();
-		$equipt_count["Equipt_".$row['equipt']]["Month_".($i*1)]+=$row['equipt_count'];
+		
+		$equipt_count["Equipt_".$row['equipt']]["Month_".($label*1)]+=$row['equipt_count'];
 		$equipt_count["Equipt_".$row['equipt']]["total"]+=$row['equipt_count'];
-
 		
 		
 	}
 
 
-	$sql="select *,count(1) as equipt_count from incident_report inner join external.incident_defects on incident_report.id=external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt_id"; 
+	$sql="select *,count(1) as equipt_count from incident_report inner join is_external.incident_defects on incident_report.id=is_external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59' and is_external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt_id"; 
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
 	if($i==1){
@@ -366,37 +505,16 @@ for($i=$ss;$i<=$ee;$i++){
 	}	
 	for($k=0;$k<$nm;$k++){
 		$row=$rs->fetch_assoc();
-		$equipt_count["Equipt_".$row['equipt_id']]["Month_".$i]+=$row['equipt_count'];
+		$equipt_count["Equipt_".$row['equipt_id']]["Month_".($label*1)]+=$row['equipt_count'];
 		$equipt_count["Equipt_".$row['equipt_id']]["total"]+=$row['equipt_count'];
 
 	}
 
 
 
-/*	
-	$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by level";
-	$rs=$db->query($sql);
-	$nm=$rs->num_rows;
-
-	if($nm>0){
-		$row=$rs->fetch_assoc();
-		$equipt_count["Equipt_Others"]["Month_".$i]=$row['equipt_count'];
-	}
-
-	$sql="select *,count(1) as equipt_count from incident_report inner join external.incident_defects on incident_report.id=external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id in ('105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by level"; 
-	$rs=$db->query($sql);
-	$nm=$rs->num_rows;
-	
-	for($k=0;$k<$nm;$k++){
-		$row=$rs->fetch_assoc();
-		$equipt_count["Month_".$i]["Equipt_".$row['equipt_id']]+=$row['equipt_count'];
-	}
-*/
-
 	
 }	
 ?>	
-
 <?php
 $highestCar=$equipt[0];
 
@@ -437,6 +555,7 @@ $nm=$rs->num_rows;
 
 for($i=0;$i<$nm;$i++){
 	$row=$rs->fetch_assoc();
+
 ?>
 <tr 
 
@@ -490,7 +609,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 	<?php
 	$ss*=1;
 	$ee*=1;
-	for($k=$ss;$k<=$ee;$k++){
+	for($k=0;$k<=$difference;$k++){
 	?>	
 	<td class='stat_hover' align=center>
 
@@ -498,11 +617,31 @@ if($i%2>0){ echo "class='rowClass'"; }
 	<?php
 //	if($highestCar['total']==$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
 	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
+	if($k==0){
+	$yy=date("Y",strtotime($start_date));
+
+	$mon=date("m",strtotime($start_date));
+		$label=$yy.$mon;
+		
+	}
+	else {
+	$yy=date("Y",strtotime($tag_date."+".$k." months"));
+
+	$mon=date("m",strtotime($tag_date."+".$k." months"));
 	
+	$fn=date("F",strtotime($tag_date."+".$k." months"));
+	
+		$label=$yy.$mon;
+	
+	}
 	?>
-	<a href='#' style='text-decoration:none; color:white;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $year; ?>&m=<?php echo $k; ?>&level=<?php echo $level; ?>",target="_self")' >
+	<a href='#' style='text-decoration:none; color:white;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
 		<?php
-		echo $equipt_count["Equipt_".$equipt[$i]['id']]["Month_".$k];
+		
+
+		
+		
+		echo $equipt_count["Equipt_".$equipt[$i]['id']]["Month_".($label*1)];
 
 		?>
 		</a>
@@ -511,10 +650,30 @@ if($i%2>0){ echo "class='rowClass'"; }
 	<?php	
 	}
 	else {
+		
+	if($k==0){
+	$yy=date("Y",strtotime($start_date));
+
+	$mon=date("m",strtotime($start_date));
+		
+		$label=$yy.$mon;
+	}
+	else {
+	$yy=date("Y",strtotime($tag_date."+".$k." months"));
+
+	$mon=date("m",strtotime($tag_date."+".$k." months"));
+	
+	$fn=date("F",strtotime($tag_date."+".$k." months"));
+		$label=$yy.$mon;
+	
+	
+	}
 	?>	
-	<a href='#' style='text-decoration:none; color:black;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $year; ?>&m=<?php echo $k; ?>&level=<?php echo $level; ?>",target="_self")' >
+	<a href='#' style='text-decoration:none; color:black;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
 		<?php
-		echo $equipt_count["Equipt_".$equipt[$i]['id']]["Month_".$k];
+		
+
+		echo $equipt_count["Equipt_".$equipt[$i]['id']]["Month_".($label*1)];
 		?>
 		</a>
 	
@@ -581,6 +740,7 @@ function sortCar($equipt_a,$equipt_b){
 
 
 ?>
+
 
 </table>
 <br>

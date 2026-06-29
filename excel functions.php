@@ -1,10 +1,14 @@
 <?php
+echo "!!@#@#aa";
+
 function startCOMObject($full_class_name)
 {
 	//Name of the Namespace and Class 
 	$excelApplication=new COM($full_class_name);
 	return $excelApplication;
 }
+
+echo "!!@ggg#@#";
 
 function startCOMGiven()
 {
@@ -25,7 +29,7 @@ function loadExistingWorkbook($workBookName)
 	return $objPHPExcel;
 }
 
-
+echo "!!@#@#";
 function createWorkbook($excelAPI,$workBookName,$action,$excelApp)
 {
 	$workbook=null;
@@ -40,6 +44,7 @@ function createWorkbook($excelAPI,$workBookName,$action,$excelApp)
 	return $workbook;
 	
 }
+echo "!fff!@#@#";
 
 
 function createWorksheet($excelAPI,$workSheetName,$action){
@@ -61,6 +66,8 @@ function createWorksheet($excelAPI,$workSheetName,$action){
 //	return $worksheet;
 
 }
+echo "!!@aaa#@#";
+
 function setActiveWorksheet($excelAPI,$workSheetName,$no){
 		$excelAPI->setActiveSheetIndex($no);
 		if($workSheetName==""){
@@ -77,6 +84,7 @@ function setRange($rangeStart, $rangeEnd)
 	$range[1]=strtoupper($rangeEnd);
 	return $range;
 }
+echo "!!@sss#@#";
 
 function addContent($range,$excelAPI,$content,$merged,$excelWorksheet)
 {

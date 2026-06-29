@@ -9,7 +9,7 @@ $pos = $_REQUEST['position'];
 include 'conn.php';
 
 $sql = "insert into train_driver(firstName,lastName,midName,empNum,position) values('$firstname','$lastname','$midname','$empnum','$pos')";
-$result = @mysql_query($sql);
+$result = $db->query($sql);
 if ($result){
 	echo json_encode(array('success'=>true));
 } else {

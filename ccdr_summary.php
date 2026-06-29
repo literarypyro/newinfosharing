@@ -246,7 +246,7 @@ $datenow=date("m/d/Y");
 //	$availability_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 ?>	
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from equipment_type where sequence is not null order by sequence";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;

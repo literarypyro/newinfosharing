@@ -23,7 +23,7 @@ if(isset($_POST['reserve'])){
 //		$train_date=$year."-".$month."-".$day;
 		$train_date=date("Y-m-d",strtotime($_SESSION['search_date']));
 		
-		$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 		
 		$reserve_hour=str_replace("30","",$_POST['reserve_hour']);
 		$reserve=$_POST['reserve'];
@@ -324,7 +324,7 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 <input type=submit value='Access Monitoring' />
 </form>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 $timetable_code="";
 
@@ -391,7 +391,7 @@ if ($ULev>=2){
 <th>Remarks</th>
 </tr>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 if($timetable_code==""){
 }

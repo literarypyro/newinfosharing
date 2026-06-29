@@ -1,0 +1,198 @@
+
+:root {
+    /* Re-declaring variables to ensure they are available even if header loads differently */
+    --header-primary: #1e3c72;      /* Dark Blue */
+    --header-secondary: #2a5298;    /* Lighter Blue */
+    --header-text: #ffffff;         /* White */
+    --logo-accent: #FBCC2A;         /* Gold/Yellow */
+    --page-bg: #f4f7f6;             /* Very Light Gray for page background */
+    --card-bg: #ffffff;             /* White for containers */
+    --text-main: #333333;           /* Dark Gray text */
+    --border-color: #e0e0e0;        /* Light border */
+    --success-green: #28a745;       /* For "Go" or active states */
+}
+
+/* =======================================
+   GLOBAL PAGE STYLES
+   ======================================= */
+body {
+    background-color: var(--page-bg);
+    color: var(--text-main);
+    font-family: 'Roboto', 'Segoe UI', Arial, sans-serif; /* Modern font stack */
+}
+
+h2, h3, h4 {
+    color: var(--header-primary);
+    font-weight: 600;
+}
+
+/* Links */
+a {
+    color: var(--header-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: var(--header-primary);
+    text-decoration: underline;
+}
+
+/* Specific Link Classes from your PHP file */
+a.Llink, a.two {
+    color: var(--header-primary);
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+a.Llink:hover, a.two:hover {
+    background-color: rgba(30, 60, 114, 0.1); /* Light blue tint */
+    text-decoration: none !important;
+}
+
+/* =======================================
+   FORM ELEMENTS (Inputs & Selects)
+   ======================================= */
+input[type="text"], 
+input[type="date"], 
+select,
+textarea {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #333;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="text"]:focus, 
+select:focus,
+textarea:focus {
+    border-color: var(--header-secondary);
+    box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.15);
+    outline: none;
+}
+
+/* Buttons (Submit, Filter) */
+input[type="submit"], 
+button.btn, 
+.btn-primary {
+    background: linear-gradient(135deg, var(--header-primary), var(--header-secondary));
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: transform 0.1s, box-shadow 0.2s;
+}
+
+input[type="submit"]:hover, 
+button.btn:hover {
+    background: var(--header-primary);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+    transform: translateY(-1px);
+}
+
+/* =======================================
+   TABLE STYLING
+   ======================================= */
+/* Main Data Table */
+table {
+    width: 100%;
+    background-color: var(--card-bg);
+    border-collapse: separate; /* Allows border-radius */
+    border-spacing: 0;
+    border-radius: 8px;
+    overflow: hidden; /* Clips corners */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+}
+
+/* Table Header */
+table th {
+    background-color: var(--header-primary) !important;
+    color: var(--header-text) !important;
+    padding: 12px 15px !important;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    border-bottom: 3px solid var(--logo-accent); /* The Gold Accent Line */
+}
+
+/* Table Rows */
+table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    color: #444;
+}
+
+/* Zebra Striping */
+table tr:nth-child(even) {
+    background-color: #f8f9fa; /* Very light gray */
+}
+
+/* Hover Effect */
+table tr:hover td {
+    background-color: rgba(251, 204, 42, 0.1); /* Very light gold tint on hover */
+    color: #000;
+}
+
+/* Links inside tables (like Car IDs) */
+table td a {
+    color: var(--header-secondary);
+    font-weight: 500;
+}
+
+/* =======================================
+   MODAL DIALOGS (Bootstrap Overrides)
+   ======================================= */
+.modal {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    background-color: var(--header-primary);
+    color: white;
+    border-radius: 8px 8px 0 0;
+    padding: 15px 20px;
+    border-bottom: 3px solid var(--logo-accent);
+}
+
+.modal-header h3 {
+    color: white; /* Override default H3 color */
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.modal-header .close {
+    color: white;
+    opacity: 0.8;
+    text-shadow: none;
+}
+
+.modal-header .close:hover {
+    opacity: 1;
+}
+
+.modal-body {
+    padding: 20px;
+    background-color: #fff;
+}
+
+.modal-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #eee;
+    border-radius: 0 0 8px 8px;
+    padding: 15px 20px;
+}

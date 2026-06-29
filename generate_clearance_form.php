@@ -4,7 +4,7 @@ session_start();
 <?php
 require_once("phpexcel/Classes/PHPExcel.php");
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
-require("excel functions.php");
+require("excel_functions.php");
 
 ?>
 <?php
@@ -28,7 +28,7 @@ if(isset($_GET['clearance_date'])){
 
   	$ExWs=createWorksheet($excel,$workSheetName,"openActive");
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
 	$rowCount=0;	
 	

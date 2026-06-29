@@ -5,7 +5,7 @@ $id = intval($_REQUEST['id']);
 include 'conn.php';
 
 $sql = "delete from train_driver where id=$id";
-$result = @mysql_query($sql);
+$result = $db->query($sql);
 if ($result){
 	echo json_encode(array('success'=>true));
 } else {

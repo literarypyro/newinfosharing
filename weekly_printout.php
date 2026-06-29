@@ -533,7 +533,7 @@ echo "<h2>".$displayDate."</h2>";
 ?>
 <?php
 
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from weekly_report where from_date like '".$availability_date."%%' ".$ccdr_add;
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -557,7 +557,7 @@ else {
 ?>
 <?php
 if(isset($_POST['weekly_id'])){
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
 	
 	$update="update weekly_report ";
@@ -597,11 +597,11 @@ Summary and Recommended Measures: <?php echo $measures; ?> <a href='#' onclick="
 </tr>
 
 <?php
-$db2=new mysqli("localhost","root","","external");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 
 //$ccdr_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 $ccdr_date=$availability_date;
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 $clause=" order by substring(incident_no,1,position('' in incident_no))*1 ";
 

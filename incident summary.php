@@ -1,3 +1,6 @@
+<?php 
+session_start();
+?>
 <?php
 require("Tmenu.php");
 ?>
@@ -290,8 +293,11 @@ $datenow=date("m/d/Y");
 $displayDate=date("F d, Y",strtotime($availability_date));
 
 if($availability_date2==""){
+	
+	$ccdr_date="like '".$availability_date."%%' "; 
 }
 else {
+	$ccdr_date="between '".$availability_date." 00:00:00' and '".$availability_date2." 23:59:59' ";
 	$displayDate.=" - ".date("F d, Y",strtotime($availability_date2));
 }
 
@@ -321,11 +327,11 @@ echo "<h2>".$displayDate."</h2>";
 </tr>
 
 <?php
-$db2=new mysqli("localhost","root","","external");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 
 //$ccdr_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
-$ccdr_date=$availability_date;
-$db=new mysqli("localhost","root","","transport");
+//$ccdr_date=$availability_date;
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 $clause=" order by substring(incident_no,1,position('' in incident_no))*1 ";
 
@@ -359,7 +365,7 @@ if(isset($_POST['sort_by'])){
 
 
 //$sql="select * from incident_report where incident_date like '".$ccdr_date."%%' order by incident_date";
-$sql="select * from incident_report inner join incident_description on incident_report.id=incident_id where incident_date like '".$ccdr_date."%%'".$clause;
+$sql="select * from incident_report inner join incident_description on incident_report.id=incident_id where incident_date ".$ccdr_date.$clause;
 
 $rs=$db->query($sql);
 

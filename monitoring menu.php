@@ -208,7 +208,7 @@ a.ex2:hover {
 				<li><a class="bubble-float-right" href='#' >Problem Type</a>
 					<ul>			
 						<?php 
-						$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 						$sql="select * from equipment_type order by sequence";
 						$rs=$db->query($sql);
 						$nm=$rs->num_rows;
@@ -225,7 +225,7 @@ a.ex2:hover {
 				<li><a class="bubble-float-right" href='#' >Stats Report(AFC)</a>
 					<ul>			
 						<?php 
-						$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 					
 						$sql="select * from station";
 						$rs=$db->query($sql);

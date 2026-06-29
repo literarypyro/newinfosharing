@@ -1,5 +1,5 @@
 <?php
-require("trans menu.php"); //added mjun@
+require("trans menu_2.php"); //edited 01302026
 ?> 
 <style type='text/css'>
 
@@ -18,7 +18,7 @@ ul#navMenu {
 
 ul#navMenu ul {
 	position:absolute;
-	left:0; 
+	left:40px;
 	top:100%;
 	display:none;
 	padding:0px;
@@ -206,7 +206,6 @@ body { height: 100%; overflow: hidden; }
     <!--    <link href="nprogress-master/nprogress.css" rel="stylesheet" /> -->
 
 
-
 <ul id="navMenu" >
   <li><a href="#" class="bubble-float-bottom">Control Center Report</a>
   
@@ -234,7 +233,7 @@ body { height: 100%; overflow: hidden; }
 			<li><a class="bubble-float-right" href='#' >Problem Type</a>
 			<ul>			
         		<?php 
-				$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 			
 				$sql="select * from equipment_type where equipment_name not in ('OTHERS') order by equipment_name";
 				$rs=$db->query($sql);
@@ -269,7 +268,7 @@ body { height: 100%; overflow: hidden; }
 			<li><a class="bubble-float-right" href='#' >Stats Report(AFC)</a>
 			<ul>			
         		<?php 
-				$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 			
 				$sql="select * from station";
 				$rs=$db->query($sql);

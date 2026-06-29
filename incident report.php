@@ -1,4 +1,7 @@
 <?php
+session_start();
+?>
+<?php
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 require("Tmenu.php");
 ?>
@@ -40,6 +43,29 @@ if(isset($_POST['equipment'])){
 	$amorpm=$_POST['amorpm'];
 
 	$equipment=$_POST['equipment'];
+	
+	if($equipment=="others"){
+		$otherEquipment=$_POST['otherEquipment'];
+		
+		$sqlAdd="insert into equipment(equipment_name,type,category) values ";
+		
+		$sqlAdd.="(";
+		
+		$sqlAdd.="'".$otherEquipment."',";
+		$sqlAdd.="'RS','EXT'";
+		
+		$sqlAdd.=")";
+		
+		$rsAdd=$db->query($sqlAdd);
+		
+		$equipment=$db->insert_id;
+		
+	}
+	
+	
+	
+	
+	
 	if($amorpm=="pm"){
 		if($hour<12){
 			$hour+=12;
@@ -93,7 +119,11 @@ if(isset($_POST['equipment'])){
 		$unit_no=$_POST['unit_no'];
 	}
 	
-	$db=new mysqli("localhost","root","","transport");
+	
+	
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$description=$db->real_escape_string($description);
+	
 	$sql="insert into incident_report ";
 	$sql.="(incident_type,incident_no,level,incident_date,";
 	$sql.="description,action_dotc,action_maintenance,duration,equipt,cancel,unit_no,level_condition,recommending_approval,approving_person,action_type)";
@@ -103,11 +133,11 @@ if(isset($_POST['equipment'])){
 
 	$rs=$db->query($sql);
 	$incident_code=$db->insert_id;
-	
+	$_SESSION['incident_id']=$db->insert_id;
 
 	
 	if($level==2){
-		$update="update incident_report set l2='".$_POST['order']."' where id='".$incident_code."'";
+		$update="update incident_report set l2='".$_POST['order']."' where id='".$_SESSION['incident_id']."'";
 		$rs=$db->query($update);
 	
 	
@@ -162,7 +192,7 @@ if(isset($_POST['equipment'])){
 	
 	//-- reenabled and re-coded
 	
-	$incidentSQL="select * from user_transport.incident_no where incident_id='".$incident_code."'";
+	$incidentSQL="select * from is_user_transport.incident_no where incident_id='".$incident_code."'";
 	$incidentRS=$db->query($incidentSQL);
 	$incidentNM=$incidentRS->num_rows;
 	
@@ -171,7 +201,7 @@ if(isset($_POST['equipment'])){
 	
 	}
 	else {
-		$insert="insert into user_transport.incident_no(year,incident_id,incident_number,suffix) values ('".$incidentYear."','".$incident_code."','".$_POST['incident_no']."','".$_POST['incident_suffix']."')"; 
+		$insert="insert into is_user_transport.incident_no(year,incident_id,incident_number,suffix) values ('".$incidentYear."','".$incident_code."','".$_POST['incident_no']."','".$_POST['incident_suffix']."')"; 
 		$insertRS=$db->query($insert);
 		
 	}
@@ -255,10 +285,21 @@ if(isset($_POST['equipment'])){
 	
 	
 	}
+	if($_POST['car_id_4']==""){
+	
+	}
+	else {
+		$sql="insert into incident_cars ";
+		$sql.="(incident_id,car_no) values ";
+		$sql.="('".$incident_code."','".$_POST['car_id_4']."')";
+		$rs=$db->query($sql);
+	
+	
+	}
 	
 	
 	if(isset($_GET['cancel'])){
-		$db=new mysqli("localhost","root","","transport");
+		$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 		$sql="update train_availability set status='cancelled' where id='".$_GET['cancel']."' and status='active'";
 		$rs=$db->query($sql);
 		
@@ -268,7 +309,7 @@ if(isset($_POST['equipment'])){
 
 
 		$sql="insert into train_incident_report(train_ava_id,incident_id) values ";
-		$sql.="('".$_GET['cancel']."','".$incident_code."')";
+		$sql.="('".$_GET['cancel']."','".$_SESSION['incident_id']."')";
 		$rs=$db->query($sql);
 		
 		
@@ -303,7 +344,7 @@ if(isset($_POST['equipment'])){
 	}
 
 	
-	$db2=new mysqli("localhost","root","","external");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 	$update="insert into incident_defects(incident_id,equipt_id,sub_item_id) (select '".$incident_code."',equipt_id,sub_item_id from temp_multiple)";
 	
 	$updateRS=$db2->query($update);
@@ -496,15 +537,23 @@ scrollRolling();
 function subItemScroll(){
 	var problemType=document.getElementById('equipment').value;
 
-	makeajax("processing.php?scrollSubItem="+problemType,"subItem");	
-
+	if(problemType=="others"){
+		var innerHTML="<input type='text' name='otherEquipment' />";
+		
+		document.getElementById('equipment_space').innerHTML=innerHTML;
+		
+		
+	}
+	else {
+		makeajax("processing.php?scrollSubItem="+problemType,"subItem");	
+	}
 }
 
 function subItem(ajaxHTML){
 	var subHTML="";
 	
 	if(ajaxHTML=="No data available"){
-	
+		
 	
 	}
 	else {
@@ -735,8 +784,8 @@ function confirmIncidentNo(ajaxHTML){
 	if(ajaxHTML=="No number"){
 	}
 	else {
-		alert("Incident Number is taken!");
-		document.getElementById('incident_no').value="";
+//		alert("Incident Number is taken!");
+//		document.getElementById('incident_no').value="";
 	
 	
 	}
@@ -996,7 +1045,7 @@ ul.nav li a{
 
 <option></option>
 <?php 
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 //$sql="select * from equipment where type='RS' and category='EXT' order by equipment_name";
 $sql="select * from equipment where type='RS' order by equipment_name";
 $rs=$db->query($sql);
@@ -1100,6 +1149,7 @@ else {
 	<option selected value='<?php echo $row['car_a']; ?>'><?php echo $row['car_a']; ?></option>	
 	<option value='<?php echo $row['car_b']; ?>'><?php echo $row['car_b']; ?></option>	
 	<option value='<?php echo $row['car_c']; ?>'><?php echo $row['car_c']; ?></option>	
+	<option value='<?php echo $row['car_d']; ?>'><?php echo $row['car_d']; ?></option>	
 
 <?php	
 }
@@ -1123,6 +1173,7 @@ else {
 	<option value='<?php echo $row['car_a']; ?>'><?php echo $row['car_a']; ?></option>	
 	<option value='<?php echo $row['car_b']; ?>'><?php echo $row['car_b']; ?></option>	
 	<option value='<?php echo $row['car_c']; ?>'><?php echo $row['car_c']; ?></option>	
+	<option value='<?php echo $row['car_d']; ?>'><?php echo $row['car_d']; ?></option>	
 
 <?php	
 }
@@ -1146,6 +1197,31 @@ else {
 	<option value='<?php echo $row['car_a']; ?>'><?php echo $row['car_a']; ?></option>	
 	<option value='<?php echo $row['car_b']; ?>'><?php echo $row['car_b']; ?></option>	
 	<option value='<?php echo $row['car_c']; ?>'><?php echo $row['car_c']; ?></option>	
+	<option value='<?php echo $row['car_d']; ?>'><?php echo $row['car_d']; ?></option>	
+
+<?php	
+}
+?>
+
+
+
+</select><font style='color: rgb(0,51,153);'>,</font> 
+
+<select name='car_id_4' id='car_id_4'>
+	<option></option>
+<?php
+if($retrieve_id==""){
+}
+
+else {
+	$sql="select * from train_availability where id='".$retrieve_id."'";
+	$rs=$db->query($sql);
+	$row=$rs->fetch_assoc();
+?>	
+	<option value='<?php echo $row['car_a']; ?>'><?php echo $row['car_a']; ?></option>	
+	<option value='<?php echo $row['car_b']; ?>'><?php echo $row['car_b']; ?></option>	
+	<option value='<?php echo $row['car_c']; ?>'><?php echo $row['car_c']; ?></option>	
+	<option value='<?php echo $row['car_d']; ?>'><?php echo $row['car_d']; ?></option>	
 
 <?php	
 }
@@ -1241,7 +1317,18 @@ for($i=0;$i<$nm;$i++){
 </tr>
 <tr>
 <td>Date:</td><td>
-<input type='text' name='incident_date' id='incident_date' class='datepicker' value='<?php echo date("m/d/Y"); ?>' />
+
+<?php
+if(isset($_SESSION['month'])){
+	$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
+}
+else {
+	$incident_date_label=date("m/d/Y");
+}
+
+?>
+
+<input type='text' name='incident_date' id='incident_date' class='datepicker' value='<?php echo $incident_date_label; ?>' />
 </td></tr>
 <tr><td>Time: </td><td>
 <select name='hour'>
@@ -1308,7 +1395,7 @@ for($i=0;$i<=59;$i++){
 <td> <textarea rows=5 cols=50 name='description'  class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
 data-source='[""
 <?php
-$db2=new mysqli("localhost","root","","external");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 $sql="select * from preencoded";
 
 $rs=$db2->query($sql);
@@ -1330,7 +1417,7 @@ for($i=0;$i<$nm;$i++){
 <input type="text" autocomplete='off' name='reported_by' id='reported_by' class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
 data-source='[
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -1354,7 +1441,7 @@ for($i=0;$i<$nm;$i++){
 
 <?php
 /**
-$db2=new mysqli("localhost","root","","station");
+$db2=new mysqli("127.0.0.1","root","","station");
 $sql="select * from ticket_seller order by last_name";
 $rs=$db2->query($sql);
 $nm=$rs->num_rows;
@@ -1379,7 +1466,7 @@ for($i=0;$i<$nm;$i++){
 <td>
 <select name='received_by' id='received_by'>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver where position in ('STDO','CCRE') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -1422,7 +1509,7 @@ for($i=0;$i<$nm;$i++){
 <td valign=top>DOTR</td><td><span name='remarks_space' id='remarks_space'> <textarea rows=5 cols=50 name='dotc' id='dotc'  class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
 data-source='[""
 <?php
-$db2=new mysqli("localhost","root","","external");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 $sql="select * from preencoded";
 
 $rs=$db2->query($sql);
@@ -1460,7 +1547,7 @@ for($i=0;$i<$nm;$i++){
 <td valign=top>Verified</td><td><textarea rows=5 cols=50  name='maintenance' id='maintenance' class="span6 typeahead" id="typeahead" data-provide="typeahead" data-items="4" 
 data-source='[""
 <?php
-$db2=new mysqli("localhost","root","","external");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 $sql="select * from preencoded";
 
 $rs=$db2->query($sql);

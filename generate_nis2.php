@@ -4,7 +4,7 @@ session_start();
 <?php
 require_once("phpexcel/Classes/PHPExcel.php");
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
-require("excel functions.php");
+require("excel_functions.php");
 
 ?>
 <?php
@@ -50,7 +50,7 @@ else {
 
 
 
-			$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 			$sql="select * from weekly_report where from_date like '".$ccdr_date."%%' ".$ccdr_add;
 			$rs=$db->query($sql);
 			$nm=$rs->num_rows;
@@ -66,7 +66,7 @@ else {
 	
 	
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 	$sql="select * from incident_report inner join incident_description on incident_report.id=incident_description.incident_id where incident_date ".$dClause." order by substring(incident_no,1,position('' in incident_no))*1 ";
 	$rs=$db->query($sql);
@@ -190,7 +190,7 @@ $rowCount++;
 
 //	addContent(setRange("L8","N8"),$excel,date("l",strtotime($ccdr_date)),"true",$ExWs);	
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	$timeTableSQL="select *,timetable_day.id as timeId from timetable_day inner join timetable_code on timetable_day.timetable_code=timetable_code.id where train_date like '".$ccdr_date."%%'";
 
 	$timeTableRS=$db->query($timeTableSQL);

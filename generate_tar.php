@@ -2,9 +2,11 @@
 session_start();
 ?>
 <?php
+require("excel_functions.php");
+
 require_once("phpexcel/Classes/PHPExcel.php");
+
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
-require("excel functions.php");
 
 ?>
 <?php
@@ -100,13 +102,13 @@ if(isset($_GET['tar'])){
 
 	
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 	
 	
 	$personnel_date=$ccdr_date;
 
-	$db2=new mysqli("localhost","root","","user_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
 	$psql="select * from duty_personnel where personnel_date like '".$tar_date."%%' and shift='3'";
 	//echo $psql;
 	$prs=$db2->query($psql);
@@ -184,7 +186,7 @@ if(isset($_GET['tar'])){
 
 	addContent(setRange("O8","Q8"),$excel,date("l",strtotime($tar_date)),"true",$ExWs);
 
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	$timeTableSQL="select *,timetable_day.id as timeId from timetable_day inner join timetable_code on timetable_day.timetable_code=timetable_code.id where train_date like '".$tar_date."%%'";
 
 	$timeTableRS=$db->query($timeTableSQL);

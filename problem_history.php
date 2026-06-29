@@ -1,5 +1,5 @@
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $car_id=$_GET['car_id'];
 
 

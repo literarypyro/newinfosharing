@@ -1,0 +1,461 @@
+/* =====================================================
+   TRAIN AVAILABILITY - HEADER REDESIGN CSS (v2)
+   Works with existing trans menu_bkup01302026.php
+   FIXED: Content spacing to prevent overlap
+   ===================================================== */
+
+/* ========================================
+   COLOR SCHEME VARIABLES
+   ======================================== */
+
+/* ============ OPTION 1: Professional Blue (CURRENTLY ACTIVE) ============ 
+:root {
+    --header-primary: #1e3c72;
+    --header-secondary: #2a5298;
+    --header-text: #ffffff;
+    --logo-accent: #FBCC2A;
+    --nav-bg: #f5f5f5;
+    --nav-text: #000000;
+    --nav-border: #FBCC2A;
+    --nav-hover-bg: #cccccc;
+    --nav-hover-text: #333333;
+}
+*/
+
+/* ============ OPTION 2: Modern Dark ============ 
+:root {
+    --header-primary: #2c3e50;
+    --header-secondary: #34495e;
+    --header-text: #ecf0f1;
+    --logo-accent: #e74c3c;
+    --nav-bg: #34495e;
+    --nav-text: #ecf0f1;
+    --nav-border: #e74c3c;
+    --nav-hover-bg: #2c3e50;
+    --nav-hover-text: #ffffff;
+}
+*/
+
+
+/* ============ OPTION 3: Fresh Green ============ 
+:root {
+    --header-primary: #11998e;
+    --header-secondary: #38ef7d;
+    --header-text: #ffffff;
+    --logo-accent: #FBCC2A;
+    --nav-bg: #f0f9f8;
+    --nav-text: #000000;
+    --nav-border: #38ef7d;
+    --nav-hover-bg: #11998e;
+    --nav-hover-text: #ffffff;
+}
+*/
+
+
+/* ============ OPTION 4: Corporate Purple ============ 
+:root {
+    --header-primary: #667eea;
+    --header-secondary: #764ba2;
+    --header-text: #ffffff;
+    --logo-accent: #FBCC2A;
+    --nav-bg: #f5f3ff;
+    --nav-text: #000000;
+    --nav-border: #764ba2;
+    --nav-hover-bg: #667eea;
+    --nav-hover-text: #ffffff;
+}
+*/
+
+
+/* ============ OPTION 5: Warm Orange ============ 
+:root {
+    --header-primary: #f12711;
+    --header-secondary: #f5af19;
+    --header-text: #ffffff;
+    --logo-accent: #FBCC2A;
+    --nav-bg: #fff8f0;
+    --nav-text: #000000;
+    --nav-border: #f5af19;
+    --nav-hover-bg: #f12711;
+    --nav-hover-text: #ffffff;
+}
+*/
+
+
+/* ============ OPTION 6: Navy & Gold (Elegant) ============ */
+:root {
+    --header-primary: #0f2027;
+    --header-secondary: #2c5364;
+    --header-text: #f4d03f;
+    --logo-accent: #f4d03f;
+    --nav-bg: #f5f5f5;
+    --nav-text: #0f2027;
+    --nav-border: #f4d03f;
+    --nav-hover-bg: #0f2027;
+    --nav-hover-text: #f4d03f;
+}
+
+
+
+/* ============ OPTION 7: Teal Corporate ============ 
+:root {
+    --header-primary: #134e5e;
+    --header-secondary: #71b280;
+    --header-text: #ffffff;
+    --logo-accent: #FBCC2A;
+    --nav-bg: #f0f8f5;
+    --nav-text: #134e5e;
+    --nav-border: #71b280;
+    --nav-hover-bg: #134e5e;
+    --nav-hover-text: #ffffff;
+}
+*/
+
+
+/* ============ OPTION 8: Crimson Professional ============ 
+:root {
+    --header-primary: #8e0e00;
+    --header-secondary: #1f1c18;
+    --header-text: #ffffff;
+    --logo-accent: #FBCC2A;
+    --nav-bg: #fff5f5;
+    --nav-text: #8e0e00;
+    --nav-border: #8e0e00;
+    --nav-hover-bg: #8e0e00;
+    --nav-hover-text: #ffffff;
+}
+*/
+
+
+/* ============ OPTION 9: Ocean Blue ============ 
+:root {
+    --header-primary: #2E3192;
+    --header-secondary: #1BFFFF;
+    --header-text: #ffffff;
+    --logo-accent: #FBCC2A;
+    --nav-bg: #f0f8ff;
+    --nav-text: #2E3192;
+    --nav-border: #1BFFFF;
+    --nav-hover-bg: #2E3192;
+    --nav-hover-text: #ffffff;
+}
+*/
+
+
+/* ============ OPTION 10: Royal Purple & Gold ============ 
+:root {
+    --header-primary: #4A148C;
+    --header-secondary: #7B1FA2;
+    --header-text: #FFD700;
+    --logo-accent: #FFD700;
+    --nav-bg: #f5f5f5;
+    --nav-text: #4A148C;
+    --nav-border: #FFD700;
+    --nav-hover-bg: #4A148C;
+    --nav-hover-text: #FFD700;
+}
+
+*/
+
+/* ========================================
+   BODY AND PAGE LAYOUT - INCREASED PADDING
+   ======================================== */
+body {
+    margin: 0;
+    padding: 0;
+    padding-top: 200px !important; /* Increased from 180px to prevent overlap */
+}
+
+/* Additional spacing for page content wrapper */
+body > form,
+body > div:not(.header-wrapper):not(#dvLoading) {
+    margin-top: 20px !important;
+}
+
+/* ========================================
+   HEADER WRAPPER - FIXED POSITION
+   ======================================== */
+.header-wrapper {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    background: linear-gradient(135deg, var(--header-primary) 0%, var(--header-secondary) 100%) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+    width: 100% !important;
+}
+
+/* ========================================
+   EXCEPTION TABLE (Logo and Title Area)
+   ======================================== */
+.exception {
+    border-bottom: 2px solid var(--logo-accent) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+.exception td {
+    padding: 15px !important;
+    vertical-align: middle !important;
+}
+
+/* Logo styling */
+.exception img {
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
+}
+
+/* Title styling */
+h0 {
+    color: var(--header-text) !important; 
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3) !important;
+    font-size: 42px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-weight: bold !important;
+}
+
+/* ========================================
+   LOGOUT AND USER INFO SECTION
+   ======================================== */
+.header-wrapper table:nth-child(2) {
+    background: rgba(0, 0, 0, 0.1) !important;
+    padding: 8px 15px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.header-wrapper table:nth-child(2) td {
+    padding: 5px 15px !important;
+}
+
+.header-wrapper table:nth-child(2) font {
+    color: var(--header-text) !important;
+}
+
+/* Logout link styling */
+a.ex1.grow {
+    display: inline-block !important;
+    padding: 8px 20px !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 6px !important;
+    transition: all 0.3s ease !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+a.ex1.grow:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+a.ex1.grow font {
+    color: var(--header-text) !important;
+}
+
+/* ========================================
+   NAVIGATION MENU STYLING
+   ======================================== */
+
+/* Main menu container */
+ul#navMenu {
+    background: transparent !important;
+    margin: 0 !important;
+    padding: 10px 20px !important;
+    left: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+
+
+/* Top level menu items */
+ul#navMenu > li > a {
+    background: var(--nav-bg) !important;
+    color: var(--nav-text) !important;
+    border: 1px solid var(--nav-border) !important;
+    padding: 12px 15px !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+}
+
+ul#navMenu > li > a:hover {
+    background: var(--nav-hover-bg) !important;
+    color: var(--nav-hover-text) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Ensure parent list items allow absolute positioning of children */
+ul#navMenu ul li {
+    position: relative !important;
+}
+
+
+/* Dropdown menus - ensure they appear above content */
+ul#navMenu ul {
+    background: var(--nav-bg) !important;
+    border: 1px solid var(--nav-border) !important;
+    border-radius: 0 0 6px 6px !important;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+    /* FIX: Changed from 'hidden' to 'visible' so sub-menus aren't cut off */
+    overflow: visible !important; 
+    z-index: 10000 !important;
+}
+
+ul#navMenu ul a {
+    background: var(--nav-bg) !important;
+    color: var(--nav-text) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+    padding: 10px 15px !important;
+    width: 220px !important;
+}
+
+ul#navMenu ul li:last-child a {
+    border-bottom: none !important;
+}
+
+ul#navMenu ul a:hover {
+    background: var(--nav-hover-bg) !important;
+    color: var(--nav-hover-text) !important;
+    padding-left: 20px !important;
+}
+
+
+/* Sub-dropdown menus (Level 3) */
+ul#navMenu ul ul {
+    border-radius: 6px !important;
+    z-index: 10001 !important;
+    /* FIX: Position to the right of the parent menu */
+    position: absolute !important;
+    top: 0 !important;
+    left: 100% !important; 
+    margin-top: -1px !important; /* Align borders perfectly */
+}
+
+/* FIX: Ensure sub-sub-menus display when hovering the parent LI */
+ul#navMenu ul li:hover > ul {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+
+/* ========================================
+   HOVER EFFECTS (from hover.css)
+   ======================================== */
+.bubble-float-bottom {
+    position: relative !important;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+@media (max-width: 1024px) {
+    body {
+        padding-top: 220px !important;
+    }
+    
+    h0 {
+        font-size: 32px !important;
+    }
+    
+    ul#navMenu {
+        padding: 10px !important;
+    }
+    
+    ul#navMenu > li > a {
+        padding: 10px 12px !important;
+        font-size: 13px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        padding-top: 250px !important;
+    }
+    
+    .exception td {
+        padding: 10px !important;
+    }
+    
+    h0 {
+        font-size: 24px !important;
+    }
+    
+    ul#navMenu {
+        left: 0 !important;
+        padding: 5px !important;
+    }
+    
+    ul#navMenu > li {
+        float: none !important;
+        display: block !important;
+        width: 100% !important;
+    }
+    
+    ul#navMenu > li > a {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        margin-bottom: 5px !important;
+    }
+    
+    ul#navMenu ul {
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+    }
+    
+    ul#navMenu ul a {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+}
+
+/* ========================================
+   PRINT STYLES
+   ======================================== */
+@media print {
+    .header-wrapper {
+        position: relative !important;
+        box-shadow: none !important;
+    }
+    
+    body {
+        padding-top: 0 !important;
+    }
+    
+    ul#navMenu {
+        display: none !important;
+    }
+}
+
+/* ========================================
+   LOADING SPINNER COMPATIBILITY
+   ======================================== */
+#dvLoading {
+    z-index: 10000 !important; /* Above header */
+}
+
+/* ========================================
+   FIX FOR CONTENT OVERLAP
+   ======================================== */
+.content-wrapper,
+.page-content,
+form {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* ========================================
+   ADDITIONAL SPACING ADJUSTMENTS
+   If content still overlaps, increase these values
+   ======================================== */
+
+/* Adjust this value if you need more/less space */
+.spacing-adjuster {
+    /* To increase spacing: change 200px to 220px or 240px */
+    /* To decrease spacing: change 200px to 180px or 160px */
+    padding-top: 200px;
+}

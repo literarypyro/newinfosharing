@@ -1,6 +1,5 @@
 <?php
-$db=new mysqli("localhost","root","","transport");
-
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 for($i=1;$i<=12;$i++){
 	$equipt_count["Month_".$i]["Equipt_105"]=0;
 	$equipt_count["Month_".$i]["Equipt_81"]=0;

@@ -13,7 +13,7 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
 <?php
 function getEquiptCount($equipt,$onboard_date){
 		
-	$db=new mysqli("localhost","root","","transport");	
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 
 	
@@ -26,7 +26,7 @@ function getEquiptCount($equipt,$onboard_date){
 	return $nm;	
 }
 function getRemarks($equipt,$onboard_date){
-	$db=new mysqli("localhost","root","","transport");	
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 	$remarks="";	
 

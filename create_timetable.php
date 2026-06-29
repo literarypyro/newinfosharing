@@ -1,5 +1,5 @@
 <?php
-$db2=new mysqli("localhost","root","","timetable");
+$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
 
 if(isset($_POST['timetable_code'])){
 	if($_POST['action']=="new"){

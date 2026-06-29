@@ -10,7 +10,7 @@ $pos = $_REQUEST['position'];
 include 'conn.php';
 
 $sql = "update train_driver set firstName='$firstname',lastName='$lastname',midName='$midname',empNum='$empnum',position='$pos' where id=$id";
-$result = @mysql_query($sql);
+$result = $db->query($sql);
 if ($result){
 	echo json_encode(array('success'=>true));
 } else {

@@ -1,5 +1,5 @@
 <?php
-require("Tmenu.php");
+require("Tmenu_2.php");
 global $varR;
 ?>
 
@@ -132,11 +132,19 @@ a.LDel:visited {color:red;}
         color: #666;
         text-decoration: none;
     }
-    
+  .header-wrapper table:nth-child(2) {
+    margin: 0 !important;
+}
+
+/* 2. Reduce the padding inside the menu to pull the buttons up */
+ul#navMenu {
+    padding-top: 0px !important;    /* Reduced from 10px */
+    padding-bottom: 1px !important; /* Reduced from 10px */
+}  
 </style>
 
 <?php
-function setTime($hour,$minute,$amorpm){
+function setTime($hour,$minute,$second,$amorpm){
 
 
 	if($amorpm=="pm"){
@@ -155,7 +163,7 @@ function setTime($hour,$minute,$amorpm){
 		}
 	
 	}
-	$timestring=$hour.":".$minute;
+	$timestring=$hour.":".$minute.":".$second;
 	
 	return $timestring;
 }
@@ -163,7 +171,7 @@ function setTime($hour,$minute,$amorpm){
 ?>
 <?php
 if(isset($_POST['clearanceId'])){
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
 	
 	/**
@@ -180,9 +188,11 @@ if(isset($_POST['clearanceId'])){
 
 		$hour=$_POST[$_POST['formElement']."_hour"];
 		$minute=$_POST[$_POST['formElement']."_minute"];
+		$second=$_POST[$_POST['formElement']."_second"];
+
 		$amorpm=$_POST[$_POST['formElement']."_amorpm"];
 		
-		$clearance_timestamp=$clearance_date." ".setTime($hour,$minute,$amorpm);	
+		$clearance_timestamp=$clearance_date." ".setTime($hour,$minute,$second,$amorpm);	
 
 		$update.=" set ".$_POST['formElement']."='".$clearance_timestamp."' ";
 		
@@ -245,9 +255,12 @@ function fillEdit(element,clearance_id){
 		var year=d.getFullYear();
 		var mmonth=d.getMonth()*1+1;
 		var day=d.getDate();
+
 		
 		var tentativehour=d.getHours();
 		var minute=d.getMinutes();
+		var second=d.getSeconds();
+
 		var hour=0;
 
 		var amorpm="AM";
@@ -273,8 +286,8 @@ function fillEdit(element,clearance_id){
 		
 		
 		
-		elementHTML+="<td>";		
-		elementHTML+="<select name='"+prefix+"_hour'>";
+		elementHTML+="<td width=40%>";		
+		elementHTML+="<select name='"+prefix+"_hour' width='20%'>";
 		elementHTML+="<option></option>";
 		
 		
@@ -288,7 +301,7 @@ function fillEdit(element,clearance_id){
 		elementHTML+="</select>";
 
 		
-		elementHTML+="<select name='"+prefix+"_minute'>";
+		elementHTML+="<select name='"+prefix+"_minute' width='20%'>";
 		elementHTML+="<option></option>";		
 		var label="";
 		for(var i=0;i<=59;i++){
@@ -309,8 +322,28 @@ function fillEdit(element,clearance_id){
 		}
 		elementHTML+="</select>";
 
+		elementHTML+="<select name='"+prefix+"_second' width='20%'>";
+		var label="";
+		for(var i=0;i<=59;i++){
+			
+			if(i<10){
+				label="0"+i;			
+			}
+			else {
+				label=i;
+			}
+			
+			elementHTML+="<option value='"+i+"' ";
+			if(second==i){
+			elementHTML+="selected";
+			}
+			elementHTML+=">"+label+"</option>";
+
+		}
+		elementHTML+="</select>";
+	
 		
-		elementHTML+="<select name='"+prefix+"_amorpm'>";	
+		elementHTML+="<select name='"+prefix+"_amorpm' width='40%'>";	
 		elementHTML+="<option></option>";
 		elementHTML+="<option value='am' ";
 		if(amorpm=="AM"){
@@ -374,7 +407,7 @@ function fillEdit(element,clearance_id){
 	
 	elementHTML+="<tr>";
 	
-	elementHTML+="<td colspan=2 align=center>";
+	elementHTML+="<td colspan=3 align=center>";
 	elementHTML+="<input type=hidden name='clearanceId' id='clearanceId' value='"+clearance_id+"' />";
 	elementHTML+="<input type=hidden name='formElement' id='formElement' value='"+element+"' />";
 
@@ -490,7 +523,7 @@ if ($ULev>=2){
 <input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo $datenow; ?>' />
 -->
 
-<input type="text" name='search_date' id='search_date' />
+<input type="text" name='search_date' id='search_date' value='<?php echo $datenow; ?>' />
 
 <input type=submit value='Retrieve Date' />
 </form>
@@ -507,7 +540,7 @@ if ($ULev>=2){
 	<th>Clearance No.</th>
 	<th>Location</th>
 	<th>Activity</th>
-	<th>Person</th>
+	<th>Requesting Person</th>
 	<th>Position/Company</th>
 	<th>Received By</th>
 	<th>Login</th>
@@ -538,9 +571,9 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 	$clearance_date=$ava_date;
 //	$clearance_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 
-	$db=new mysqli("localhost","root","","transport");	
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
-	$sql="select * from clearance where date like '".$clearance_date."%%' order by clearance_no";
+	$sql="select * from clearance where date like '".$clearance_date."%%' order by login asc";
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;	
 	
@@ -586,7 +619,7 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 			
 ?>			
 			<tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
-				<td align=center><?php echo $clearance_no; ?></td>	
+				<td align=center><?php echo $i*1+1; ?></td>	
 				<td><?php echo $location; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('location','<?php echo $clearance_no; ?>')">Edit</a></td>
 
 				<td><?php echo $activity; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('activity','<?php echo $clearance_no; ?>')">Edit</a></td>

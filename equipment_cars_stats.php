@@ -122,7 +122,7 @@ $end_date=date("Y")."-12-31";
 
 
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 $sql="select * from equipment where id='$equipt_id'";
 $rs=$db->query($sql);
@@ -258,7 +258,7 @@ for($i=$start;$i<=$end;$i++){
 	}
 
 
-	$sql="select *,count(1) as car_count from incident_union inner join external.incident_defects on incident_union.id=external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id='$equipt_id' group by car_no"; 
+	$sql="select *,count(1) as car_count from incident_union inner join is_external.incident_defects on incident_union.id=is_external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id='$equipt_id' group by car_no"; 
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
 	if($i==1){

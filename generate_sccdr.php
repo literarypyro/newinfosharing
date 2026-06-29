@@ -4,7 +4,7 @@ session_start();
 <?php
 require_once("phpexcel/Classes/PHPExcel.php");
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
-require("excel functions.php");
+require("excel_functions.php");
 
 ?>
 <?php
@@ -130,7 +130,7 @@ if(isset($_GET['sccdr'])){
 
 	addContent(setRange("R8","T8"),$excel,date("l",strtotime($sccdr_date)),"true",$ExWs);	
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 
 
@@ -248,7 +248,7 @@ if(isset($_GET['sccdr'])){
 	
 	$availability_date=$sccdr_date;
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
 	//$am_sql="select count(*) as am_count from train_availability where date like '".$availability_date."%%' and status='cancelled' and date between '".$availability_date." 00:00:01' and '".$availability_date." 12:00:00'";
 
@@ -380,7 +380,7 @@ if(isset($_GET['sccdr'])){
 
 	$personnel_date=$sccdr_date;
 
-	$db2=new mysqli("localhost","root","","user_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
 	$psql="select * from duty_personnel where personnel_date like '".$personnel_date."%%' and shift='3'";
 	//echo $psql;
 	$prs=$db2->query($psql);

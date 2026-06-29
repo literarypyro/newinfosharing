@@ -2,14 +2,35 @@
 session_start();
 ?>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
-$db2=new mysqli("localhost","root","","external");
-$db3=new mysqli("localhost","root","","timetable");
-$db4=new mysqli("localhost","root","","user_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
+	$db3=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
+	$db4=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
 
 ?>
 <?php
+if(isset($_GET['ajaxSwitch'])){
+    $db = new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+    
+    $train_ava_id = intval($_GET['train_ava_id']);
+    $new_index    = $db->real_escape_string($_GET['new_index']);
+    $switch_time  = $db->real_escape_string($_GET['switch_time']);
+
+    $sql = "INSERT INTO train_switch(train_ava_id, new_index, date_change)
+            VALUES ('".$train_ava_id."','".$new_index."','".$switch_time."')";
+    $db->query($sql);
+    $new_id = $db->insert_id;
+
+    $row = $db->query("SELECT type FROM train_availability WHERE id='".$train_ava_id."'")->fetch_assoc();
+    if($row['type'] == 'reserve'){
+        $db->query("UPDATE train_availability SET type='revenue' WHERE id='".$train_ava_id."'");
+    }
+
+    echo json_encode(['status' => 'ok', 'switch_id' => $new_id]);
+    exit;
+}
+
 if(isset($_GET['removeEquipt'])){
 	$equipt=$_GET['removeEquipt'];
 	$sql="delete from temp_multiple where id='".$equipt."'";

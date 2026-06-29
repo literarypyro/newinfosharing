@@ -1,6 +1,6 @@
 <?php
 if(isset($_POST['timetable_code'])){
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
 	$year=$_POST['year'];
 	$month=$_POST['month'];
@@ -242,7 +242,7 @@ for($i=1999;$i<=$dateRecent;$i++){
 <select name='timetable_code' id='timetable_code'>
 <?php
 //	$db=new mysqli("localhost","root","","transport");
-	$db2=new mysqli("localhost","root","","timetable");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
 
 	$sql="select * from timetable";
 	$rs=$db2->query($sql);

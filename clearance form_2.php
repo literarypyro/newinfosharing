@@ -162,7 +162,7 @@ function setTime($hour,$minute,$amorpm){
 ?>
 <?php
 if(isset($_POST['clearanceId'])){
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
 	
 	/**
@@ -532,7 +532,7 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 	$clearance_date=$ava_date;
 //	$clearance_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 
-	$db=new mysqli("localhost","root","","transport");	
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	
 	$sql="select * from clearance where date like '".$clearance_date."%%' order by clearance_no";
 	$rs=$db->query($sql);

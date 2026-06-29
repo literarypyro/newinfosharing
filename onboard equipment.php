@@ -167,7 +167,7 @@ if(isset($_POST['search_date'])){
 $ccdr_date=date("Y-m-d",strtotime($_POST['search_date']));
 $ccdr_label=date("F d, Y",strtotime($ccdr_date));
 
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 
 $sqlCCDR="select * from train_availability inner join train_compo on train_availability.id=tar_id where train_availability.date like '".$ccdr_date."%%' and status='active' and type='revenue' group by car_no";

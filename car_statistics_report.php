@@ -4,7 +4,7 @@
 //--- Marker: @mjun
 //--------------------------------------------------->
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 ?>
 
 <style type='text/css'>
@@ -127,6 +127,10 @@ for($i=1;$i<=73;$i++){
 }
 
 $sql="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$year."-%%' group by incident_cars.car_no*1,month(incident_date)";
+
+$sql.=" union ";
+$sql.="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM is_transport_old.incident_cars inner join is_transport_old.incident_report on is_transport_old.incident_cars.incident_id=is_transport_old.incident_report.id where incident_date like '".$year."-%%' group by incident_cars.car_no*1,month(incident_date)";
+
 $rs=$db->query($sql);
 
 $nm=$rs->num_rows;

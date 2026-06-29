@@ -6,7 +6,7 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
 <?php
 if(isset($_POST['personnel_date'])){
-	$db=new mysqli("localhost","root","","user_transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
 	$sql="select * from duty_personnel where personnel_date like '".date("Y-m-d",strtotime($_POST['personnel_date']))."%%' and shift='".$_POST['shift']."'";
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
@@ -310,7 +310,8 @@ Enter Date
 <select name='recording' id='recording' class='stdo'>
 <option></option>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	if(!$db){ echo "Connection error"; }
 $sql="select * from train_driver where position in ('STDO') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -335,7 +336,7 @@ for($i=0;$i<$nm;$i++){
 <option></option>
 
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver where position in ('STDO') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -361,7 +362,7 @@ for($i=0;$i<$nm;$i++){
 <option></option>
 
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver where position in ('STDO') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -387,7 +388,8 @@ for($i=0;$i<$nm;$i++){
 <option></option>
 
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	
 $sql="select * from train_driver where position in ('STDO') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -412,7 +414,7 @@ for($i=0;$i<$nm;$i++){
 <td colspan=2>
 <select name='duty_manager' id='duty_manager'>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver where position in ('SVTDO') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -434,7 +436,7 @@ for($i=0;$i<$nm;$i++){
 <td>
 <select name='tcad' id='tcad'>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver where position in ('SVTDO') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -456,7 +458,7 @@ for($i=0;$i<$nm;$i++){
 <td>
 <select name='sr' id='sr'>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver where position in ('SVTDO') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -478,7 +480,7 @@ for($i=0;$i<$nm;$i++){
 <td>
 <select name='clerk' id='clerk'>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from train_driver where position in ('CLERK III') order by lastName";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;

@@ -12,8 +12,8 @@ if(isset($_POST['reserve'])){
 	if($_SESSION['month']==""){
 	}
 	else {
-		$db=new mysqli("localhost","root","","transport");
-		$db2=new mysqli("localhost","root","","timetable");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
 		$month=$_SESSION['month'];
 		$day=$_SESSION['day'];
 		$year=$_SESSION['year'];
@@ -72,8 +72,8 @@ if(isset($_POST['remarks'])){
 		
 		$train_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 		
-		$db=new mysqli("localhost","root","","transport");
-		$db2=new mysqli("localhost","root","","timetable");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
 		
 		
 		$remarks_hour=$_POST['remarks_hour'];
@@ -119,8 +119,8 @@ if(isset($_POST['cars_provided'])){
 		
 		$train_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 		
-		$db=new mysqli("localhost","root","","transport");
-		$db2=new mysqli("localhost","root","","timetable");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
 		
 		$provided_hour=$_POST['provided_hour'];
 		$cars_provided=$_POST['cars_provided'];
@@ -340,8 +340,7 @@ for($i=1999;$i<=$dateRecent;$i++){
 <input type=submit value='Access Monitoring' />
 </form>
 <?php
-$db=new mysqli("localhost","root","","transport");
-
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $timetable_code="";
 if((isset($_POST['month']))||(isset($_SESSION['month']))){
 	if(isset($_POST['month'])){
@@ -391,9 +390,8 @@ if((isset($_POST['month']))||(isset($_SESSION['month']))){
 <th>Remarks</th>
 </tr>
 <?php
-$db=new mysqli("localhost","root","","transport");
-
-$db2=new mysqli("localhost","root","","timetable");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
 
 
 if($timetable_code==""){
@@ -553,8 +551,7 @@ else {
 if($timetable_code==""){
 }
 else {
-	$db2=new mysqli("localhost","root","","timetable");
-
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
 ?>
 
 <form action='train hourly_2.php' method='post'>

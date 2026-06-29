@@ -1,8 +1,6 @@
 <?php
 require("trans menu.php");
 ?>
-
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -27,7 +25,8 @@ require("trans menu.php");
             rownumbers="true" fitColumns="true" singleSelect="true">
        <thead>
             <tr>
-            	<th field="empNum" width="50" sortable="true">Employee No.</th>                                                              <th field="lastName" width="50" sortable="true">Last Name</th>
+            	<th field="empNum" width="50" sortable="true">Employee No.</th>                                                              
+				<th field="lastName" width="50" sortable="true">Last Name</th>
                 <th field="firstName" width="50" sortable="true">First Name</th>
                 <th field="midName" width="50" sortable="true">Middle Name</th>                
                 <th field="position" width="50">Position</th>
@@ -39,6 +38,7 @@ require("trans menu.php");
             </td>
     <div id="toolbar" >
     	<?php 
+		$ULev=3;
     	if ($ULev>2) {	?>				
         <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-add'" onclick="newUser()">New Employee</a>
         <a href="javascript:void(0)" class="easyui-linkbutton" data-options="iconCls:'icon-edit'" onclick="editUser()">Edit User</a>

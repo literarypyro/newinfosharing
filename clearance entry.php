@@ -72,7 +72,7 @@ if(isset($_POST['year'])){
 
 	$clearance_time=date("Y-m-d H:i",strtotime($clearance_date." ".$timeStamp));	
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	$sql="insert into clearance(date,location,activity,person,position,company,login,logout,control_no,received_by)";
 	$sql.=" values ";
 	
@@ -309,8 +309,9 @@ for($i=1999;$i<=$dateRecent;$i++){
 <td>
 <select name='received_by'>
 <?php 
-$db=new mysqli("localhost","root","","transport");
-$sql="select * from train_driver where position in ('STDO','CCRE')";
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	
+	$sql="select * from train_driver where position in ('STDO','CCRE')";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
 

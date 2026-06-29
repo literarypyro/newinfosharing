@@ -56,7 +56,7 @@ if(isset($_POST['year'])){
 
 
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	$sql="insert into depot_insertion(index_no,insertion_date,tar_time,actual_completion,remarks)";
 	$sql.=" values ";
 	

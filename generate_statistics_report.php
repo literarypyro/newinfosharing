@@ -4,46 +4,21 @@ session_start();
 <?php
 require_once("phpexcel/Classes/PHPExcel.php");
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
-require("excel functions.php");
+require("excel_functions.php");
 
 ?>
 <?php
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
-if(isset($_GET['sd'])){
-$year=date("Y",strtotime($_GET['sd']));
-$start_date=date("Y-m-d",strtotime($_GET['sd']));
 
-if($_GET['range']=="daily"){
-$end_date=$start_date;	
-}
-else if($_GET['range']=="weekly"){
-$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 week"));
-	
-}
+$start_date=date("Y-m-01",strtotime($_GET['sd']));
+$end_date=date("Y-m-t",strtotime($_GET['ed']));
 
-else if($_GET['range']=="monthly"){
-$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 month"));
-	
-}
-else if($_GET['range']=="yearly"){
-$end_date=date("Y-m-d",strtotime($_GET['sd']."+365 days"));
-	
-}
-else if($_GET['range']=="custom"){
-$end_date=date("Y-m-d",strtotime($_GET['sd']));
-	
-}
-}
-else {
-$start_date=date("Y")."-01-01";
-$end_date=date("Y")."-12-31";	
-	
-}
 
+	$difference=date("m",strtotime(date("Y-m-t",strtotime($end_date)))-strtotime(date("Y-m-01",strtotime($start_date))))-1;
 
 if(isset($_GET['sd'])){
 	//$year=$_GET['year'];
@@ -64,7 +39,7 @@ if(isset($_GET['sd'])){
 
 
 	
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 	$sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
 
 	$rs=$db->query($sql);
@@ -77,11 +52,28 @@ if(isset($_GET['sd'])){
 
 	for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
+		
+			if($i==0){
+			$yy=date("Y",strtotime($start_date));
+
+			$mon=date("m",strtotime($start_date));
+				
+			}
+			else {
+			$yy=date("Y",strtotime($tag_date."+".$i." months"));
+
+			$mon=date("m",strtotime($tag_date."+".$i." months"));
+			
+			$fn=date("F",strtotime($tag_date."+".$i." months"));
+			
+			
+			}
+			$label=$yy.$mon;
 
 		$equipt[$i]['id']=$row['id'];
 		$equipt[$i]['equipment']=$row['equipment_name'];
-		for ($k=$start;$k<=$end;$k++){
-			$equipt_count["Equipt_".$row['id']]["Month_".$k]=0;
+		for ($k=0;$k<=$difference;$k++){
+			$equipt_count["Equipt_".$row['id']]["Month_".($label*1)]=0;
 			
 		}
 	}
@@ -112,73 +104,29 @@ if(isset($_GET['sd'])){
 
 			
 			
-			
-if(isset($_GET['sd'])){
 
 $year=date("Y",strtotime($_GET['sd']));
 
-$start_date=date("Y-m-d",strtotime($_GET['sd']));
+$start_date=date("Y-m-01",strtotime($_GET['sd']));
 
 $init_start=$start_date;
 
+$end_date=date("Y-m-t",strtotime($_GET['ed']));
 
-if($_GET['range']=="daily"){
-$end_date=$start_date;	
-}
-else if($_GET['range']=="weekly"){
-$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 week"));
 
-	$start=(date("m",strtotime($start_date)))*1;
-	$end=date("m",strtotime($end_date."-1 day"))*1;
-
-	$period=date("F d, Y", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
-	
-}
-
-else if($_GET['range']=="monthly"){
-$end_date=date("Y-m-d",strtotime($_GET['sd']."+1 month"));
-
-	$start=date("m",strtotime($start_date))*1;
-	$end=date("m",strtotime($end_date))*1;
-	$end--;
-
-	$period=date("F Y", strtotime($start_date));
-	
-}
-else if($_GET['range']=="yearly"){
-$end_date=date("Y-m-d",strtotime($_GET['sd']."+365 days"));
-
-	$start=(date("m",strtotime($start_date)))*1;
-	$end=date("m",strtotime($end_date."-1 day"))*1;
-
-	$period=date("F", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
-	
-}
-else if($_GET['range']=="custom"){
-$end_date=date("Y-m-d",strtotime($_GET['ed']));
-
-	$start=(date("m",strtotime($start_date)))*1;
-	$end=date("m",strtotime($end_date))*1;
-
-	$period=date("F d, Y", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
-	
-}
 
 
 	
-}
-else {
-$start_date=date("Y")."-01-01";
-$end_date=date("Y")."-12-31";	
+//$start_date=date("Y")."-01-01";
+//$end_date=date("Y")."-12-31";	
 	
 	$start=1;
 	$end=12;
 
 
-	$period=date("F", strtotime($start_date))." - ".date("F Y", strtotime($end_date));
+	$period=date("F d, Y", strtotime($start_date))." - ".date("F d, Y", strtotime($end_date));
 
 	
-}
 
 
 
@@ -216,13 +164,22 @@ $excel->getActiveSheet()->getStyle("A".$rowCount.":P".$rowCount)->getFont()->set
 
 		$n=1;
 	
-for($k=$start;$k<=$end;$k++){
+for($k=0;$k<=$difference;$k++){
+	
+		if($k==0){
+		$label=date("F",strtotime($start_date));
+	}
+	else {
+	$label= date("F",strtotime($start_date."+".$k." months"));
+
+
+	}
 		
 		$prefix=chr((65*1+$n));
 		$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray);
 
 
-		addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,date("F",strtotime(date("Y")."-".$k."-01")),"true",$ExWs);
+		addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,$label,"true",$ExWs);
 
 		
 		$n++;
@@ -237,30 +194,72 @@ for($k=$start;$k<=$end;$k++){
 	
 	
 	
-for($i=$start;$i<=$end;$i++){
-		$month_heading=date("F",strtotime($year."-".$i."-01"));
-		$date_limit=date("t",strtotime($year."-".$i."-01"));
+for($i=0;$i<=$difference;$i++){
+	
+
+	if($i==0){
+	$month_heading=date("F",strtotime($start_date));
+	}
+	else {
+	
+	$month_heading=date("F",strtotime($start_date."+".$i." months"));
+	}
+
+
+	if($i==0){
+	$date_limit=date("t",strtotime($start_date));
+	}
+	else {
+	
+
+	
+	$date_limit=date("t",strtotime($start_date."+".$i." months"));
+
+	}
+
+	
+
+
+
+	if($i==0){
+	$yy=date("Y",strtotime($start_date));
+
+	$mon=date("m",strtotime($start_date));
 		
-		$start_date=date("Y-m-d",strtotime($year."-".$i."-01"));
-		$end_date=date("Y-m-d",strtotime($year."-".$i."-".$date_limit));
+	}
+	else {
+	$yy=date("Y",strtotime($start_date."+".$i." months"));
+
+	$mon=date("m",strtotime($start_date."+".$i." months"));
+	
+	$fn=date("F",strtotime($start_date."+".$i." months"));
+	
+	
+	}
+	$label=$yy.$mon;
+
+
+
+	$start_date1=date("Y-m-01",strtotime($start_date."+".$i." months"));
+	$end_date1=date("Y-m-t",strtotime($start_date."+".$i." months"));
 		
-		$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
+		$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
 		$rs=$db->query($sql);
 		$nm=$rs->num_rows;
 		
 		for($k=0;$k<$nm;$k++){
 			$row=$rs->fetch_assoc();
-			$equipt_count["Equipt_".$row['equipt']]["Month_".$i]=$row['equipt_count'];
+			$equipt_count["Equipt_".$row['equipt']]["Month_".($label*1)]=$row['equipt_count'];
 			
 		}
 
-		$sql="select *,count(1) as equipt_count from incident_report inner join external.incident_defects on incident_report.id=external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt"; 
+		$sql="select *,count(1) as equipt_count from incident_report inner join is_external.incident_defects on incident_report.id=is_external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59' and external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt"; 
 		$rs=$db->query($sql);
 		$nm=$rs->num_rows;
 		
 		for($k=0;$k<$nm;$k++){
 			$row=$rs->fetch_assoc();
-			$equipt_count["Equipt_".$row['equipt_id']]["Month_".$i]+=$row['equipt_count'];
+			$equipt_count["Equipt_".$row['equipt_id']]["Month_".($label*1)]+=$row['equipt_count'];
 		}		
 
 	}
@@ -289,16 +288,34 @@ for($i=$start;$i<=$end;$i++){
 		addContent(setRange("A".$rowCount,"A".$rowCount),$excel,$row['equipment_name'],"true",$ExWs);
 
 		
-		for($n=0;$n<=($end-$start);$n++){
+		for($n=0;$n<=$difference;$n++){
 			
 			$k=$n+1;
 			$prefix=chr((65*1+$k));
 			if($n==0){
 				$start_pref=$prefix;
 			}
+			
+	if($n==0){
+	$yy=date("Y",strtotime($start_date));
+
+	$mon=date("m",strtotime($start_date));
+		
+	}
+	else {
+	$yy=date("Y",strtotime($start_date."+".$n." months"));
+
+	$mon=date("m",strtotime($start_date."+".$n." months"));
+	
+	$fn=date("F",strtotime($start_date."+".$n." months"));
+	
+	
+	}
+	$label=$yy.$mon;			
+			
 		
 			$excel->getActiveSheet()->getStyle($prefix.$rowCount.":".$prefix.$rowCount)->applyFromArray($styleArray2);
-			addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,$equipt_count["Equipt_".$equipt[$i]['id']]["Month_".($start+$n)],"true",$ExWs);
+			addContent(setRange($prefix.$rowCount,$prefix.$rowCount),$excel,$equipt_count["Equipt_".$equipt[$i]['id']]["Month_".($label*1)],"true",$ExWs);
 		
 
 		}
@@ -346,8 +363,8 @@ $rowCount++;
 $rowCount++;
 
 
-addContent(setRange("C".$rowCount,"F".$rowCount),$excel,"ENGR. EDWIN S. HILARIO","true",$ExWs);
-addContent(setRange("J".$rowCount,"L".$rowCount),$excel,"ENGR. OLIVER S. CASILI","true",$ExWs);
+addContent(setRange("C".$rowCount,"F".$rowCount),$excel,"","true",$ExWs);
+addContent(setRange("J".$rowCount,"L".$rowCount),$excel,"","true",$ExWs);
 
 $excel->getActiveSheet()->getStyle("C".$rowCount.":P".$rowCount)->getFont()->setBold(true);
 
@@ -356,7 +373,7 @@ $rowCount++;
 
 
 addContent(setRange("C".$rowCount,"F".$rowCount),$excel,"Senior TDO, Transport Division","true",$ExWs);
-addContent(setRange("J".$rowCount,"L".$rowCount),$excel,"OIC, Transport Division","true",$ExWs);
+addContent(setRange("J".$rowCount,"L".$rowCount),$excel,"Chief, Transport Division","true",$ExWs);
 
 $rowCount++;
 

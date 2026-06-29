@@ -13,6 +13,8 @@ $ULev=$_SESSION['Ulevel'];
 ?>
 
 <!-- Start --> 
+<link href="css/header_redesign.css" rel="stylesheet" />
+
 <style type='text/css'>
 
 .box h2 {
@@ -100,12 +102,12 @@ h1 {
 
 
 
-<div class="box effect1">
+<div class="header-wrapper">
 <table class='exception' width=100%>
 <tr>
 <td width=5%>
 <img src='mrt-logo.png' align="center" valign="center" width="100%" height="100" />
-</td><td valign="middle" width=55%><h0>Control Center Operation</h0></td>
+</td><td valign="middle" width=55%><h0>Information Sharing System</h0></td>
 
 <!-- </td><td valign="center" width=55%><font face="Century" size="5"><h1><b>Control Center Operation</b></h1></font> 
 </td> -->
@@ -120,7 +122,7 @@ h1 {
 <table width=100%>
 	<tr>	
 		<td>
-			<a class="ex1 grow" href='../index.php'><font face="Century" size="4">Log Out</font></a> 
+			<a class="ex1 grow" href='../index.php'><font color="white" face="Century" size="4">Log Out</font></a> 
 			<!-- <a class="float" href='../index.php'><font face="Century" size="4">Log Out</font></a> -->
 		</td>
 		

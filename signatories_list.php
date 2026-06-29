@@ -3,7 +3,7 @@ require("Tmenu.php");
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
 <?php
-$db=new mysqli("localhost","root","","user_transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
 ?>
 <link href="css/modal_only.css" rel="stylesheet" />
 <!-- <link href="css/style.min.css" rel="stylesheet" /> -->

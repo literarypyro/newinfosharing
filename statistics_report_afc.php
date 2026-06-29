@@ -72,7 +72,7 @@ for($k=$startYear;$k<=$endYear;$k++){
 <td>
 <select name='station'>
 	<?php 
-	$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 			
 	$sql="select * from station";
 	$rs=$db->query($sql);

@@ -1,7 +1,7 @@
 <?php
 require("Tmenu.php");
-$db=new mysqli("localhost","root","","transport");
-$db2=new mysqli("localhost","root","","external");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 global $Mup;
 ?>
 <!---- Modified: Jun
@@ -1391,7 +1391,7 @@ select { border: 1px solid #FFD700; color: black; background-color: #FFFACD;  }
 
 
 <?php
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 ?>
 <?php
 if(isset($_POST['search_incident_number'])){
@@ -1617,7 +1617,7 @@ if(isset($_POST['search_incident_number'])){
 		
 		}
 		
-		$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 		
 		$serviceSQL="select * from service_interruption where incident_id='".$incident_report."'";
 		$serviceRS=$db->query($serviceSQL);
@@ -1632,7 +1632,7 @@ if(isset($_POST['search_incident_number'])){
 		}	
 		
 		
-		$db2=new mysqli("localhost","root","","external");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
 		$defectsSQL="select * from incident_defects where incident_id='".$incident_report."'";
 		
 		$defectsRS=$db2->query($defectsSQL);
@@ -1750,7 +1750,7 @@ echo $subClause;
 <select name='equipment_copy' id='equipment_copy' hidden>
 <option></option>
 <?php 
-$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $sql="select * from equipment order by equipment_name";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;

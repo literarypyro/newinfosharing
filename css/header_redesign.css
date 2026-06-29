@@ -1,0 +1,254 @@
+/* =====================================================
+   MRT-3 ISS — header_redesign.css  v5
+   Single fixed 60px bar. Logo left, nav centre,
+   logout right. ul#navMenu is position:fixed so it
+   occupies zero document-flow height (no gap).
+   Low z-indexes so nothing blocks page click targets.
+   ===================================================== */
+
+:root {
+    --hdr-bg:       #00529B;
+    --hdr-stripe:   #FDB813;
+    --nav-drop-bg:  #FFFFFF;
+    --nav-hover-bg: #003d75;
+}
+
+/* ── BODY ─────────────────────────────────────────────
+   60px header + 46px toolbar + 10px buffer = 116px    */
+body {
+    margin: 0 !important;
+    padding: 0 !important;
+    padding-top: 116px !important;
+}
+body > form,
+body > div:not(.header-wrapper):not(#dvLoading) {
+    margin-top: 0 !important;
+}
+
+/* ── HEADER WRAPPER ───────────────────────────────────
+   z-index 5: visible above page content, below nav    */
+.header-wrapper {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important; right: 0 !important;
+    height: 60px !important;
+    z-index: 5 !important;
+    background: var(--hdr-bg) !important;
+    border-bottom: 3px solid var(--hdr-stripe) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 10px 0 6px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+}
+
+/* Logo + title table (flex-shrink so it stays compact) */
+.exception {
+    border: none !important;
+    background: transparent !important;
+    margin: 0 !important; padding: 0 !important;
+    flex-shrink: 0 !important;
+}
+.exception td {
+    padding: 0 6px 0 0 !important;
+    vertical-align: middle !important;
+    border: none !important;
+    white-space: nowrap !important;
+}
+.exception img {
+    height: 40px !important;
+    width: auto !important;
+    vertical-align: middle !important;
+    display: inline-block !important;
+}
+h0 {
+    display: inline !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #FFFFFF !important;
+    text-shadow: none !important;
+    margin: 0 !important; padding: 0 !important;
+    vertical-align: middle !important;
+    letter-spacing: 0.02em !important;
+    white-space: nowrap !important;
+}
+
+/* Logout / Hello table — pushed to right edge */
+.header-wrapper > table:nth-of-type(2) {
+    background: transparent !important;
+    border: none !important;
+    margin: 0 0 0 auto !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+}
+.header-wrapper > table:nth-of-type(2) td {
+    padding: 0 4px !important;
+    vertical-align: middle !important;
+    border: none !important;
+    white-space: nowrap !important;
+}
+.header-wrapper > table:nth-of-type(2) font {
+    color: #FFFFFF !important;
+    font-size: 12px !important;
+}
+
+/* Log Out button */
+a.ex1, a.ex1:link, a.ex1:visited {
+    display: inline-block !important;
+    padding: 4px 12px !important;
+    background: rgba(255,255,255,0.15) !important;
+    border: 1px solid rgba(255,255,255,0.35) !important;
+    border-radius: 4px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #FFFFFF !important;
+    text-decoration: none !important;
+    float: none !important;
+    width: auto !important;
+}
+a.ex1:hover {
+    background: rgba(255,255,255,0.28) !important;
+    color: #FFFFFF !important;
+    text-shadow: none !important;
+    transform: none !important;
+}
+a.ex1 font { color: #FFFFFF !important; }
+
+/* ── ul#navMenu ───────────────────────────────────────
+   position:fixed takes it OUT of document flow.
+   Same top/height as .header-wrapper → visually inline.
+   left/right carve out the space between logo & logout.
+
+   TUNING: If the nav still overlaps the logo text,
+   increase `left`. If it overlaps logout, increase `right`.
+   Screenshot shows logo block ≈ 270px, logout ≈ 240px.     */
+ul#navMenu {
+    position: fixed !important;
+    top: 0 !important;
+    left: 275px !important;
+    right: 245px !important;
+    height: 60px !important;
+    z-index: 10 !important;          /* above header bg, below dropdowns */
+    background: transparent !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+    float: none !important;
+}
+
+/* Top-level list items */
+ul#navMenu > li {
+    display: inline-flex !important;
+    align-items: center !important;
+    height: 60px !important;
+    position: relative !important;
+    float: none !important;
+}
+
+/* Top-level links */
+ul#navMenu > li > a,
+ul#navMenu > li > a:link,
+ul#navMenu > li > a:visited {
+    display: inline-flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    padding: 0 11px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: rgba(255,255,255,0.9) !important;
+    text-decoration: none !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    white-space: nowrap !important;
+    float: none !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+    font-family: Verdana, sans-serif !important;
+    transition: color 0.15s, border-color 0.15s, background 0.15s !important;
+}
+ul#navMenu > li > a:hover,
+ul#navMenu > li:hover > a {
+    color: #FFFFFF !important;
+    border-bottom-color: var(--hdr-stripe) !important;
+    background: rgba(255,255,255,0.1) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* ── Dropdown panels ──────────────────────────────────
+   z-index 20: above everything including the nav bar   */
+ul#navMenu ul {
+    display: none;
+    position: absolute !important;
+    top: 60px !important;
+    left: 0 !important;
+    min-width: 210px !important;
+    background: var(--nav-drop-bg) !important;
+    border: 1px solid #DDD5BF !important;
+    border-top: 3px solid var(--hdr-stripe) !important;
+    border-radius: 0 0 6px 6px !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18) !important;
+    z-index: 20 !important;
+    padding: 0 !important; margin: 0 !important;
+    overflow: visible !important;
+    list-style: none !important;
+}
+ul#navMenu > li:hover > ul,
+ul#navMenu ul li:hover > ul { display: block !important; }
+
+ul#navMenu ul li {
+    display: block !important;
+    float: none !important;
+    position: relative !important;
+    margin: 0 !important;
+}
+ul#navMenu ul a,
+ul#navMenu ul a:link,
+ul#navMenu ul a:visited {
+    display: block !important;
+    width: 210px !important;
+    padding: 9px 14px !important;
+    font-size: 12px !important;
+    color: #1A2238 !important;
+    background: var(--nav-drop-bg) !important;
+    border: none !important;
+    border-bottom: 1px solid #F0EDE5 !important;
+    border-radius: 0 !important;
+    text-align: left !important;
+    float: none !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+    font-family: Verdana, sans-serif !important;
+    text-decoration: none !important;
+}
+ul#navMenu ul a:hover {
+    background: var(--nav-hover-bg) !important;
+    color: #FFFFFF !important;
+    padding-left: 20px !important;
+}
+ul#navMenu ul li:last-child a { border-bottom: none !important; }
+
+/* Level-3 sub-menu opens to the right */
+ul#navMenu ul ul {
+    top: 0 !important;
+    left: 100% !important;
+    border-top: 1px solid #DDD5BF !important;
+    border-radius: 0 6px 6px 6px !important;
+    margin-top: -1px !important;
+}
+
+/* ── Misc ─────────────────────────────────────────────  */
+#dvLoading { z-index: 30 !important; }
+
+@media print {
+    .header-wrapper { position: relative !important; }
+    ul#navMenu { display: none !important; }
+    body { padding-top: 0 !important; }
+}

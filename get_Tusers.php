@@ -11,14 +11,14 @@
 	include 'connuser.php';	
 	
 	$where = "lastName like '$SFind%' or firstName like '$SFind%'";
-$rs = mysql_query("select count(*) from users where " . $where);
-$row = mysql_fetch_row($rs);
+$rs = $db->query("select count(*) from users where " . $where);
+$row = $rs->fetch_row();
 $result["total"] = $row[0];
  
-$rs = mysql_query("select * from users where " . $where . " order by $sort $order limit $offset,$rows");
+$rs = $db->query("select * from users where " . $where . " order by $sort $order limit $offset,$rows");
 		
 	$items = array();
-	while($row = mysql_fetch_object($rs)){
+	while($row = $rs->fetch_assoc()){
 		array_push($items, $row);
 	}
 	$result["rows"] = $items;

@@ -79,7 +79,7 @@ global $PCmb;
                 -->
                 <select id='lastName' name='lastName' class="easyui-combobox" style="width:160px;" required="true">
 				<?php											
-				$db=new mysqli("localhost","root","","transport");
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 				$sql="select id, firstName, lastName from train_driver where position not in ('TD','CCRE') order by lastName";
 				$rs=$db->query($sql);
 				$nm=$rs->num_rows;
