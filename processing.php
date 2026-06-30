@@ -10,6 +10,71 @@ session_start();
 
 ?>
 <?php
+ 
+if(isset($_GET['searchEquipment'])){
+	$q = $db->real_escape_string($_GET['searchEquipment']);
+	$sql = "select id,equipment_name,category from equipment
+	        where type='RS' and equipment_name like '%".$q."%'
+	        order by equipment_name";
+	$rs = $db->query($sql);
+	$out = "";
+	while($row = $rs->fetch_assoc()){
+		$out .= $row['id'].";".$row['equipment_name'].";".$row['category']."==>";
+	}
+	echo ($out=="") ? "No data available" : $out;
+}
+
+
+if(isset($_GET['searchIncidents'])){
+	$q     = $db->real_escape_string($_GET['searchIncidents']);
+	$scope = isset($_GET['scope']) ? $_GET['scope'] : 'today';
+ 
+	$sql = "select incident_report.id, incident_no, incident_type, level,
+	               incident_date, level_condition
+	        from incident_report
+	        where 1=1 ";
+ 
+	if($scope == 'today'){
+		$sql .= "and date(incident_date) = curdate() ";
+	}
+ 
+	if($q != ''){
+		$sql .= "and (incident_no like '%".$q."%' or incident_type like '%".$q."%') ";
+	}
+ 
+	$sql .= "order by incident_date desc";
+ 
+	/* Safety cap: only applies to the unfiltered "today" default view.
+	   Lifted as soon as a search term narrows the result set, and never
+	   applied to an explicit "all" request — the user asked for everything. */
+	if($scope != 'all' && $q == ''){
+		$sql .= " limit 100";
+	}
+ 
+	$rs  = $db->query($sql);
+	$out = "";
+ 
+	while($row = $rs->fetch_assoc()){
+		/* Index No. lives in incident_description, joined per-row here
+		   rather than via SQL JOIN to keep the base query simple and
+		   match the lookup pattern already used elsewhere in this file. */
+		$idxSQL = "select index_no from incident_description where incident_id='".$row['id']."'";
+		$idxRS  = $db->query($idxSQL);
+		$idxRow = $idxRS->fetch_assoc();
+		$index_no = $idxRow ? $idxRow['index_no'] : '';
+ 
+		$out .= $row['id'].";"
+		      . $row['incident_no'].";"
+		      . $row['incident_type'].";"
+		      . $row['level'].";"
+		      . date('Y-m-d', strtotime($row['incident_date'])).";"
+		      . $index_no
+		      . "==>";
+	}
+ 
+	echo ($out == "") ? "No data available" : $out;
+}
+
 if(isset($_GET['ajaxSwitch'])){
     $db = new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
     

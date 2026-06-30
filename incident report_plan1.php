@@ -7,8 +7,8 @@ require("Tmenu.php");
 ?>
 <?php
 /* =========================================================================
-   incident_report_option_c.php
-   Link option: Full modal overlay (Option C)
+   incident_report_option_a.php
+   Link option: Inline search panel (Option A)
    Operations Console redesign of incident report.php.
    PHP/JS: 100% verbatim from original.
    CSS: replaced. Inline border/color attributes on inputs cleaned up
@@ -132,49 +132,7 @@ if(isset($_POST['equipment'])){
 		$insertRS=$db->query($insert);
 	}
 
-	/* ── Multi-equipment-with-subitem handler ─────────────────────────────
-	   Writes each selected equipment item — and whichever sub-item was
-	   chosen for it, if any — to incident_equipment.
-
-	   $_POST['equipment_ids'] arrives as a comma-separated list of
-	   "equipt_id:subitem_id" pairs, e.g. "104:7,108:,112:3" — the empty
-	   subitem_id on the second pair means that item's sub-item dropdown
-	   either had no data or the user hadn't picked one yet; it's still
-	   recorded as an equipment selection with subitem_id left at 0.
-
-	   The legacy $_POST['equipment'] / $_POST['subitem'] single pair still
-	   writes into incident_description.equipt/subitem exactly as before,
-	   completely untouched by this block.
-
-	   Required DDL — note this widens the table from the previous turn's
-	   version by one column; if incident_equipment already exists without
-	   subitem_id, run the ALTER instead of the CREATE:
-	     CREATE TABLE incident_equipment (
-	       id int AUTO_INCREMENT PRIMARY KEY,
-	       incident_id int NOT NULL,
-	       equipt_id   int NOT NULL,
-	       subitem_id  int NOT NULL DEFAULT 0,
-	       UNIQUE KEY uq_pair (incident_id, equipt_id)
-	     );
-	     -- or, if the table from before already exists:
-	     ALTER TABLE incident_equipment ADD COLUMN subitem_id int NOT NULL DEFAULT 0;
-	   ─────────────────────────────────────────────────────────────────── */
-	if(!empty($_POST['equipment_ids'])){
-		$pairs=array_filter(is_array($_POST['equipment_ids'])
-			? $_POST['equipment_ids']
-			: explode(',',$_POST['equipment_ids']));
-		foreach($pairs as $pair){
-			$pair=trim($pair);
-			if($pair==='') continue;
-			$parts=explode(':',$pair);
-			$equipt_id =(int)trim($parts[0]);
-			$subitem_id=isset($parts[1]) ? (int)trim($parts[1]) : 0;
-			if($equipt_id<=0) continue;
-			$db->query("insert ignore into incident_equipment(incident_id,equipt_id,subitem_id) values ('".$incident_code."','".$equipt_id."','".$subitem_id."')");
-		}
-	}
-
-	/* ── Multi-link handler ─────────────────────────────────────────────
+		/* ── Multi-link handler ─────────────────────────────────────────────
 	   Writes each linked incident to incident_linked_reports junction table.
 	   Required DDL (run once):
 	     CREATE TABLE incident_linked_reports (
@@ -511,48 +469,19 @@ body { background: #EAEEF3; font-family: var(--ir-sans); color: var(--ir-dark); 
 .ir-lvl-0{background:#F3F4F6;color:#6B7280;} .ir-lvl-1{background:#E8F5EE;color:#0F6E4E;}
 .ir-lvl-2{background:#EAF2FB;color:#0C447C;} .ir-lvl-3{background:#FAEEDA;color:#854F0B;}
 .ir-lvl-4{background:#FCEBEB;color:#A32D2D;}
+/* ── Option A: Inline search panel ── */
+.ir-link-panel{border:1px solid var(--ir-border);border-radius:6px;overflow:hidden;margin-top:8px;}
+.ir-link-panel-head{background:var(--ir-row-odd);padding:7px 11px;font-size:11px;font-weight:600;color:var(--ir-mid);border-bottom:1px solid var(--ir-border);display:flex;align-items:center;gap:7px;}
+.ir-link-panel-body{max-height:200px;overflow-y:auto;}
+.ir-link-panel-foot{padding:7px 11px;border-top:1px solid var(--ir-border);background:var(--ir-bg);display:flex;justify-content:flex-end;gap:7px;}
+.ir-cb-row{display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--ir-border);}
+.ir-cb-row:last-child{border-bottom:none;}
+.ir-cb-row:hover{background:var(--ir-row-odd);}
+.ir-cb-row input[type=checkbox]{accent-color:var(--ir-blue);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
+.ir-cb-row .ir-cb-no{font-family:var(--ir-mono);font-size:12px;font-weight:700;color:var(--ir-blue);min-width:120px;}
+.ir-cb-row .ir-cb-type{font-size:11px;color:var(--ir-mid);flex:1;}
+.ir-cb-row .ir-cb-date{font-size:10px;color:var(--ir-muted);white-space:nowrap;}
 
-/* ── Multi-equipment picker (Option A pattern, applied to Equipment field) ── */
-.ir-eq-panel{border:1px solid var(--ir-border);border-radius:6px;overflow:hidden;margin-top:8px;}
-.ir-eq-panel-head{background:var(--ir-row-odd);padding:7px 11px;font-size:11px;font-weight:600;color:var(--ir-mid);border-bottom:1px solid var(--ir-border);display:flex;align-items:center;gap:7px;}
-.ir-eq-panel-body{max-height:200px;overflow-y:auto;}
-.ir-eq-panel-foot{padding:7px 11px;border-top:1px solid var(--ir-border);background:var(--ir-bg);display:flex;justify-content:flex-end;gap:7px;}
-.ir-eq-cb-row{display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--ir-border);}
-.ir-eq-cb-row:last-child{border-bottom:none;}
-.ir-eq-cb-row:hover{background:var(--ir-row-odd);}
-.ir-eq-cb-row input[type=checkbox]{accent-color:var(--ir-blue);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
-.ir-eq-cb-row .ir-eq-name{font-size:12px;color:var(--ir-dark);flex:1;}
-.ir-eq-cb-row .ir-eq-cat{font-size:10px;color:var(--ir-muted);white-space:nowrap;}
-.ir-eq-chips{display:flex;flex-direction:column;gap:8px;min-height:32px;padding:8px;border:1px solid var(--ir-border);border-radius:4px;background:var(--ir-bg);margin-top:8px;}
-.ir-eq-card{background:var(--ir-white);border:1px solid var(--ir-border);border-radius:6px;overflow:hidden;}
-.ir-eq-card-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--ir-row-odd);border-bottom:1px solid var(--ir-border);}
-.ir-eq-card-name{font-size:12px;font-weight:600;color:var(--ir-blue);}
-.ir-eq-card-head button{background:none;border:none;cursor:pointer;color:var(--ir-muted);padding:0;line-height:1;font-size:15px;display:flex;align-items:center;}
-.ir-eq-card-head button:hover{color:#E24B4A;}
-.ir-eq-card-sub{padding:8px 10px;}
-.ir-eq-subselect{height:28px;font-size:12px;font-family:var(--ir-sans);border:1px solid var(--ir-border);background:var(--ir-white);color:var(--ir-dark);border-radius:4px;padding:0 6px;width:100%;box-sizing:border-box;}
-.ir-eq-subselect:focus{border-color:var(--ir-blue);outline:none;}
-.ir-eq-loading{font-size:11px;color:var(--ir-muted);font-style:italic;}
-.ir-eq-no-sub{font-size:11px;color:var(--ir-muted);font-style:italic;}
-.ir-eq-empty{font-size:11px;color:var(--ir-muted);padding:4px 2px;}
-.ir-eq-label{font-size:11px;font-weight:600;color:var(--ir-mid);margin-bottom:5px;margin-top:8px;}
-.ir-divider{border:0;border-top:1px dashed var(--ir-border);margin:10px 0;}
-.ir-subtle-note{font-size:10px;color:var(--ir-muted);font-style:italic;margin-top:4px;}
-/* ── Option C: Full modal overlay ── */
-.ir-modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.38);z-index:1000;display:none;align-items:center;justify-content:center;}
-.ir-modal-backdrop.open{display:flex;}
-.ir-modal-box{background:var(--ir-white);border-radius:10px;overflow:hidden;width:600px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,30,80,.20);}
-.ir-modal-head{background:var(--ir-blue);border-bottom:3px solid var(--ir-gold);padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex:none;}
-.ir-modal-head h4{font-size:13px;font-weight:600;color:#fff;margin:0;}
-.ir-modal-close{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:20px;line-height:1;padding:0;}
-.ir-modal-close:hover{color:var(--ir-gold);}
-.ir-modal-body{padding:14px 16px;flex:1;overflow-y:auto;}
-.ir-modal-foot{padding:11px 16px;border-top:1px solid var(--ir-border);background:var(--ir-bg);display:flex;align-items:center;justify-content:space-between;flex:none;}
-.ir-modal-sel-count{font-size:11px;color:var(--ir-mid);font-weight:600;}
-.ir-filter-tabs{display:flex;gap:4px;margin-bottom:10px;}
-.ir-filter-tab{font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;border:1px solid var(--ir-border);background:var(--ir-white);color:var(--ir-mid);cursor:pointer;}
-.ir-filter-tab.active{background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);}
-.ir-result-scroll{max-height:240px;overflow-y:auto;border:1px solid var(--ir-border);border-radius:4px;}
 </style>
 
 <!-- JS: verbatim from original — no changes -->
@@ -789,71 +718,24 @@ var irLinked={};
 
 function irLvlBadge(l){ return '<span class="ir-lvl ir-lvl-'+l+'">L'+l+'</span>'; }
 
-var irSearchCallback=null;
-
+/* Search stub — replace $.get body with real processing.php call in production:
+   $.getJSON('processing.php?searchIncidents='+encodeURIComponent(q), cb); */
 function irSearchIncidents(q,cb){
-	irSearchCallback=cb;
-	/* Calls processing.php?searchIncidents=  — add this case to processing.php:
-	     if(isset($_GET['searchIncidents'])){
-	         $q     = $db->real_escape_string($_GET['searchIncidents']);
-	         $scope = isset($_GET['scope']) ? $_GET['scope'] : 'today';
-	         $sql = "select incident_report.id, incident_no, incident_type, level,
-	                        incident_date, level_condition
-	                 from incident_report
-	                 where 1=1 ";
-	         if($scope=='today'){
-	             $sql .= "and date(incident_date)=curdate() ";
-	         }
-	         if($q!=''){
-	             $sql .= "and (incident_no like '%".$q."%' or incident_type like '%".$q."%') ";
-	         }
-	         $sql .= "order by incident_date desc";
-	         if($scope!='all' && $q==''){
-	             $sql .= " limit 100"; // safety cap when browsing "today" without a search term
-	         }
-	         $rs = $db->query($sql);
-	         $out = "";
-	         while($row = $rs->fetch_assoc()){
-	             $idxSQL = "select index_no from incident_description where incident_id='".$row['id']."'";
-	             $idxRS  = $db->query($idxSQL);
-	             $idxRow = $idxRS->fetch_assoc();
-	             $index_no = $idxRow ? $idxRow['index_no'] : '';
-	             $out .= $row['id'].";"
-	                   . $row['incident_no'].";"
-	                   . $row['incident_type'].";"
-	                   . $row['level'].";"
-	                   . date('Y-m-d',strtotime($row['incident_date'])).";"
-	                   . $index_no
-	                   . "==>";
-	         }
-	         echo ($out=="") ? "No data available" : $out;
-	     }
-	   Response format matches the existing scrollRolling/getDriver convention:
-	   rows separated by "==>", fields within a row separated by ";".
-	   Field order: id;incident_no;incident_type;level;date;index_no */
-	/* Only the explicit "All" tab requests unscoped history. Every other
-	   tab — today, rolling, power, l3 — is a same-day view, so all of them
-	   send scope=today and stay within the date(incident_date)=curdate()
-	   safety boundary on the server. */
-	var scope = (cTabFilter==='all') ? 'all' : 'today';
-	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope,"irSearchResponse");
-}
-
-function irSearchResponse(ajaxHTML){
-	var results=[];
-	if(ajaxHTML!=="No data available" && ajaxHTML!==""){
-		var rows=ajaxHTML.split("==>");
-		var count=rows.length-1; /* trailing ==> leaves one empty element */
-		for(var n=0;n<count;n++){
-			var parts=rows[n].split(";");
-			results.push({
-				id:parts[0], no:parts[1], type:parts[2],
-				level:parseInt(parts[3],10)||0, date:parts[4],
-				index_no:parts[5]||"", description:""
-			});
-		}
-	}
-	if(irSearchCallback) irSearchCallback(results);
+	var stub=[
+		{id:1042,no:"2024-1042 RS",type:"Rolling Stock",level:3,date:"2026-06-30",index_no:"23",description:"Door fault"},
+		{id:1041,no:"2024-1041 PWR",type:"Power",level:4,date:"2026-06-30",index_no:"",description:"OCS voltage dip"},
+		{id:1039,no:"2024-1039 RS",type:"Rolling Stock",level:2,date:"2026-06-30",index_no:"31",description:"ATP intervention"},
+		{id:1036,no:"2024-1036 SIG",type:"Signaling",level:2,date:"2026-06-29",index_no:"",description:"ATC fault Shaw"},
+		{id:1030,no:"2024-1030 RS",type:"Rolling Stock",level:3,date:"2026-06-29",index_no:"18",description:"Traction motor"},
+		{id:1027,no:"2024-1027 COM",type:"Communication",level:1,date:"2026-06-28",index_no:"",description:"Radio failure"},
+		{id:1025,no:"2024-1025 TRK",type:"Tracks",level:2,date:"2026-06-28",index_no:"",description:"Track circuit"},
+		{id:1018,no:"2024-1018 RS",type:"Rolling Stock",level:4,date:"2026-06-27",index_no:"09",description:"Emergency unload"}
+	];
+	var r=q?stub.filter(function(x){
+		var s=(x.no+x.type+x.description).toLowerCase();
+		return s.indexOf(q.toLowerCase())>=0;
+	}):stub;
+	cb(r);
 }
 
 function irAddChip(id,label){
@@ -886,397 +768,48 @@ function irSyncHidden(){
 	document.getElementById('incident_link').value=ids.length?ids[0]:'';
 	document.getElementById('incident_no_link').value=ids.length?Object.values(irLinked)[0]:'';
 }
-/* ── Multi-equipment-with-subitem picker (Option A pattern) ──────────────
-   Each selected equipment item gets its own card with an independent
-   sub-item dropdown, fetched from the SAME processing.php?scrollSubItem=
-   endpoint the legacy single-select already uses — called once per item
-   instead of once total.
+/* ── Option A specifics ── */
+var aSelected={};
 
-   IMPORTANT: every existing makeajax() call anywhere in this codebase
-   (scrollRolling, getDriver, fillSuper, subItem, all of them) passes a
-   single, static, hardcoded callback name. None of them ever construct
-   the callback name dynamically per call. An earlier version of this
-   picker tried to register a fresh "eqSubItemResponse_<id>" function on
-   window for every card — that pattern has no precedent anywhere in this
-   app and was never confirmed against the actual ajax.js implementation,
-   which is why sub-items silently failed to appear: the assumption that
-   makeajax can resolve a freshly-minted callback name was unverified and
-   wrong.
-
-   Fixed approach: ONE static callback, "eqSubItemResponse", exactly like
-   every other working makeajax() call in this file. Since each card's
-   fetch is triggered one user-click at a time (never genuinely
-   simultaneous), a small FIFO queue tracks which equipment id the next
-   incoming response belongs to — first request in, first response out,
-   which matches how a single XMLHttpRequest-per-call helper like
-   makeajax actually behaves in practice.
-   ────────────────────────────────────────────────────────────────────── */
-var eqSelected={};
-var eqLinked={};          /* id → equipment name */
-var eqSubItemChoice={};   /* id → currently chosen subitem_id (or '' if none yet) */
-var eqPendingQueue=[];    /* FIFO of equipt_ids whose scrollSubItem fetch is in flight */
-
-var eqSearchResults=[];
-
-function eqSearch(q,cb){
-	eqSearchCallback=cb;
-	/* Calls processing.php?searchEquipment=  — add this case to processing.php:
-	     if(isset($_GET['searchEquipment'])){
-	         $q = $db->real_escape_string($_GET['searchEquipment']);
-	         $sql = "select id,equipment_name,category from equipment
-	                 where type='RS' and equipment_name like '%".$q."%'
-	                 order by equipment_name";
-	         $rs = $db->query($sql);
-	         $out = "";
-	         while($row = $rs->fetch_assoc()){
-	             $out .= $row['id'].";".$row['equipment_name'].";".$row['category']."==>";
-	         }
-	         echo ($out=="") ? "No data available" : $out;
-	     }
-	   Response format matches the existing scrollRolling/getDriver convention:
-	   rows separated by "==>", fields within a row separated by ";". */
-	makeajax("processing.php?searchEquipment="+encodeURIComponent(q),"eqSearchResponse");
-}
-
-var eqSearchCallback=null;
-
-function eqSearchResponse(ajaxHTML){
-	var results=[];
-	/* DIAGNOSTIC: if processing.php?searchEquipment= hasn't been added yet,
-	   or the call errors, ajaxHTML will be something other than the exact
-	   strings this code expects ("No data available" or a well-formed
-	   "id;name;category==>" sequence). Surface that loudly instead of
-	   silently parsing garbage into fake equipment rows.
-
-	   Note: an equipment item correctly having NO sub-items is a normal,
-	   legitimate result from scrollSubItem — the equipment table genuinely
-	   contains a mix of items with and without sub-items. That is not, by
-	   itself, evidence of anything being wrong; the diagnostic here only
-	   concerns whether searchEquipment's response is well-formed at all,
-	   not whether any individual item happens to have sub-items.
-
-	   CORRECTED: the equipment_name field can legitimately be EMPTY — the
-	   real equipment table has rows like (129, '', 'RS', 'EXT') with a
-	   blank name, confirmed directly against the live database dump. The
-	   original regex required [^;]+ (one or more characters) for the name
-	   field, which wrongly rejected that real, valid row as "malformed."
-	   The id field is the one part of each row that should always be
-	   numeric, so that's what the pattern actually checks now instead. */
-	var looksWellFormed = (ajaxHTML==="No data available") ||
-		(ajaxHTML==="") ||
-		(/^(\d+;[^;]*;[^;]*==>)+$/.test(ajaxHTML));
-
-	if(!looksWellFormed){
-		console.error('[eqSearchResponse] Unexpected response from processing.php?searchEquipment= — '
-			+'this almost always means processing.php errored, the equipment table query '
-			+'matched zero rows in an unexpected way, or something in the response isn\'t '
-			+'pure data. Raw response below:');
-		console.error(ajaxHTML);
-		/* Escape the raw response so it displays as visible text rather than
-		   being interpreted as HTML — if processing.php is leaking a PHP
-		   warning or notice, that warning is often itself HTML-formatted
-		   (e.g. "<br />\n<b>Warning</b>: ..."), and without escaping it the
-		   browser would render it as styled markup instead of showing the
-		   actual diagnostic text that explains what's wrong. */
-		var escaped = String(ajaxHTML)
-			.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-		document.getElementById('eq-list').innerHTML=
-			'<div style="padding:9px 11px;font-size:11px;color:#A32D2D;line-height:1.5;">'
-			+'<strong>Equipment search did not return usable data.</strong><br>'
-			+'Raw response from processing.php?searchEquipment= shown below — '
-			+'this is the actual text needed to find what is wrong:'
-			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;'
-			+'padding:8px;margin-top:6px;white-space:pre-wrap;word-break:break-word;'
-			+'font-family:monospace;font-size:11px;color:#7A1F1F;max-height:160px;overflow-y:auto;">'
-			+(escaped===''?'(completely empty response — processing.php may not be reaching this code path at all)':escaped)
-			+'</pre>'
-			+'</div>';
-		eqSearchResults=[];
-		/* Deliberately do NOT invoke eqSearchCallback here: eqRenderList([])
-		   would immediately overwrite the diagnostic message above with its
-		   own "No matches" fallback, hiding the very error we're trying to
-		   surface. The diagnostic message stays visible until the next
-		   search attempt. */
-		return;
-	}
-
-	if(ajaxHTML!=="No data available" && ajaxHTML!==""){
-		var rows=ajaxHTML.split("==>");
-		var count=rows.length-1;
-		for(var n=0;n<count;n++){
-			var parts=rows[n].split(";");
-			/* Guard against malformed individual rows even within an
-			   otherwise well-formed-looking response. */
-			if(!parts[0] || isNaN(parseInt(parts[0],10))){
-				console.warn('[eqSearchResponse] Skipping row with non-numeric id:', rows[n]);
-				continue;
-			}
-			/* IMPORTANT: preserve name as-is, including a genuinely empty
-			   string — do NOT substitute a placeholder here. A blank
-			   equipment_name is real, confirmed data (see id 129 above),
-			   not something to paper over at the parsing layer. Display
-			   fallback labeling belongs in eqRenderList, the one place
-			   that decides what the user actually sees, not duplicated
-			   here where it would just get overwritten or cause
-			   confusion about which layer owns that decision. */
-			results.push({id:parts[0], name:parts[1]||'', category:parts[2]||""});
-		}
-	}
-	eqSearchResults=results;
-	if(eqSearchCallback) eqSearchCallback(results);
-}
-
-function eqTogglePanel(){
-	var p=document.getElementById('eq-panel');
+function aTogglePanel(){
+	var p=document.getElementById('a-panel');
 	var open=p.style.display!=='none';
 	p.style.display=open?'none':'block';
-	if(!open){ eqSearch('',eqRenderList); }
+	if(!open){ irSearchIncidents('',renderAList); }
 }
 
-function eqFilterInput(q){
-	eqSearch(q,eqRenderList);
-	document.getElementById('eq-panel').style.display='block';
+function aFilterInput(q){
+	irSearchIncidents(q,renderAList);
+	document.getElementById('a-panel').style.display='block';
 }
 
-function eqRenderList(data){
+function renderAList(data){
 	var html='';
 	data.forEach(function(r){
-		var chk=eqSelected[String(r.id)]?'checked':'';
-		/* Some equipment rows genuinely have a blank equipment_name in the
-		   database (confirmed against the live data — e.g. id 129 through
-		   183 are a block of unnamed entries, category EXT). Without a
-		   fallback label these would render as an empty, unreadable row.
-		   Showing "(unnamed — id <n>)" keeps them identifiable and still
-		   selectable rather than silently invisible. */
-		var displayName = r.name && r.name.trim()!=='' ? r.name : '(unnamed — id '+r.id+')';
-		var displayNameEsc = displayName.replace(/'/g,"\\'");
-		html+='<label class="ir-eq-cb-row">'
+		var chk=aSelected[String(r.id)]?'checked':'';
+		html+='<label class="ir-cb-row">'
 			+'<input type="checkbox" value="'+r.id+'" '+chk
-			+' onchange="eqToggle(\''+r.id+'\',\''+displayNameEsc+'\',this.checked)">'
-			+'<span class="ir-eq-name"'+(displayName.indexOf('unnamed')>=0?' style="color:var(--ir-muted);font-style:italic;"':'')+'>'+displayName+'</span>'
-			+'<span class="ir-eq-cat">'+r.category+'</span>'
+			+" onchange=\"aToggle('"+r.id+"','"+r.no+"',this.checked)\">"
+			+'<span class="ir-cb-no">'+r.no+'</span>'
+			+'<span class="ir-cb-type">'+r.type+'</span>'
+			+'<span class="ir-cb-date">'+r.date+'</span>'
 			+'</label>';
 	});
-	document.getElementById('eq-list').innerHTML=html||
+	document.getElementById('a-list').innerHTML=html||
 		'<div style="padding:9px 11px;font-size:11px;color:var(--ir-muted)">No matches</div>';
 }
 
-function eqToggle(id,name,checked){
+function aToggle(id,no,checked){
 	id=String(id);
-	if(checked) eqSelected[id]=name; else delete eqSelected[id];
+	if(checked) aSelected[id]=no; else delete aSelected[id];
 }
 
-function eqAddSelected(){
-	/* Add each chip first (synchronous, all cards appear immediately in
-	   "Loading…" state), THEN fire their scrollSubItem fetches one at a
-	   time in the same order, so the FIFO queue and the actual response
-	   order stay aligned. */
-	var ids=Object.keys(eqSelected);
-	ids.forEach(function(id){ eqAddChip(id,eqSelected[id]); });
-	ids.forEach(function(id){ eqFetchSubItems(id); });
-	document.getElementById('eq-panel').style.display='none';
-	eqSelected={};
+function aAddSelected(){
+	Object.keys(aSelected).forEach(function(id){ irAddChip(id,aSelected[id]); });
+	document.getElementById('a-panel').style.display='none';
+	aSelected={};
 }
 
-function eqAddChip(id,label){
-	id=String(id);
-	if(eqLinked[id]) return;
-	eqLinked[id]=label;
-	eqSubItemChoice[id]='';
-
-	var chips=document.getElementById('eq-chips');
-	var empty=chips.querySelector('.ir-eq-empty');
-	if(empty) chips.removeChild(empty);
-
-	/* Card: equipment name + remove button on top, its own sub-item
-	   select (loading state initially) underneath. */
-	var card=document.createElement('div');
-	card.className='ir-eq-card'; card.id='eq-card-'+id;
-	card.innerHTML=
-		'<div class="ir-eq-card-head">'
-			+'<span class="ir-eq-card-name">'+label+'</span>'
-			+'<button type="button" onclick="eqRemoveChip(\''+id+'\')" title="Remove">&times;</button>'
-		+'</div>'
-		+'<div class="ir-eq-card-sub" id="eq-sub-'+id+'">'
-			+'<span class="ir-eq-loading">Loading sub-items…</span>'
-		+'</div>';
-	chips.appendChild(card);
-
-	eqSyncHidden();
-}
-
-function eqFetchSubItems(id){
-	id=String(id);
-	eqPendingQueue.push(id);
-	/* Single static callback name — "eqSubItemResponse" — exactly like
-	   every other makeajax() call in this file. Which card the response
-	   belongs to is resolved by dequeuing, not by the callback name. */
-	makeajax("processing.php?scrollSubItem="+id,"eqSubItemResponse");
-}
-
-function eqSubItemResponse(ajaxHTML){
-	var id=eqPendingQueue.shift();
-	if(id===undefined) return; /* defensive: response with nothing queued */
-	eqRenderSubItemSelect(id,ajaxHTML);
-}
-
-function eqRenderSubItemSelect(id,ajaxHTML){
-	var target=document.getElementById('eq-sub-'+id);
-	if(!target) return; /* card was removed before the response arrived */
-
-	/* Same diagnostic principle as eqSearchResponse: distinguish a
-	   genuinely correct "this equipment has no sub-items" response from
-	   an unexpected/malformed one, instead of treating both identically.
-	   id required numeric, sub-item name allowed to be empty — same
-	   reasoning as the equipment-search fix above. */
-	var looksWellFormed = (ajaxHTML==="No data available") ||
-		(ajaxHTML==="") ||
-		(/^(\d+;[^;]*==>)+$/.test(ajaxHTML));
-
-	var html;
-	if(!looksWellFormed){
-		console.error('[eqRenderSubItemSelect] Unexpected response from processing.php?scrollSubItem='+id
-			+' — raw response below:');
-		console.error(ajaxHTML);
-		var escapedSub = String(ajaxHTML)
-			.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-		html='<div style="color:#A32D2D;font-size:11px;line-height:1.5;">'
-			+'Could not load sub-items — raw response:'
-			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;'
-			+'padding:6px;margin-top:4px;white-space:pre-wrap;word-break:break-word;'
-			+'font-family:monospace;font-size:10px;color:#7A1F1F;max-height:120px;overflow-y:auto;">'
-			+(escapedSub===''?'(empty response)':escapedSub)
-			+'</pre></div>';
-	} else if(ajaxHTML==="No data available" || ajaxHTML===""){
-		html='<span class="ir-eq-no-sub">No sub-items for this equipment</span>';
-	} else {
-		var rows=ajaxHTML.split("==>");
-		var count=rows.length-1;
-		html='<select class="ir-eq-subselect" onchange="eqSetSubItem(\''+id+'\',this.value)">'
-			+'<option value="">Select sub-item…</option>';
-		for(var n=0;n<count;n++){
-			var parts=rows[n].split(";");
-			html+='<option value="'+parts[0]+'">'+(parts[1]||'(unnamed)')+'</option>';
-		}
-		html+='</select>';
-	}
-	target.innerHTML=html;
-}
-
-function eqSetSubItem(id,subitemId){
-	eqSubItemChoice[String(id)]=subitemId;
-	eqSyncHidden();
-}
-
-function eqRemoveChip(id){
-	id=String(id);
-	var el=document.getElementById('eq-card-'+id);
-	if(el) el.remove();
-	delete eqLinked[id];
-	delete eqSubItemChoice[id];
-	/* If this card's scrollSubItem fetch is still in flight, it stays in
-	   eqPendingQueue and will be dequeued normally when its response
-	   arrives; eqRenderSubItemSelect already no-ops safely if the card's
-	   element is gone by then (see "card was removed" guard below). */
-	var chips=document.getElementById('eq-chips');
-	if(!chips.querySelector('.ir-eq-card'))
-		chips.innerHTML='<span class="ir-eq-empty">No equipment selected</span>';
-	eqSyncHidden();
-}
-
-function eqSyncHidden(){
-	/* Each pair travels as equipt_id:subitem_id so the PHP handler can
-	   split on ":" then "," — subitem_id may be empty if not yet chosen,
-	   which the server treats as "no sub-item specified" rather than
-	   discarding the equipment selection itself. */
-	var pairs=Object.keys(eqLinked).map(function(id){
-		return id+":"+(eqSubItemChoice[id]||'');
-	});
-	document.getElementById('eq-ids-hidden').value=pairs.join(',');
-}
-
-/* ── Option C specifics (incident linking) ── */
-var cSelected={};
-var cTabFilter='today'; /* default scope — server only returns today's incidents until widened */
-
-function cOpenModal(){
-	document.getElementById('c-modal').classList.add('open');
-	/* Reset to the safe default each time the modal opens, regardless of
-	   what scope was active last time it was closed. */
-	cTabFilter='today';
-	document.querySelectorAll('#c-modal .ir-filter-tab').forEach(function(t){t.classList.remove('active');});
-	document.querySelector('#c-modal .ir-filter-tab').classList.add('active');
-	document.getElementById('c-search-input').value='';
-	cFilterSearch('');
-}
-
-function cCloseModal(){
-	document.getElementById('c-modal').classList.remove('open');
-}
-
-function cSetTab(btn,key){
-	document.querySelectorAll('#c-modal .ir-filter-tab').forEach(function(t){t.classList.remove('active');});
-	btn.classList.add('active');
-	cTabFilter=key;
-	cFilterSearch(document.getElementById('c-search-input').value);
-}
-
-function cFilterSearch(q){
-	/* scope=today vs scope=all is resolved server-side in irSearchIncidents.
-	   Only the "All" tab requests scope=all (full history, date descending).
-	   Today, Rolling Stock, Power, and Level 3+ all request scope=today —
-	   the type/level narrowing below is applied on top of that same-day set,
-	   not on an unscoped fetch. */
-	irSearchIncidents(q,function(data){
-		var filtered=data.filter(function(r){
-			if(cTabFilter==='today' || cTabFilter==='all') return true;
-			if(cTabFilter==='l3') return r.level>=3;
-			return r.type.toLowerCase().indexOf(cTabFilter)>=0;
-		});
-		cRenderResults(filtered);
-	});
-}
-
-function cRenderResults(data){
-	var html='';
-	data.forEach(function(r){
-		var chk=cSelected[String(r.id)]?'checked':'';
-		html+='<tr>'
-			+'<td style="width:28px"><input type="checkbox" value="'+r.id+'" '+chk
-			+" onchange=\"cToggle('"+r.id+"','"+r.no+"',this.checked)\""
-			+' style="accent-color:var(--ir-blue)"></td>'
-			+'<td class="ir-link-no">'+r.no+'</td>'
-			+'<td>'+r.type+'<br><span style="font-size:10px;color:var(--ir-muted)">'+r.description+'</span></td>'
-			+'<td>'+irLvlBadge(r.level)+'</td>'
-			+'<td class="ir-link-muted" style="white-space:nowrap">'+r.date+'</td>'
-			+'<td class="ir-link-no" style="font-size:10px">'+(r.index_no||'—')+'</td>'
-			+'</tr>';
-	});
-	document.getElementById('c-tbody').innerHTML=html||
-		'<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--ir-muted)">No matches</td></tr>';
-}
-
-function cToggle(id,no,checked){
-	id=String(id);
-	if(checked) cSelected[id]=no; else delete cSelected[id];
-	cUpdateCount();
-}
-
-function cUpdateCount(){
-	var n=Object.keys(cSelected).length;
-	document.getElementById('c-sel-count').textContent=n+' selected';
-}
-
-function cConfirm(){
-	Object.keys(cSelected).forEach(function(id){ irAddChip(id,cSelected[id]); });
-	cCloseModal();
-	cSelected={};
-	cUpdateCount();
-}
-
-document.addEventListener('keydown',function(e){
-	if(e.key==='Escape') cCloseModal();
-});
 </script>
 
 <body>
@@ -1325,47 +858,9 @@ document.addEventListener('keydown',function(e){
 		</td>
 	</tr>
 
-	<!-- Equipment Involved — multi-select with per-item sub-items (now primary) -->
+	<!-- Equipment -->
 	<tr>
-		<td class="ir-label ir-label--top" style="padding-top:11px">Equipment Involved</td>
-		<td class="ir-field" style="padding-top:9px">
-
-			<!-- Multi-equipment picker — Option A: Inline search panel,
-			     each selected item expands into its own sub-item dropdown -->
-			<div style="display:flex;gap:7px;margin-bottom:6px;">
-				<input type='text' class="ir-input--sm" id='eq-search-input'
-					placeholder="Search equipment…"
-					oninput='eqFilterInput(this.value)'
-					autocomplete="off" />
-				<input type='button' value='Browse' onclick='eqTogglePanel()' />
-			</div>
-
-			<div class="ir-eq-panel" id="eq-panel" style="display:none;">
-				<div class="ir-eq-panel-head">
-					<i class="ti ti-search" style="color:var(--ir-muted)"></i>
-					Tick equipment to add, then click Add Selected
-				</div>
-				<div class="ir-eq-panel-body" id="eq-list"></div>
-				<div class="ir-eq-panel-foot">
-					<input type='button' value='Cancel'
-						onclick='document.getElementById("eq-panel").style.display="none"' />
-					<input type='button' value='Add selected ✓' onclick='eqAddSelected()'
-						style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
-				</div>
-			</div>
-
-			<div class="ir-eq-chips" id="eq-chips">
-				<span class="ir-eq-empty">No equipment selected</span>
-			</div>
-			<input type='hidden' name='equipment_ids' id='eq-ids-hidden' value=''>
-			<div class="ir-subtle-note">Each item added above gets its own sub-item dropdown once its list loads.</div>
-
-		</td>
-	</tr>
-
-	<!-- Equipment / Train Unavailability (legacy single-select — kept, retired to fallback) -->
-	<tr>
-		<td class="ir-label">Equipment <span class="ir-subtle-note" style="display:block;font-weight:400">(legacy, single item)</span></td>
+		<td class="ir-label">Equipment / Train Unavailability</td>
 		<td class="ir-field">
 			<select name='equipment' id='equipment' class="ir-sel--full" onchange='subItemScroll()'>
 				<option></option>
@@ -1384,32 +879,49 @@ document.addEventListener('keydown',function(e){
 			<span name='equipment_space' id='equipment_space'></span>
 			<span id='sub_item_space' name='sub_item_space'></span>
 			<span id='unit_space' name='unit_space'></span>
-			<div class="ir-subtle-note">Legacy field — still writes to the original equipt/subitem columns if used.</div>
 		</td>
 	</tr>
 
-	<!-- Additional Defects (legacy mechanism — unchanged, kept for parity) -->
+	<!-- Additional Defects -->
 	<tr>
-		<td class="ir-label">Additional Defects <span class="ir-subtle-note" style="display:block;font-weight:400">(legacy)</span></td>
+		<td class="ir-label">Additional Defects</td>
 		<td class="ir-field">
 			<label class="ir-check-row">
 				<input type="checkbox" name='multipleFlag' id='multipleFlag' onclick='activateMultiple()' />
-				Multiple defects (opens separate popup)
+				Multiple defects
 			</label>
 			<span id='multiple_space' name='multiple_space'></span>
 		</td>
 	</tr>
 
-	<!-- Link Incident Report — Option C: Full modal overlay -->
+	<!-- Link Incident Report — Option A: Inline search panel -->
 	<tr>
 		<td class="ir-label ir-label--top" style="padding-top:11px">Link Incident Reports</td>
 		<td class="ir-field" style="padding-top:9px">
 
-			<!-- Trigger row -->
-			<div style="display:flex;gap:7px;align-items:center;margin-bottom:6px;">
-				<input type='button' value='Link incidents…' onclick='cOpenModal()'
-					style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
+			<!-- Original popup trigger (untouched) -->
+			<div style="display:flex;gap:7px;margin-bottom:6px;">
+				<input type='text' class="ir-input--sm" id='a-search-input'
+					placeholder="Search incident no., type…"
+					oninput='aFilterInput(this.value)'
+					autocomplete="off" />
+				<input type='button' value='Browse' onclick='aTogglePanel()' />
 				<input type='button' value='Popup (original)' onclick='openLink()' style="opacity:.6" />
+			</div>
+
+			<!-- Collapsible result panel -->
+			<div class="ir-link-panel" id="a-panel" style="display:none;">
+				<div class="ir-link-panel-head">
+					<i class="ti ti-search" style="color:var(--ir-muted)"></i>
+					Tick incidents to link, then click Add Selected
+				</div>
+				<div class="ir-link-panel-body" id="a-list"></div>
+				<div class="ir-link-panel-foot">
+					<input type='button' value='Cancel'
+						onclick='document.getElementById("a-panel").style.display="none"' />
+					<input type='button' value='Add selected ✓' onclick='aAddSelected()'
+						style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
+				</div>
 			</div>
 
 			<!-- Linked chips -->
@@ -1421,7 +933,8 @@ document.addEventListener('keydown',function(e){
 			<!-- Hidden fields -->
 			<input type='hidden' name='incident_links' id='ir-links-hidden' value=''>
 			<input type='hidden' name='incident_link'  id='incident_link' value=''>
-			<input type='text'   name='incident_no_link' id='incident_no_link' style='display:none' />
+			<input type='text'   name='incident_no_link' id='incident_no_link'
+				   style='display:none' />
 
 		</td>
 	</tr>
@@ -1429,7 +942,7 @@ document.addEventListener('keydown',function(e){
 
 	<!-- Index No. / Car No. -->
 	<tr>
-		<td class="ir-label">Index Number</td>
+		<td class="ir-label">Index No. / Car No.</td>
 		<td class="ir-field">
 			<?php
 			$retrieve_id="";
@@ -1450,17 +963,9 @@ document.addEventListener('keydown',function(e){
 				}
 			}
 			?>
-				<input name='index_id' id='index_id' type='text' class="ir-input--xs" value='<?php echo $index_id; ?>' />
-
-		</td>
-	</tr>
-	<tr>
-		<td class="ir-label">Car Number(s)</td>
-		<td class="ir-field">
 			<div class="ir-inline">
-				<!--
+				<input name='index_id' id='index_id' type='text' class="ir-input--xs" value='<?php echo $index_id; ?>' />
 				<span class="ir-sep">/</span>
-				-->
 				<?php
 				$car_fields = ['car_id','car_id_2','car_id_3','car_id_4'];
 				foreach($car_fields as $idx => $field_name){
@@ -1481,8 +986,9 @@ document.addEventListener('keydown',function(e){
 				}
 				?>
 			</div>
-			</td>
+		</td>
 	</tr>
+
 	<!-- Cancelled Loop -->
 	<tr>
 		<td class="ir-label">Cancelled Loop</td>
@@ -1554,7 +1060,7 @@ document.addEventListener('keydown',function(e){
 
 	<!-- Date -->
 	<tr>
-		<td class="ir-label">Date / Time of Incident</td>
+		<td class="ir-label">Date</td>
 		<td class="ir-field">
 			<?php
 			if(isset($_SESSION['month'])){
@@ -1564,36 +1070,13 @@ document.addEventListener('keydown',function(e){
 			}
 			?>
 			<input type='text' name='incident_date' id='incident_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
-			
-			<select name='hour' class="ir-sel--time">
-				<?php for($i=1;$i<=12;$i++){ ?>
-				<option value='<?php echo $i; ?>' <?php if($i*1==$hh*1){ echo "selected"; } ?>><?php echo $i; ?></option>
-				<?php } ?>
-			</select>
-			<select name='minute' class="ir-sel--time">
-				<?php for($i=0;$i<=59;$i++){ ?>
-				<option value='<?php echo $i; ?>' <?php if($i*1==$min*1){ echo "selected"; } ?>><?php echo ($i<10?"0":"").$i; ?></option>
-				<?php } ?>
-			</select>
-			<select name='amorpm' class="ir-sel--time">
-				<option value='am' <?php if($aa=="am"){ echo "selected"; } ?>>AM</option>
-				<option value='pm' <?php if($aa=="pm"){ echo "selected"; } ?>>PM</option>
-			</select>
 		</td>
 	</tr>
 
+	<!-- Time -->
 	<tr>
-		<td class="ir-label">Date / Time Resolved</td>
+		<td class="ir-label">Time</td>
 		<td class="ir-field ir-inline">
-			<?php
-			if(isset($_SESSION['month'])){
-				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
-			} else {
-				$incident_date_label=date("m/d/Y");
-			}
-			?>
-			<input type='text' name='incident_date' id='incident_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
-
 			<select name='hour' class="ir-sel--time">
 				<?php for($i=1;$i<=12;$i++){ ?>
 				<option value='<?php echo $i; ?>' <?php if($i*1==$hh*1){ echo "selected"; } ?>><?php echo $i; ?></option>
@@ -1609,8 +1092,8 @@ document.addEventListener('keydown',function(e){
 				<option value='pm' <?php if($aa=="pm"){ echo "selected"; } ?>>PM</option>
 			</select>
 		</td>
-		
 	</tr>
+
 	<!-- Type of Action -->
 	<tr>
 		<td class="ir-label">Type of Action</td>
@@ -1750,7 +1233,7 @@ document.addEventListener('keydown',function(e){
 
 	<!-- Verified -->
 	<tr>
-		<td class="ir-label ir-label--top">Maintenance Provider (TESP / Other)</td>
+		<td class="ir-label ir-label--top">Verified</td>
 		<td class="ir-field ir-field--top">
 			<textarea rows='5' name='maintenance' id='maintenance'
 				class="span6 typeahead"
@@ -1795,61 +1278,4 @@ $(function(){
 	$('.datepicker').datepicker({changeMonth:true,changeYear:true,showAnim:"clip"});
 });
 </script>
-
-<!-- ── Option C Modal (in DOM, outside the form) ── -->
-<div class="ir-modal-backdrop" id="c-modal">
-	<div class="ir-modal-box">
-		<div class="ir-modal-head">
-			<h4><i class="ti ti-link" style="margin-right:6px"></i>Link Incident Reports</h4>
-			<button class="ir-modal-close" type="button" onclick="cCloseModal()">&times;</button>
-		</div>
-		<div class="ir-modal-body">
-			<!-- Search + tabs -->
-			<div style="display:flex;gap:7px;margin-bottom:8px;">
-				<input type='text' id='c-search-input' class="ir-input--lg"
-					placeholder="Search by incident no., type, description…"
-					oninput='cFilterSearch(this.value)' autocomplete="off" />
-				<input type='button' value='Clear' onclick='document.getElementById("c-search-input").value="";cFilterSearch("")' />
-			</div>
-			<div class="ir-filter-tabs" id="c-tabs">
-				<button class="ir-filter-tab active" type="button" onclick="cSetTab(this,'today')">Today</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'all')">All (date descending)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'rolling')">Rolling Stock (today)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'power')">Power (today)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'l3')">Level 3+ (today)</button>
-			</div>
-			<!-- Results -->
-			<div class="ir-result-scroll">
-				<table class="ir-link-results">
-					<thead>
-						<tr>
-							<th style="width:28px"></th>
-							<th>Incident No.</th>
-							<th>Type / Description</th>
-							<th>Lvl</th>
-							<th>Date</th>
-							<th>Index</th>
-						</tr>
-					</thead>
-					<tbody id="c-tbody"></tbody>
-				</table>
-			</div>
-		</div>
-		<div class="ir-modal-foot">
-			<span class="ir-modal-sel-count" id="c-sel-count">0 selected</span>
-			<div style="display:flex;gap:8px;">
-				<input type='button' value='Cancel' onclick='cCloseModal()' />
-				<input type='button' value='Confirm &amp; link' onclick='cConfirm()'
-					style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
-			</div>
-		</div>
-	</div>
-</div>
-<!-- close modal backdrop click -->
-<script>
-document.getElementById('c-modal').addEventListener('click',function(e){
-	if(e.target===this) cCloseModal();
-});
-</script>
-
 </body>

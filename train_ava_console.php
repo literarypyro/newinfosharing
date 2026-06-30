@@ -193,175 +193,19 @@ if(isset($_POST['edit_car'])){
 
 <style type='text/css'>
 
-/* ── Modal layer ── */
+/* ── Modal ── */
 .modal { z-index: 99999; }
 
-/* ── Modal shell — console theme ── */
-#addModal {
-	border-radius: 8px;
-	overflow: hidden;
-	border: none;
-	box-shadow: 0 8px 32px rgba(0,30,80,.18), 0 2px 8px rgba(0,30,80,.10);
-	font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-	min-width: 420px;
-}
-#addModal .modal-header {
-	background: #00529B;
-	border-bottom: 3px solid #FDB813;
-	padding: 10px 16px;
-	border-radius: 0;
-}
-#addModal .modal-header h3 {
-	color: #fff;
-	font-size: 13px;
-	font-weight: 600;
-	margin: 0;
-	letter-spacing: .3px;
-}
-#addModal .modal-header .close {
-	color: rgba(255,255,255,.7);
-	text-shadow: none;
-	opacity: 1;
-	font-size: 18px;
-	line-height: 1;
-}
-#addModal .modal-header .close:hover { color: #FDB813; }
-#addModal .modal-body {
-	background: #F7F9FC;
-	padding: 16px 18px;
-}
-#addModal .modal-footer {
-	background: #fff;
-	border-top: 1px solid #D2DDEA;
-	padding: 10px 16px;
-	display: flex;
-	justify-content: flex-end;
-	gap: 8px;
-}
-#addModal .modal-footer .btn {
-	font-size: 12px;
-	font-weight: 500;
-	padding: 5px 16px;
-	border-radius: 4px;
-	border: 1px solid #C9D6E5;
-	background: #fff;
-	color: #41506A;
-	text-decoration: none;
-	cursor: pointer;
-}
-#addModal .modal-footer .btn:hover { background: #EEF4FB; border-color: #00529B; color: #00529B; }
-#addModal .modal-footer .btn-primary { background: #00529B; border-color: #00529B; color: #fff; }
-#addModal .modal-footer .btn-primary:hover { background: #013E76; border-color: #013E76; }
-
-/* ── Form table inside modal ── */
-#add_form {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 12px;
-	font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-}
-#add_form th {
-	background: #00529B;
-	color: #fff;
-	font-size: 11px;
-	font-weight: 600;
-	letter-spacing: .4px;
-	padding: 6px 10px;
-	text-align: left;
-	border-bottom: 2px solid #FDB813;
-}
-#add_form td:nth-child(odd) {
-	background: #EEF4FB;
-	color: #1A2238;
-	font-weight: 600;
-	font-size: 11px;
-	padding: 7px 10px;
-	white-space: nowrap;
-	width: 130px;
-	border-bottom: 1px solid #D2DDEA;
-	vertical-align: middle;
-}
-#add_form td:nth-child(even) {
-	background: #fff;
-	padding: 5px 10px;
-	border-bottom: 1px solid #D2DDEA;
-	vertical-align: middle;
-}
-#add_form td:last-child { background: #F7F9FC; text-align: center; padding: 10px; }
-#add_form td[colspan="2"] { background: #F7F9FC; text-align: center; padding: 10px; border-bottom: none; }
-#add_form td.submit { background: #F7F9FC; text-align: center; padding: 10px; }
-
-/* ── Form controls — scoped to #addModal to avoid touching the data table ── */
-#addModal input[type="text"],
-#addModal input[type="number"] {
-	height: 28px;
-	font-size: 12px;
-	font-weight: 400;
-	font-family: "Segoe UI", system-ui, sans-serif;
-	border: 1px solid #C5D8EE;
-	background: #fff;
-	color: #1A2238;
-	border-radius: 4px;
-	padding: 0 8px;
-	width: 100%;
-	box-sizing: border-box;
-}
-#addModal input[type="text"]:focus,
-#addModal input[type="number"]:focus {
-	border-color: #00529B;
-	outline: none;
-	box-shadow: 0 0 0 2px rgba(0,82,155,.12);
-}
-#addModal select {
-	height: 28px;
-	font-size: 12px;
-	font-family: "Segoe UI", system-ui, sans-serif;
-	border: 1px solid #C5D8EE;
-	background: #fff;
-	color: #1A2238;
-	border-radius: 4px;
-	padding: 0 6px;
-	width: 100%;
-	box-sizing: border-box;
-}
-#addModal select:focus { border-color: #00529B; outline: none; }
-#addModal textarea {
-	font-size: 12px;
-	font-family: "Segoe UI", system-ui, sans-serif;
-	border: 1px solid #C5D8EE;
-	background: #fff;
-	color: #1A2238;
-	border-radius: 4px;
-	padding: 6px 8px;
-	width: 100%;
-	box-sizing: border-box;
-	resize: vertical;
-	min-height: 70px;
-}
-#addModal textarea:focus { border-color: #00529B; outline: none; box-shadow: 0 0 0 2px rgba(0,82,155,.12); }
-#addModal input[type="submit"],
-#addModal button[type="button"]:not(.close) {
-	height: 30px;
-	font-size: 12px;
-	font-weight: 600;
-	font-family: "Segoe UI", system-ui, sans-serif;
-	background: #00529B;
-	color: #fff;
-	border: 1px solid #00529B;
-	border-radius: 4px;
-	padding: 0 18px;
-	cursor: pointer;
-}
-#addModal input[type="submit"]:hover,
-#addModal button[type="button"]:not(.close):hover { background: #013E76; border-color: #013E76; }
-#addModal input[type="checkbox"] { margin-right: 5px; vertical-align: middle; }
-/* Date/time selects stay compact and inline */
-#addModal select[name="month"],
-#addModal select[name="day"],
-#addModal select[name="year"],
-#addModal select[name="hour"],
-#addModal select[name="minute"],
-#addModal select[name="amorpm"] { width: auto; display: inline-block; margin-right: 4px; }
+/* ── Form inputs inside modal ── */
+#add_form th { background-color:#cccccc; }
+#add_form td:nth-child(odd)  { background-color:#DCDCDC; color:black; font-weight:bold; padding:5px; }
+#add_form td:last-child      { background-color:white; }
+#add_form td:nth-child(even) { background-color:#f5f5f5; border:1px solid #cccccc; }
+input[type="text"] { height:25px; font-weight:bold; font-size:15px; font-family:courier; border:1px solid #FFD700; background-color:#FFFACD; border-radius:3px; }
+input[type="text"]:focus { background-color:#FFFFF0; }
+textarea { border:1px solid #FFD700; background-color:#FFFACD; border-radius:3px; }
+textarea:focus { background-color:#FFFFF0; font-weight:bold; }
+select { border:1px solid rgb(185,201,254); color:black; background-color:#FFFACD; }
 
 /* ── Link classes ── */
 a.two:visited { color:black; }
@@ -379,23 +223,9 @@ a.LDel:visited  { color:red; }
 /* ── Slot / compo hover system ── */
 .ta-slot-cell      { padding:6px 8px !important; vertical-align:top !important; min-width:100px; }
 .switch-cell       { padding:6px 8px !important; vertical-align:top !important; min-width:100px; }
-
-/* Switch cell content — template shared-base classes */
-.ta-num            { font-weight:500; line-height:1; display:block; }
-.ta-num--sw        { font-size:13px; font-family:var(--ta-mono); font-weight:700; display:block; }
-.ta-time           { display:block; font-family:var(--ta-mono); font-size:12px; }
-.ta-driver         { display:block; font-size:11px; margin-top:1px; color:#5A6278; }
-.ta-del-sw         { text-decoration:none; font-size:12px; margin-left:4px; }
-.ta-del            { text-decoration:none; font-size:14px; line-height:1; }
-
-/* Remarks cell */
-.ta-remarks        { text-align:left; }
-.ta-incident       { font-weight:500; text-decoration:none; }
-.ta-level          { font-weight:500; }
-.ta-cancel         { font-weight:500; letter-spacing:.5px; }
-.muted             { color:#9AA6B6; }
-
-/* ── Slot hover system ── */
+.switch-index      { display:block; font-size:13px; font-weight:700; color:#1A2238; line-height:1.35; }
+.switch-time       { display:block; font-size:13px; font-weight:700; color:#1A2238; line-height:1.35; }
+.switch-driver     { display:block; font-size:11px; color:#5A6278; line-height:1.35; font-weight:normal; }
 .ta-slot-time      { display:block; font-size:13px; font-weight:700; color:#1A2238; line-height:1.35; }
 .ta-slot-driver    { display:block; font-size:11px; color:#5A6275; line-height:1.35; margin-top:2px; }
 .ta-slot-actions   { display:block; margin-top:5px; height:20px; visibility:hidden; }
@@ -474,17 +304,10 @@ td.td-hover .ta-slot-actions  { visibility:visible; }
 .ta-grid.ta-console .pill--cancelled { background:#FCEBEB; color:#A32D2D; } .ta-grid.ta-console .pill--cancelled .led { background:#E24B4A; }
 
 /* Console slot/compo refinements */
-.ta-grid.ta-console .ta-num--sw    { color:#00529B; font-family:var(--ta-mono); font-size:14px; }
-.ta-grid.ta-console .ta-time       { font-family:var(--ta-mono); font-size:12px; color:#1A2238; }
-.ta-grid.ta-console .ta-driver     { color:#5A6678; }
-.ta-grid.ta-console .ta-del-sw     { color:#B23A33; }
-.ta-grid.ta-console .ta-del        { color:#B23A33; }
-.ta-grid.ta-console .ta-incident   { color:#19459B; font-weight:500; text-decoration:none; }
-.ta-grid.ta-console .ta-level      { font-family:var(--ta-mono); color:#854F0B; }
-.ta-grid.ta-console .ta-cancel     { color:#A32D2D; }
-.ta-grid.ta-console .ta-slot-time  { font-family:var(--ta-mono); }
-.ta-grid.ta-console .ta-slot-driver { color:#5A6678; }
-.ta-grid.ta-console .tc-car        { font-family:var(--ta-mono); }
+.ta-grid.ta-console .switch-index { color:#00529B; font-family:var(--ta-mono); }
+.ta-grid.ta-console .switch-time  { font-family:var(--ta-mono); font-size:12px; color:#1A2238; }
+.ta-grid.ta-console .tc-car       { font-family:var(--ta-mono); }
+.ta-grid.ta-console .ta-slot-time { font-family:var(--ta-mono); }
 
 </style>
 
@@ -715,7 +538,7 @@ function deleteSwitch(index){
 	var $cell=$('td.switch-cell[data-switch-id="'+index+'"]');
 	var train_id=$cell.closest('tr[data-train-id]').data('train-id');
 	$.get('processing.php',{deleteSwitch:index},function(data){
-		$cell.replaceWith('<td rowspan="4" class="switch-placeholder" data-train-id="'+train_id+'"><a href="#add_form" class="<?php echo $SRemove; ?> ta-act" onclick="changeForm(\'index_switch\',\''+train_id+'\',\'\')"><i class=\"ti ti-arrows-exchange\" aria-hidden=\"true\"></i>Switch</a></td>');
+		$cell.replaceWith('<td rowspan="4" class="switch-placeholder" data-train-id="'+train_id+'"><a href="#add_form" class="<?php echo $SRemove; ?>" onclick="changeForm(\'index_switch\',\''+train_id+'\',\'\')">Switch Index No.</a></td>');
 	});
 }
 
@@ -739,10 +562,9 @@ function submitSwitch(train_ava_id){
 			$('#addModal').modal('hide');
 			var hh=(hour<10)?'0'+hour:''+hour, mm=(minute<10)?'0'+minute:''+minute;
 			var newCell='<td align="center" rowspan="4" class="switch-cell" data-switch-id="'+res.switch_id+'">'
-				+'<span class="ta-num ta-num--sw">'+new_index+'</span>'
-				+'<span class="ta-time">'+hh+':'+mm+'</span>'
-				+'<span class="ta-driver"></span>'
-				+'<a class="ta-del-sw LDel" href="#" onclick=\'deleteSwitch("'+res.switch_id+'")\' aria-label="Delete switch">&times;</a>'
+				+'<div class="switch-index">'+new_index+'</div>'
+				+'<div class="switch-time">'+hh+':'+mm+'</div>'
+				+'<div class="switch-driver"><a href="#" class="LDel" onclick=\'deleteSwitch("'+res.switch_id+'")\'>X</a></div>'
 				+'</td>';
 			$('td.switch-placeholder[data-train-id="'+train_ava_id+'"]').first().replaceWith(newCell);
 		}
@@ -956,10 +778,10 @@ for($i=0; $i<$nm; $i++){
 		$row3 = $rs3->fetch_assoc();
 		$swDriver = ($row3['train_driver']!="") ? getTrainDriver($row3['train_driver'], $db) : "";
 		$switchHTML .= '<td align=center rowspan=4 class="switch-cell" data-switch-id="'.$row3['id'].'">'
-			.'<span class="ta-num ta-num--sw">'.htmlspecialchars($row3['new_index']).'</span>'
-			.'<span class="ta-time">'.date("H:i",strtotime($row3['date_change'])).'</span>'
-			.'<span class="ta-driver">'.htmlspecialchars($swDriver).'</span>'
-			.'<a class="ta-del-sw '.$SRemove5.'" href=\'#\' onclick=\'deleteSwitch("'.$row3['id'].'")\' aria-label="Delete switch">&times;</a>'
+			.'<div class="switch-index">'.htmlspecialchars($row3['new_index']).'</div>'
+			.'<div class="switch-time">'.date("H:i",strtotime($row3['date_change'])).'</div>'
+			.'<div class="switch-driver">'.htmlspecialchars($swDriver)
+			.' <a href=\'#\' class="'.$SRemove5.'" onclick=\'deleteSwitch("'.$row3['id'].'")\'>X</a></div>'
 			.'</td>';
 	}
 	/* blank switch slots */
@@ -967,8 +789,7 @@ for($i=0; $i<$nm; $i++){
 	for($n=0; $n<$blank; $n++){
 		if($n==0){
 			$switchHTML .= '<td rowspan=4 class="switch-placeholder" data-train-id="'.$row['id'].'">'
-				.'<a href=\'#add_form\' class="ta-act '.$SRemove4.'" onclick=\'changeForm("index_switch","'.$row['id'].'","")\'>'
-				.'<i class="ti ti-arrows-exchange" aria-hidden="true"></i>Switch</a>'
+				.'<a href=\'#add_form\' class="ta-act '.$SRemove4.'" onclick=\'changeForm("index_switch","'.$row['id'].'","")\'>Switch Index No.</a>'
 				.'</td>';
 		} else {
 			$switchHTML .= '<td rowspan=4>&nbsp;</td>';
@@ -979,7 +800,7 @@ for($i=0; $i<$nm; $i++){
 	$cars = "";
 	foreach(['car_a','car_b','car_c','car_d'] as $car_key){
 		if(!empty($row[$car_key])){
-			$cars .= '<a href=\'car_history.php?car_id='.$row[$car_key].'\' target=\'_blank\' class="tc-car">'.$row[$car_key].'</a>';
+			$cars .= '<a href=\'car_history.php?car_id='.$row[$car_key].'\' target=\'_blank\' class="tc-car '.$SRemove.'">'.$row[$car_key].'</a>';
 		}
 	}
 	$SRemove4 = "enabled";
@@ -1081,12 +902,10 @@ for($i=0; $i<$nm; $i++){
 			.'<a href=\'#add_form\' class="ta-act '.$SRemove4.'" onclick=\'changeForm("removal","'.$row['id'].'",'
 			.'"'.$trainType.'")\'>Edit</a>'
 			.'</div></div></td>';
-		$remarksEsc = htmlspecialchars(str_replace(["\r","\n"], ' ', $remove_remarks), ENT_QUOTES);
-		$dataCells .= '<td rowspan=4 class="ta-remarks">'.$remove_remarks.$incidentClause
-			.'<br><a href=\'#add_form\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
-			.'><i class="ti ti-edit" aria-hidden="true"></i>&nbsp;Add/Edit Remarks</a>'
-			.' <a href=\'#add_form\' class="ta-act" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\''
-			.'>Add Incident</a>'
+		$dataCells .= '<td rowspan=4>'.$remove_remarks.$incidentClause
+			.'<br><a href=\'#add_form\' class="'.$SRemove.'" onclick=\'changeForm("remarks","'.$row['id'].'",'
+			.'"'.addslashes($remove_remarks).'")\'>Add/Edit Remarks </a>'
+			.'<br><a href=\'#add_form\' class="'.$SRemove.'" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\'>Add Incident </a>'
 			.'</td>';
 		$dataCells .= '<td rowspan=4>'.$level2Clause.'</td>'
 			.'<td rowspan=4>'.$level3Clause.'</td>'
@@ -1118,12 +937,10 @@ for($i=0; $i<$nm; $i++){
 			$dataCells = '<td rowspan=4>'.$boundary_time.'</td>'
 				.'<td rowspan=4 colspan=5 align=center>CANCELLED</td>';
 		}
-		$remarksEsc = htmlspecialchars(str_replace(["\r","\n"], ' ', $remove_remarks), ENT_QUOTES);
-		$dataCells .= '<td rowspan=4 class="ta-remarks">'.$remove_remarks.$incidentClause
-			.'<br><a href=\'#add_form\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
-			.'><i class="ti ti-edit" aria-hidden="true"></i>&nbsp;Add/Edit Remarks</a>'
-			.' <a href=\'#\' class="ta-act" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\''
-			.'>Add Incident</a>'
+		$dataCells .= '<td rowspan=4>'.$remove_remarks.$incidentClause
+			.'<br><a href=\'#add_form\' class="'.$SRemove.'" onclick=\'changeForm("remarks","'.$row['id'].'",'
+			.'"'.addslashes($remove_remarks).'")\'>Add/Edit Remarks </a>'
+			.'<br><a href=\'#\' class="'.$SRemove.'" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\'>Add Incident </a>'
 			.'</td>';
 		$dataCells .= '<td rowspan=4>'.$level2Clause.'</td>'
 			.'<td rowspan=4>'.$level3Clause.'</td>'
@@ -1165,15 +982,15 @@ for($i=0; $i<$nm; $i++){
 
 <div class="modal hide fade" id="addModal">
 	<div class="modal-header">
-		<button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
-		<h3>Edit Record</h3>
+		<button type="button" class="close" data-dismiss="modal">?</button>
+		<h3>Edit</h3>
 	</div>
 	<div class="modal-body">
 		<form name='add_form' id='add_form' action='train_availability.php' method='post'></form>
 	</div>
 	<div class="modal-footer">
 		<a href="#" class="btn" data-dismiss="modal">Close</a>
-		<button type='submit' form='add_form' class="btn btn-primary" id='Suc' value='Submit'>Submit</button>
+		<button type='submit' form='add_form' class="btn btn-primary" id='Suc' value='Submit'>Edit</button>
 	</div>
 </div>
 
