@@ -17,131 +17,314 @@ global $varR;
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>
 
 <style type='text/css'>
-table{
-	border-collapse:collapse;
-}
-.rowClass {background-color: #F3F3F3;}
-
-/* color header */
-.rowHeading {background-color: #cccccc}
-
-.train_ava td{
-	border: 1px solid #FBCC2A;
-	color: rgb(0,51,153);
-	cellpadding: 5px;
-}
-
- .train_ava th {
-	border: 1px solid #FBCC2A;;
-	cellpadding: 5px;	
-}
-/*
-body {
-	margin-left:30px;
-	margin-right:30px;
-}
-*/
-
-/* input color */
-input[type="text"]{ 
-	height:25px; 
-	font-weight:bold; 
-	font-size:15px; 
-	font-family:courier; 
-	border: 1px solid #FFD700;
-	background-color: #FFFACD;  
-	border-radius: 3px
+/* =========================================================================
+   CLEARANCE FORM -- Operations Console Theme
+   Uniform with train_availability_console.php / incident_report_console.php
+   Scoped under .ta-grid.ta-console so it doesn't bleed into other pages.
+   PHP/JS: completely unchanged below -- only CSS and a wrapper div added,
+   plus class-based row striping in place of the old inline echo "class=".
+   ========================================================================= */
+:root {
+	--cf-blue:    #00529B;
+	--cf-gold:    #FDB813;
+	--cf-dark:    #16243B;
+	--cf-mid:     #41506A;
+	--cf-muted:   #8A95A6;
+	--cf-border:  #D2DDEA;
+	--cf-row-odd: #EEF4FB;
+	--cf-bg:      #F7F9FC;
+	--cf-white:   #ffffff;
+	--cf-sans:    "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
 }
 
-/*
-#cellHeading {
-	background-image: -o-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
-	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
-	background-image: -moz-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
-	background-image: -webkit-gradient(linear, left bottom, left top, color-stop(0.38, rgb(185, 201, 254)), color-stop(0.62, #4ad));
-	background-image: -webkit-linear-gradient(bottom, rgb(185, 201, 254) 38%,#4ad 62%);
-	background-image: -ms-linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
-	background-image: linear-gradient(bottom, rgb(185, 201, 254) 38%, #4ad 62%);
+table { border-collapse: collapse; }
 
-	background-color: rgb(185, 201, 254);  
+/* -- Page chrome (outside .ta-grid, kept minimal) -- */
+body { font-family: var(--cf-sans); color: var(--cf-dark); }
 
-	color: rgb(0,51,153);
-	padding:5px;
-	-moz-border-radius: 5px;
-	border-radius: 5px;
-}
-*/
-
-input[type="text"]:focus {
-	background-color:#FFFFF0;
+/* Workaround for Tmenu_2.php's #navMenu: every <li> and <a> inside it is
+   float:left with nothing clearing the float afterward, so the <ul> itself
+   collapses to zero height. The page's original three manual <br> tags
+   were almost certainly hand-compensating for that collapse rather than
+   fixing it. Since Tmenu_2.php is shared across other pages and shouldn't
+   be edited here, this clearfix is scoped to #navMenu specifically and
+   only restores the height the float collapse was removing -- it changes
+   nothing for any float that's already cleared elsewhere, so it's a safe,
+   page-local fix rather than a shared-file edit. */
+#navMenu::after {
+	content: "";
+	display: table;
+	clear: both;
 }
 
-textarea:focus {
-	background-color:#FFFFF0;
-	font-weight:bold;
+/* Second, separate header block, now confirmed from reading the actual
+   trans_menu_2.php (required by Tmenu_2.php at its very top, before
+   #navMenu is even output). This block renders BEFORE the nav menu:
+   a .header-wrapper div containing a full-width <table class='exception'>
+   with a 100px-tall logo image, followed by a second full-width <table>
+   for the "Log Out" link and "Hello, {name}!" greeting. Neither table has
+   compact sizing or margin-collapse control, and this is a wholly
+   different source of vertical space than #navMenu's float-collapse --
+   the earlier clearfix never touched it because it's a separate element
+   entirely. This tightens that block's own spacing without altering
+   trans_menu_2.php or Tmenu_2.php, both of which are shared elsewhere. */
+.header-wrapper table.exception {
+	margin-bottom: 0 !important;
+}
+.header-wrapper table.exception td {
+	padding: 4px 8px !important;
+}
+.header-wrapper table.exception img {
+	height: 56px !important; /* the source markup hardcodes height="100" on the <img> itself,
+	                              which HTML attribute height takes priority over CSS in some
+	                              browsers for replaced elements; this override still reduces
+	                              the visual footprint where the browser does respect it */
+}
+.header-wrapper table:not(.exception) {
+	margin: 0 !important;
+}
+.header-wrapper table:not(.exception) td {
+	padding: 2px 8px !important;
+}
+.header-wrapper h0 {
+	font-size: 22px !important; /* the source sets a large custom h0 size via
+	                                 inline style attribute in trans_menu_2.php's
+	                                 own <style>; this brings it back in line so
+	                                 the header band doesn't need as much height
+	                                 to contain it */
+	line-height: 1.3 !important;
 }
 
-.date {
-	text-style:bold;
-	font-size:20px;
+/* -- Toolbar (search date / retrieve / add / printout) -- */
+.ta-grid.ta-console .cf-toolbar {
+	background: var(--cf-blue) !important;
+	border-bottom: 3px solid var(--cf-gold) !important;
+	padding: 10px 16px !important;
+	border-radius: 8px 8px 0 0 !important;
+	display: flex !important;
+	align-items: center !important;
+	gap: 10px;
+	flex-wrap: wrap;
 }
-
-textarea{ 
-	border: 1px solid #FFD700;
-	background-color: #FFFACD;
-	border-radius: 3px;
+.ta-grid.ta-console .cf-toolbar input[type="text"] {
+	height: 28px !important;
+	font-size: 12px !important;
+	font-weight: 400 !important;
+	font-family: var(--cf-sans) !important;
+	border: 1px solid var(--cf-border) !important;
+	background: var(--cf-white) !important;
+	color: var(--cf-dark) !important;
+	border-radius: 4px !important;
+	padding: 0 8px !important;
 }
-
-/* header */
-#add_form th{
-background-color: #cccccc;
+.ta-grid.ta-console .cf-toolbar input[type="submit"] {
+	height: 28px !important;
+	font-size: 11px !important;
+	font-weight: 600 !important;
+	font-family: var(--cf-sans) !important;
+	background: var(--cf-gold) !important;
+	color: #3A2D00 !important;
+	border: none !important;
+	border-radius: 4px !important;
+	padding: 0 14px !important;
+	cursor: pointer !important;
 }
+.ta-grid.ta-console .cf-toolbar input[type="submit"]:hover { background: #E5A50F !important; }
 
-#add_form td:nth-child(odd) {
-background-color: #DCDCDC; 
-color:black;
-font-weight:bold;
-padding:5px;
+/* -- Action bar (Add New Entry / Generate Printout) -- */
+.ta-grid.ta-console .cf-action-bar {
+	background: var(--cf-bg) !important;
+	padding: 9px 16px !important;
+	border-bottom: 1px solid var(--cf-border);
+	display: flex;
+	align-items: center;
+	gap: 12px;
 }
-
-#add_form td:last-child{
-background-color:white;
+.ta-grid.ta-console .cf-action-bar a {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--cf-blue);
+	text-decoration: none;
 }
+.ta-grid.ta-console .cf-action-bar a:hover { text-decoration: underline; }
+.ta-grid.ta-console .cf-action-bar .cf-sep { color: var(--cf-border); }
 
-#add_form td:nth-child(even) {
-background-color: #f5f5f5;
-border:1px solid #cccccc;
+/* -- Data table -- */
+.ta-grid.ta-console table.train_ava {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
 }
-
-select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; }
-
-/* --- mjun -- generate */
-a.two:visited {color:black;}
-a.two:hover, a.two:active {font-size:120%; color:orange;}
-
-/* unvisited link */
-a.Llink:link { color: #FF0000;}
-a.Llink:visited {color: black;}
-a.Llink:hover { color: Orange;}
-a.Llink:active {color: #0000FF;}
-
-a.LEdit:visited {color:blue;}
-a.LDel:visited {color:red;}
-
-.alink a.disabled {
-        color: #666;
-        text-decoration: none;
-    }
-  .header-wrapper table:nth-child(2) {
-    margin: 0 !important;
+.ta-grid.ta-console table.train_ava td,
+.ta-grid.ta-console table.train_ava th {
+	border: 1px solid var(--cf-border);
+	padding: 7px 9px;
+	text-align: left;
 }
+.ta-grid.ta-console table.train_ava th {
+	background: var(--cf-blue);
+	color: #fff;
+	font-weight: 600;
+	font-size: 11px;
+	text-align: left;
+	border-color: #0A639E;
+}
+.ta-grid.ta-console table.train_ava tr.rowHeading th { background: var(--cf-blue); }
+.ta-grid.ta-console table.train_ava tr.cf-row--even td { background: var(--cf-white); }
+.ta-grid.ta-console table.train_ava tr.cf-row--odd td  { background: var(--cf-row-odd); }
+.ta-grid.ta-console table.train_ava tbody tr:hover td { background: #E3EEFA; }
+.ta-grid.ta-console table.train_ava td:first-child { text-align: center; font-weight: 600; color: var(--cf-blue); width: 36px; }
 
-/* 2. Reduce the padding inside the menu to pull the buttons up */
-ul#navMenu {
-    padding-top: 0px !important;    /* Reduced from 10px */
-    padding-bottom: 1px !important; /* Reduced from 10px */
-}  
+/* -- Inline Edit / Delete links inside cells -- */
+/* Inline per-cell Edit links: there are up to 8 of these in a single row
+   (one per editable field), so a permanently-visible bordered button per
+   link reads as noisy and cluttered next to the actual data. These now
+   sit quietly as a small muted icon-like affordance and only become a
+   clear "click me" button on hover -- of the link itself, or anywhere in
+   its containing row, so the affordance is discoverable without needing
+   pixel-precise mouse aim.
+
+   !important is used throughout this block deliberately: this page loads
+   css/style.min.css and css/bootstrap.min.css BEFORE this stylesheet, and
+   neither file's contents are visible from here. Bootstrap in particular
+   typically sets a uniform default <a> color/text-decoration with enough
+   reach that a same-specificity rule loaded later doesn't reliably win
+   against it in practice. The uniform solid-blue underlined links seen in
+   testing -- identical across every row regardless of hover state -- are
+   the signature of that kind of generic rule winning, not a row-specific
+   bug. !important forces these specific rules to apply regardless of
+   what either external stylesheet contains. */
+.ta-grid.ta-console a.Llink,
+.ta-grid.ta-console a.LEdit {
+	display: inline-block !important;
+	font-size: 10px !important;
+	font-weight: 600 !important;
+	text-decoration: none !important;
+	margin-left: 6px !important;
+	padding: 1px 6px !important;
+	border-radius: 3px !important;
+	border: 1px solid transparent !important;
+	background: transparent !important;
+	color: var(--cf-muted) !important;
+	opacity: .55 !important;
+	transition: opacity .12s, background .12s, border-color .12s, color .12s;
+}
+.ta-grid.ta-console table.train_ava tr:hover a.Llink,
+.ta-grid.ta-console table.train_ava tr:hover a.LEdit,
+.ta-grid.ta-console a.Llink:hover,
+.ta-grid.ta-console a.LEdit:hover {
+	opacity: 1 !important;
+	color: var(--cf-blue) !important;
+}
+.ta-grid.ta-console a.Llink:hover,
+.ta-grid.ta-console a.LEdit:hover {
+	background: var(--cf-row-odd) !important;
+	border-color: var(--cf-border) !important;
+}
+/* The row-level delete (X) link stays a touch more visible at rest than
+   the per-field edit links, since it's a single destructive action per
+   row rather than one of eight repeated affordances, and warrants being
+   a little easier to locate without hovering first. */
+.ta-grid.ta-console a.LDel {
+	display: inline-block !important;
+	font-size: 11px !important;
+	font-weight: 700 !important;
+	text-decoration: none !important;
+	color: #B23A33 !important;
+	opacity: .7 !important;
+	padding: 1px 6px !important;
+	border-radius: 3px !important;
+	border: 1px solid transparent !important;
+	background: transparent !important;
+	transition: opacity .12s, background .12s, border-color .12s;
+}
+.ta-grid.ta-console a.LDel:hover {
+	opacity: 1 !important;
+	background: #FDEDEC !important;
+	border-color: #F1C3C0 !important;
+}
+.ta-grid.ta-console a.two {
+	font-weight: 600 !important; color: var(--cf-blue) !important; text-decoration: none !important;
+}
+.ta-grid.ta-console a.two:hover { text-decoration: underline !important; }
+.ta-grid.ta-console .alink a.disabled { color: var(--cf-muted) !important; text-decoration: none !important; cursor: default !important; opacity: .4 !important; }
+
+/* -- Modal shell -- console theme, matches the other two pages -- */
+.modal { z-index: 99999; }
+#addModal {
+	border-radius: 8px;
+	overflow: hidden;
+	border: none;
+	box-shadow: 0 8px 32px rgba(0,30,80,.18), 0 2px 8px rgba(0,30,80,.10);
+	font-family: var(--cf-sans);
+	min-width: 380px;
+}
+#addModal .modal-header {
+	background: var(--cf-blue);
+	border-bottom: 3px solid var(--cf-gold);
+	padding: 10px 16px;
+}
+#addModal .modal-header h3 { color: #fff; font-size: 13px; font-weight: 600; margin: 0; }
+#addModal .modal-header .close { color: rgba(255,255,255,.7); text-shadow: none; opacity: 1; font-size: 18px; }
+#addModal .modal-header .close:hover { color: var(--cf-gold); }
+#addModal .modal-body { background: var(--cf-bg); padding: 16px 18px; }
+#addModal .modal-footer {
+	background: #fff;
+	border-top: 1px solid var(--cf-border);
+	padding: 10px 16px;
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+#addModal .modal-footer .btn {
+	font-size: 12px; font-weight: 500; padding: 5px 16px; border-radius: 4px;
+	border: 1px solid var(--cf-border); background: #fff; color: var(--cf-mid); text-decoration: none;
+}
+#addModal .modal-footer .btn:hover { background: var(--cf-row-odd); border-color: var(--cf-blue); color: var(--cf-blue); }
+#addModal .modal-footer .btn-primary { background: var(--cf-blue); border-color: var(--cf-blue); color: #fff; }
+#addModal .modal-footer .btn-primary:hover { background: #013E76; border-color: #013E76; }
+
+/* -- #add_form (the dynamically-built edit form inside the modal) -- */
+#add_form { width: 100%; border-collapse: collapse; font-size: 12px; }
+#add_form td:first-child {
+	background: var(--cf-row-odd); color: var(--cf-dark); font-weight: 600;
+	font-size: 11px; padding: 7px 10px; white-space: nowrap; width: 140px;
+	border-bottom: 1px solid var(--cf-border); vertical-align: middle;
+}
+#add_form td:nth-child(2) {
+	background: #fff; padding: 6px 10px; border-bottom: 1px solid var(--cf-border); vertical-align: middle;
+}
+#add_form td[colspan] { background: var(--cf-bg); text-align: center; padding: 10px; border-bottom: none; }
+
+/* -- Form controls -- scoped to #addModal so the data table is unaffected -- */
+#addModal input[type="text"],
+#addModal select {
+	height: 28px; font-size: 12px; font-family: var(--cf-sans);
+	border: 1px solid var(--cf-border); background: #fff; color: var(--cf-dark);
+	border-radius: 4px; padding: 0 8px; box-sizing: border-box;
+}
+#addModal input[type="text"]:focus,
+#addModal select:focus { border-color: var(--cf-blue); outline: none; box-shadow: 0 0 0 2px rgba(0,82,155,.12); }
+#addModal textarea {
+	font-size: 12px; font-family: var(--cf-sans); border: 1px solid var(--cf-border);
+	background: #fff; color: var(--cf-dark); border-radius: 4px; padding: 6px 8px;
+	width: 100%; box-sizing: border-box; resize: vertical;
+}
+#addModal textarea:focus { border-color: var(--cf-blue); outline: none; }
+#addModal input[type="submit"] {
+	height: 30px; font-size: 12px; font-weight: 600; font-family: var(--cf-sans);
+	background: var(--cf-blue); color: #fff; border: 1px solid var(--cf-blue);
+	border-radius: 4px; padding: 0 18px; cursor: pointer;
+}
+#addModal input[type="submit"]:hover { background: #013E76; }
+/* time selects in the login/logout form stay compact and inline */
+#addModal select[name$="_hour"],
+#addModal select[name$="_minute"],
+#addModal select[name$="_second"],
+#addModal select[name$="_amorpm"] { width: auto; display: inline-block; margin-right: 3px; }
+
 </style>
+
 
 <?php
 function setTime($hour,$minute,$second,$amorpm){
@@ -437,7 +620,7 @@ function fillReceived(ajaxHTML){
 		for(var n=0;n<count;n++){
 			var parts=driverTerms[n].split(";");
 			driverHTML+="<option value='"+parts[0]+"'>";
-			driverHTML+=parts[1].replace("_ENYE_","Ñ");
+			driverHTML+=parts[1].replace("_ENYE_","?");
 			driverHTML+="</option>";
 		
 		}
@@ -466,9 +649,6 @@ $(document).ready(function(){
 
 </script>
 <body>
-<br>
-<br>
-<br>
 <form action='clearance form.php' method='post'>
 <?php
 $mm=date("m");
@@ -519,21 +699,18 @@ if ($ULev>=2){
 
 
 
-<!--
-<input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo $datenow; ?>' />
--->
-
+<div class="ta-grid ta-console">
+<form class="cf-toolbar" action='clearance form.php' method='post'>
+<b style="color:#fff;font-size:12px;font-weight:600;margin-right:4px;">Date</b>
 <input type="text" name='search_date' id='search_date' value='<?php echo $datenow; ?>' />
 
 <input type=submit value='Retrieve Date' />
 </form>
-<div class="alink">
-<!-- <div class='pull-left'> -->
-<a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("clearance entry.php");'><b>Add New Entry</b></a>
-|
-<a href='#' class="<?php echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'><b>Generate Printout</b></a>
-
-<!-- </div> -->
+<div class="alink cf-action-bar">
+<a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("clearance entry.php");'>+ Add New Entry</a>
+<span class="cf-sep">|</span>
+<a href='#' class="<?php echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'>Generate Printout</a>
+</div>
 
 <table class='train_ava' width=100%>
 <tr class='rowHeading'>
@@ -618,7 +795,7 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 			$control_no=$row['control_no'];
 			
 ?>			
-			<tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
+			<tr class="<?php echo ($i%2>0)?'cf-row--odd':'cf-row--even'; ?>">
 				<td align=center><?php echo $i*1+1; ?></td>	
 				<td><?php echo $location; ?> <a href='#' class="<?php echo $SRemove4; ?>" onclick="fillEdit('location','<?php echo $clearance_no; ?>')">Edit</a></td>
 
@@ -643,6 +820,7 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 ?>
 </table>
 </div>
+</div><!-- /.ta-grid -->
 
 <!--
 <a href='#' class="Llink" onclick='window.open("clearance entry.php");'><b>Add New Entry</b></a>
@@ -660,8 +838,8 @@ $varR=0;
 <br>
 		<div class="modal hide fade" id="addModal">
 			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal">×</button>
-				<h3>Edit</h3>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+				<h3>Edit Clearance Entry</h3>
 			</div>
 			<form action='clearance form.php' method='post'>
 

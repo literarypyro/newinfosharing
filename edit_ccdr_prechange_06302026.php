@@ -1239,228 +1239,141 @@ if(isset($_POST['fieldType'])){
 
 
 <style type='text/css'>
-/* =========================================================================
-   EDIT CCDR — Operations Console Theme
-   Uniform with train_availability_console.php / incident_report_console.php
-   / clearance_form_console.php. Scoped under .ta-grid.ta-console.
-   PHP/JS: completely unchanged below — including every fillEdit() and
-   fillEquipt() string that injects <tr class='rowHeading'> into the modal;
-   that class is restyled here to match, not altered in the JS itself.
-   ========================================================================= */
-:root {
-	--cc-blue:    #00529B;
-	--cc-gold:    #FDB813;
-	--cc-dark:    #16243B;
-	--cc-mid:     #41506A;
-	--cc-muted:   #8A95A6;
-	--cc-border:  #D2DDEA;
-	--cc-row-odd: #EEF4FB;
-	--cc-bg:      #F7F9FC;
-	--cc-white:   #ffffff;
-	--cc-sans:    "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+
+.ccdr tr:nth-child(odd)
+{
+background-color: #F3F3F3; 
+/* color: #000000; */
 }
 
-body { font-family: var(--cc-sans); color: var(--cc-dark); }
-
-/* -- .ccdr property-sheet tables (Control / Reporting / Action Taken) -- */
-.ta-grid.ta-console .ccdr {
-	border-collapse: collapse;
-	border: 1px solid var(--cc-border);
-	border-radius: 8px;
-	overflow: hidden;
-	font-size: 12px;
-}
-.ta-grid.ta-console .ccdr td,
-.ta-grid.ta-console .ccdr th {
-	border: 1px solid var(--cc-border);
-	padding: 8px 12px;
-	vertical-align: middle;
-}
-.ta-grid.ta-console .ccdr tr:nth-child(odd) td { background: var(--cc-row-odd); }
-.ta-grid.ta-console .ccdr tr:nth-child(even) td { background: var(--cc-white); }
-.ta-grid.ta-console .ccdr tr th:first-child {
-	color: var(--cc-dark);
-	font-weight: 600;
-	font-size: 11px;
-	text-align: left;
-	white-space: nowrap;
-	background: transparent;
-}
-.ta-grid.ta-console .ccdr #ccdr_heading,
-.ta-grid.ta-console .ccdr tr#ccdr_heading {
-	background: var(--cc-blue);
-}
-.ta-grid.ta-console .ccdr tr#ccdr_heading th {
-	background: var(--cc-blue);
-	color: #fff;
-	font-family: var(--cc-sans);
-	font-size: 13px;
-	font-weight: 600;
-	letter-spacing: .3px;
-	border-bottom: 3px solid var(--cc-gold);
-	border-color: #0A639E;
-	text-align: center;
+/* color text */
+.ccdr tr th:first-child {
+	color: black;
+	text-indent: 0.3em;
+	/* color: rgb(0,51,153);*/
 }
 
-/* -- Edit links inside each row's third cell -- */
-.ta-grid.ta-console .alink a,
-.ta-grid.ta-console .ccdr a {
-	font-size: 11px;
-	font-weight: 600;
-	text-decoration: none;
-	color: var(--cc-blue);
-	padding: 2px 9px;
+/* outline color */
+.ccdr td, .ccdr th {
+	border: 1px solid #A9A9A9;	
+/* border: 1px solid rgb(185, 201, 254);
+padding: 0.3em; */
+}
+
+/* outline border */
+.ccdr {
+	border: 1px solid #FBCC2A;
+/* border: 1px solid rgb(185, 201, 254); */
+}
+
+.ccdr #ccdr_heading {
+	background-color: #cccccc;     /*rgb(184,184,184); */
+	/* color: #FFFFFF; */
+	font-family: "Comic Sans MS"; 
+	font-size: 18px;
+	border: 1px solid black	
+/* background-color:rgb(185, 201, 254);
+color: rgb(0,51,153); */
+}
+
+textarea{ 
+	/* border: 1px solid rgb(185, 201, 254);
+	background-color: #dfe7f2;
+	color: rgb(0,51,153);
+	border-radius: 3px; */
+	
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
+	border-radius: 3px;	
+}
+
+/* Incident ID label background 
+#edit_form th */
+
+#edit_form th {
+	background-color:rgb(184,184,184);
+}
+
+.inc th {
+	background-color:rgb(184,184,184);	
+	/* background-color: rgb(185, 201, 254);
+	 color: rgb(0,51,153); */
+}
+
+#edit_form input[type="text"] {
+	height:25px; 
+	font-weight:bold; 
+	font-size:15px; 
+	font-family:courier; 
+	/* border: 1px solid rgb(185, 201, 254);
+	 background-color: #dfe7f2; */
+	/* color: rgb(0,51,153); */
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
 	border-radius: 3px;
-	border: 1px solid var(--cc-border);
-	background: var(--cc-bg);
-}
-.ta-grid.ta-console .alink a:hover,
-.ta-grid.ta-console .ccdr a:hover { background: var(--cc-blue); color: #fff; border-color: var(--cc-blue); }
-.ta-grid.ta-console .alink a.disabled { color: var(--cc-muted); background: transparent; border-color: transparent; cursor: default; }
-/* the "See <incident>" link and "[Report]" link read as plain text links, not buttons */
-.ta-grid.ta-console .ccdr td a[onclick*="edit_ccdr"],
-.ta-grid.ta-console .ccdr td a[onclick*="service interruption"] {
-	padding: 0; border: none; background: none; font-weight: 500;
-}
-.ta-grid.ta-console .ccdr td a[onclick*="edit_ccdr"]:hover,
-.ta-grid.ta-console .ccdr td a[onclick*="service interruption"]:hover { background: none; color: var(--cc-blue); text-decoration: underline; }
-
-/* -- Search bar at top of page -- */
-.ta-grid.ta-console .cc-search-bar {
-	background: var(--cc-blue);
-	border-bottom: 3px solid var(--cc-gold);
-	border-radius: 8px 8px 0 0;
-	padding: 10px 16px;
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	flex-wrap: wrap;
-	margin-bottom: 16px;
-}
-.ta-grid.ta-console .cc-search-bar b,
-.ta-grid.ta-console .cc-search-bar font { color: #fff !important; font-size: 12px !important; font-weight: 600 !important; font-family: var(--cc-sans) !important; }
-.ta-grid.ta-console .cc-search-bar input.text_input,
-.ta-grid.ta-console .cc-search-bar select.text_input {
-	height: 28px; font-size: 12px; font-family: var(--cc-sans);
-	border: 1px solid var(--cc-border); background: #fff; color: var(--cc-dark);
-	border-radius: 4px; padding: 0 8px;
-}
-.ta-grid.ta-console .cc-search-bar input[type="submit"] {
-	height: 28px; font-size: 11px; font-weight: 600; font-family: var(--cc-sans);
-	background: var(--cc-gold); color: #3A2D00; border: none; border-radius: 4px;
-	padding: 0 14px; cursor: pointer;
-}
-.ta-grid.ta-console .cc-search-bar input[type="submit"]:hover { background: #E5A50F; }
-.ta-grid.ta-console .cc-search-bar form { display: flex; align-items: center; gap: 8px; margin: 0; }
-
-/* -- Section spacing -- */
-.ta-grid.ta-console .ccdr { margin-bottom: 18px; }
-
-/* -- rowHeading rows injected by fillEdit()/fillEquipt() JS into #edit_table -- */
-#addModal .rowHeading td {
-	background: var(--cc-blue);
-	color: #fff;
-	font-weight: 600;
-	font-size: 12px;
-	padding: 8px 12px;
-	border-bottom: 3px solid var(--cc-gold);
 }
 
-/* -- Multiple-defects sub-tables (#multi_list / #multi_list2) -- */
-#multi_list tr th, #multi_list2 tr th {
-	background: var(--cc-blue);
-	color: #fff;
-	border: 1px solid var(--cc-border);
+
+/* Search label disable*/
+/*
+.label {	
+	
+	/* background-color: rgb(184,184,184); */	
+	/*background-color: rgb(185, 201, 254);
+	color: rgb(0,51,153);
+	spacing: 2px;
+	padding: 5px;  
+}
+*/
+/* search Incident Numeer */
+.text_input {
+	/* height:25px; 
+	font-weight:bold; 
+	font-size:15px; 
+	font-family:courier; 
+	border: 1px solid rgb(185, 201, 254);
+	background-color: #dfe7f2;
+	color: rgb(0,51,153);
+	border-radius: 3px; */
+	border: 1px solid #FFD700;
+	background-color: #FFFACD;
+	border-radius: 3px;
+}
+
+
+.rowHeading {
+	color: rgb(0,51,153);
+	font-weight:bold; 
+} 
+
+/* equip and sub */
+#multi_list tr th,#multi_list2 tr th {
+
+	background-color: #cccccc;
+	/* color: #fff; */
+	border: 1px solid #F3F3F3;
 	text-align: center;
-	font-size: 11px;
-	font-weight: 600;
-	padding: 6px 10px;
-}
-#multi_list tr:nth-child(n+2) td, #multi_list2 tr:nth-child(n+2) td {
-	background: var(--cc-row-odd);
-	color: var(--cc-dark);
-	border: 1px solid var(--cc-border);
-	padding: 6px 10px;
-	font-size: 12px;
 }
 
-/* -- Modal shell — console theme, uniform with the other pages -- */
-.modal { z-index: 99999; }
-#addModal {
-	border-radius: 8px;
-	overflow: hidden;
-	border: none;
-	box-shadow: 0 8px 32px rgba(0,30,80,.18), 0 2px 8px rgba(0,30,80,.10);
-	font-family: var(--cc-sans);
-	min-width: 420px;
-}
-#addModal .modal-header {
-	background: var(--cc-blue);
-	border-bottom: 3px solid var(--cc-gold);
-	padding: 10px 16px;
-}
-#addModal .modal-header h3 { color: #fff; font-size: 13px; font-weight: 600; margin: 0; }
-#addModal .modal-header .close { color: rgba(255,255,255,.7); text-shadow: none; opacity: 1; font-size: 18px; }
-#addModal .modal-header .close:hover { color: var(--cc-gold); }
-#addModal .modal-body { background: var(--cc-bg); padding: 16px 18px; }
-#addModal .modal-footer {
-	background: #fff;
-	border-top: 1px solid var(--cc-border);
-	padding: 10px 16px;
-	display: flex;
-	justify-content: flex-end;
-	gap: 8px;
-}
-#addModal .modal-footer .btn {
-	font-size: 12px; font-weight: 500; padding: 5px 16px; border-radius: 4px;
-	border: 1px solid var(--cc-border); background: #fff; color: var(--cc-mid); text-decoration: none;
-}
-#addModal .modal-footer .btn:hover { background: var(--cc-row-odd); border-color: var(--cc-blue); color: var(--cc-blue); }
-#addModal .modal-footer .btn-primary { background: var(--cc-blue); border-color: var(--cc-blue); color: #fff; }
-#addModal .modal-footer .btn-primary:hover { background: #013E76; border-color: #013E76; }
 
-/* -- #edit_table (built by fillEdit/fillEquipt JS) and #edit_form th -- */
-#edit_table { width: 100%; border-collapse: collapse; font-size: 12px; }
-#edit_table th {
-	background: var(--cc-row-odd); color: var(--cc-dark); font-weight: 600;
-	font-size: 11px; padding: 8px 10px; text-align: left; white-space: nowrap;
-	border-bottom: 1px solid var(--cc-border);
+#multi_list tr:nth-child(2) td,#multi_list2 tr:nth-child(2) td  {
+	background-color: rgb(185, 201, 254);
+	color: rgb(0,51,153);
 }
-#edit_table td { padding: 7px 10px; border-bottom: 1px solid var(--cc-border); }
-#edit_form th { background: var(--cc-row-odd); color: var(--cc-dark); padding: 7px 10px; font-size: 11px; font-weight: 600; }
 
-/* -- Form controls — scoped to #addModal so nothing outside the modal changes -- */
-#addModal input[type="text"],
-#addModal select {
-	height: 28px; font-size: 12px; font-family: var(--cc-sans); font-weight: 400;
-	border: 1px solid var(--cc-border); background: #fff; color: var(--cc-dark);
-	border-radius: 4px; padding: 0 8px; box-sizing: border-box;
-}
-#addModal input[type="text"]:focus,
-#addModal select:focus { border-color: var(--cc-blue); outline: none; box-shadow: 0 0 0 2px rgba(0,82,155,.12); }
-#addModal textarea {
-	font-size: 12px; font-family: var(--cc-sans); border: 1px solid var(--cc-border);
-	background: #fff; color: var(--cc-dark); border-radius: 4px; padding: 7px 9px;
-	width: 100%; box-sizing: border-box; resize: vertical; min-height: 80px;
-}
-#addModal textarea:focus { border-color: var(--cc-blue); outline: none; box-shadow: 0 0 0 2px rgba(0,82,155,.12); }
-#addModal input[type="button"],
-#addModal button[type="button"]:not(.close) {
-	height: 28px; font-size: 11px; font-weight: 500; font-family: var(--cc-sans);
-	background: #fff; color: var(--cc-blue); border: 1px solid var(--cc-border);
-	border-radius: 4px; padding: 0 12px; cursor: pointer;
-}
-#addModal input[type="button"]:hover { background: var(--cc-row-odd); border-color: var(--cc-blue); }
-#addModal input[type="checkbox"] { margin-right: 5px; vertical-align: middle; }
-#addModal input[disabled] { background: var(--cc-bg); color: var(--cc-muted); }
-/* The original markup includes invisible white-on-white spacer text
-   (<font color=white>| | | ...) used as layout padding before the hidden
-   inputs. It renders as nothing either way; hidden here for cleanliness
-   without touching the markup itself. */
-#addModal font[color="white"] { display: none; }
+#multi_list tr:nth-child(n+2) td,#multi_list2 tr:nth-child(n+2) td{
 
+	background-color: #dfe7f2;
+	color: rgb(0,51,153);
+}
+
+select { border: 1px solid #FFD700; color: black; background-color: #FFFACD;  }
+
+.alink a.disabled {
+        color: #666;
+        text-decoration: none;
+    }
 </style>
-
 
 
 <!-- orig javascrip    -->
@@ -1472,9 +1385,7 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 <br>
 
 <div id="freeow" class="freeow freeow-bottom-right"></div>
-<div class="ta-grid ta-console">
-<div class="cc-search-bar">
-<form action='edit_ccdr.php' method='post'><b>Search Incident Number</b> <input class='text_input' type=text name='search_incident_number'/><input type=submit value='Search' /></form>
+<form action='edit_ccdr.php' method='post'><font face="verdana" size="2" color="black"><b>Search Incident Number </b> </font><input class='text_input' type=text name='search_incident_number'/><input type=submit value='Search' /></form>
 
 
 
@@ -1490,7 +1401,7 @@ if(isset($_POST['search_incident_number'])){
 	$nm=$rs->num_rows;
 	if($nm>0){
 	?>	
-<form action='edit_ccdr.php' method=post><b>Retrieve Incident Report</b> <select  class='text_input' name='incident_report'>
+<form action='edit_ccdr.php' method=post><font face="verdana" size="2" color="black"><b>Retrieve Incident Report </b></font><select  class='text_input' name='incident_report'>
 	<?php
 		for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
@@ -1507,7 +1418,6 @@ if(isset($_POST['search_incident_number'])){
 
 }
 ?>
-</div><!-- /.cc-search-bar -->
 <?php
 ?>
 <?php
@@ -1964,8 +1874,6 @@ else {
 </table>
 <br>
 <br>
-</div><!-- /.alink -->
-</div><!-- /.ta-grid -->
 
 <!--<form id='edit_form' name='edit_form' action='edit_ccdr.php'  method='post'>
 	<table id='edit_table' name='edit_table' width=80%>	
@@ -1986,8 +1894,8 @@ else {
 <!-- Mjun@ -->
 		<div class="modal hide fade" id="addModal">
 			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
-				<h3>Edit CCDR Field</h3>
+				<button type="button" class="close" data-dismiss="modal">×</button>
+				<h3>Edit</h3>
 			</div>
 <form id='edit_form' name='edit_form' action='edit_ccdr.php?ir=<?php echo $incident_report; ?>'  method='post'>
 

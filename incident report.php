@@ -1068,14 +1068,42 @@ function eqToggle(id,name,checked){
 
 function eqAddSelected(){
 	/* Add each chip first (synchronous, all cards appear immediately in
-	   "Loading…" state), THEN fire their scrollSubItem fetches one at a
-	   time in the same order, so the FIFO queue and the actual response
-	   order stay aligned. */
+	   "Loading…" state). */
 	var ids=Object.keys(eqSelected);
 	ids.forEach(function(id){ eqAddChip(id,eqSelected[id]); });
-	ids.forEach(function(id){ eqFetchSubItems(id); });
 	document.getElementById('eq-panel').style.display='none';
 	eqSelected={};
+
+	/* THEN fetch each card's sub-items ONE AT A TIME, never more than one
+	   scrollSubItem request in flight simultaneously.
+
+	   Why: makeajax(url, callbackName) takes a callback by STRING NAME,
+	   not a function reference or closure — every existing call in this
+	   codebase confirms that's the only contract it supports. That means
+	   there is no way to attach per-request identity to an individual
+	   in-flight call. An earlier version of this queued requests by SEND
+	   order and assumed responses would arrive back in that same order —
+	   but that assumption is false for real network requests fired back
+	   to back; a later-sent request can easily complete before an
+	   earlier one, especially if one equipment id's sub_item lookup
+	   happens to be faster than another's. When that happened here, a
+	   response correctly meant for one card got dequeued and applied to
+	   a DIFFERENT card instead — exactly the bug reported: items that do
+	   have sub-items showed empty, because their real response had
+	   already been consumed by the wrong card's slot.
+
+	   Serializing removes the race entirely: only one scrollSubItem
+	   request exists at any moment, so there is never an ordering
+	   question to get wrong. eqFetchNextInQueue is called again once
+	   each response is rendered, advancing to the next card. */
+	eqPendingQueue = ids.slice();
+	eqFetchNextInQueue();
+}
+
+function eqFetchNextInQueue(){
+	if(eqPendingQueue.length===0) return;
+	var id=eqPendingQueue[0]; /* peek, not shift — eqSubItemResponse shifts after rendering */
+	makeajax("processing.php?scrollSubItem="+id,"eqSubItemResponse");
 }
 
 function eqAddChip(id,label){
@@ -1105,19 +1133,11 @@ function eqAddChip(id,label){
 	eqSyncHidden();
 }
 
-function eqFetchSubItems(id){
-	id=String(id);
-	eqPendingQueue.push(id);
-	/* Single static callback name — "eqSubItemResponse" — exactly like
-	   every other makeajax() call in this file. Which card the response
-	   belongs to is resolved by dequeuing, not by the callback name. */
-	makeajax("processing.php?scrollSubItem="+id,"eqSubItemResponse");
-}
-
 function eqSubItemResponse(ajaxHTML){
-	var id=eqPendingQueue.shift();
+	var id=eqPendingQueue.shift(); /* this request is done — remove it, THEN advance */
 	if(id===undefined) return; /* defensive: response with nothing queued */
 	eqRenderSubItemSelect(id,ajaxHTML);
+	eqFetchNextInQueue(); /* fire the next card's request only after this one is fully handled */
 }
 
 function eqRenderSubItemSelect(id,ajaxHTML){
@@ -1174,10 +1194,16 @@ function eqRemoveChip(id){
 	if(el) el.remove();
 	delete eqLinked[id];
 	delete eqSubItemChoice[id];
-	/* If this card's scrollSubItem fetch is still in flight, it stays in
-	   eqPendingQueue and will be dequeued normally when its response
-	   arrives; eqRenderSubItemSelect already no-ops safely if the card's
-	   element is gone by then (see "card was removed" guard below). */
+	/* If this card's fetch is currently the in-flight request (front of
+	   eqPendingQueue), or still waiting further back in the queue, it is
+	   deliberately left in place rather than spliced out here. The chain
+	   self-heals either way once its response arrives: eqSubItemResponse
+	   still shifts it off and calls eqFetchNextInQueue to keep the chain
+	   moving, and eqRenderSubItemSelect's "card was removed" guard below
+	   safely no-ops instead of writing to a DOM element that's gone. The
+	   only cost is one wasted network call for a card nobody will see
+	   the result of — not a correctness problem, just a minor inefficiency
+	   that isn't worth the complexity of splicing mid-queue. */
 	var chips=document.getElementById('eq-chips');
 	if(!chips.querySelector('.ir-eq-card'))
 		chips.innerHTML='<span class="ir-eq-empty">No equipment selected</span>';
@@ -1402,7 +1428,7 @@ document.addEventListener('keydown',function(e){
 
 	<!-- Link Incident Report — Option C: Full modal overlay -->
 	<tr>
-		<td class="ir-label ir-label--top" style="padding-top:11px">Link Incident Reports</td>
+		<td class="ir-label ir-label--top" style="padding-top:11px">Link Other Incident Report(s)</td>
 		<td class="ir-field" style="padding-top:9px">
 
 			<!-- Trigger row -->
