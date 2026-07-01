@@ -1582,6 +1582,9 @@ if(isset($_POST['search_incident_number'])){
 		
 		$date=date("Y-m-d",strtotime($row['incident_date']));
 		$time=date("H:ia",strtotime($row['incident_date']));
+		
+		$$incident_time="";
+		
 		$duration=$row['duration'];
 		$equipt=$row['equipt'];
 		
@@ -1802,7 +1805,7 @@ if ($ULev>=2){
 -->
 &nbsp;
 </tr>
-<tr><th>Type of Problem</th>
+<tr><th>Problem Category</th>
 <td>
 <?php echo $problem_type; ?>
 <?php
@@ -1892,16 +1895,30 @@ See <a href='#'  class="<?php echo $SRemove; ?>" onclick='window.open("edit_ccdr
 <td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("link_incident")'>Edit</a></td>
 </tr>
 <tr>
-<th>Index No./Car No.</th>
+<th>Index Number</th>
+
+
+<td>
+<?php
+	echo $indexNo;
+
+?>
+
+
+</td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
+
+<tr>
+
+<tr>
+<th>Car Numbers</th>
 
 
 <td>
 <?php
 if($carNo==""){
-	echo $indexNo;
 }
 else {
-	echo $indexNo." / ".$carClause;
+	echo $carClause;
 
 }
 
@@ -1911,6 +1928,7 @@ else {
 </td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
 
 <tr>
+
 <th>Cancelled Loops</th>
 <td>
 <?php echo $cancel; ?>

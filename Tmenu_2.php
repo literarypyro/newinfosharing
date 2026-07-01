@@ -265,7 +265,6 @@ body { height: 100%; overflow: hidden; }
 		<li><a href='clearance form.php' id='dr'>Clearance Form</a></li>
 		<li><a href='#'>Statistics Report</a>
 		<ul>
-			<li><a href='#' onclick="window.open('td_history.php')">Personnel</a></li>
 			<li><a href='#'>Problem Type</a>
 			<ul>			
         		<?php 
@@ -300,8 +299,23 @@ body { height: 100%; overflow: hidden; }
 
 			<li><a href='#' onclick="window.open('car_statistics_report.php')">Rolling Stock (Cars)</a></li>
 
-			
-			<li><a href='#'>Stats Report(AFC)</a>
+			<!-- Renamed from "Train Equipment": this page groups incidents by
+			     equipment/subsystem type (a curated list, not the full
+			     catalog Problem Type browses), with a custom date range and
+			     a Level severity filter that Rolling Stock doesn't have --
+			     the new label surfaces that distinction instead of leaving
+			     "Equipment" to sound like a duplicate of Rolling Stock. -->
+			<li><a href='#' onclick="window.open('statistics_report_modified.php')">Equipment Failures (by Type)</a></li>
+
+			<li><a href='#' onclick="window.open('other_history.php')">Other Incidents</a></li>
+
+			<li><a href='#' onclick="window.open('td_history.php')">Personnel</a></li>
+
+			<!-- Divider: AFC is fare-collection/ridership data by station,
+			     a different subject from the train-ops/incident stats
+			     above -- not just another entry in the same flat list. -->
+			<li class="ta-nav-divider"><span>Fare Collection (AFC)</span></li>
+			<li><a href='#'>By Station</a>
 			<ul>			
         		<?php 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
@@ -322,11 +336,6 @@ body { height: 100%; overflow: hidden; }
 
 			</ul>
 			
-			</li>		
-			<li><a href='#' onclick="window.open('statistics_report_modified.php')">Train Equipment</a></li>
-
-			<li><a href='#' onclick="window.open('other_history.php')">Other Incidents</a></li>
-
 			</li>		
 </ul>
 	<li><a href='#'>Transport</a>	

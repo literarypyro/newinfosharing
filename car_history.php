@@ -163,14 +163,6 @@ $nm=$rs->num_rows;
 
 for($i=0;$i<$nm;$i++){
 
-	$incident[strtotime($row['incident_date'])]['date']=date("Y-m-d",strtotime($row['incident_date']));
-	$incident[strtotime($row['incident_date'])]['time']=date("H:iA",strtotime($row['incident_date']));
-
-	$incident[strtotime($row['incident_date'])]['duration']=$row['duration'];
-	$incident[strtotime($row['incident_date'])]['index_no']=$row['index_no'];
-	$incident[strtotime($row['incident_date'])]['problem_type']=getProblemType($db,$row['incident_type']);
-
-
 	$row=$rs->fetch_assoc();
 	?>
     <tr>

@@ -249,6 +249,27 @@ ul#navMenu ul a:hover {
 }
 ul#navMenu ul li:last-child a { border-bottom: none !important; }
 
+/* Section divider inside a dropdown (currently: separating train-ops
+   incident stats from AFC fare-collection stats in Statistics Report).
+   Not a link -- no href, no click target -- just a small caption with a
+   rule above it. */
+ul#navMenu ul li.ta-nav-divider {
+	display: block !important;
+	padding: 8px 14px 4px !important;
+	margin-top: 4px !important;
+	border-top: 1px solid #F0EDE5 !important;
+	cursor: default !important;
+}
+ul#navMenu ul li.ta-nav-divider span {
+	display: block !important;
+	font-size: 10px !important;
+	font-weight: 700 !important;
+	letter-spacing: .04em !important;
+	text-transform: uppercase !important;
+	color: #8A95A6 !important;
+	font-family: Verdana, sans-serif !important;
+}
+
 /* Level-3 sub-menu opens to the right */
 ul#navMenu ul ul {
     top: 0 !important;

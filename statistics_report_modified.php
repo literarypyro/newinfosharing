@@ -2,33 +2,80 @@
 //--- Date: 8/6/2014
 //--- Modify: screen layout
 //--- Marker: @mjun
+//---------------------------------------------------
+//--- Console theme + presentation pass (01302026):
+//--- Reconciled this page's look with equipment_history.php, its main
+//--- drill-down destination -- same blue/gold console theme instead of
+//--- grey, link colour now signals "clickable" at rest, added a caption
+//--- explaining the red highlight AND the two different click targets
+//--- (equipment name -> car breakdown, monthly count -> incident list),
+//--- which previously had zero on-page explanation. Also fixed a real
+//--- bug: the highest-total tracking loop below was writing into a
+//--- stray, unused $car[] array (copy-paste from car_statistics_report.php)
+//--- instead of $equipt[], so it silently stopped updating after the
+//--- first comparison -- meaning the red-highlight threshold was being
+//--- computed against the wrong "highest" value. No other query logic
+//--- touched.
 //--------------------------------------------------->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equipment Failures (by Type)</title>
+
 <style type='text/css'>
+/* ===========================================================================
+   LINE 3 SCHEME — shared with car_statistics_report.php / equipment_history.php
+   Blue leads the structure; yellow is a small accent (title-bar stripe +
+   hover highlight), never the gridlines.
+   =========================================================================== */
 
-.rowClass {background-color: #F3F3F3;}
+body { margin:24px 30px; background:#FAFAF6; color:#1A2238; font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
 
-/* color header */
-.rowHeading {background-color: #cccccc;
-			color:black
+h2 { color:#1A2238; font-size:20px; }
+
+.stat-toolbar {
+	background:#00529B; border-bottom:3px solid #FDB813;
+	border-radius:6px 6px 0 0; padding:10px 16px; margin-bottom:0;
 }
-.train_ava td{
-	border: 1px solid #FBCC2A;
-	color: black;
-	cellpadding: 5px
+.stat-toolbar table { border-collapse:collapse; }
+.stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#FFFFFF; font-weight:600; font-size:13px; text-align:left; }
+.stat-toolbar select, .stat-toolbar input[type=text] {
+	height:26px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
+	background:#FFFFFF; color:#1A2238; padding:0 8px; font-size:12px;
 }
-
-.train_ava th {
-	border: 1px solid #FBCC2A;;
-	cellpadding: 5px;	
-	color: black
+.stat-toolbar input[type=submit] {
+	height:28px; border:none; border-radius:4px; background:#FDB813;
+	color:#3A2D00; font-weight:700; font-size:12px; padding:0 14px; cursor:pointer;
 }
+.stat-toolbar input[type=submit]:hover { background:#E5A50F; }
 
-select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; }
+.stat-legend {
+	display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+	background:#F1EEE3; border:1px solid #E5DECC; border-top:none;
+	padding:8px 16px; font-size:12px; color:#5A6275;
+}
+.stat-legend .swatch { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+
+.rowHeading {background:#00529B; color:#FFFFFF; font-size:15px; font-weight:600;}
+.rowClass {background-color: #F5F2E8;}
+
+.train_ava { border-collapse:collapse; }
+.train_ava td, .train_ava th { border:1px solid #E5DECC; padding:6px 8px; }
+
+select { border: 1px solid #D8D2C2; color: #1A2238; background-color: #FFFFFF; border-radius:4px; }
 
 /* --- mjun -- generate */
-a.two:visited {color:black;}
-a.two:hover, a.two:active {font-size:120%; color:orange;}
+a.two { color:#00529B; font-weight:600; text-decoration:none; }
+a.two:visited {color:#00529B;}
+a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
+.stat_hover:hover {
+	background-color:#FFF1CC;
+	text-decoration:underline;
+	font-weight:bold;
+}
 </style>
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
@@ -76,10 +123,11 @@ $(function() {
 	
 });
 </script>
-
+</head>
+<body>
 
 <!-- <form action='statistics_report.php' method='post'> -->
-<form action='statistics_report_modified.php' method='post'>
+<form action='statistics_report_modified.php' method='post' class="stat-toolbar">
 <table>
 <tr><th>Level</th>
 <td>
@@ -89,17 +137,12 @@ $(function() {
 <option <?php if($_POST['level']==3){ echo "selected"; } ?> value='3'>3</option>
 </select>
 </td>
-</tr>
-<tr>
-<td>
-From</td><td> <input type="text" name='search_date2' id='search_date2'>
+<th>From</th>
+<td> <input type="text" name='search_date2' id='search_date2'>
 </td>
-</tr>
-<tr>
-<td>
-To</td><td> <input type="text" name='search_date' id='search_date'>
+<th>To</th>
+<td> <input type="text" name='search_date' id='search_date'>
 </td>
-</tr>
 <!--
 
 <tr>
@@ -118,12 +161,15 @@ To</td><td> <input type="text" name='search_date' id='search_date'>
 </tr>
 -->
 
-<tr>
-
-<th colspan=2><input type=submit value='Submit' /></th>
+<th><input type=submit value='Submit' /></th>
 </tr>
 </table>
 </form>
+<div class="stat-legend">
+	<span><span class="swatch" style="background:#00529B;"></span>Click an equipment name to see which cars had this failure</span>
+	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count to see that month's incident list</span>
+	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this period (&ge;60% of the peak)</span>
+</div>
 
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
@@ -530,7 +576,7 @@ for($i=0;$i<$car_len;$i++){
 
 	}
 	else {
-		$car[$i*1+1]['total']=$equipt_count["Equipt_".$equipt[$i*1+1]['id']]['total'];
+		$equipt[$i*1+1]['total']=$equipt_count["Equipt_".$equipt[$i*1+1]['id']]['total'];
 
 		$highestCar=sortCar($highestCar,$equipt[$i*1+1]);
 	}
@@ -561,7 +607,7 @@ for($i=0;$i<$nm;$i++){
 
 <?php
 	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
-	echo "style='background-color:red; color:white;'";
+	echo "style='background-color:#F9D6D6; color:#7A1F1F;'";
 		
 	}
 	else {
@@ -585,7 +631,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 //	if($highestCar['total']==$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
 	
 	?>
-		<a href='#' style='text-decoration:none; color:white;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $_POST['level']; ?>&range=<?php echo $_POST['range']; ?>&sd=<?php echo $_POST['search_date2']; ?>&ed=<?php echo $_POST['search_date'];?>",target="_blank")' >
+		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $_POST['level']; ?>&range=<?php echo $_POST['range']; ?>&sd=<?php echo $_POST['search_date2']; ?>&ed=<?php echo $_POST['search_date'];?>",target="_blank")' >
 	
 	<?php echo $row['equipment_name']; ?>
 	</a>
@@ -595,7 +641,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 	}
 	else {
 	?>	
-		<a href='#' style='text-decoration:none; color:black;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $_POST['level']; ?>&range=<?php echo $_POST['range']; ?>&sd=<?php echo $_POST['search_date2']; ?>&ed=<?php echo $_POST['search_date'];?>",target="_blank")' >
+		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $_POST['level']; ?>&range=<?php echo $_POST['range']; ?>&sd=<?php echo $_POST['search_date2']; ?>&ed=<?php echo $_POST['search_date'];?>",target="_blank")' >
 	
 	<?php echo $row['equipment_name']; ?>
 	</a>
@@ -607,8 +653,6 @@ if($i%2>0){ echo "class='rowClass'"; }
 	</th>
 
 	<?php
-	$ss*=1;
-	$ee*=1;
 	for($k=0;$k<=$difference;$k++){
 	?>	
 	<td class='stat_hover' align=center>
@@ -635,7 +679,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 	
 	}
 	?>
-	<a href='#' style='text-decoration:none; color:white;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
+	<a href='#' style='text-decoration:none; color:#00529B;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
 		<?php
 		
 
@@ -669,7 +713,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 	
 	}
 	?>	
-	<a href='#' style='text-decoration:none; color:black;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
+	<a href='#' style='text-decoration:none; color:#00529B;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
 		<?php
 		
 
@@ -691,12 +735,9 @@ if($i%2>0){ echo "class='rowClass'"; }
 	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
 	
 	?>
-	<font color=white>
 	<?php
 		echo $equipt_count["Equipt_".$equipt[$i]['id']]["total"];
 		?>
-	
-</font>
 	<?php	
 	}
 	else {
@@ -746,10 +787,5 @@ function sortCar($equipt_a,$equipt_b){
 <br>
 <br>
 <a href='#' class="two" onclick='window.open("generate_statistics_report.php?sd=<?php echo date("Y-m-d",strtotime($_POST['search_date2'])); ?>&ed=<?php echo date("Y-m-d",strtotime($_POST['search_date'])); ?>&range=<?php echo $_POST['range']; ?>&level=<?php echo $level; ?>");'><b>Generate Printout</b></a>
-<style type='text/css'>
-.stat_hover:hover {
-	background-color:#fbcc2a;
-	text-decoration:underline;
-	font-weight:bold;
-}
-</style>
+</body>
+</html>
