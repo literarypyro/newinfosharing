@@ -559,6 +559,7 @@ body { background: #EAEEF3; font-family: var(--ir-sans); color: var(--ir-dark); 
 <script language='javascript' src='js/jquery-1.10.2.min.js'></script>
 <script language='javascript' src='ajax.js'></script>
 <script language='javascript'>
+
 function openLink(){
 	window.open("link_incident.php","_blank");
 }
@@ -579,6 +580,7 @@ function scrollCat(){
 
 function scrollType(element){
 	var problemType=document.getElementById('type').value;
+	
 
 	if($("#type").find("option:selected").data("incident_type")==""){
 	}
@@ -918,7 +920,7 @@ var eqPendingQueue=[];    /* FIFO of equipt_ids whose scrollSubItem fetch is in 
 
 var eqSearchResults=[];
 
-function eqSearch(q,cb){
+function eqSearch(q,cb,prob){
 	eqSearchCallback=cb;
 	/* Calls processing.php?searchEquipment=  — add this case to processing.php:
 	     if(isset($_GET['searchEquipment'])){
@@ -935,7 +937,7 @@ function eqSearch(q,cb){
 	     }
 	   Response format matches the existing scrollRolling/getDriver convention:
 	   rows separated by "==>", fields within a row separated by ";". */
-	makeajax("processing.php?searchEquipment="+encodeURIComponent(q),"eqSearchResponse");
+	makeajax("processing.php?probname="+encodeURIComponent(prob)+"&searchEquipment="+encodeURIComponent(q),"eqSearchResponse");
 }
 
 var eqSearchCallback=null;
@@ -1027,14 +1029,19 @@ function eqSearchResponse(ajaxHTML){
 }
 
 function eqTogglePanel(){
+	var prob_type=document.getElementById('type').value;
+
 	var p=document.getElementById('eq-panel');
 	var open=p.style.display!=='none';
 	p.style.display=open?'none':'block';
-	if(!open){ eqSearch('',eqRenderList); }
+	if(!open){ eqSearch('',eqRenderList,prob_type); }
 }
 
 function eqFilterInput(q){
-	eqSearch(q,eqRenderList);
+	
+	var prob_type=document.getElementById('type').value;
+	eqSearch(q,eqRenderList,prob_type);
+	
 	document.getElementById('eq-panel').style.display='block';
 }
 

@@ -13,15 +13,20 @@ session_start();
  
 if(isset($_GET['searchEquipment'])){
 	$q = $db->real_escape_string($_GET['searchEquipment']);
-	$sql = "select id,equipment_name,category from equipment
-	        where type='RS' and equipment_name like '%".$q."%'
+	$p = $db->real_escape_string($_GET['probname']);
+
+	$sql = "select equipment.id as id,equipment.equipment_name as equipment_name,category from equipment_type inner join equipment on type=incident_code
+	        where equipment_code='".$p."' and equipment.equipment_name like '%".$q."%'
 	        order by equipment_name";
 	$rs = $db->query($sql);
 	$out = "";
 	while($row = $rs->fetch_assoc()){
 		$out .= $row['id'].";".$row['equipment_name'].";".$row['category']."==>";
 	}
+	
 	echo ($out=="") ? "No data available" : $out;
+
+
 }
 
 
