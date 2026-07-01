@@ -141,7 +141,7 @@ else {
 
 
 <table class='train_ava' border=1 style='border-collapse:collapse;' width=100%>
-<tr class='rowHeading'><th colspan=13>Car Statistics Report</th></tr>
+<tr class='rowHeading'><th colspan=13>Car Incidents By Year</th></tr>
 <tr class='rowHeading2'>	
 	<th>Car #</th>
 	<th>January</th>

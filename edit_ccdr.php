@@ -224,10 +224,16 @@ function fillEdit(elementName){
 	}
 	else if(elementName=="index"){
 		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
-		elementContents+="<tr><th width=20%>Index/Car No.</th>";
+		elementContents+="<tr><th width=20%>Index Number</th>";
 
 		elementContents+="<td>";
-		elementContents+="<input type='text' name='index_id' id='index_id' size=5 /> / ";
+		elementContents+="<input type='text' name='index_id' id='index_id' size=5 />  ";
+		elementContents+="</td></tr>";
+
+
+		elementContents+="<tr><th width=20%>Car Numbers.</th>";
+
+		elementContents+="<td>";
 
 		elementContents+="<span id='car_space' name='car_space'></span>";	
 
@@ -929,6 +935,60 @@ if(isset($_POST['fieldType'])){
 	$fieldT=$_POST['fieldType'];
 	if ($fieldT<>"") {			
 	$incident_report=$_POST['inc_report'];	
+
+	/* -- New multi-field save handlers (junction tables) -----------------
+	   These two fieldTypes come from the ported multi-equipment / multi-link
+	   editors. They don't fit the generic "update incident_report set X
+	   where id" shape the switch below builds, so they're handled here in
+	   full. They set $Mup=1 (same success signal every other save uses) and
+	   then skip the generic update via the $ccHandled flag - NOT via a
+	   header() redirect, because Tmenu.php has already emitted output by this
+	   point and header() would fail with "headers already sent". The page
+	   re-renders inline afterward and the read-back queries pick up the new
+	   junction rows, exactly like the existing edits do. ------------------ */
+	$ccHandled=false;
+	if($_POST['fieldType']=='equipment_multi'){
+		$db->query("delete from incident_equipment where incident_id='".$incident_report."'");
+		if(!empty($_POST['equipment_ids'])){
+			$pairs=array_filter(is_array($_POST['equipment_ids'])
+				? $_POST['equipment_ids']
+				: explode(',',$_POST['equipment_ids']));
+			foreach($pairs as $pair){
+				$pair=trim($pair);
+				if($pair==='') continue;
+				$parts=explode(':',$pair);
+				$equipt_id =(int)trim($parts[0]);
+				$subitem_id=isset($parts[1]) ? (int)trim($parts[1]) : 0;
+				if($equipt_id<=0) continue;
+				$db->query("insert ignore into incident_equipment(incident_id,equipt_id,subitem_id) values ('".$incident_report."','".$equipt_id."','".$subitem_id."')");
+			}
+		}
+		$Mup=1; $ccHandled=true;
+	}
+	if($_POST['fieldType']=='link_multi'){
+		$db->query("delete from incident_linked_reports where incident_id='".$incident_report."'");
+		$firstLink=true;
+		if(!empty($_POST['incident_links'])){
+			$links=array_filter(is_array($_POST['incident_links'])
+				? $_POST['incident_links']
+				: explode(',',$_POST['incident_links']));
+			foreach($links as $linked_id){
+				$linked_id=(int)trim($linked_id);
+				if($linked_id<=0) continue;
+				$db->query("insert ignore into incident_linked_reports(incident_id,linked_to) values ('".$incident_report."','".$linked_id."')");
+				if($firstLink){
+					$db->query("update incident_report set linked_to='".$linked_id."' where id='".$incident_report."'");
+					$firstLink=false;
+				}
+			}
+		}
+		if($firstLink){
+			$db->query("update incident_report set linked_to='' where id='".$incident_report."'");
+		}
+		$Mup=1; $ccHandled=true;
+	}
+
+	if(!$ccHandled){
 	$sql="update incident_report ";		
 	switch($_POST['fieldType']){
 		case "onboard_equipt":
@@ -1228,6 +1288,7 @@ if(isset($_POST['fieldType'])){
 	
 	// echo '<script type="text/javascript">window.onload = function () { alert("Data Update!"); }</script>';
 	
+	} /* end if(!$ccHandled) - generic single-field update path */
 	
 	//Mjun@ initialize
 	$incident_report="";
@@ -1240,10 +1301,10 @@ if(isset($_POST['fieldType'])){
 
 <style type='text/css'>
 /* =========================================================================
-   EDIT CCDR — Operations Console Theme
+   EDIT CCDR ? Operations Console Theme
    Uniform with train_availability_console.php / incident_report_console.php
    / clearance_form_console.php. Scoped under .ta-grid.ta-console.
-   PHP/JS: completely unchanged below — including every fillEdit() and
+   PHP/JS: completely unchanged below ? including every fillEdit() and
    fillEquipt() string that injects <tr class='rowHeading'> into the modal;
    that class is restyled here to match, not altered in the JS itself.
    ========================================================================= */
@@ -1384,7 +1445,7 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 	font-size: 12px;
 }
 
-/* -- Modal shell — console theme, uniform with the other pages -- */
+/* -- Modal shell ? console theme, uniform with the other pages -- */
 .modal { z-index: 99999; }
 #addModal {
 	border-radius: 8px;
@@ -1429,7 +1490,7 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 #edit_table td { padding: 7px 10px; border-bottom: 1px solid var(--cc-border); }
 #edit_form th { background: var(--cc-row-odd); color: var(--cc-dark); padding: 7px 10px; font-size: 11px; font-weight: 600; }
 
-/* -- Form controls — scoped to #addModal so nothing outside the modal changes -- */
+/* -- Form controls ? scoped to #addModal so nothing outside the modal changes -- */
 #addModal input[type="text"],
 #addModal select {
 	height: 28px; font-size: 12px; font-family: var(--cc-sans); font-weight: 400;
@@ -1458,6 +1519,90 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
    inputs. It renders as nothing either way; hidden here for cleanliness
    without touching the markup itself. */
 #addModal font[color="white"] { display: none; }
+
+/* --- Per-field Edit pill (hidden until row hover, matches clearance_form) --- */
+.ta-grid.ta-console .ccdr a.cc-edit-pill {
+	display: inline-flex; align-items: center;
+	font-size: 10px; font-weight: 600; text-decoration: none;
+	padding: 2px 9px; border-radius: 999px;
+	border: 1px solid var(--cc-border); background: var(--cc-white);
+	color: var(--cc-muted);
+	opacity: 0; transform: translateY(1px);
+	transition: opacity .12s, background .12s, border-color .12s, color .12s, transform .12s;
+}
+.ta-grid.ta-console .ccdr tr:hover a.cc-edit-pill { opacity: 1; transform: translateY(0); }
+.ta-grid.ta-console .ccdr a.cc-edit-pill:hover {
+	background: var(--cc-blue); border-color: var(--cc-blue); color: #fff;
+}
+
+/* Read-only listings in the property sheet */
+.cc-none-note { font-size: 11px; color: var(--cc-muted); font-style: italic; }
+.ta-grid.ta-console .cc-eq-list { border-collapse: collapse; font-size: 12px; }
+.ta-grid.ta-console .cc-eq-list th {
+	background: var(--cc-row-odd); color: var(--cc-mid); font-size: 10px;
+	font-weight: 600; text-align: left; padding: 4px 10px; border: 1px solid var(--cc-border);
+}
+.ta-grid.ta-console .cc-eq-list td { padding: 5px 10px; border: 1px solid var(--cc-border); }
+.cc-linked-item { font-size: 12px; margin: 2px 0; }
+.cc-linked-item a { color: var(--cc-blue); }
+
+/* --- Ported multi-equipment picker (option-C ir-eq-*, renamed cc-eq-*) --- */
+.cc-eq-panel{border:1px solid var(--cc-border);border-radius:6px;overflow:hidden;margin-top:8px;}
+.cc-eq-panel-head{background:var(--cc-row-odd);padding:7px 11px;font-size:11px;font-weight:600;color:var(--cc-mid);border-bottom:1px solid var(--cc-border);display:flex;align-items:center;gap:7px;}
+.cc-eq-panel-body{max-height:200px;overflow-y:auto;}
+.cc-eq-panel-foot{padding:7px 11px;border-top:1px solid var(--cc-border);background:var(--cc-bg);display:flex;justify-content:flex-end;gap:7px;}
+.cc-eq-cb-row{display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--cc-border);}
+.cc-eq-cb-row:last-child{border-bottom:none;}
+.cc-eq-cb-row:hover{background:var(--cc-row-odd);}
+.cc-eq-cb-row input[type=checkbox]{accent-color:var(--cc-blue);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
+.cc-eq-cb-row .cc-eq-name{font-size:12px;color:var(--cc-dark);flex:1;}
+.cc-eq-cb-row .cc-eq-cat{font-size:10px;color:var(--cc-muted);white-space:nowrap;}
+.cc-eq-chips{display:flex;flex-direction:column;gap:8px;min-height:32px;padding:8px;border:1px solid var(--cc-border);border-radius:4px;background:var(--cc-bg);margin-top:8px;}
+.cc-eq-card{background:var(--cc-white);border:1px solid var(--cc-border);border-radius:6px;overflow:hidden;}
+.cc-eq-card-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--cc-row-odd);border-bottom:1px solid var(--cc-border);}
+.cc-eq-card-name{font-size:12px;font-weight:600;color:var(--cc-blue);}
+.cc-eq-card-head button{background:none;border:none;cursor:pointer;color:var(--cc-muted);padding:0;line-height:1;font-size:15px;display:flex;align-items:center;}
+.cc-eq-card-head button:hover{color:#E24B4A;}
+.cc-eq-card-sub{padding:8px 10px;}
+.cc-eq-subselect{height:28px;font-size:12px;font-family:var(--cc-sans);border:1px solid var(--cc-border);background:var(--cc-white);color:var(--cc-dark);border-radius:4px;padding:0 6px;width:100%;box-sizing:border-box;}
+.cc-eq-subselect:focus{border-color:var(--cc-blue);outline:none;}
+.cc-eq-loading{font-size:11px;color:var(--cc-muted);font-style:italic;}
+.cc-eq-no-sub{font-size:11px;color:var(--cc-muted);font-style:italic;}
+.cc-eq-empty{font-size:11px;color:var(--cc-muted);padding:4px 2px;}
+
+/* --- Ported multi-link chips + modal (option-C ir-link-*/ir-modal-*, renamed cc-*) --- */
+.cc-link-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:6px 8px;border:1px solid var(--cc-border);border-radius:4px;background:var(--cc-bg);margin-top:8px;}
+.cc-link-chip{display:inline-flex;align-items:center;gap:5px;background:var(--cc-row-odd);border:1px solid var(--cc-border);border-radius:12px;padding:2px 6px 2px 9px;font-size:11px;font-weight:500;color:var(--cc-blue);}
+.cc-link-chip button{background:none;border:none;cursor:pointer;color:var(--cc-muted);padding:0;line-height:1;font-size:14px;display:flex;align-items:center;}
+.cc-link-chip button:hover{color:#E24B4A;}
+.cc-link-empty{font-size:11px;color:var(--cc-muted);padding:4px 2px;}
+.cc-link-label{font-size:11px;font-weight:600;color:var(--cc-mid);margin-bottom:5px;margin-top:8px;}
+.cc-link-results{border-collapse:collapse;width:100%;font-size:11px;}
+.cc-link-results th{background:var(--cc-blue);color:#fff;font-weight:500;padding:5px 8px;text-align:left;border-bottom:2px solid var(--cc-gold);}
+.cc-link-results td{padding:6px 8px;border-bottom:1px solid var(--cc-border);vertical-align:middle;}
+.cc-link-results tbody tr:hover td{background:var(--cc-row-odd);}
+.cc-link-no{font-family:var(--cc-sans);font-weight:600;color:var(--cc-blue);}
+.cc-link-muted{color:var(--cc-muted);}
+.cc-lvl{display:inline-block;font-size:10px;font-weight:700;border-radius:3px;padding:1px 5px;}
+.cc-lvl-0{background:#F3F4F6;color:#6B7280;} .cc-lvl-1{background:#E8F5EE;color:#0F6E4E;}
+.cc-lvl-2{background:#EAF2FB;color:#0C447C;} .cc-lvl-3{background:#FAEEDA;color:#854F0B;}
+.cc-lvl-4{background:#FCEBEB;color:#A32D2D;}
+.cc-modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.38);z-index:100000;display:none;align-items:center;justify-content:center;}
+.cc-modal-backdrop.open{display:flex;}
+.cc-modal-box{background:var(--cc-white);border-radius:10px;overflow:hidden;width:600px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,30,80,.20);}
+.cc-modal-head{background:var(--cc-blue);border-bottom:3px solid var(--cc-gold);padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex:none;}
+.cc-modal-head h4{font-size:13px;font-weight:600;color:#fff;margin:0;}
+.cc-modal-close{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:20px;line-height:1;padding:0;}
+.cc-modal-close:hover{color:var(--cc-gold);}
+.cc-modal-body{padding:14px 16px;flex:1;overflow-y:auto;}
+.cc-modal-foot{padding:11px 16px;border-top:1px solid var(--cc-border);background:var(--cc-bg);display:flex;align-items:center;justify-content:space-between;flex:none;}
+.cc-modal-sel-count{font-size:11px;color:var(--cc-mid);font-weight:600;}
+.cc-filter-tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;}
+.cc-filter-tab{font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;border:1px solid var(--cc-border);background:var(--cc-white);color:var(--cc-mid);cursor:pointer;}
+.cc-filter-tab.active{background:var(--cc-blue);color:#fff;border-color:var(--cc-blue);}
+.cc-result-scroll{max-height:240px;overflow-y:auto;border:1px solid var(--cc-border);border-radius:4px;}
+.cc-input{height:28px;font-size:12px;font-family:var(--cc-sans);border:1px solid var(--cc-border);background:#fff;color:var(--cc-dark);border-radius:4px;padding:0 8px;}
+.cc-editor-note{font-size:10px;color:var(--cc-muted);font-style:italic;margin-top:6px;}
 
 </style>
 
@@ -1583,7 +1728,7 @@ if(isset($_POST['search_incident_number'])){
 		$date=date("Y-m-d",strtotime($row['incident_date']));
 		$time=date("H:ia",strtotime($row['incident_date']));
 		
-		$$incident_time="";
+		$incident_time=date("Y-m-d H:ia",strtotime($row['incident_date']));
 		
 		$duration=$row['duration'];
 		$equipt=$row['equipt'];
@@ -1761,6 +1906,64 @@ if(isset($_POST['search_incident_number'])){
 			}
 		}
 
+		/* -- Read-back: multi-equipment (incident_equipment junction) --------
+		   Mirrors the write side in incident_report.php. Each row is one
+		   equipment item plus its own sub-item. Built into two parallel
+		   structures: $equipment_rows_display for the read-only property-sheet
+		   listing, and $existing_eq_pairs (equipt_id:subitem_id, comma-joined)
+		   to seed the editor's chips as pre-existing selections so the modal
+		   opens showing the current set rather than empty. ------------------- */
+		$equipment_rows_display="";
+		$existing_eq_pairs="";
+		$eqJoinSQL="select ie.equipt_id, ie.subitem_id, e.equipment_name, s.sub_item
+		            from incident_equipment ie
+		            left join equipment e on e.id=ie.equipt_id
+		            left join sub_item s on s.id=ie.subitem_id
+		            where ie.incident_id='".$incident_report."'
+		            order by e.equipment_name";
+		$eqJoinRS=$db->query($eqJoinSQL);
+		if($eqJoinRS){
+			$eqPairsArr=array();
+			while($eqRow=$eqJoinRS->fetch_assoc()){
+				$eqName=($eqRow['equipment_name']!==null && $eqRow['equipment_name']!=='')
+					? $eqRow['equipment_name'] : "(unnamed - id ".$eqRow['equipt_id'].")";
+				$subName=($eqRow['subitem_id']*1>0 && $eqRow['sub_item']!==null && $eqRow['sub_item']!=='')
+					? $eqRow['sub_item'] : "<span style='color:#8A95A6;font-style:italic'>none</span>";
+				$equipment_rows_display.="<tr><td>".$eqName."</td><td>".$subName."</td></tr>";
+				$eqPairsArr[]=$eqRow['equipt_id'].":".($eqRow['subitem_id']*1>0 ? $eqRow['subitem_id'] : "");
+			}
+			$existing_eq_pairs=implode(",",$eqPairsArr);
+		}
+
+		/* -- Read-back: multi-link (incident_linked_reports junction) --------
+		   $linked_rows_display lists each linked incident (each still a
+		   click-through to its own edit_ccdr). $existing_link_ids seeds the
+		   link editor's chips. Falls back to nothing extra here; the legacy
+		   single linked_to is still read separately above as $link_no. ------ */
+		$linked_rows_display="";
+		$existing_link_ids="";
+		$existing_link_labels="";
+		$linkJoinSQL="select ilr.linked_to, ir.incident_no
+		              from incident_linked_reports ilr
+		              left join incident_report ir on ir.id=ilr.linked_to
+		              where ilr.incident_id='".$incident_report."'
+		              order by ir.incident_no";
+		$linkJoinRS=$db->query($linkJoinSQL);
+		if($linkJoinRS){
+			$linkIdsArr=array();
+			$linkLabelsArr=array();
+			while($lnkRow=$linkJoinRS->fetch_assoc()){
+				$lnkNo=($lnkRow['incident_no']!==null && $lnkRow['incident_no']!=='')
+					? $lnkRow['incident_no'] : ("ID ".$lnkRow['linked_to']);
+				$linked_rows_display.="<div class='cc-linked-item'>See <a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$lnkRow['linked_to']."\",\"_blank\")'>".$lnkNo."</a></div>";
+				$linkIdsArr[]=$lnkRow['linked_to'];
+				$linkLabelsArr[]=$lnkNo;
+			}
+			$existing_link_ids=implode(",",$linkIdsArr);
+			/* JS-safe label list for seeding chips (pipe-delimited, matches ids order) */
+			$existing_link_labels=implode("|",$linkLabelsArr);
+		}
+
 		
 		
 		
@@ -1788,6 +1991,11 @@ if ($ULev>=2){
 } else {
 	$SRemove = "disabled";
 }
+/* Per-field Edit links use the pill treatment and, matching the decision
+   made for clearance_form.php, are always available regardless of $ULev.
+   The permission-gated $SRemove is still used elsewhere; $SRemove4 is the
+   always-on pill class for the property-sheet Edit links. */
+$SRemove4 = "cc-edit-pill";
 ?>
 
 <!-- table for Control -->
@@ -1795,7 +2003,7 @@ if ($ULev>=2){
 <div class="alink">
 
 <table width=70% class='ccdr'>
-<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Control Center Daily Report</th></tr>
+<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Incident Details</th></tr>
 <tr><th width=20%>Incident Number</th><td width=50%><?php echo $incident_no; ?></td><td align=center><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("incident_no")'>Edit</a></td>
 
 
@@ -1831,68 +2039,40 @@ if($level_condition=="3"){
 
 <td align="center"><a href='#edit_form' onclick='fillEdit("problem")'  class="<?php echo $SRemove; ?>">Edit</a></td></tr>
 
-<tr><th>On-board Equipt/Accessories</th>
-
-
-<td><?php echo $onboard_equipt; ?>
+<tr><th>Equipment Involved</th>
+<td>
 <?php
-echo $subClause; 
-?>
-
-<span style="visibility:hidden">
-<select name='equipment_copy' id='equipment_copy' hidden>
-<option></option>
-<?php 
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-$sql="select * from equipment order by equipment_name";
-$rs=$db->query($sql);
-$nm=$rs->num_rows;
-for($i=0;$i<$nm;$i++){
-$row=$rs->fetch_assoc();
-?>
-<option value='<?php echo $row['id']; ?>'><?php echo $row['equipment_name']; ?></option>
-<?php
+/* Multi-equipment read-back listing (incident_equipment). Replaces the
+   former single On-board Equipt display + legacy Additional Defects table.
+   Each row: equipment name + its sub-item. */
+if($equipment_rows_display!==""){
+	echo "<table class='cc-eq-list' width=90%>";
+	echo "<tr><th>Equipment</th><th>Sub-item</th></tr>";
+	echo $equipment_rows_display;
+	echo "</table>";
+} else {
+	echo "<span class='cc-none-note'>No equipment recorded</span>";
 }
 ?>
-<option value='others'>OTHERS</option>
-</select>
-</span>
 </td>
-<td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEquipt("onboard_equipt","<?php echo $problem_type2; ?>")'>Edit</a></td>
-</tr>
-<tr>
-<th>Additional Defects
-</th>
-<td>
-		<?php echo "<table name='multi_list2' id='multi_list2' width=80%>";
-		echo "<tr><th>Equipment</th><th>Sub-item</th></tr>";
-		?>
-		<?php	
-		echo $additional_defects;
-		echo "</table>";
-	
-		?>
-
-</td>
-<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("additional_defects")'>Edit</a></td>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccEqOpenEditor()'>Edit</a></td>
 </tr>
 
 
 <tr>
-<th>Linked Incident (?)</th>
+<th>Linked Incident(s)</th>
 <td>
 <?php
-if($link_no==""){
-}
-else {
-?>
-See <a href='#'  class="<?php echo $SRemove; ?>" onclick='window.open("edit_ccdr.php?ir=<?php echo $linked_to; ?>","_blank")'><?php echo $link_no; ?></a>
-
-<?php
+/* Multi-link read-back listing (incident_linked_reports). Replaces the
+   former single "Linked Incident (?)" row. */
+if($linked_rows_display!==""){
+	echo $linked_rows_display;
+} else {
+	echo "<span class='cc-none-note'>No linked incidents</span>";
 }
 ?>
 </td>
-<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("link_incident")'>Edit</a></td>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccLinkOpenEditor()'>Edit</a></td>
 </tr>
 <tr>
 <th>Index Number</th>
@@ -1942,10 +2122,8 @@ else {
 </tr>
 <tr><th>Level</th><td><?php echo $level; echo $levelClause; echo ". ".$condition; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("level")'>Edit</a></td></tr>
 
-
-
-<tr><th>Date</th><td><?php echo $date; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
-<tr><th>Time</th><td><?php echo $time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
+<tr><th>Incident Date/Time</th><td><?php echo $incident_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
+<tr><th>Time Resolved</th><td>&nbsp;</td></tr>
 <tr><th>Incident Duration</th><td><?php echo $duration; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("duration")'>Edit</a></td></tr>
 
 <tr><th>Location/Direction</th><td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
@@ -1977,7 +2155,7 @@ else {
 <table  class='ccdr' width=70% border=1>
 <tr id='ccdr_heading'><th colspan=3 style=text-align:center>Action Taken</th></tr>
 <tr><th width=20%>DOTR</th><td width=50%><?php echo $dotc_action; ?></td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("dotc")'>Edit</a></td></tr>
-<tr><th>Maintenance Provider</th><td><?php echo $maintenance_action; ?></td><td align="center">&nbsp;</td></tr>
+<tr><th>Maintenance Provider (TESP/Other)</th><td><?php echo $maintenance_action; ?></td><td align="center">&nbsp;</td></tr>
 
 </table>
 <br>
@@ -2013,10 +2191,32 @@ else {
 				<table id='edit_table' name='edit_table' width=80%>	
 				</table>
 				<table width=80%>
-				<tr><th width=20%>Incident ID</th><td><input type="Text" id='incident_report' name='incident_report' value='<?php echo $incident_report; ?>' disabled/></td></tr> 
+				<!-- Incident reference: shown as static read-only text (the user
+				     never edits it), with the actual id carried in ONE hidden
+				     input. Replaces the previous disabled text input (which the
+				     browser never submits) plus a parallel hidden inc_report --
+				     the save handler reads inc_report, so that single hidden
+				     field below is the one authoritative source now.
+
+				     id='incident_report' is kept on this hidden input (even
+				     though the visible display above no longer uses that id)
+				     because fillEdit()'s "index" branch -- used by both Index
+				     Number and Car Numbers -- and its "additional_defects"
+				     branch call document.getElementById('incident_report').value
+				     to fetch the id before an AJAX call. Without the id here,
+				     that lookup returns null and throws, which silently aborts
+				     fillEdit() before it ever reaches $('#addModal').modal('show'),
+				     so the modal never opens -- exactly the "Index/Car edit
+				     doesn't work" symptom. Keeping the id on this element (now
+				     the sole authoritative source) fixes it with no JS changes. -->
+				<tr><th width=20%>Incident</th><td>
+					<span style="font-weight:600;color:var(--cc-blue);"><?php echo $incident_no; ?></span>
+					<span style="color:var(--cc-muted);font-size:11px;margin-left:6px;">(ID <?php echo $incident_report; ?>)</span>
+				</td></tr> 
 				</table>
 				<br>
-				<div align=left><font color=white>| | | | | | | | | | | | | | | | | | | |</font><input type="hidden" name='fieldType' id='fieldType' /> <input type="hidden" name="inc_report" value='<?php echo $incident_report?>' /> </div>
+				<input type="hidden" name='fieldType' id='fieldType' />
+				<input type="hidden" name="inc_report" id="incident_report" value='<?php echo $incident_report; ?>' />
 
 
 				
@@ -2029,6 +2229,98 @@ else {
 			  </form>
 		</div>
 
+<!-- ----------- Multi-equipment editor (ported from incident_report option-C) ----------- -->
+<div class="cc-modal-backdrop" id="cc-eq-modal">
+	<div class="cc-modal-box">
+		<div class="cc-modal-head">
+			<h4>Edit Equipment Involved</h4>
+			<button class="cc-modal-close" type="button" onclick="ccEqCloseEditor()">&times;</button>
+		</div>
+		<form id='cc-eq-form' action='edit_ccdr.php?ir=<?php echo $incident_report; ?>' method='post'>
+		<div class="cc-modal-body">
+			<div style="display:flex;gap:7px;margin-bottom:6px;">
+				<input type='text' class="cc-input" id='cc-eq-search-input' style="flex:1"
+					placeholder="Search equipment..." oninput='ccEqFilterInput(this.value)' autocomplete="off" />
+				<input type='button' value='Browse' onclick='ccEqTogglePanel()' />
+			</div>
+			<div class="cc-eq-panel" id="cc-eq-panel" style="display:none;">
+				<div class="cc-eq-panel-head">Tick equipment to add, then click Add Selected</div>
+				<div class="cc-eq-panel-body" id="cc-eq-list"></div>
+				<div class="cc-eq-panel-foot">
+					<input type='button' value='Cancel' onclick='document.getElementById("cc-eq-panel").style.display="none"' />
+					<input type='button' value='Add selected ?' onclick='ccEqAddSelected()'
+						style="background:var(--cc-blue);color:#fff;border-color:var(--cc-blue);" />
+				</div>
+			</div>
+			<div class="cc-link-label">Selected equipment (each with its own sub-item)</div>
+			<div class="cc-eq-chips" id="cc-eq-chips">
+				<span class="cc-eq-empty">No equipment selected</span>
+			</div>
+			<input type='hidden' name='equipment_ids' id='cc-eq-ids-hidden' value=''>
+			<input type='hidden' name='fieldType' value='equipment_multi'>
+			<input type='hidden' name='inc_report' value='<?php echo $incident_report; ?>'>
+			<div class="cc-editor-note">Saving replaces the incident's full equipment set with the list above.</div>
+		</div>
+		<div class="cc-modal-foot">
+			<span class="cc-modal-sel-count" id="cc-eq-sel-note">&nbsp;</span>
+			<div style="display:flex;gap:8px;">
+				<input type='button' value='Cancel' onclick='ccEqCloseEditor()' />
+				<button type='submit' class="btn btn-primary" style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Save equipment</button>
+			</div>
+		</div>
+		</form>
+	</div>
+</div>
+
+<!-- ----------- Multi-link editor (ported from incident_report option-C) ----------- -->
+<div class="cc-modal-backdrop" id="cc-link-modal">
+	<div class="cc-modal-box">
+		<div class="cc-modal-head">
+			<h4>Edit Linked Incident Report(s)</h4>
+			<button class="cc-modal-close" type="button" onclick="ccLinkCloseEditor()">&times;</button>
+		</div>
+		<form id='cc-link-form' action='edit_ccdr.php?ir=<?php echo $incident_report; ?>' method='post'>
+		<div class="cc-modal-body">
+			<div style="display:flex;gap:7px;margin-bottom:8px;">
+				<input type='text' id='cc-link-search-input' class="cc-input" style="flex:1"
+					placeholder="Search by incident no., type..." oninput='ccLinkFilterSearch(this.value)' autocomplete="off" />
+				<input type='button' value='Clear' onclick='document.getElementById("cc-link-search-input").value="";ccLinkFilterSearch("")' />
+			</div>
+			<div class="cc-filter-tabs" id="cc-link-tabs">
+				<button class="cc-filter-tab active" type="button" onclick="ccLinkSetTab(this,'today')">Today</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'all')">All (date desc)</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'rolling')">Rolling Stock</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'power')">Power</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'l3')">Level 3+</button>
+			</div>
+			<div class="cc-result-scroll">
+				<table class="cc-link-results">
+					<thead><tr>
+						<th style="width:28px"></th><th>Incident No.</th><th>Type</th><th>Lvl</th><th>Date</th><th>Index</th>
+					</tr></thead>
+					<tbody id="cc-link-tbody"></tbody>
+				</table>
+			</div>
+			<div class="cc-link-label">Currently linked</div>
+			<div class="cc-link-chips" id="cc-link-chips">
+				<span class="cc-link-empty">No incidents linked yet</span>
+			</div>
+			<input type='hidden' name='incident_links' id='cc-link-ids-hidden' value=''>
+			<input type='hidden' name='fieldType' value='link_multi'>
+			<input type='hidden' name='inc_report' value='<?php echo $incident_report; ?>'>
+			<div class="cc-editor-note">Saving replaces the incident's full linked-incident set with the list above.</div>
+		</div>
+		<div class="cc-modal-foot">
+			<span class="cc-modal-sel-count" id="cc-link-sel-count">0 selected</span>
+			<div style="display:flex;gap:8px;">
+				<input type='button' value='Cancel' onclick='ccLinkCloseEditor()' />
+				<button type='submit' class="btn btn-primary" style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Save links</button>
+			</div>
+		</div>
+		</form>
+	</div>
+</div>
+
 
 
 <?php	
@@ -2039,6 +2331,406 @@ if(isset($_POST['submit'])){
 	}
 }
 	?>
+
+<!-- --- Multi-equipment / multi-link editor bootstrap (seed data + logic) --- -->
+<script type="text/javascript">
+/* PHP-emitted seed data: the incident's existing junction-table rows, so the
+   editors open pre-populated with the current set rather than empty. */
+var ccSelfIncidentId = '<?php echo (int)$incident_report; ?>';
+var ccExistingEqPairs = '<?php echo isset($existing_eq_pairs) ? $existing_eq_pairs : ""; ?>';
+var ccExistingLinks = '<?php echo isset($existing_link_ids) ? $existing_link_ids : ""; ?>';
+var ccExistingLinkLabels = <?php echo isset($existing_link_labels) ? json_encode($existing_link_labels) : "''"; ?>;
+/* Equipment display names keyed by id, so seeded chips show real names.
+   Built from the same incident_equipment read-back. */
+var ccExistingEqNames = {};
+<?php
+if(isset($existing_eq_pairs) && $existing_eq_pairs!==""){
+    $seedDb = new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+    foreach(explode(",",$existing_eq_pairs) as $seedPair){
+        $seedParts = explode(":",$seedPair);
+        $seedEqId = (int)$seedParts[0];
+        if($seedEqId<=0) continue;
+        $seedRs = $seedDb->query("select equipment_name from equipment where id='".$seedEqId."' limit 1");
+        $seedRow = $seedRs ? $seedRs->fetch_assoc() : null;
+        $seedName = ($seedRow && $seedRow['equipment_name']!=="") ? $seedRow['equipment_name'] : ("Equipment ".$seedEqId);
+        echo "ccExistingEqNames['".$seedEqId."'] = ".json_encode($seedName).";
+";
+    }
+}
+?>
+</script>
+<script type="text/javascript">
+/* -----------------------------------------------------------------------
+   edit_ccdr - multi-equipment & multi-link EDITORS
+   Ported from incident_report.php (option C), with two edit-side additions
+   the create side never needed:
+     1. cc-prefixed identifiers, so nothing collides with the many existing
+        functions/ids already in edit_ccdr.php (fillEdit, fillEquipt, etc).
+     2. Openers that PRE-SEED chips from the incident's existing junction-
+        table rows (emitted by PHP into ccExistingEqPairs / ccExistingLinks
+        below), so each editor opens showing the current set, not empty.
+   The picker/search/subitem mechanics themselves are unchanged from the
+   verified option-C source, including the serialized sub-item queue and
+   the well-formedness diagnostics.
+   ----------------------------------------------------------------------- */
+
+/* -- MULTI-EQUIPMENT --------------------------------------------------- */
+var ccEqSelected={};
+var ccEqLinked={};          /* id ? equipment name */
+var ccEqSubItemChoice={};   /* id ? chosen subitem_id ('' if none yet) */
+var ccEqPendingQueue=[];    /* FIFO of equipt_ids whose scrollSubItem fetch is in flight */
+var ccEqSearchResults=[];
+var ccEqSearchCallback=null;
+var ccEqSeeded=false;       /* seed existing rows only once per page load */
+
+function ccEqOpenEditor(){
+	document.getElementById('cc-eq-modal').classList.add('open');
+	if(!ccEqSeeded){
+		ccEqSeedExisting();
+		ccEqSeeded=true;
+	}
+}
+function ccEqCloseEditor(){
+	document.getElementById('cc-eq-modal').classList.remove('open');
+}
+
+/* Seed chips from PHP-emitted existing pairs "equipt_id:subitem_id,...".
+   Each seeded chip fetches its sub-item list (so the dropdown is populated)
+   and then its previously-saved sub-item is re-selected once that list
+   arrives (handled in ccEqRenderSubItemSelect via ccEqSubItemChoice). */
+function ccEqSeedExisting(){
+	if(typeof ccExistingEqPairs==='undefined' || !ccExistingEqPairs) return;
+	var pairs=ccExistingEqPairs.split(',');
+	var ids=[];
+	pairs.forEach(function(pair){
+		pair=pair.trim(); if(pair==='') return;
+		var parts=pair.split(':');
+		var eqId=String(parseInt(parts[0],10));
+		if(!eqId || eqId==='NaN') return;
+		var subId=(parts.length>1)?parts[1]:'';
+		var label=(typeof ccExistingEqNames!=='undefined' && ccExistingEqNames[eqId])
+			? ccExistingEqNames[eqId] : ('Equipment '+eqId);
+		ccEqLinked[eqId]=label;
+		ccEqSubItemChoice[eqId]=subId; /* remember prior choice; applied on render */
+		ccEqRenderChip(eqId,label);
+		ids.push(eqId);
+	});
+	ccEqSyncHidden();
+	ccEqPendingQueue=ids.slice();
+	ccEqFetchNextInQueue();
+}
+
+function ccEqSearch(q,cb){
+	ccEqSearchCallback=cb;
+	makeajax("processing.php?searchEquipment="+encodeURIComponent(q),"ccEqSearchResponse");
+}
+
+function ccEqSearchResponse(ajaxHTML){
+	var results=[];
+	var looksWellFormed = (ajaxHTML==="No data available") || (ajaxHTML==="") ||
+		(/^(\d+;[^;]*;[^;]*==>)+$/.test(ajaxHTML));
+	if(!looksWellFormed){
+		console.error('[ccEqSearchResponse] Unexpected response from processing.php?searchEquipment=. Raw:');
+		console.error(ajaxHTML);
+		var escaped=String(ajaxHTML).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+		document.getElementById('cc-eq-list').innerHTML=
+			'<div style="padding:9px 11px;font-size:11px;color:#A32D2D;line-height:1.5;">'
+			+'<strong>Equipment search did not return usable data.</strong><br>'
+			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;padding:8px;'
+			+'margin-top:6px;white-space:pre-wrap;word-break:break-word;font-family:monospace;'
+			+'font-size:11px;color:#7A1F1F;max-height:160px;overflow-y:auto;">'
+			+(escaped===''?'(empty response)':escaped)+'</pre></div>';
+		ccEqSearchResults=[];
+		return;
+	}
+	if(ajaxHTML!=="No data available" && ajaxHTML!==""){
+		var rows=ajaxHTML.split("==>");
+		var count=rows.length-1;
+		for(var n=0;n<count;n++){
+			var parts=rows[n].split(";");
+			if(!parts[0] || isNaN(parseInt(parts[0],10))){
+				console.warn('[ccEqSearchResponse] Skipping row with non-numeric id:',rows[n]);
+				continue;
+			}
+			results.push({id:parts[0],name:parts[1]||'',category:parts[2]||""});
+		}
+	}
+	ccEqSearchResults=results;
+	if(ccEqSearchCallback) ccEqSearchCallback(results);
+}
+
+function ccEqTogglePanel(){
+	var p=document.getElementById('cc-eq-panel');
+	var open=p.style.display!=='none';
+	p.style.display=open?'none':'block';
+	if(!open){ ccEqSearch('',ccEqRenderList); }
+}
+function ccEqFilterInput(q){
+	ccEqSearch(q,ccEqRenderList);
+	document.getElementById('cc-eq-panel').style.display='block';
+}
+function ccEqRenderList(data){
+	var html='';
+	data.forEach(function(r){
+		var chk=ccEqSelected[String(r.id)]?'checked':'';
+		var displayName=r.name && r.name.trim()!==''?r.name:'(unnamed - id '+r.id+')';
+		var displayNameEsc=displayName.replace(/'/g,"\\'");
+		html+='<label class="cc-eq-cb-row">'
+			+'<input type="checkbox" value="'+r.id+'" '+chk
+			+' onchange="ccEqToggle(\''+r.id+'\',\''+displayNameEsc+'\',this.checked)">'
+			+'<span class="cc-eq-name"'+(displayName.indexOf('unnamed')>=0?' style="color:var(--cc-muted);font-style:italic;"':'')+'>'+displayName+'</span>'
+			+'<span class="cc-eq-cat">'+r.category+'</span>'
+			+'</label>';
+	});
+	document.getElementById('cc-eq-list').innerHTML=html||
+		'<div style="padding:9px 11px;font-size:11px;color:var(--cc-muted)">No matches</div>';
+}
+function ccEqToggle(id,name,checked){
+	id=String(id);
+	if(checked) ccEqSelected[id]=name; else delete ccEqSelected[id];
+}
+function ccEqAddSelected(){
+	var ids=Object.keys(ccEqSelected);
+	ids.forEach(function(id){ ccEqAddChip(id,ccEqSelected[id]); });
+	document.getElementById('cc-eq-panel').style.display='none';
+	ccEqSelected={};
+	ccEqPendingQueue=ccEqPendingQueue.concat(ids);
+	if(ccEqPendingQueue.length===ids.length) ccEqFetchNextInQueue();
+}
+function ccEqFetchNextInQueue(){
+	if(ccEqPendingQueue.length===0) return;
+	var id=ccEqPendingQueue[0]; /* peek; response shifts */
+	makeajax("processing.php?scrollSubItem="+id,"ccEqSubItemResponse");
+}
+function ccEqAddChip(id,label){
+	id=String(id);
+	if(ccEqLinked[id]) return;
+	ccEqLinked[id]=label;
+	if(ccEqSubItemChoice[id]===undefined) ccEqSubItemChoice[id]='';
+	ccEqRenderChip(id,label);
+	ccEqSyncHidden();
+}
+/* DOM-only chip render, shared by seed + add so both look identical */
+function ccEqRenderChip(id,label){
+	var chips=document.getElementById('cc-eq-chips');
+	var empty=chips.querySelector('.cc-eq-empty');
+	if(empty) chips.removeChild(empty);
+	if(document.getElementById('cc-eq-card-'+id)) return;
+	var card=document.createElement('div');
+	card.className='cc-eq-card'; card.id='cc-eq-card-'+id;
+	card.innerHTML=
+		'<div class="cc-eq-card-head">'
+			+'<span class="cc-eq-card-name">'+label+'</span>'
+			+'<button type="button" onclick="ccEqRemoveChip(\''+id+'\')" title="Remove">&times;</button>'
+		+'</div>'
+		+'<div class="cc-eq-card-sub" id="cc-eq-sub-'+id+'">'
+			+'<span class="cc-eq-loading">Loading sub-items...</span>'
+		+'</div>';
+	chips.appendChild(card);
+}
+function ccEqSubItemResponse(ajaxHTML){
+	var id=ccEqPendingQueue.shift();
+	if(id===undefined) return;
+	ccEqRenderSubItemSelect(id,ajaxHTML);
+	ccEqFetchNextInQueue();
+}
+function ccEqRenderSubItemSelect(id,ajaxHTML){
+	var target=document.getElementById('cc-eq-sub-'+id);
+	if(!target) return;
+	var looksWellFormed = (ajaxHTML==="No data available") || (ajaxHTML==="") ||
+		(/^(\d+;[^;]*==>)+$/.test(ajaxHTML));
+	var html;
+	if(!looksWellFormed){
+		console.error('[ccEqRenderSubItemSelect] Unexpected scrollSubItem response for '+id+'. Raw:');
+		console.error(ajaxHTML);
+		var escapedSub=String(ajaxHTML).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+		html='<div style="color:#A32D2D;font-size:11px;line-height:1.5;">Could not load sub-items:'
+			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;padding:6px;'
+			+'margin-top:4px;white-space:pre-wrap;word-break:break-word;font-family:monospace;'
+			+'font-size:10px;color:#7A1F1F;max-height:120px;overflow-y:auto;">'
+			+(escapedSub===''?'(empty response)':escapedSub)+'</pre></div>';
+	} else if(ajaxHTML==="No data available" || ajaxHTML===""){
+		html='<span class="cc-eq-no-sub">No sub-items for this equipment</span>';
+	} else {
+		var rows=ajaxHTML.split("==>");
+		var count=rows.length-1;
+		var prior=String(ccEqSubItemChoice[String(id)]||'');
+		html='<select class="cc-eq-subselect" onchange="ccEqSetSubItem(\''+id+'\',this.value)">'
+			+'<option value="">Select sub-item...</option>';
+		for(var n=0;n<count;n++){
+			var parts=rows[n].split(";");
+			var sel=(String(parts[0])===prior && prior!=='')?' selected':'';
+			html+='<option value="'+parts[0]+'"'+sel+'>'+(parts[1]||'(unnamed)')+'</option>';
+		}
+		html+='</select>';
+	}
+	target.innerHTML=html;
+}
+function ccEqSetSubItem(id,subitemId){
+	ccEqSubItemChoice[String(id)]=subitemId;
+	ccEqSyncHidden();
+}
+function ccEqRemoveChip(id){
+	id=String(id);
+	var el=document.getElementById('cc-eq-card-'+id);
+	if(el) el.remove();
+	delete ccEqLinked[id];
+	delete ccEqSubItemChoice[id];
+	var chips=document.getElementById('cc-eq-chips');
+	if(!chips.querySelector('.cc-eq-card'))
+		chips.innerHTML='<span class="cc-eq-empty">No equipment selected</span>';
+	ccEqSyncHidden();
+}
+function ccEqSyncHidden(){
+	var pairs=Object.keys(ccEqLinked).map(function(id){
+		return id+":"+(ccEqSubItemChoice[id]||'');
+	});
+	document.getElementById('cc-eq-ids-hidden').value=pairs.join(',');
+}
+
+/* -- MULTI-LINK -------------------------------------------------------- */
+var ccLinkSelected={};
+var ccLinked={};            /* id ? incident_no label */
+var ccLinkTabFilter='today';
+var ccLinkSearchCallback=null;
+var ccLinkSeeded=false;
+
+function ccLinkOpenEditor(){
+	document.getElementById('cc-link-modal').classList.add('open');
+	ccLinkTabFilter='today';
+	document.querySelectorAll('#cc-link-modal .cc-filter-tab').forEach(function(t){t.classList.remove('active');});
+	document.querySelector('#cc-link-modal .cc-filter-tab').classList.add('active');
+	document.getElementById('cc-link-search-input').value='';
+	if(!ccLinkSeeded){
+		ccLinkSeedExisting();
+		ccLinkSeeded=true;
+	}
+	ccLinkFilterSearch('');
+}
+function ccLinkCloseEditor(){
+	document.getElementById('cc-link-modal').classList.remove('open');
+}
+/* Seed chips from PHP-emitted existing ids + pipe-delimited labels */
+function ccLinkSeedExisting(){
+	if(typeof ccExistingLinks==='undefined' || !ccExistingLinks) return;
+	var ids=ccExistingLinks.split(',');
+	var labels=(typeof ccExistingLinkLabels!=='undefined' && ccExistingLinkLabels)
+		? ccExistingLinkLabels.split('|') : [];
+	ids.forEach(function(id,i){
+		id=String(parseInt(id,10)); if(!id || id==='NaN') return;
+		var label=labels[i]||('ID '+id);
+		ccLinkAddChip(id,label);
+	});
+}
+function ccLinkSearchIncidents(q,cb){
+	ccLinkSearchCallback=cb;
+	var scope=(ccLinkTabFilter==='all')?'all':'today';
+	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope,"ccLinkSearchResponse");
+}
+function ccLinkSearchResponse(ajaxHTML){
+	var results=[];
+	if(ajaxHTML!=="No data available" && ajaxHTML!==""){
+		var rows=ajaxHTML.split("==>");
+		var count=rows.length-1;
+		for(var n=0;n<count;n++){
+			var parts=rows[n].split(";");
+			results.push({id:parts[0],no:parts[1],type:parts[2],
+				level:parseInt(parts[3],10)||0,date:parts[4],index_no:parts[5]||"",description:""});
+		}
+	}
+	if(ccLinkSearchCallback) ccLinkSearchCallback(results);
+}
+function ccLinkSetTab(btn,key){
+	document.querySelectorAll('#cc-link-modal .cc-filter-tab').forEach(function(t){t.classList.remove('active');});
+	btn.classList.add('active');
+	ccLinkTabFilter=key;
+	ccLinkFilterSearch(document.getElementById('cc-link-search-input').value);
+}
+function ccLinkFilterSearch(q){
+	ccLinkSearchIncidents(q,function(data){
+		var filtered=data.filter(function(r){
+			if(ccLinkTabFilter==='today'||ccLinkTabFilter==='all') return true;
+			if(ccLinkTabFilter==='l3') return r.level>=3;
+			return r.type.toLowerCase().indexOf(ccLinkTabFilter)>=0;
+		});
+		ccLinkRenderResults(filtered);
+	});
+}
+function ccLinkLvlBadge(l){ return '<span class="cc-lvl cc-lvl-'+l+'">L'+l+'</span>'; }
+function ccLinkRenderResults(data){
+	var html='';
+	var selfId=(typeof ccSelfIncidentId!=='undefined')?String(ccSelfIncidentId):'';
+	data.forEach(function(r){
+		if(selfId!=='' && String(r.id)===selfId) return; /* never offer to link an incident to itself */
+		var chk=(ccLinked[String(r.id)]||ccLinkSelected[String(r.id)])?'checked':'';
+		html+='<tr>'
+			+'<td style="width:28px"><input type="checkbox" value="'+r.id+'" '+chk
+			+" onchange=\"ccLinkToggle('"+r.id+"','"+r.no+"',this.checked)\""
+			+' style="accent-color:var(--cc-blue)"></td>'
+			+'<td class="cc-link-no">'+r.no+'</td>'
+			+'<td>'+r.type+'</td>'
+			+'<td>'+ccLinkLvlBadge(r.level)+'</td>'
+			+'<td class="cc-link-muted" style="white-space:nowrap">'+r.date+'</td>'
+			+'<td class="cc-link-no" style="font-size:10px">'+(r.index_no||'-')+'</td>'
+			+'</tr>';
+	});
+	document.getElementById('cc-link-tbody').innerHTML=html||
+		'<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--cc-muted)">No matches</td></tr>';
+}
+function ccLinkToggle(id,no,checked){
+	id=String(id);
+	if(checked){
+		ccLinkSelected[id]=no;
+		ccLinkAddChip(id,no);      /* reflect into chips + hidden field immediately */
+	} else {
+		delete ccLinkSelected[id];
+		ccLinkRemoveChip(id);
+	}
+	ccLinkUpdateCount();
+}
+function ccLinkUpdateCount(){
+	var n=Object.keys(ccLinked).length; /* chips are the source of truth */
+	document.getElementById('cc-link-sel-count').textContent=n+' linked';
+}
+function ccLinkAddChip(id,label){
+	id=String(id);
+	if(ccLinked[id]) return;
+	ccLinked[id]=label;
+	var chips=document.getElementById('cc-link-chips');
+	var empty=chips.querySelector('.cc-link-empty');
+	if(empty) chips.removeChild(empty);
+	var chip=document.createElement('span');
+	chip.className='cc-link-chip'; chip.id='cc-link-chip-'+id;
+	chip.innerHTML=label+"<button type=\"button\" onclick=\"ccLinkRemoveChip('"+id+"')\" title=\"Remove\">&times;</button>";
+	chips.appendChild(chip);
+	ccLinkSyncHidden();
+}
+function ccLinkRemoveChip(id){
+	id=String(id);
+	var el=document.getElementById('cc-link-chip-'+id);
+	if(el) el.remove();
+	delete ccLinked[id];
+	delete ccLinkSelected[id];
+	/* untick the matching checkbox if it's currently rendered in the results */
+	var cb=document.querySelector('#cc-link-tbody input[type=checkbox][value="'+id+'"]');
+	if(cb) cb.checked=false;
+	var chips=document.getElementById('cc-link-chips');
+	if(!chips.querySelector('.cc-link-chip'))
+		chips.innerHTML='<span class="cc-link-empty">No incidents linked yet</span>';
+	ccLinkSyncHidden();
+	ccLinkUpdateCount();
+}
+function ccLinkSyncHidden(){
+	document.getElementById('cc-link-ids-hidden').value=Object.keys(ccLinked).join(',');
+}
+
+/* Backdrop-click + Esc close for both editors */
+document.getElementById('cc-eq-modal').addEventListener('click',function(e){ if(e.target===this) ccEqCloseEditor(); });
+document.getElementById('cc-link-modal').addEventListener('click',function(e){ if(e.target===this) ccLinkCloseEditor(); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ ccEqCloseEditor(); ccLinkCloseEditor(); } });
+
+</script>
+
 </body>
 	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
 		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	

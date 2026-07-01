@@ -243,13 +243,13 @@ body { height: 100%; overflow: hidden; }
 
 
 <ul id="navMenu" >
-  <li><a href="#">Control Center Report</a>
+  <li><a href="#">Incident Report</a>
   
   	<ul>
-		<li><a href='incident report.php' id='dr'>Daily Report</a></li>		
-		<li><a href='edit_ccdr.php' id='dr1' >Edit CCDR</a></li>
+		<li><a href='incident report.php' id='dr'>Record Incident</a></li>		
+		<li><a href='edit_ccdr.php' id='dr1' >Edit Incident Details</a></li>
+		<li><a href='incident summary.php' id='dr3'>Daily Incident Summary</a></li>		
 		<li><a href='ccdr_summary.php' id='dr2'>CCDR Summary</a></li>
-		<li><a href='incident summary.php' id='dr3'>View Daily Incident Summary</a></li>		
 		
 	</ul>
 	</li>

@@ -1311,7 +1311,7 @@ document.addEventListener('keydown',function(e){
 	<!-- Page header -->
 	<div class="ir-page-header">
 		<span class="ir-wordmark">LINE 3</span>
-		<h1>Incident Report</h1>
+		<h1>Record Incident</h1>
 		<span class="ir-context">
 			<?php if(isset($_GET['cancel'])){ echo "Cancelled departure"; } elseif(isset($_GET['add_incident'])){ echo "Add incident to train"; } ?>
 		</span>
