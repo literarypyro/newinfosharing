@@ -42,113 +42,105 @@ table { border-collapse: collapse; }
 /* -- Page chrome (outside .ta-grid, kept minimal) -- */
 body { font-family: var(--cf-sans); color: var(--cf-dark); }
 
-/* Workaround for Tmenu_2.php's #navMenu: every <li> and <a> inside it is
-   float:left with nothing clearing the float afterward, so the <ul> itself
-   collapses to zero height. The page's original three manual <br> tags
-   were almost certainly hand-compensating for that collapse rather than
-   fixing it. Since Tmenu_2.php is shared across other pages and shouldn't
-   be edited here, this clearfix is scoped to #navMenu specifically and
-   only restores the height the float collapse was removing -- it changes
-   nothing for any float that's already cleared elsewhere, so it's a safe,
-   page-local fix rather than a shared-file edit. */
-#navMenu::after {
-	content: "";
-	display: table;
-	clear: both;
-}
+/* #navMenu's layout (previously a float-collapsed list needing a local
+   clearfix workaround here) is now fixed directly in Tmenu_2.php as a
+   proper flex row (Option B: menu below the header band) -- no local
+   workaround needed on this page anymore. */
 
-/* Second, separate header block, now confirmed from reading the actual
-   trans_menu_2.php (required by Tmenu_2.php at its very top, before
-   #navMenu is even output). This block renders BEFORE the nav menu:
-   a .header-wrapper div containing a full-width <table class='exception'>
-   with a 100px-tall logo image, followed by a second full-width <table>
-   for the "Log Out" link and "Hello, {name}!" greeting. Neither table has
-   compact sizing or margin-collapse control, and this is a wholly
-   different source of vertical space than #navMenu's float-collapse --
-   the earlier clearfix never touched it because it's a separate element
-   entirely. This tightens that block's own spacing without altering
-   trans_menu_2.php or Tmenu_2.php, both of which are shared elsewhere. */
-.header-wrapper table.exception {
-	margin-bottom: 0 !important;
-}
-.header-wrapper table.exception td {
-	padding: 4px 8px !important;
-}
-.header-wrapper table.exception img {
-	height: 56px !important; /* the source markup hardcodes height="100" on the <img> itself,
-	                              which HTML attribute height takes priority over CSS in some
-	                              browsers for replaced elements; this override still reduces
-	                              the visual footprint where the browser does respect it */
-}
-.header-wrapper table:not(.exception) {
-	margin: 0 !important;
-}
-.header-wrapper table:not(.exception) td {
-	padding: 2px 8px !important;
-}
-.header-wrapper h0 {
-	font-size: 22px !important; /* the source sets a large custom h0 size via
-	                                 inline style attribute in trans_menu_2.php's
-	                                 own <style>; this brings it back in line so
-	                                 the header band doesn't need as much height
-	                                 to contain it */
-	line-height: 1.3 !important;
-}
+/* The header-wrapper spacing and #navMenu layout (Option B: menu as its
+   own row below the header band) are now fixed at the source, in
+   trans_menu_2.php and Tmenu_2.php respectively -- both shared across
+   clearance_form.php, edit_ccdr.php, incident_report.php, and
+   train_availability.php, so the fix applies to all four instead of
+   four separate local copies that can drift out of sync (exactly what
+   produced the left:40px vs left:0 / width:55% vs width:100%
+   inconsistencies found between the existing Tmenu/Tmenu_2 and trans
+   menu/trans menu_2 file pairs). No local override needed here. */
 
-/* -- Toolbar (search date / retrieve / add / printout) -- */
-.ta-grid.ta-console .cf-toolbar {
+/* -- Toolbar: single row matching train_availability.php's layout --
+   date display (left) / search+Go (center) / action buttons (right),
+   all in one table row instead of two stacked blocks. Colors reuse the
+   same --cf-blue/--cf-gold tokens train_availability.php hardcodes as
+   #00529B/#FDB813, so the two pages stay visually identical. */
+.ta-grid.ta-console .cf-toolbar-table {
+	width: 100% !important;
 	background: var(--cf-blue) !important;
 	border-bottom: 3px solid var(--cf-gold) !important;
-	padding: 10px 16px !important;
+	border-collapse: collapse !important;
 	border-radius: 8px 8px 0 0 !important;
-	display: flex !important;
-	align-items: center !important;
-	gap: 10px;
-	flex-wrap: wrap;
+	overflow: hidden;
 }
-.ta-grid.ta-console .cf-toolbar input[type="text"] {
-	height: 28px !important;
+.ta-grid.ta-console .cf-toolbar-table td {
+	padding: 8px 14px !important;
+	vertical-align: middle !important;
+	border: none !important;
+	white-space: nowrap !important;
+}
+.ta-grid.ta-console .cf-td-date { width: 1%; }
+.ta-grid.ta-console .cf-date-label { font-size: 15px; font-weight: 700; color: #fff; }
+.ta-grid.ta-console .cf-date-day   { font-size: 11px; color: rgba(255,255,255,.6); margin-left: 8px; }
+.ta-grid.ta-console .cf-td-search  { text-align: center; }
+.ta-grid.ta-console .cf-td-actions {
+	text-align: right;
+	white-space: normal !important; /* override the global nowrap on toolbar
+		cells -- degrade to two lines instead of clipping "+ Add New Entry"
+		off past the edge when the row runs short on horizontal space */
+}
+.ta-grid.ta-console .cf-tbtn { margin-top: 3px !important; }
+.ta-grid.ta-console .cf-toolbar-table input[type="text"] {
+	height: 26px !important;
 	font-size: 12px !important;
 	font-weight: 400 !important;
 	font-family: var(--cf-sans) !important;
-	border: 1px solid var(--cf-border) !important;
 	background: var(--cf-white) !important;
 	color: var(--cf-dark) !important;
+	border: 1px solid rgba(255,255,255,.5) !important;
 	border-radius: 4px !important;
-	padding: 0 8px !important;
+	padding: 0 7px !important;
+	width: 120px !important;
+	vertical-align: middle !important;
 }
-.ta-grid.ta-console .cf-toolbar input[type="submit"] {
-	height: 28px !important;
+.ta-grid.ta-console .cf-toolbar-table input[type="submit"] {
+	height: 26px !important;
 	font-size: 11px !important;
-	font-weight: 600 !important;
+	font-weight: 700 !important;
 	font-family: var(--cf-sans) !important;
 	background: var(--cf-gold) !important;
 	color: #3A2D00 !important;
 	border: none !important;
 	border-radius: 4px !important;
-	padding: 0 14px !important;
+	padding: 0 12px !important;
 	cursor: pointer !important;
+	vertical-align: middle !important;
+	margin-left: 4px !important;
 }
-.ta-grid.ta-console .cf-toolbar input[type="submit"]:hover { background: #E5A50F !important; }
+.ta-grid.ta-console .cf-toolbar-table input[type="submit"]:hover { background: #E5A50F !important; }
 
-/* -- Action bar (Add New Entry / Generate Printout) -- */
-.ta-grid.ta-console .cf-action-bar {
-	background: var(--cf-bg) !important;
-	padding: 9px 16px !important;
-	border-bottom: 1px solid var(--cf-border);
-	display: flex;
-	align-items: center;
-	gap: 12px;
+/* Action buttons: outlined (Add New Entry) / gold-filled (Generate
+   Printout) pills, same treatment as train_availability's +Add Train /
+   Generate Printout buttons. $SRemove / $SRemove2 (unchanged PHP) still
+   control enabled vs disabled -- a.disabled below overrides these via
+   !important when they apply, so the existing permission logic keeps
+   working exactly as it did before. */
+.ta-grid.ta-console .cf-tbtn {
+	display: inline-block !important;
+	font-size: 11px !important;
+	font-weight: 500 !important;
+	color: #fff !important;
+	text-decoration: none !important;
+	padding: 4px 10px !important;
+	border: 1px solid rgba(255,255,255,.35) !important;
+	border-radius: 3px !important;
+	margin-left: 6px !important;
 }
-.ta-grid.ta-console .cf-action-bar a {
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--cf-blue);
-	text-decoration: none;
+.ta-grid.ta-console .cf-tbtn:hover { background: rgba(255,255,255,.12) !important; }
+.ta-grid.ta-console .cf-tbtn--primary {
+	font-weight: 600 !important;
+	color: #3A2D00 !important;
+	background: var(--cf-gold) !important;
+	border-color: var(--cf-gold) !important;
 }
-.ta-grid.ta-console .cf-action-bar a:hover { text-decoration: underline; }
-.ta-grid.ta-console .cf-action-bar .cf-sep { color: var(--cf-border); }
-
+.ta-grid.ta-console .cf-tbtn--primary:hover { background: #E5A50F !important; }
 /* -- Data table -- */
 .ta-grid.ta-console table.train_ava {
 	width: 100%;
@@ -178,11 +170,12 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 /* -- Inline Edit / Delete links inside cells -- */
 /* Inline per-cell Edit links: there are up to 8 of these in a single row
    (one per editable field), so a permanently-visible bordered button per
-   link reads as noisy and cluttered next to the actual data. These now
-   sit quietly as a small muted icon-like affordance and only become a
-   clear "click me" button on hover -- of the link itself, or anywhere in
-   its containing row, so the affordance is discoverable without needing
-   pixel-precise mouse aim.
+   link reads as noisy and cluttered next to the actual data. a.LEdit is
+   fully invisible (opacity 0) until the row is hovered, at which point it
+   appears as a small pill -- a light outline at rest, filling solid blue
+   only when the pill itself is hovered/targeted. a.Llink (Add New Entry /
+   Generate Printout, outside the table) keeps the older plain-text
+   treatment since it isn't a per-row repeated affordance.
 
    !important is used throughout this block deliberately: this page loads
    css/style.min.css and css/bootstrap.min.css BEFORE this stylesheet, and
@@ -194,8 +187,7 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
    the signature of that kind of generic rule winning, not a row-specific
    bug. !important forces these specific rules to apply regardless of
    what either external stylesheet contains. */
-.ta-grid.ta-console a.Llink,
-.ta-grid.ta-console a.LEdit {
+.ta-grid.ta-console a.Llink {
 	display: inline-block !important;
 	font-size: 10px !important;
 	font-weight: 600 !important;
@@ -209,17 +201,41 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 	opacity: .55 !important;
 	transition: opacity .12s, background .12s, border-color .12s, color .12s;
 }
-.ta-grid.ta-console table.train_ava tr:hover a.Llink,
-.ta-grid.ta-console table.train_ava tr:hover a.LEdit,
-.ta-grid.ta-console a.Llink:hover,
-.ta-grid.ta-console a.LEdit:hover {
+.ta-grid.ta-console a.Llink:hover {
 	opacity: 1 !important;
 	color: var(--cf-blue) !important;
-}
-.ta-grid.ta-console a.Llink:hover,
-.ta-grid.ta-console a.LEdit:hover {
 	background: var(--cf-row-odd) !important;
 	border-color: var(--cf-border) !important;
+}
+
+/* -- a.LEdit: pill-shaped, hidden until the specific cell is hovered --
+   scoped to td:hover (not tr:hover) so hovering one field -- e.g.
+   Location -- doesn't pop all 8 Edit pills in the row at once; only
+   that field's own pill appears. */
+.ta-grid.ta-console a.LEdit {
+	display: inline-flex !important;
+	align-items: center !important;
+	font-size: 10px !important;
+	font-weight: 600 !important;
+	text-decoration: none !important;
+	margin-left: 6px !important;
+	padding: 2px 9px !important;
+	border-radius: 999px !important;
+	border: 1px solid var(--cf-border) !important;
+	background: var(--cf-white) !important;
+	color: var(--cf-muted) !important;
+	opacity: 0 !important;
+	transform: translateY(1px);
+	transition: opacity .12s, background .12s, border-color .12s, color .12s, transform .12s;
+}
+.ta-grid.ta-console table.train_ava td:hover a.LEdit {
+	opacity: 1 !important;
+	transform: translateY(0);
+}
+.ta-grid.ta-console a.LEdit:hover {
+	background: var(--cf-blue) !important;
+	border-color: var(--cf-blue) !important;
+	color: #fff !important;
 }
 /* The row-level delete (X) link stays a touch more visible at rest than
    the per-field edit links, since it's a single destructive action per
@@ -247,7 +263,40 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 	font-weight: 600 !important; color: var(--cf-blue) !important; text-decoration: none !important;
 }
 .ta-grid.ta-console a.two:hover { text-decoration: underline !important; }
-.ta-grid.ta-console .alink a.disabled { color: var(--cf-muted) !important; text-decoration: none !important; cursor: default !important; opacity: .4 !important; }
+/* Disabled links: originally scoped only to .alink (the Add New Entry /
+   Generate Printout action bar), so a.disabled inside the data table
+   (per-row Edit/Delete, when $ULev < 2) fell through with zero styling
+   -- rendering as a plain default blue link, fully visible and, worse,
+   still clickable, since the JS href-stripping below is also scoped to
+   .alink only. Widening the CSS selector here fixes the *look* (muted,
+   non-interactive) for every disabled link in the console, table
+   included. It does not by itself stop the click -- that's a JS-side
+   href removal this pass intentionally leaves untouched per the
+   CSS/structure-only scope of this work; flagging it separately. */
+.ta-grid.ta-console a.disabled {
+	color: var(--cf-muted) !important;
+	text-decoration: none !important;
+	cursor: default !important;
+	opacity: .4 !important;
+	pointer-events: none !important;
+}
+.ta-grid.ta-console table.train_ava a.disabled {
+	display: inline-flex !important;
+	align-items: center !important;
+	font-size: 10px !important;
+	margin-left: 6px !important;
+	padding: 2px 9px !important;
+	border-radius: 999px !important;
+	border: 1px solid var(--cf-border) !important;
+	background: var(--cf-bg) !important;
+	opacity: 0 !important;
+	transform: translateY(1px);
+	transition: opacity .12s, transform .12s;
+}
+.ta-grid.ta-console table.train_ava tr:hover a.disabled {
+	opacity: .4 !important;
+	transform: translateY(0);
+}
 
 /* -- Modal shell -- console theme, matches the other two pages -- */
 .modal { z-index: 99999; }
@@ -620,7 +669,12 @@ function fillReceived(ajaxHTML){
 		for(var n=0;n<count;n++){
 			var parts=driverTerms[n].split(";");
 			driverHTML+="<option value='"+parts[0]+"'>";
-			driverHTML+=parts[1].replace("_ENYE_","?");
+			/* processing.php now sends the name pre-converted to proper
+			   UTF-8 (see received_by handler), so this is a defensive
+			   no-op for any older/other endpoint that still uses the
+			   _ENYE_ placeholder scheme -- and correctly restores "ñ"
+			   rather than the "?" it was replaced with previously. */
+			driverHTML+=parts[1].replace(/_ENYE_/g,"ñ");
 			driverHTML+="</option>";
 		
 		}
@@ -686,31 +740,42 @@ if ($ULev>=2){
 	$SRemove = "Llink"; 
 	$SRemove2 = "two";
 	$SRemove3 = "liR grow";
-	$SRemove4 = "LEdit";
 	$SRemove5 = "LDel";
 } else {
 	$SRemove = "disabled";
 	$SRemove2 = "disabled";
 	$SRemove3 = "disabled";
-	$SRemove4 = "disabled";
 	$SRemove5 = "disabled";
 }
+/* Per-cell Edit is intentionally not gated by $ULev -- enabled for
+   everyone, unlike Add New Entry / Generate Printout / Delete above. */
+$SRemove4 = "LEdit";
 ?>
 
 
 
 <div class="ta-grid ta-console">
-<form class="cf-toolbar" action='clearance form.php' method='post'>
-<b style="color:#fff;font-size:12px;font-weight:600;margin-right:4px;">Date</b>
-<input type="text" name='search_date' id='search_date' value='<?php echo $datenow; ?>' />
 
-<input type=submit value='Retrieve Date' />
-</form>
-<div class="alink cf-action-bar">
-<a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("clearance entry.php");'>+ Add New Entry</a>
-<span class="cf-sep">|</span>
-<a href='#' class="<?php echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'>Generate Printout</a>
-</div>
+<!-- ── TOOLBAR (single row: date / search / actions -- matches train_availability.php) ── -->
+<table class="cf-toolbar-table" cellspacing="0" cellpadding="0">
+<tr>
+	<td class="cf-td-date">
+		<span class="cf-date-label"><?php echo $datenow; ?></span>
+		<span class="cf-date-day"><?php echo date("l", strtotime($datenow)); ?></span>
+	</td>
+	<td class="cf-td-search">
+		<form action='clearance form.php' method='post' style="margin:0;padding:0;display:inline">
+			<input type="text" name='search_date' id='search_date' value='<?php echo $datenow; ?>' />
+			<input type="submit" value="Go" />
+		</form>
+	</td>
+	<td class="cf-td-actions alink">
+		<a href='#' class="cf-tbtn <?php echo $SRemove; ?>" onclick='window.open("clearance entry.php");'>+ Add New Entry</a>
+		<a href='#' class="cf-tbtn cf-tbtn--primary <?php echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'>Generate Printout</a>
+	</td>
+</tr>
+</table>
+<!-- end toolbar -->
 
 <table class='train_ava' width=100%>
 <tr class='rowHeading'>

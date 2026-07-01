@@ -46,7 +46,7 @@ if(isset($_GET['searchIncidents'])){
  
 	/* Safety cap: only applies to the unfiltered "today" default view.
 	   Lifted as soon as a search term narrows the result set, and never
-	   applied to an explicit "all" request — the user asked for everything. */
+	   applied to an explicit "all" request ? the user asked for everything. */
 	if($scope != 'all' && $q == ''){
 		$sql .= " limit 100";
 	}
@@ -159,6 +159,21 @@ if(isset($_GET['debugDefects'])){
 
 
 
+/* Permanent ENYE fix -- train_driver.lastName/firstName are stored as
+   Latin-1 (ISO-8859-1) bytes; \xD1/\xF1 (?/?) are the raw Latin-1
+   bytes for uppercase/lowercase enye. The old approach patched broken
+   output after the fact with str_replace("?","_ENYE_",...) and relied
+   on each page's JS to swap the placeholder back in -- fragile, and
+   only ever applied to trainDriver/supDriver (the received_by handler
+   below never had it, so ?/? names came through raw and broken there
+   regardless). latin1ToUtf8() converts the real Latin-1 bytes straight
+   to correct UTF-8 once, here, so every handler below just outputs a
+   normal ?/? and no placeholder/decode step is needed on any page
+   that consumes it. */
+function latin1ToUtf8($str){
+	return @iconv('ISO-8859-1','UTF-8//TRANSLIT',$str);
+}
+
 if(isset($_GET['trainDriver'])){
 	$sql="select * from train_driver where position in ('TD','STDO') order by lastName";
 	$rs=$db->query($sql);
@@ -168,7 +183,7 @@ if(isset($_GET['trainDriver'])){
 		for($i=0;$i<$nm;$i++){
 			$row=$rs->fetch_assoc();
 			echo $row['id'].";";
-			echo str_replace("Ñ","_ENYE_",$row['lastName']).", ".$row['firstName']."==>";
+			echo latin1ToUtf8($row['lastName']).", ".latin1ToUtf8($row['firstName'])."==>";
 		}
 	
 	}
@@ -186,7 +201,7 @@ if(isset($_GET['supDriver'])){
 		for($i=0;$i<$nm;$i++){
 			$row=$rs->fetch_assoc();
 			echo $row['id'].";";
-			echo str_replace("Ñ","_ENYE_",$row['lastName']).", ".$row['firstName']."==>";
+			echo latin1ToUtf8($row['lastName']).", ".latin1ToUtf8($row['firstName'])."==>";
 		}
 	
 	}
@@ -205,7 +220,7 @@ if(isset($_GET['supervisor'])){
 		for($i=0;$i<$nm;$i++){
 			$row=$rs->fetch_assoc();
 			echo $row['id'].";";
-			echo $row['lastName'].", ".$row['firstName']."==>";
+			echo latin1ToUtf8($row['lastName']).", ".latin1ToUtf8($row['firstName'])."==>";
 		}
 	
 	}
@@ -223,7 +238,7 @@ if(isset($_GET['received_by'])){
 		for($i=0;$i<$nm;$i++){
 			$row=$rs->fetch_assoc();
 			echo $row['id'].";";
-			echo $row['lastName'].", ".$row['firstName'].", ".$row['position']."==>";
+			echo latin1ToUtf8($row['lastName']).", ".latin1ToUtf8($row['firstName']).", ".$row['position']."==>";
 		}
 	
 	}

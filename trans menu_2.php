@@ -98,6 +98,29 @@ h1 {
 	font: 60px 'Museo700';
 }
 */			
+
+/* Tightened spacing between the two stacked header-wrapper tables (the
+   logo/title table, and the Log Out / greeting table below it). Margin
+   and padding only -- intentionally does not touch the logo <img>'s
+   height or the <h0> title's font-size, since those interact with the
+   HTML width="100%"/height="100" attributes already set on the image
+   and with the table's own column-width calculation; an earlier
+   attempt to shrink those via CSS distorted the image and shifted
+   #navMenu out of alignment, since #navMenu's old left:200px offset
+   was tuned against the original column widths. Now that the menu is
+   its own row below the header (see Tmenu_2.php) rather than needing
+   to line up beside the title, that alignment dependency no longer
+   exists -- but the unsafe properties are still left alone here as a
+   matter of caution. */
+table.exception {
+	margin-bottom: 0;
+}
+.header-wrapper table:not(.exception) {
+	margin: 0;
+}
+.header-wrapper table:not(.exception) td {
+	padding: 2px 8px;
+}
 </style>
 
 
@@ -134,5 +157,3 @@ h1 {
 	</tr>
 </table>
 </div>
-
-

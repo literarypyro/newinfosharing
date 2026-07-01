@@ -8,56 +8,80 @@ table {
 	border-collapse:collapse;
 }
 ul#navMenu {
-	left: 200px;
-	padding:0px; 
-	/* width:1020px; */
-	width:100%;
-	list-style:none;
-	position:relative
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 6px 16px;
+	margin: 0;
+	width: auto;
+	list-style: none;
+	position: static;
+	background: #013E76;
+	border-top: 1px solid rgba(255,255,255,0.15);
 }
 
 ul#navMenu ul {
-	position:absolute;
-	left:0; 
-	top:100%;
-	display:none;
-	padding:0px;
-	margin:0px
+	position: absolute;
+	left: 0;
+	top: 100%;
+	display: none;
+	padding: 4px 0;
+	margin: 0;
+	background: #fff;
+	border: 1px solid #D2DDEA;
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0,30,80,.15);
+	min-width: 200px;
+	z-index: 10;
 }
 
 ul#navMenu li {
-	display:inline;
-	float:left;
-	position:relative
+	display: block;
+	float: none;
+	position: relative;
 }
 
-ul#navMenu a {
-	text-decoration:none;
-	padding:10px 0px; 
-	width:200px;
-	background:#f5f5f5;
-	color:black;
-	border:1px solid #FBCC2A;
-	float:left;
-	text-align:center;
-	font-family: Verdana, sans-serif;
+ul#navMenu > li > a {
+	text-decoration: none;
+	padding: 6px 12px;
+	width: auto;
+	background: transparent;
+	color: #fff;
+	border: none;
+	float: none;
+	display: inline-block;
+	text-align: left;
+	font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+	font-size: 13px;
 	border-radius: 4px
 }
 
-ul#navMenu a:hover {
-	background:#cccccc;
-	color:#333333
+ul#navMenu > li > a:hover {
+	background: rgba(255,255,255,0.14);
+	color: #fff
 }
 
 ul#navMenu li:hover ul {
 	display:block;
 }
 
-*/
-/* -- width box match navmenu a */
+/* -- dropdown submenu items: fill the dropdown card, dark text on white -- */
 
 ul#navMenu ul a {
-	width:200px;
+	width: auto;
+	background: transparent;
+	color: #16243B;
+	border: none;
+	float: none;
+	display: block;
+	text-align: left;
+	padding: 7px 14px;
+	border-radius: 0;
+}
+
+ul#navMenu ul a:hover {
+	background: #EEF4FB;
+	color: #00529B;
 }
 
 ul#navMenu ul li {
@@ -145,15 +169,27 @@ body { height: 100%; overflow: hidden; }
 }
 */
 
+/* Replaced the old images/image_715235.gif (read as a nuclear/radiation
+   alert icon) with a plain CSS ring spinner in the console's own blue/
+   gold palette -- no external image dependency, and since this lives in
+   the one shared Tmenu_2.php, every page picks up the same neutral
+   spinner automatically. */
 #dvLoading {
-	background:url(images/image_715235.gif) no-repeat center center;
-	height: 100px;
-	width: 100px;
+	background: none;
+	height: 46px;
+	width: 46px;
 	position: fixed;
 	left: 50%;
 	top: 50%;
-	margin: -25px 0 0 -25px;
+	margin: -23px 0 0 -23px;
 	z-index: 1000;
+	border: 4px solid rgba(0,82,155,0.15);
+	border-top-color: #00529B;
+	border-radius: 50%;
+	animation: ta-spin 0.8s linear infinite;
+}
+@keyframes ta-spin {
+	to { transform: rotate(360deg); }
 }
 
 </style>
@@ -207,7 +243,7 @@ body { height: 100%; overflow: hidden; }
 
 
 <ul id="navMenu" >
-  <li><a href="#" class="bubble-float-bottom">Control Center Report</a>
+  <li><a href="#">Control Center Report</a>
   
   	<ul>
 		<li><a href='incident report.php' id='dr'>Daily Report</a></li>		
@@ -217,7 +253,7 @@ body { height: 100%; overflow: hidden; }
 		
 	</ul>
 	</li>
-		<li><a class="bubble-float-bottom" href='#'>Train</a>	
+		<li><a href='#'>Train</a>	
 	<ul>
 		<li><a style='text-decoration:none;' href='train_availability.php'>Train Availability</a></li>  
 		<li><a style='text-decoration:none;' href='train hourly.php'>Train Hourly Monitoring Report</a></li>
@@ -227,10 +263,10 @@ body { height: 100%; overflow: hidden; }
 	</ul>
 	</li>	
 		<li><a href='clearance form.php' id='dr'>Clearance Form</a></li>
-		<li><a class="bubble-float-bottom" href='#' >Statistics Report</a>
+		<li><a href='#'>Statistics Report</a>
 		<ul>
 			<li><a href='#' onclick="window.open('td_history.php')">Personnel</a></li>
-			<li><a class="bubble-float-right" href='#' >Problem Type</a>
+			<li><a href='#'>Problem Type</a>
 			<ul>			
         		<?php 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
@@ -265,7 +301,7 @@ body { height: 100%; overflow: hidden; }
 			<li><a href='#' onclick="window.open('car_statistics_report.php')">Rolling Stock (Cars)</a></li>
 
 			
-			<li><a class="bubble-float-right" href='#' >Stats Report(AFC)</a>
+			<li><a href='#'>Stats Report(AFC)</a>
 			<ul>			
         		<?php 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
@@ -293,7 +329,7 @@ body { height: 100%; overflow: hidden; }
 
 			</li>		
 </ul>
-	<li><a class="bubble-float-bottom" href='#'>Transport</a>	
+	<li><a href='#'>Transport</a>	
 	<ul>
 		<li><a style='text-decoration:none;' href='indexAdd.php'>Transport Employees</a></li>  
 		<li><a style='text-decoration:none;' href='UserAdd.php'>Transport Users</a></li>	
