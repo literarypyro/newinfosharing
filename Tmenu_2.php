@@ -297,7 +297,7 @@ body { height: 100%; overflow: hidden; }
 			</ul>
 			</li>
 
-			<li><a href='#' onclick="window.open('car_statistics_report.php')">Rolling Stock (Cars)</a></li>
+			<li><a href='#' onclick="window.open('car_statistics_report.php')">Car Incidents By Year</a></li>
 
 			<!-- Renamed from "Train Equipment": this page groups incidents by
 			     equipment/subsystem type (a curated list, not the full
@@ -305,7 +305,7 @@ body { height: 100%; overflow: hidden; }
 			     a Level severity filter that Rolling Stock doesn't have --
 			     the new label surfaces that distinction instead of leaving
 			     "Equipment" to sound like a duplicate of Rolling Stock. -->
-			<li><a href='#' onclick="window.open('statistics_report_modified.php')">Equipment Failures (by Type)</a></li>
+			<li><a href='#' onclick="window.open('statistics_report_modified.php')">Equipment Failures By Range</a></li>
 
 			<li><a href='#' onclick="window.open('other_history.php')">Other Incidents</a></li>
 

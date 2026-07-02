@@ -131,6 +131,22 @@ background-color: rgb(185, 201, 254);
 border:1px solid #4ad;
 }
 
+.stat-toolbar {
+	background:#00529B; border-bottom:3px solid #FDB813;
+	border-radius:6px 6px 0 0; padding:10px 16px; margin-bottom:0;
+}
+.stat-toolbar table { border-collapse:collapse; }
+.stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#FFFFFF; font-weight:600; font-size:13px; text-align:left; }
+.stat-toolbar select, .stat-toolbar input[type=text] {
+	height:26px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
+	background:#FFFFFF; color:#1A2238; padding:0 8px; font-size:12px;
+}
+.stat-toolbar input[type=submit] {
+	height:28px; border:none; border-radius:4px; background:#FDB813;
+	color:#3A2D00; font-weight:700; font-size:12px; padding:0 14px; cursor:pointer;
+}
+.stat-toolbar input[type=submit]:hover { background:#E5A50F; }
+
 select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; } 
 
 /* --- mjun */
@@ -175,9 +191,6 @@ $(function() {
 
 </script>
 <body>
-<br>
-<br>
-<br>
 <?php
 $mm=date("m");
 $yy=date("Y");
@@ -201,20 +214,25 @@ $availability_date=$_SESSION['search_date'];
 $datenow=date("m/d/Y",strtotime($availability_date));
 }
 ?>
-<form  action='incident summary.php' method='post'>
-<!--
-<input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo $datenow; ?>'/> -->
-<!--
-<input name='search_date' id='search_date' type="text" class="easyui-datebox" value='<?php echo $datenow; ?>'/> 
--->
-From <input type="text" name='search_date2' id='search_date2'>
-<br>
+<form action='incident summary.php' method='post' class="stat-toolbar">
+<table>
 
-<br>
-To <input type="text" name='search_date' id='search_date'>
+<th>From</th>
+<td> <input type="text" name='search_date2' id='search_date2'>
+</td>
+<th>To</th>
+<td> <input type="text" name='search_date' id='search_date'>
+</td>
 
-<input type=submit value='Access Monitoring' />
+
+<th><input type=submit value='Submit' /></th>
+</tr>
+</table>
 </form>
+<br>
+<br>
+<br>
+
 
 <!-- Sort form -->
 

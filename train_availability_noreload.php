@@ -7,36 +7,37 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
    train_availability_console.php
    Operations Console theme applied to train_availability.php.
    PHP/JS/logic: identical to original.
-   Item #2 applied (2026-07): DB access via db_connect.php -- one shared
-   connection, all SQL as prepared statements. Logic/output unchanged.
    Streamlining: all per-row output built in PHP variables first,
    emitted in one echo per row — no mid-HTML <?php ?> tag switching.
    ========================================================================= */
-require_once("db_connect.php"); /* shared $db + db_exec()/db_query() prepared-statement helpers (item #2) */
+$db = new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 /* ── Helper functions (verbatim from original) ── */
 function getTrainDriver($id,$dbase){
-	$rs=db_query($dbase,"select firstName,lastName,position from train_driver where id=? limit 1",array($id));
-	if($rs===false || $rs->num_rows==0) return $id; /* item #2 micro-change: old code emitted PHP warnings + a mangled '. ' name for unknown ids */
+	$sql="select firstName,lastName,position from train_driver where id='".$id."' limit 1";
+	$rs=$dbase->query($sql);
 	$row=$rs->fetch_assoc();
 	return $row['position']." ".substr($row['firstName'],0,1).". ".$row['lastName'];
 }
 function getPHTrainDriver($id,$dbase){
-	$rs=db_query($dbase,"select firstName,lastName from ph_trams where id=? limit 1",array($id));
-	if($rs!==false && $rs->num_rows>0){
+	$sql="select firstName,lastName from ph_trams where id='".$id."' limit 1";
+	$rs=$dbase->query($sql);
+	if($rs->num_rows>0){
 		$row=$rs->fetch_assoc();
 		return substr($row['firstName'],0,1).". ".$row['lastName'];
 	}
 	return $id;
 }
 function getLevel($id,$dbase){
-	$rs=db_query($dbase,"select * from level where incident_id=?",array($id));
+	$sql="select * from level where incident_id='".$id."'";
+	$rs=$dbase->query($sql);
 	$row=$rs->fetch_assoc();
 	return $row['order'];
 }
-function insertCompo($train_id,$car,$dbase){
+function insertCompo($train_id,$car){
 	if($car=="") return;
-	db_exec($dbase,"insert into train_compo(tar_id,car_no) values (?,?)",array($train_id,$car));
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db->query("insert into train_compo(tar_id,car_no) values ('".$train_id."','".$car."')");
 }
 function ordinal_numbers($NUM){
 	if(strlen($NUM)>1 && substr($NUM,-2,1)==1) return "th";
@@ -66,18 +67,18 @@ if(isset($_POST['index_no'])){
 	if($amorpm=="pm"){ if($hour<12) $hour+=12; }
 	else { if($hour=="12") $hour=0; }
 	$availability_date=date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
-	db_exec($db,"insert into train_availability(index_no,date,car_a,car_b,car_c,car_d,lpam_id,status,type)
-		values (?,?,?,?,?,?,?,'active',?)",
-		array($index_no,$availability_date,$car_a,$car_b,$car_c,$car_d,$lpam_id,$type));
+	$update="insert into train_availability(index_no,date,car_a,car_b,car_c,car_d,lpam_id,status,type) values ";
+	$update.="('".$index_no."','".$availability_date."','".$car_a."','".$car_b."','".$car_c."','".$car_d."','".$lpam_id."','active','".$type."')";
+	$rs=$db->query($update);
 	$index_id=$db->insert_id;
-	insertCompo($index_id,$car_a,$db); insertCompo($index_id,$car_b,$db);
-	insertCompo($index_id,$car_c,$db); insertCompo($index_id,$car_d,$db);
+	insertCompo($index_id,$car_a); insertCompo($index_id,$car_b);
+	insertCompo($index_id,$car_c); insertCompo($index_id,$car_d);
 	if(isset($_POST['cancel_departure'])){
 		$availability_date="";
-		db_exec($db,"update train_availability set status='cancelled' where id=?",array($index_id));
+		$db->query("update train_availability set status='cancelled' where id='".$index_id."'");
 		echo "<script language='javascript'>window.open('incident report.php?cancel=".$index_id."');</script>";
 	}
-	db_exec($db,"insert into train_ava_time(train_ava_id,boundary_time) values (?,?)",array($index_id,$availability_date));
+	$db->query("insert into train_ava_time(train_ava_id,boundary_time) values ('".$index_id."','".$availability_date."')");
 }
 
 if(isset($_POST['other_index_no'])){
@@ -89,14 +90,14 @@ if(isset($_POST['other_index_no'])){
 	else { if($hour=="12") $hour=0; }
 	$availability_date=date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
 	$train_type=$_POST['train_type'];
-	db_exec($db,"insert into train_availability(index_no,date,status,type) values (?,?,'active','unimog')",array($index_no,$availability_date));
+	$db->query("insert into train_availability(index_no,date,status,type) values ('".$index_no."','".$availability_date."','active','unimog')");
 	$index_id=$db->insert_id;
 	if(isset($_POST['cancel_departure'])){
-		db_exec($db,"update train_availability set status='cancelled' where id=?",array($index_id));
+		$db->query("update train_availability set status='cancelled' where id='".$index_id."'");
 		$availability_date="";
 		echo "<script language='javascript'>window.open('incident report.php?cancel=".$index_id."');</script>";
 	}
-	db_exec($db,"insert into train_ava_time(train_ava_id,boundary_time) values (?,?)",array($index_id,$availability_date));
+	$db->query("insert into train_ava_time(train_ava_id,boundary_time) values ('".$index_id."','".$availability_date."')");
 }
 
 if(isset($_POST['insertion_id'])){
@@ -111,16 +112,14 @@ if(isset($_POST['insertion_id'])){
 	} else {
 		$train_driver=$_POST['train_driver'];
 	}
-	$rs=db_query($db,"select * from train_ava_time where train_ava_id=?",array($_POST['insertion_id']));
+	$rs=$db->query("select * from train_ava_time where train_ava_id='".$_POST['insertion_id']."'");
 	if($rs->num_rows>0){
-		/* item #2: the two consecutive UPDATEs on the same row were merged into one statement */
-		db_exec($db,"update train_ava_time set insert_time=?,insert_driver=?,inserted_to=? where train_ava_id=?",
-			array($availability_date,$train_driver,$_POST['inserted_to'],$_POST['insertion_id']));
+		$db->query("update train_ava_time set insert_time='".$availability_date."',insert_driver='".$train_driver."' where train_ava_id='".$_POST['insertion_id']."'");
+		$db->query("update train_ava_time set inserted_to='".$_POST['inserted_to']."' where train_ava_id='".$_POST['insertion_id']."'");
 	} else {
-		db_exec($db,"insert into train_ava_time(train_ava_id,insert_time,insert_driver,inserted_to) values (?,?,?,?)",
-			array($_POST['insertion_id'],$availability_date,$train_driver,$_POST['inserted_to']));
+		$db->query("insert into train_ava_time(train_ava_id,insert_time,insert_driver,inserted_to) values ('".$_POST['insertion_id']."','".$availability_date."','".$train_driver."','".$_POST['inserted_to']."')");
 	}
-	$changeRow=db_query($db,"select * from train_availability where id=?",array($_POST['insertion_id']))->fetch_assoc();
+	$changeRow=$db->query("select * from train_availability where id='".$_POST['insertion_id']."'")->fetch_assoc();
 	$train_date=$changeRow['date'];
 	$_POST['year']=date("Y",strtotime($train_date)); $_POST['month']=date("m",strtotime($train_date));
 	$_POST['day']=date("d",strtotime($train_date));  $_POST['hour']=date("H",strtotime($train_date));
@@ -140,12 +139,9 @@ if(isset($_POST['remove_id'])){
 	$availability_date=($_POST['hour']=="") ? "" :
 		date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
 	$cancel_loop=$_POST['cancel_loop'];
-	/* item #2: removal_remarks is now a bound parameter -- quotes/apostrophes in remarks no
-	   longer break or corrupt this UPDATE. The two consecutive UPDATEs on the same row
-	   (remove fields, then removed_from) were merged into one statement. */
-	db_exec($db,"update train_ava_time set remove_time=?,remove_driver=?,removal_remarks=?,removed_from=? where train_ava_id=?",
-		array($availability_date,$train_driver,$_POST['remarks'],$_POST['removed_from'],$_POST['remove_id']));
-	$changeRow=db_query($db,"select * from train_availability where id=?",array($_POST['remove_id']))->fetch_assoc();
+	$db->query("update train_ava_time set remove_time='".$availability_date."',remove_driver='".$train_driver."',removal_remarks=\"".$_POST['remarks']."\" where train_ava_id='".$_POST['remove_id']."'");
+	$db->query("update train_ava_time set removed_from='".$_POST['removed_from']."' where train_ava_id='".$_POST['remove_id']."'");
+	$changeRow=$db->query("select * from train_availability where id='".$_POST['remove_id']."'")->fetch_assoc();
 	$train_date=$changeRow['date'];
 	$_POST['year']=date("Y",strtotime($train_date)); $_POST['month']=date("m",strtotime($train_date));
 	$_POST['day']=date("d",strtotime($train_date));  $_POST['hour']=date("H",strtotime($train_date));
@@ -156,41 +152,36 @@ if(isset($_POST['remove_id'])){
 }
 
 if(isset($_POST['remarks_id'])){
-	$rs=db_query($db,"select * from train_ava_time where train_ava_id=?",array($_POST['remarks_id']));
+	$rs=$db->query("select * from train_ava_time where train_ava_id='".$_POST['remarks_id']."'");
 	if($rs->num_rows>0){
-		db_exec($db,"update train_ava_time set removal_remarks=? where train_ava_id=?",array($_POST['remarks'],$_POST['remarks_id']));
+		$db->query("update train_ava_time set removal_remarks=\"".$_POST['remarks']."\" where train_ava_id='".$_POST['remarks_id']."'");
 	} else {
-		db_exec($db,"insert into train_ava_time(removal_remarks,train_ava_id) values (?,?)",array($_POST['remarks'],$_POST['remarks_id']));
+		$db->query("insert into train_ava_time(removal_remarks,train_ava_id) values (\"".$_POST['remarks']."\",'".$_POST['remarks_id']."')");
 	}
 }
 
 if(isset($_POST['switch_id'])){
-	/* item #2 note: this postback path is superseded by the AJAX switch
-	   (processing.php?ajaxSwitch) -- converted anyway; its removal is item #4. */
 	$year=$_POST['year']; $month=$_POST['month']; $day=$_POST['day'];
 	$hour=$_POST['hour']; $minute=$_POST['minute']; $amorpm=$_POST['amorpm'];
 	if($amorpm=="pm"){ if($hour<12) $hour+=12; }
 	else { if($hour=="12") $hour=0; }
 	$availability_date=date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
-	db_exec($db,"insert into train_switch(train_ava_id,new_index,date_change) values (?,?,?)",array($_POST['switch_id'],$_POST['new_index'],$availability_date));
-	$switchRow=db_query($db,"select * from train_availability where id=? limit 1",array($_POST['switch_id']))->fetch_assoc();
+	$db->query("insert into train_switch(train_ava_id,new_index,date_change) values ('".$_POST['switch_id']."','".$_POST['new_index']."','".$availability_date."')");
+	$switchRow=$db->query("select * from train_availability where id='".$_POST['switch_id']."' limit 1")->fetch_assoc();
 	if($switchRow['type']=="reserve"){
-		db_exec($db,"update train_availability set type='revenue' where id=?",array($_POST['switch_id']));
+		$db->query("update train_availability set type='revenue' where id='".$_POST['switch_id']."'");
 	}
 }
 
 if(isset($_POST['edit_id'])){
-	db_exec($db,"update train_availability set index_no=? where id=?",array($_POST['edit_index'],$_POST['edit_id']));
+	$db->query("update train_availability set index_no='".$_POST['edit_index']."' where id='".$_POST['edit_id']."'");
 }
 
 if(isset($_POST['edit_car'])){
-	db_exec($db,"delete from train_compo where tar_id=?",array($_POST['edit_car']));
-	db_exec($db,"update train_availability set car_a=?,car_b=?,car_c=?,car_d=? where id=?",
-		array($_POST['car_1'],$_POST['car_2'],$_POST['car_3'],$_POST['car_4'],$_POST['edit_car']));
-	/* NOTE (pre-existing, deliberately untouched -- item #1): $index_id is never set in this
-	   branch, so these re-inserts write blank tar_id rows; the edit modal also has no car_4. */
-	insertCompo($index_id,$_POST['car_1'],$db); insertCompo($index_id,$_POST['car_2'],$db);
-	insertCompo($index_id,$_POST['car_3'],$db); insertCompo($index_id,$_POST['car_4'],$db);
+	$db->query("delete from train_compo where tar_id='".$_POST['edit_car']."'");
+	$db->query("update train_availability set car_a='".$_POST['car_1']."',car_b='".$_POST['car_2']."',car_c='".$_POST['car_3']."',car_d='".$_POST['car_4']."' where id='".$_POST['edit_car']."'");
+	insertCompo($index_id,$_POST['car_1']); insertCompo($index_id,$_POST['car_2']);
+	insertCompo($index_id,$_POST['car_3']); insertCompo($index_id,$_POST['car_4']);
 }
 ?>
 
@@ -698,7 +689,7 @@ function setPreset(check){
 }
 
 function cancelTrain(train_id){
-	if(confirm("Cancel Train?")) window.open("incident report.php?cancel="+train_id);
+	openIncidentCancelModal(train_id);
 }
 
 function setTrain(train){
@@ -836,9 +827,10 @@ if($ULev>=2){
 $SRemove4="enabled"; /* toolbar always enables add/unimog */
 
 /* ── Timetable ── */
-$timeTableRS=db_query($db,"select *,timetable_day.id as timeId from timetable_day
+$timeTableSQL="select *,timetable_day.id as timeId from timetable_day
 	inner join timetable_code on timetable_day.timetable_code=timetable_code.id
-	where train_date=?",array($availability_date_code));
+	where train_date='".$availability_date_code."'";
+$timeTableRS=$db->query($timeTableSQL);
 if($timeTableRS->num_rows>0){
 	$ttRow=$timeTableRS->fetch_assoc();
 	$ttCode=$ttRow['code'];
@@ -921,10 +913,10 @@ $sql="
 		tat.remove_time, tat.remove_driver, tat.removed_from, tat.removal_remarks
 	FROM train_availability ta
 	LEFT JOIN train_ava_time tat ON tat.train_ava_id = ta.id
-	WHERE ta.date BETWEEN ? AND ?
+	WHERE ta.date BETWEEN '".$availability_date." 00:00:00' AND '".$availability_date." 23:59:59'
 	ORDER BY ta.date
 ";
-$rs  = db_query($db, $sql, array($availability_date." 00:00:00", $availability_date." 23:59:59"));
+$rs  = $db->query($sql);
 $nm  = $rs->num_rows;
 $SRemove4 = "enabled";
 
@@ -956,7 +948,8 @@ for($i=0; $i<$nm; $i++){
 	}
 
 	/* ── Switch cells ── */
-	$rs3  = db_query($db,"select * from train_switch where train_ava_id=? order by date_change",array($row['id']));
+	$sql3 = "select * from train_switch where train_ava_id='".$row['id']."' order by date_change";
+	$rs3  = $db->query($sql3);
 	$nm3  = min($rs3->num_rows, 7);
 	$switchHTML = "";
 	for($n=0; $n<$nm3; $n++){
@@ -1043,7 +1036,8 @@ for($i=0; $i<$nm; $i++){
 			$remove_remarks = $row2['removal_remarks'];
 		}
 		/* Incidents and level clauses */
-		$cancelRS  = db_query($db,"select * from train_incident_view where train_ava_id=?",array($row['id']));
+		$cancelSQL = "select * from train_incident_view where train_ava_id='".$row['id']."'";
+		$cancelRS  = $db->query($cancelSQL);
 		$cancelNM  = $cancelRS->num_rows;
 		$l2Count=0; $l3Count=0; $l4Count=0;
 		if($cancelNM>0){
@@ -1052,7 +1046,7 @@ for($i=0; $i<$nm; $i++){
 				$cancelRow = $cancelRS->fetch_assoc();
 				$level     = $cancelRow['level'];
 				$order     = getLevel($cancelRow['incident_id'],$db);
-				$incLink   = "<a href='#' class='$SRemove' onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
+				$incLink   = "<a href='#' class='$SRemove' onclick='return openEditCcdrModal(".$cancelRow['incident_id'].")'>IN ".$cancelRow['incident_no']."</a>";
 				$incidentClause .= ($m==0) ? $incLink : ",<br>".$incLink;
 				if($level==2){ $level2Clause.=($l2Count>0?",<br>":"").getOrdinal($order); $l2Count++; }
 				elseif($level==3){ $level3Clause.=($l3Count>0?",<br>":"").getOrdinal($order); $l3Count++; }
@@ -1091,7 +1085,7 @@ for($i=0; $i<$nm; $i++){
 		$dataCells .= '<td rowspan=4 class="ta-remarks">'.$remove_remarks.$incidentClause
 			.'<br><a href=\'#add_form\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
 			.'><i class="ti ti-edit" aria-hidden="true"></i>&nbsp;Add/Edit Remarks</a>'
-			.' <a href=\'#add_form\' class="ta-act" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\''
+			.' <a href=\'#\' class="ta-act" onclick=\'return openIncidentAddModal('.$row['id'].')\''
 			.'>Add Incident</a>'
 			.'</td>';
 		$dataCells .= '<td rowspan=4>'.$level2Clause.'</td>'
@@ -1100,14 +1094,15 @@ for($i=0; $i<$nm; $i++){
 
 	} elseif($row['status']=="cancelled"){
 		/* ── Cancelled branch: incidents, levels, CANCELLED label ── */
-		$cancelRS  = db_query($db,"select * from train_incident_view inner join level on train_incident_view.incident_id=level.incident_id where train_ava_id=?",array($row['id']));
+		$cancelSQL = "select * from train_incident_view inner join level on train_incident_view.incident_id=level.incident_id where train_ava_id='".$row['id']."'";
+		$cancelRS  = $db->query($cancelSQL);
 		$cancelNM  = $cancelRS->num_rows;
 		$l2Count=0; $l3Count=0; $l4Count=0;
 		for($m=0;$m<$cancelNM;$m++){
 			$cancelRow = $cancelRS->fetch_assoc();
 			$level     = $cancelRow['level'];
 			$order     = getLevel($cancelRow['incident_id'],$db);
-			$incLink   = "<a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
+			$incLink   = "<a href='#' onclick='return openEditCcdrModal(".$cancelRow['incident_id'].")'>IN ".$cancelRow['incident_no']."</a>";
 			$incidentClause .= ($m==0) ? $incLink : ",<br>".$incLink;
 			if($level==2){ $level2Clause.=($l2Count>0?",<br>":"").getOrdinal($order); $l2Count++; }
 			elseif($level==3){ $level3Clause.=($l3Count>0?",<br>":"").getOrdinal($order); $l3Count++; }
@@ -1127,7 +1122,7 @@ for($i=0; $i<$nm; $i++){
 		$dataCells .= '<td rowspan=4 class="ta-remarks">'.$remove_remarks.$incidentClause
 			.'<br><a href=\'#add_form\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
 			.'><i class="ti ti-edit" aria-hidden="true"></i>&nbsp;Add/Edit Remarks</a>'
-			.' <a href=\'#\' class="ta-act" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\''
+			.' <a href=\'#\' class="ta-act" onclick=\'return openIncidentAddModal('.$row['id'].')\''
 			.'>Add Incident</a>'
 			.'</td>';
 		$dataCells .= '<td rowspan=4>'.$level2Clause.'</td>'
@@ -1200,6 +1195,250 @@ function initSlotHover(){
 $(document).ready(initSlotHover);
 $(window).on('load',initSlotHover);
 </script>
+
+<!-- =======================================================================
+     Edit CCDR modal (iframe-hosted)
+     Row clicks like "IN 12136" call openEditCcdrModal(<id>) instead of
+     window.open, which shows the overlay below and points the iframe at
+     edit_ccdr.php?ir=<id>. edit_ccdr renders inside the iframe exactly as
+     it does today with zero changes -- its own JS/CSS stays fully isolated
+     from this page. Close via x, Cancel, Esc, or clicking the backdrop.
+
+     The per-variant close behavior (whether to reload the parent) is
+     defined by handleModalClose(), injected as a small differing script
+     block just below this shared shell.
+     ------------------------------------------------------------------- -->
+<style type="text/css">
+.ta-ccdr-backdrop {
+	position: fixed; inset: 0;
+	background: rgba(16, 24, 40, .42);
+	z-index: 10000;
+	/* Always in the layout (display:flex), but invisible + non-interactive
+	   until .open is set. This lets us transition opacity/transform
+	   smoothly, which display:none would prevent. pointer-events guards
+	   against phantom clicks while it's invisible. */
+	display: flex;
+	align-items: center; justify-content: center;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 200ms ease-out;
+}
+.ta-ccdr-backdrop.open {
+	opacity: 1;
+	pointer-events: auto;
+}
+.ta-ccdr-shell {
+	background: #ffffff;
+	width: 96vw; height: 92vh;
+	max-width: 1400px;
+	border-radius: 10px;
+	box-shadow: 0 12px 48px rgba(0,30,80,.28);
+	display: flex; flex-direction: column; overflow: hidden;
+	/* Subtle scale + lift so the box grows into place instead of popping */
+	transform: translateY(6px) scale(.985);
+	transition: transform 200ms cubic-bezier(.2,.7,.25,1);
+}
+.ta-ccdr-backdrop.open .ta-ccdr-shell {
+	transform: translateY(0) scale(1);
+}
+.ta-ccdr-head {
+	flex: none;
+	background: #00529B;
+	border-bottom: 3px solid #FDB813;
+	padding: 10px 16px;
+	display: flex; align-items: center; justify-content: space-between;
+	color: #ffffff;
+}
+.ta-ccdr-head h4 {
+	margin: 0; font-size: 14px; font-weight: 600;
+	font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+.ta-ccdr-head .ta-ccdr-actions {
+	display: flex; gap: 8px; align-items: center;
+}
+.ta-ccdr-btn {
+	background: rgba(255,255,255,.14);
+	border: 1px solid rgba(255,255,255,.35);
+	color: #ffffff;
+	font-size: 11px; font-weight: 600;
+	padding: 3px 10px; border-radius: 4px;
+	cursor: pointer;
+}
+.ta-ccdr-btn:hover { background: rgba(255,255,255,.28); }
+.ta-ccdr-close {
+	background: none; border: none;
+	color: rgba(255,255,255,.75);
+	font-size: 22px; line-height: 1; cursor: pointer;
+	padding: 0 4px;
+}
+.ta-ccdr-close:hover { color: #FDB813; }
+.ta-ccdr-body {
+	flex: 1; min-height: 0; background: #FAFAF6;
+}
+.ta-ccdr-body iframe {
+	width: 100%; height: 100%; border: none; display: block;
+}
+/* When the modal is open, prevent the underlying page from scrolling */
+body.ta-ccdr-open { overflow: hidden; }
+</style>
+
+<div class="ta-ccdr-backdrop" id="ta-ccdr-backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+	<div class="ta-ccdr-shell">
+		<div class="ta-ccdr-head">
+			<h4>Edit CCDR <span id="ta-ccdr-title-id" style="opacity:.75;font-weight:500;font-size:12px;margin-left:8px;"></span></h4>
+			<div class="ta-ccdr-actions">
+				<button type="button" class="ta-ccdr-btn" onclick="ccdrModalOpenInNewWindow()" title="Open in a full window instead">Open in new window</button>
+				<button type="button" class="ta-ccdr-close" onclick="closeEditCcdrModal('header-x')" aria-label="Close">&times;</button>
+			</div>
+		</div>
+		<div class="ta-ccdr-body">
+			<!-- src is set on open, cleared on close so the iframe doesn't
+			     hold DB connections open in the background. -->
+			<iframe id="ta-ccdr-frame" title="Edit CCDR"></iframe>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+(function(){
+	/* The modal supports two flows behind one shell: edit an existing CCDR
+	   (edit_ccdr.php?ir=...) and add/cancel an incident on a train
+	   (incident report.php?add_incident=... or ?cancel=...). Both go through
+	   the same iframe; only the src and header label differ. */
+	var currentUrl   = null;
+	var currentLabel = null;
+	/* Suppresses the very first backdrop click that arrives immediately
+	   after opening. Some browsers, when the DOM changes between mousedown
+	   and mouseup (which is exactly what happens here -- the backdrop
+	   appears at click time), attribute the resulting click to whatever
+	   element is under the mouse at mouseup time. If the trigger link
+	   happens to sit over screen coordinates that become backdrop when the
+	   modal appears, the backdrop's own click-to-close handler fires from
+	   the tail end of the same click that opened it -- symptom: "modal
+	   opens then instantly closes itself." Guarding a single event tick
+	   handles that race without impacting genuine backdrop clicks. */
+	var suppressBackdropClickUntil = 0;
+
+	function openModalWith(url, label){
+		console.log('[ta-ccdr] OPEN', {url: url, label: label, ts: Date.now()});
+		currentUrl   = url;
+		currentLabel = label;
+		var frame = document.getElementById('ta-ccdr-frame');
+		frame.src = url;
+		document.getElementById('ta-ccdr-title-id').textContent = label ? '(' + label + ')' : '';
+		document.getElementById('ta-ccdr-backdrop').classList.add('open');
+		document.getElementById('ta-ccdr-backdrop').setAttribute('aria-hidden','false');
+		document.body.classList.add('ta-ccdr-open');
+		suppressBackdropClickUntil = Date.now() + 300;
+		return false; /* prevent the <a href="#"> from jumping to top-of-page */
+	}
+
+	window.openEditCcdrModal = function(ir){
+		return openModalWith('edit_ccdr.php?ir=' + encodeURIComponent(ir), 'IR #' + ir);
+	};
+
+	window.openIncidentAddModal = function(trainId){
+		return openModalWith('incident report.php?add_incident=' + encodeURIComponent(trainId),
+			'Add incident to train ' + trainId);
+	};
+
+	window.openIncidentCancelModal = function(trainId){
+		/* Confirmation is intentionally kept before opening the modal --
+		   opening then closing feels worse than a plain confirm() when the
+		   user meant to hit something else, and the original flow already
+		   had a confirm() step so this matches expected behavior. */
+		if(!confirm("Cancel Train?")) return false;
+		return openModalWith('incident report.php?cancel=' + encodeURIComponent(trainId),
+			'Cancel train ' + trainId);
+	};
+
+	window.closeEditCcdrModal = function(reason){
+		console.log('[ta-ccdr] CLOSE', {reason: reason || '(unspecified)', ts: Date.now()});
+		try { console.trace('[ta-ccdr] close call stack'); } catch(e){}
+		document.getElementById('ta-ccdr-backdrop').classList.remove('open');
+		document.getElementById('ta-ccdr-backdrop').setAttribute('aria-hidden','true');
+		document.body.classList.remove('ta-ccdr-open');
+		/* Give the CSS transition a moment to run before clearing the src.
+		   Clearing immediately looks bad (iframe visibly blanks white
+		   during the fade-out); we still want to clear it so edit_ccdr /
+		   incident_report don't keep running JS timers or DB-backed AJAX
+		   in the background. 220ms matches the transition duration below. */
+		setTimeout(function(){
+			document.getElementById('ta-ccdr-frame').src = 'about:blank';
+		}, 220);
+		var lastUrl = currentUrl;
+		currentUrl = null;
+		currentLabel = null;
+		/* Variant-specific post-close behavior (defined in the small script
+		   block below this one) -- reload the parent, do nothing, etc. */
+		if (typeof handleModalClose === 'function') { handleModalClose(lastUrl); }
+	};
+
+	/* Escape key + backdrop click both close */
+	document.addEventListener('keydown', function(e){
+		if(e.key === 'Escape' && document.getElementById('ta-ccdr-backdrop').classList.contains('open')){
+			closeEditCcdrModal('escape-key');
+		}
+	});
+	document.getElementById('ta-ccdr-backdrop').addEventListener('click', function(e){
+		if(e.target !== this) { console.log('[ta-ccdr] backdrop click ignored (target not backdrop)', e.target); return; }
+		var age = Date.now() - (suppressBackdropClickUntil - 300);
+		if(Date.now() < suppressBackdropClickUntil){
+			console.log('[ta-ccdr] backdrop click SUPPRESSED (age since open ms):', age);
+			return;
+		}
+		console.log('[ta-ccdr] backdrop click -> close (age since open ms):', age);
+		closeEditCcdrModal('backdrop-click');
+	});
+
+	/* Escape hatch: if the modal ever fails or someone needs a full window,
+	   the header button falls back to the original window.open flow for
+	   whichever URL is currently loaded. */
+	window.ccdrModalOpenInNewWindow = function(){
+		if(currentUrl){ window.open(currentUrl); }
+	};
+
+	/* DIAGNOSTIC: log every change to the backdrop's class attribute.
+	   If .open is being stripped by anything OTHER than our closeEditCcdrModal
+	   (e.g. a Bootstrap plugin, the iframe's contents, an unloading page),
+	   we'll see it in the console at the exact moment it happens. Remove this
+	   block once the second-open close bug is understood. */
+	try {
+		var _bd = document.getElementById('ta-ccdr-backdrop');
+		var _prevClass = _bd.className;
+		new MutationObserver(function(muts){
+			muts.forEach(function(m){
+				if(m.attributeName === 'class'){
+					var was = _prevClass, now = _bd.className;
+					_prevClass = now;
+					var hadOpen = /(^|\s)open(\s|$)/.test(was);
+					var hasOpen = /(^|\s)open(\s|$)/.test(now);
+					if(hadOpen !== hasOpen){
+						console.log('[ta-ccdr] backdrop .open CHANGED: '+hadOpen+' -> '+hasOpen, {was: was, now: now, ts: Date.now()});
+						try { console.trace('[ta-ccdr] mutation cause'); } catch(e){}
+					}
+				}
+			});
+		}).observe(_bd, {attributes: true, attributeFilter: ['class']});
+	} catch(e){ console.log('[ta-ccdr] MutationObserver init failed', e); }
+})();
+</script>
+
+
+<!-- --- Variant B: leave train_availability as-is on close --------------
+     Zero side effects: the underlying page stays exactly where it was
+     when the modal opened -- scroll position, any partially-filled form
+     state, all preserved. The tradeoff is that if the user edited the
+     incident (e.g. changed its incident_no) in the modal, the "IN ####"
+     link and surrounding row will keep showing the old value until the
+     user reloads on their own.
+     ------------------------------------------------------------------- -->
+<script type="text/javascript">
+function handleModalClose(){
+	/* intentionally no-op */
+}
+</script>
+
 </body>
 <script src="js/jquery-migrate-1.2.1.min.js"></script>
 <script src="js/jquery-ui-1.10.3.custom.min.js"></script>

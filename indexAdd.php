@@ -16,7 +16,7 @@ require("trans menu.php");
 <body class="DBody">      
     <br>
     <br>
-    <a class='two' href='Tmenu.php'><font face="Century" size="3"><b>Back to Main Menu</b></font></a>  
+    <a class='two' href='train_availability.php'><font face="Century" size="3"><b>Back to Main Menu</b></font></a>  
     <br>
     <br>    
     <table id="dg" title="Transport Employees" class="easyui-datagrid" style="width:100%;height:350px"

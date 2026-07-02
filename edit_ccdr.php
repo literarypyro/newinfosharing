@@ -1330,6 +1330,9 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 	border-radius: 8px;
 	overflow: hidden;
 	font-size: 12px;
+	
+		margin: 24px auto 0 auto;
+
 }
 .ta-grid.ta-console .ccdr td,
 .ta-grid.ta-console .ccdr th {
@@ -1611,10 +1614,7 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 <!-- orig javascrip    -->
 
 <body>
-<br>
-<br>
-<br>
-<br>
+
 
 <div id="freeow" class="freeow freeow-bottom-right"></div>
 <div class="ta-grid ta-console">
