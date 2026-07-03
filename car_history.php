@@ -140,8 +140,7 @@ Incident History
     </tr>
     <tr>
         <th>Index No</th>
-        <th>Incident Date</th>
-        <th>Time of Incident</th>
+        <th>Incident Date/Time</th>
         <th>Time Resolved</th>
         <th>Duration</th>
         <th>Problem Type</th>
@@ -167,8 +166,7 @@ for($i=0;$i<$nm;$i++){
 	?>
     <tr>
         <td><?php echo $row['index_no']; ?></td>
-        <td><?php echo date("Y-m-d", strtotime($row['incident_date'])); ?></td>
-        <td><?php echo date("H:iA", strtotime($row['incident_date'])); ?></td>
+        <td><?php echo date("Y-m-d H:iA", strtotime($row['incident_date'])); ?></td>
         <td>&nbsp;</td>
         <td><?php echo $row['duration']; ?></td>
         <td><?php echo getProblemType($db,$row['incident_type']); ?></td>
