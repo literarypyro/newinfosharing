@@ -24,11 +24,8 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
      - Sub-row count follows the compo (3 cars = 3 rows) instead of a fixed 4.
    NOT PORTED FROM operations.php (no columns for them in the legacy schema):
      stabling / ready-for-insertion / planned-actual departure / loop,
-     secondary driver, the Train Management board.
-   INCIDENT FLOW: now a slide panel too — an iframe onto
-     "incident report.php?cancel=|add_incident=...&embed=1" (embed discards
-     Tmenu chrome, form still posts to itself; on save it postMessages
-     'ir-saved' and this page reloads). Standalone/popup use is unchanged.
+     secondary driver, the Train Management board, the inline incident form.
+     The incident flow stays: window.open("incident report.php?...").
    Rename-safe: form action / reloads use $selfPage = basename(__FILE__).
    ========================================================================= */
 require_once("db_connect.php"); /* shared $db + db_exec()/db_query() prepared-statement helpers (item #2) */
@@ -94,7 +91,7 @@ if(isset($_POST['index_no'])){
 	if(isset($_POST['cancel_departure'])){
 		$availability_date="";
 		db_exec($db,"update train_availability set status='cancelled' where id=?",array($index_id));
-		echo "<script>window.addEventListener('load',function(){openIncidentPanel('cancel=".$index_id."','Cancel Train');});</script>"; /* was window.open popup; panel opens after load */
+		echo "<script language='javascript'>window.open('incident report.php?cancel=".$index_id."');</script>";
 	}
 	db_exec($db,"insert into train_ava_time(train_ava_id,boundary_time) values (?,?)",array($index_id,$availability_date));
 }
@@ -113,7 +110,7 @@ if(isset($_POST['other_index_no'])){
 	if(isset($_POST['cancel_departure'])){
 		db_exec($db,"update train_availability set status='cancelled' where id=?",array($index_id));
 		$availability_date="";
-		echo "<script>window.addEventListener('load',function(){openIncidentPanel('cancel=".$index_id."','Cancel Train');});</script>"; /* was window.open popup; panel opens after load */
+		echo "<script language='javascript'>window.open('incident report.php?cancel=".$index_id."');</script>";
 	}
 	db_exec($db,"insert into train_ava_time(train_ava_id,boundary_time) values (?,?)",array($index_id,$availability_date));
 }
@@ -170,7 +167,7 @@ if(isset($_POST['remove_id'])){
 	$_POST['day']=date("d",strtotime($train_date));  $_POST['hour']=date("H",strtotime($train_date));
 	$_POST['minute']=date("i",strtotime($train_date)); $_POST['amorpm']=date("A",strtotime($train_date));
 	if(isset($_POST['cancel_loop'])){
-		echo "<script>window.addEventListener('load',function(){openIncidentPanel('add_incident=".$_POST['remove_id']."','Add Incident');});</script>"; /* was window.open popup; panel opens after load */
+		echo "<script language='javascript'>window.open('incident report.php?add_incident=".$_POST['remove_id']."')</script>";
 	}
 }
 
@@ -369,22 +366,6 @@ td.del-cell a.disabled { display:none; }
 .ta-panel-foot .btn-primary { background:var(--rail); border-color:var(--rail); color:#fff; }
 .ta-panel-foot .btn-primary:hover { background:var(--rail-dark); border-color:var(--rail-dark); }
 .ta-panel-foot .hint { margin-right:auto; align-self:center; font-size:10px; color:var(--mut); }
-
-/* Incident panel: wider variant hosting incident report.php in an iframe.
-   #irPanel.ta-panel--ir (id+class) so this can't lose a specificity tie
-   against the base .ta-panel width rule regardless of source order. */
-#irPanel.ta-panel--ir { width:820px; }
-.ta-panel-body--ir { padding:0; overflow:hidden; position:relative; }
-#irFrame           { display:block; width:100%; height:100%; border:0; background:#fff; opacity:0; transition:opacity .15s; }
-#irFrame.ready     { opacity:1; }
-.ir-loading, .ir-fallback { position:absolute; top:0; right:0; bottom:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:var(--paper); text-align:center; padding:0 30px; }
-.ir-loading.hidden, .ir-fallback.hidden { display:none; }
-.ir-spinner { width:26px; height:26px; border:3px solid #C9D6E5; border-top-color:var(--rail); border-radius:50%; animation:ir-spin .7s linear infinite; }
-@keyframes ir-spin { to { transform:rotate(360deg); } }
-.ir-loading span, .ir-fallback p { font-size:12px; color:var(--mut); }
-.ir-fallback strong { color:var(--ink); font-size:13px; }
-.ir-fallback a { color:var(--rail); font-weight:600; text-decoration:none; }
-.ir-fallback a:hover { text-decoration:underline; }
 
 /* Original modal-form table CSS, rescoped from #addModal to .ta-panel (verbatim rules) */
 #add_form         { width:100%; border-collapse:collapse; font-size:12px; font-family:var(--ta-sans); }
@@ -629,7 +610,7 @@ function setPreset(check){
 }
 
 function cancelTrain(train_id){
-	if(confirm("Cancel Train?")) openIncidentPanel("cancel="+train_id,"Cancel Train");
+	if(confirm("Cancel Train?")) window.open("incident report.php?cancel="+train_id);
 }
 
 function setTrain(train){
@@ -735,54 +716,7 @@ function closePanel(){
 	document.getElementById('taPanel').classList.remove('active');
 	document.getElementById('taOverlay').classList.remove('active');
 }
-document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closePanel(); closeIncidentPanel(); } });
-
-/* ── Incident panel: hosts "incident report.php" in an iframe (embed=1
-      discards Tmenu chrome). The page posts to itself inside the iframe;
-      on save its cancel/add_incident branch postMessages 'ir-saved' and
-      we reload so the new incident/levels show on the row.
-      Loading state: the iframe fades in on load; if nothing's loaded after
-      6s (blocked by a security header, 404'd filename, etc.) a fallback
-      offers a direct link instead of leaving a blank panel. ── */
-var irLoadTimer=null, irExpectingLoad=false;
-function openIncidentPanel(query,title){
-	var url="incident report.php?"+query+"&embed=1";
-	document.getElementById('ir-panel-title').textContent=title||"Incident Report";
-	document.getElementById('irFallbackLink').href="incident report.php?"+query; /* no embed=1: full standalone page */
-	var frame=document.getElementById('irFrame');
-	frame.classList.remove('ready');
-	document.getElementById('irLoading').classList.remove('hidden');
-	document.getElementById('irFallback').classList.add('hidden');
-	clearTimeout(irLoadTimer);
-	irExpectingLoad=true;
-	frame.src=url;
-	document.getElementById('irPanel').classList.add('active');
-	document.getElementById('taOverlay').classList.add('active');
-	irLoadTimer=setTimeout(function(){
-		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
-	},6000);
-}
-function irFrameLoaded(){
-	if(!irExpectingLoad) return; /* ignore the about:blank resets from closeIncidentPanel/initial markup */
-	irExpectingLoad=false;
-	clearTimeout(irLoadTimer);
-	document.getElementById('irLoading').classList.add('hidden');
-	document.getElementById('irFallback').classList.add('hidden');
-	document.getElementById('irFrame').classList.add('ready');
-}
-function closeIncidentPanel(){
-	var p=document.getElementById('irPanel');
-	if(!p) return;
-	p.classList.remove('active');
-	clearTimeout(irLoadTimer);
-	irExpectingLoad=false;
-	document.getElementById('irFrame').src="about:blank"; /* drop any half-filled form */
-	if(!document.getElementById('taPanel').classList.contains('active'))
-		document.getElementById('taOverlay').classList.remove('active');
-}
-window.addEventListener('message',function(e){
-	if(e.data==='ir-saved'){ closeIncidentPanel(); self.location="<?php echo $selfPage; ?>"; }
-});
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closePanel(); });
 
 /* ── Date prev/today/next (operations.php header) -> posts the existing
       search_date field, so the original session logic is reused untouched. ── */
@@ -1124,7 +1058,7 @@ for($i=0; $i<$nm; $i++){
 		$dataCells .= '<td rowspan='.$spanN.' class="ta-remarks">'.$remove_remarks.$incidentClause
 			.'<br><a href=\'#\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
 			.'><i class="ti ti-edit" aria-hidden="true"></i>&nbsp;Add/Edit Remarks</a>'
-			.' <a href=\'#\' class="ta-act" onclick=\'openIncidentPanel("add_incident='.$row['id'].'","Add Incident &mdash; Index '.$row['index_no'].'")\''
+			.' <a href=\'#\' class="ta-act" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\''
 			.'>Add Incident</a>'
 			.'</td>';
 		$dataCells .= '<td rowspan='.$spanN.' class="lvl">'.$level2Clause.'</td>'
@@ -1162,7 +1096,7 @@ for($i=0; $i<$nm; $i++){
 		$dataCells .= '<td rowspan='.$spanN.' class="ta-remarks">'.$remove_remarks.$incidentClause
 			.'<br><a href=\'#\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
 			.'><i class="ti ti-edit" aria-hidden="true"></i>&nbsp;Add/Edit Remarks</a>'
-			.' <a href=\'#\' class="ta-act" onclick=\'openIncidentPanel("add_incident='.$row['id'].'","Add Incident &mdash; Index '.$row['index_no'].'")\''
+			.' <a href=\'#\' class="ta-act" onclick=\'window.open("incident report.php?add_incident='.$row['id'].'")\''
 			.'>Add Incident</a>'
 			.'</td>';
 		$dataCells .= '<td rowspan='.$spanN.' class="lvl">'.$level2Clause.'</td>'
@@ -1220,7 +1154,7 @@ for($i=0; $i<$nm; $i++){
 <!-- ── SLIDE PANEL (operations.php pattern) — hosts the same #add_form the
         POST handlers expect; footer Submit uses form='add_form' like the
         original modal footer did. ── -->
-<div class="ta-overlay" id="taOverlay" onclick="closePanel();closeIncidentPanel()"></div>
+<div class="ta-overlay" id="taOverlay" onclick="closePanel()"></div>
 <div class="ta-panel" id="taPanel" role="dialog" aria-modal="true" aria-labelledby="ta-panel-title">
 	<div class="ta-panel-head">
 		<h3 id="ta-panel-title">Edit Record</h3>
@@ -1233,28 +1167,6 @@ for($i=0; $i<$nm; $i++){
 		<span class="hint">Esc closes</span>
 		<a href="#" class="btn" onclick="closePanel();return false;">Close</a>
 		<button type='submit' form='add_form' class="btn btn-primary" id='Suc' value='Submit'>Submit</button>
-	</div>
-</div>
-
-<!-- ── INCIDENT PANEL — same slide-panel pattern, body is an iframe onto
-        "incident report.php?...&embed=1". All incident logic (equipment
-        picker, links, presets, POST handling) stays in that file. ── -->
-<div class="ta-panel ta-panel--ir" id="irPanel" role="dialog" aria-modal="true" aria-labelledby="ir-panel-title">
-	<div class="ta-panel-head">
-		<h3 id="ir-panel-title">Incident Report</h3>
-		<button type="button" class="ta-panel-close" onclick="closeIncidentPanel()" aria-label="Close">&times;</button>
-	</div>
-	<div class="ta-panel-body ta-panel-body--ir">
-		<iframe id="irFrame" src="about:blank" title="Incident Report" onload="irFrameLoaded()"></iframe>
-		<div class="ir-loading" id="irLoading">
-			<div class="ir-spinner"></div>
-			<span>Loading incident form&hellip;</span>
-		</div>
-		<div class="ir-fallback hidden" id="irFallback">
-			<strong>This is taking longer than expected.</strong>
-			<p>The form may be blocked from loading inside this panel.<br>You can open it directly instead:</p>
-			<a href="#" id="irFallbackLink" target="_blank" rel="noopener">Open Incident Report in a new tab &rarr;</a>
-		</div>
 	</div>
 </div>
 

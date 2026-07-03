@@ -8,7 +8,10 @@ require("excel_functions.php");
 
 ?>
 <?php
-ini_set("date.timezone","Asia/Kuala_Lumpur");
+require_once("db_config.php"); /* centralized credentials -- see db_config.php */
+?>
+<?php
+ini_set("date.timezone","Asia/Manila"); /* was Asia/Kuala_Lumpur -- confirmed incorrect */
 ?>
 <?php
 function getTrainDriver($db,$td_id){
@@ -130,7 +133,7 @@ if(isset($_GET['sccdr'])){
 
 	addContent(setRange("R8","T8"),$excel,date("l",strtotime($sccdr_date)),"true",$ExWs);	
 	
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport');
 
 
 
@@ -248,7 +251,7 @@ if(isset($_GET['sccdr'])){
 	
 	$availability_date=$sccdr_date;
 	
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport');
 	
 	//$am_sql="select count(*) as am_count from train_availability where date like '".$availability_date."%%' and status='cancelled' and date between '".$availability_date." 00:00:01' and '".$availability_date." 12:00:00'";
 
@@ -380,7 +383,7 @@ if(isset($_GET['sccdr'])){
 
 	$personnel_date=$sccdr_date;
 
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
+	$db2=iss_db('user_transport');
 	$psql="select * from duty_personnel where personnel_date like '".$personnel_date."%%' and shift='3'";
 	//echo $psql;
 	$prs=$db2->query($psql);

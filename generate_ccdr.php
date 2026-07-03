@@ -8,7 +8,10 @@ require("excel_functions.php");
 
 ?>
 <?php
-ini_set("date.timezone","Asia/Kuala_Lumpur");
+require_once("db_config.php"); /* centralized credentials -- see db_config.php */
+?>
+<?php
+ini_set("date.timezone","Asia/Manila"); /* was Asia/Kuala_Lumpur -- confirmed incorrect */
 ?>
 <?php
 if(isset($_GET['ccdr'])){
@@ -42,9 +45,16 @@ if(isset($_GET['ccdr'])){
 	
 	
 	
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport'); /* centralized -- see db_config.php */
 
+	/* item #3 fix: position('' IN incident_no) always returns 1 (MySQL matches an
+	   empty string at the very start), so this sorted every incident by just its
+	   FIRST CHARACTER -- confirmed by direct test against a live MySQL instance.
+	   Commented out rather than removed, per your request, since it might be
+	   referenced again later:
 	$sql="select * from incident_report inner join incident_description on incident_report.id=incident_description.incident_id where incident_date ".$dClause." order by substring(incident_no,1,position('' in incident_no))*1 ";
+	*/
+	$sql="select * from incident_report inner join incident_description on incident_report.id=incident_description.incident_id where incident_date ".$dClause." order by substring(incident_no,1,position(' ' in incident_no)-1)*1 ";
 	$rs=$db->query($sql);
 
 	$nm=$rs->num_rows;
@@ -57,7 +67,7 @@ if(isset($_GET['ccdr'])){
 
 	addContent(setRange("L8","N8"),$excel,date("l",strtotime($ccdr_date)),"true",$ExWs);	
 	
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport');
 	$timeTableSQL="select *,timetable_day.id as timeId from timetable_day inner join timetable_code on timetable_day.timetable_code=timetable_code.id where train_date like '".$ccdr_date."%%'";
 
 	$timeTableRS=$db->query($timeTableSQL);
@@ -71,7 +81,7 @@ if(isset($_GET['ccdr'])){
 
 	$personnel_date=$ccdr_date;
 
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
+	$db2=iss_db('user_transport');
 	$psql="select * from duty_personnel where personnel_date like '".$personnel_date."%%' and shift='3'";
 	//echo $psql;
 	$prs=$db2->query($psql);
@@ -152,6 +162,8 @@ if(isset($_GET['ccdr'])){
 		$car[0]="";
 		$car[1]="";
 		$car[2]="";
+		$car[3]=""; /* item #2 fix: fourth car was never read here, though incident_report.php's
+		               write side has stored up to 4 since our earlier multi-equipment work */
 
 		$carClause="";
 		$carSQL="select * from incident_cars where incident_id='".$row['incident_id']."'";
@@ -177,6 +189,12 @@ if(isset($_GET['ccdr'])){
 				$carClause.=", ".$car[2];
 			}
 			
+			if($car[3]==""){
+			}
+			else {
+				$carClause.=", ".$car[3];
+			}
+			
 		}
 		
 
@@ -198,10 +216,19 @@ if(isset($_GET['ccdr'])){
 			if($carClause==""){ } else { $carClause=" Car(s) ".$carClause.", "; }
 			
 			$direction=$row['direction'];
-			if(($direction=="S")||($direction=="SB")||($direction=="NB")) { $location="Stn. ".$location; }
+			/* item #7 fix: SB/NB never got spelled out the way D/ML do below, so the
+			   description used to end with a raw code ("...  SB," / "...  NB,"). S means
+			   "station" (not a direction), so it is blanked rather than spelled out --
+			   matching how edit_ccdr.php already treats S on its own display. Confirmed
+			   2026-07: S=Station, SB=Southbound, NB=Northbound, D=Depot, ML=Mainline. */
+			if($direction=="S"){ $location="Stn. ".$location; $direction=""; }
+			else if($direction=="SB"){ $location="Stn. ".$location; $direction="Southbound"; }
+			else if($direction=="NB"){ $location="Stn. ".$location; $direction="Northbound"; }
 			else if($direction=="D"){ $direction="Depot"; }
 			else if($direction=="ML"){ $direction="Mainline"; }
-			$description="Index #".$row['index_no'].",".$carClause.$location."  ".$direction.", ".$row['description'].", Reported By ".$reported_by.", ";
+			/* item #7 fix: omit the "  " separator when $direction was blanked (S), so the
+			   description reads "Stn. Ayala, ..." instead of "Stn. Ayala  , ...". */
+			$description="Index #".$row['index_no'].",".$carClause.$location.($direction!=""?"  ".$direction:"").", ".$row['description'].", Reported By ".$reported_by.", ";
 		
 		}
 		else if(($incident_type=="unload")||($incident_type=='nload')){

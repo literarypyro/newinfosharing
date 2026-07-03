@@ -63,12 +63,40 @@ function getPHTrainDriver($id,$dbase){
 
 
 function getLevel($id,$dbase){
-//$db=new mysqli("localhost","root","","transport");
-	$sql="select * from level where incident_id='".$id."'";
-	$rs=$dbase->query($sql);
-	$row=$rs->fetch_assoc();
-	$level=$row['order'];
-	return $level;
+	/* === FIX APPLIED 2026-07 (same fix as item #16 in train_availability.php and
+	   edit_ccdr.php's getLevelRank(), never previously applied here) ===
+	   `level`.`order` is a MyISAM per-(date,level) AUTO_INCREMENT -- it numbers by
+	   INSERTION ORDER, so a late-entered incident, a correction (edit_ccdr's level
+	   handler deletes+reinserts the row), or a deletion permanently desyncs it from
+	   true chronological order. This was the exact bug fixed on-screen in
+	   train_availability.php and edit_ccdr.php, but this file -- which generates
+	   the actual PRINTED TAR report handed to management -- was never included in
+	   that fix, so the paper document could show different 1st/2nd/3rd ordinals
+	   than the screen. Now computes the ordinal live instead: this incident's
+	   chronological position (by incident_report.incident_date, ties by id) among
+	   all same-day, same-level incidents -- the same population the stored counter
+	   numbered. Self-contained prepared statements since this file has no db_exec()/
+	   db_query() helpers (matches the approach already used in edit_ccdr.php). The
+	   `order` column itself is untouched -- the MyISAM engine keeps writing it
+	   exactly as before, it's just no longer read here. === END FIX === */
+	$stmt=$dbase->prepare("select l.date,l.level,ir.incident_date,ir.id as ir_id
+		from level l join incident_report ir on ir.id=l.incident_id
+		where l.incident_id=? limit 1");
+	if($stmt===false) return "";
+	$stmt->bind_param("s",$id);
+	$stmt->execute();
+	$rs=$stmt->get_result();
+	if($rs===false || $rs->num_rows==0) return "";
+	$l0=$rs->fetch_assoc();
+	$stmt=$dbase->prepare("select count(*)+1 as rnk
+		from level l join incident_report ir on ir.id=l.incident_id
+		where l.date=? and l.level=?
+		and (ir.incident_date<? or (ir.incident_date=? and ir.id<?))");
+	if($stmt===false) return "";
+	$stmt->bind_param("sssss",$l0['date'],$l0['level'],$l0['incident_date'],$l0['incident_date'],$l0['ir_id']);
+	$stmt->execute();
+	$row=$stmt->get_result()->fetch_assoc();
+	return $row['rnk'];
 
 }
 
@@ -224,6 +252,25 @@ if(isset($_GET['tar'])){
 		$rs3=$db->query($sql3);
 		$nm3=$rs3->num_rows;
 
+		/* === REVIEWED 2026-07 -- NOT changed, and here's precisely why ===
+		   The screen (train_availability.php) allows up to 7 switches; this print
+		   loop caps at 4. Raising this to 7 to match is NOT safe to do blindly:
+		   the loop below writes one switch per column starting at chr(66)='B' and
+		   incrementing (B, C, D, E for n=0..3). The very next column, F, is where
+		   car_a is unconditionally written a few lines down (line ~243 in this
+		   file), G is boundary_time, H is insert data -- ALL written after this
+		   loop runs, so they'd immediately overwrite whatever a 5th+ switch wrote
+		   there. Raising the cap wouldn't actually surface switches 5-7 on the
+		   printed page; it would silently make them vanish (overwritten a few
+		   lines later) instead of the current honest, deliberate cap. B-through-E
+		   is exactly the 4-column gap between index_no (A) and cars (F) -- this
+		   was very likely sized to the template on purpose, not a bug.
+		   Fixing this properly needs one of: (a) the actual TAR.xls template, to
+		   see whether columns exist elsewhere for switches 5-7, or (b) a redesign
+		   of this section of the form. Given switches were described as maxing
+		   out around 3-4 in practice, this is likely dormant today -- but if a
+		   train ever does switch a 5th time in one day, only its first 4 switches
+		   would appear on the printed TAR. === END REVIEW === */
 		if($nm3>4){
 			$nm3=4;
 		}

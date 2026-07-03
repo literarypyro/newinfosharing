@@ -1,4 +1,5 @@
 <?php
+require_once("db_config.php"); /* centralized credentials -- see db_config.php */
 //require("Tmenu.php");
 ?>
 
@@ -533,7 +534,7 @@ echo "<h2>".$displayDate."</h2>";
 ?>
 <?php
 
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport');
 $sql="select * from weekly_report where from_date like '".$availability_date."%%' ".$ccdr_add;
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -557,7 +558,7 @@ else {
 ?>
 <?php
 if(isset($_POST['weekly_id'])){
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport');
 	
 	
 	$update="update weekly_report ";
@@ -597,13 +598,18 @@ Summary and Recommended Measures: <?php echo $measures; ?> <a href='#' onclick="
 </tr>
 
 <?php
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
+	$db2=iss_db('external');
 
 //$ccdr_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 $ccdr_date=$availability_date;
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport');
 
+/* item #3 fix: position('' IN incident_no) always returns 1, so this sorted by just
+   the FIRST CHARACTER of the incident number -- verified against a live MySQL
+   instance. Commented out rather than removed, per your request:
 $clause=" order by substring(incident_no,1,position('' in incident_no))*1 ";
+*/
+$clause=" order by substring(incident_no,1,position(' ' in incident_no)-1)*1 ";
 
 if(isset($_POST['sort_by'])){
 	if($_POST['sort_by']==""){
@@ -646,6 +652,7 @@ for($i=0;$i<$nm;$i++){
 		$car[0]="";
 		$car[1]="";
 		$car[2]="";
+		$car[3]=""; /* item #2 fix: fourth car was never read here */
 
 		$carClause="";
 		$carSQL="select * from incident_cars where incident_id='".$row['incident_id']."'";
@@ -671,6 +678,12 @@ for($i=0;$i<$nm;$i++){
 				$carClause.=", ".$car[2];
 			}
 			
+			if($car[3]==""){
+			}
+			else {
+				$carClause.=", ".$car[3];
+			}
+			
 		}
 	$incident_type=$row['incident_type'];
 		
@@ -683,10 +696,19 @@ for($i=0;$i<$nm;$i++){
 			if($carClause==""){ } else { $carClause=" Car(s) ".$carClause.", "; }
 			
 			$direction=$row['direction'];
-			if(($direction=="S")||($direction=="SB")||($direction=="NB")) { $location="Stn. ".$location; }
+			/* item #7 fix: SB/NB never got spelled out the way D/ML do below, so the
+			   description used to end with a raw code ("...  SB," / "...  NB,"). S means
+			   "station" (not a direction), so it is blanked rather than spelled out --
+			   matching how edit_ccdr.php already treats S on its own display. Confirmed
+			   2026-07: S=Station, SB=Southbound, NB=Northbound, D=Depot, ML=Mainline. */
+			if($direction=="S"){ $location="Stn. ".$location; $direction=""; }
+			else if($direction=="SB"){ $location="Stn. ".$location; $direction="Southbound"; }
+			else if($direction=="NB"){ $location="Stn. ".$location; $direction="Northbound"; }
 			else if($direction=="D"){ $direction="Depot"; }
 			else if($direction=="ML"){ $direction="Mainline"; }
-			$description="Index #".$row['index_no'].",".$carClause.$location."  ".$direction.", ".$row['description'].", Reported By ".$reported_by.", ";
+			/* item #7 fix: omit the "  " separator when $direction was blanked (S), so the
+			   description reads "Stn. Ayala, ..." instead of "Stn. Ayala  , ...". */
+			$description="Index #".$row['index_no'].",".$carClause.$location.($direction!=""?"  ".$direction:"").", ".$row['description'].", Reported By ".$reported_by.", ";
 		
 		}
 		else if(($incident_type=="unload")||($incident_type=='nload')){
@@ -794,4 +816,4 @@ if ($nm<>0) {
 		<script src="js/bootstrap.min.js"></script>	
 
 
-<script src="js/date.js"></script>	
+<script src="js/date.js"></script>

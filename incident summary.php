@@ -3,6 +3,7 @@ session_start();
 ?>
 <?php
 require("Tmenu.php");
+require_once("db_config.php"); /* centralized credentials -- see db_config.php */
 ?>
 
 <!--- Modified by Jun
@@ -214,11 +215,16 @@ $availability_date=$_SESSION['search_date'];
 $datenow=date("m/d/Y",strtotime($availability_date));
 }
 ?>
-<form action='incident summary.php' method='post' class="stat-toolbar">
+
+<table cellspacing="0" cellpadding="0" class='stat-toolbar'>
+<tr>
+	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
+		<form action='incident summary.php' method='post' >
+<div width="50%" align=left>
 <table>
 
 <th>From</th>
-<td> <input type="text" name='search_date2' id='search_date2'>
+<td> <input type="text" name='search_date2' id='search_date2'> 
 </td>
 <th>To</th>
 <td> <input type="text" name='search_date' id='search_date'>
@@ -229,27 +235,11 @@ $datenow=date("m/d/Y",strtotime($availability_date));
 </tr>
 </table>
 </form>
-<br>
-<br>
-<br>
+	</td>
+		<td style="padding:8px 14px;vertical-align:middle;text-align:center;border:none">
 
 
-<!-- Sort form -->
-
-<form action='incident summary.php' method='post'>
-Sort By:
-<select name='sort_by' id='sort_by'>
-<option></option>
-<option value='level ascending'>Level Ascending</option>
-<option value='1'>All Level 1</option>
-<option value='2'>All Level 2</option>
-<option value='3'>All Level 3</option>
-<option value='4'>All Level 4</option>
-</select>
-<input type='submit' value='Sort' />
-</form>
-
-<?php
+	<?php
 if(isset($_POST['search_date2'])){
 //$month=$_POST['month'];
 //$day=$_POST['day'];
@@ -319,9 +309,37 @@ else {
 	$displayDate.=" - ".date("F d, Y",strtotime($availability_date2));
 }
 
+
+
 //$timetable=date("Y-m-d",strtotime($_POST['search_date']));
 echo "<h2>".$displayDate."</h2>";
 ?>
+		</td>
+
+	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
+<form action='incident summary.php' method='post'>
+Sort By:
+<select name='sort_by' id='sort_by'>
+<option></option>
+<option value='level ascending'>Level Ascending</option>
+<option value='1'>All Level 1</option>
+<option value='2'>All Level 2</option>
+<option value='3'>All Level 3</option>
+<option value='4'>All Level 4</option>
+</select>
+<input type='submit' value='Sort' />
+</form>
+	</td>
+</tr>
+</table>
+
+
+<!-- Sort form -->
+<div width=50% align=right style='margin:0'>
+
+</div>
+</div>
+
 <a href='#' class="two pull-right"  onclick='window.open("generate_ccdr.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate Printout</b></a>
  | 
 <a href='#' class="two pull-right"  onclick='window.open("generate_nis.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate (New Format) Printout</b></a>
@@ -332,7 +350,9 @@ echo "<h2>".$displayDate."</h2>";
 <table width=95% class='train_ava'>
 <tr class='rowHeading'>
 <th rowspan=2>Incident No.</th>
-<th rowspan=2>Time<br> (H)</th>
+<th rowspan=2>Incident Date/Time</th>
+<th rowspan=2>Time Resolved</th>
+
 <th rowspan=2>Incident<br> Duration</th>
 <th rowspan=2>Description</th>
 <th colspan=2>Action Taken</th>
@@ -341,17 +361,22 @@ echo "<h2>".$displayDate."</h2>";
 </tr>
 <tr class='rowHeading'>
 <th>DOTC</th>
-<th>Maintenance Provider</th>
+<th>Maintenance Provider (TESP/Other)</th>
 </tr>
 
 <?php
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
+	$db2=iss_db('external');
 
 //$ccdr_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 //$ccdr_date=$availability_date;
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	$db=iss_db('transport');
 
+/* item #3 fix: position('' IN incident_no) always returns 1, so this sorted by just
+   the FIRST CHARACTER of the incident number -- verified against a live MySQL
+   instance. Commented out rather than removed, per your request:
 $clause=" order by substring(incident_no,1,position('' in incident_no))*1 ";
+*/
+$clause=" order by substring(incident_no,1,position(' ' in incident_no)-1)*1 ";
 
 if(isset($_POST['sort_by'])){
 	if($_POST['sort_by']==""){
@@ -394,6 +419,7 @@ for($i=0;$i<$nm;$i++){
 		$car[0]="";
 		$car[1]="";
 		$car[2]="";
+		$car[3]=""; /* item #2 fix: fourth car was never read here */
 
 		$carClause="";
 		$carSQL="select * from incident_cars where incident_id='".$row['incident_id']."'";
@@ -419,11 +445,17 @@ for($i=0;$i<$nm;$i++){
 				$carClause.=", ".$car[2];
 			}
 			
+			if($car[3]==""){
+			}
+			else {
+				$carClause.=", ".$car[3];
+			}
+			
 		}
 	$incident_type=$row['incident_type'];
 		
 	$description="";	
-	$hourStamp=date("Hi",strtotime($row['incident_date']));
+	$hourStamp=date("Y-m-d Hia",strtotime($row['incident_date']));
 	$location=$row['location'];
 	$reported_by=$row['reported_by'];
 
@@ -431,10 +463,19 @@ for($i=0;$i<$nm;$i++){
 			if($carClause==""){ } else { $carClause=" Car(s) ".$carClause.", "; }
 			
 			$direction=$row['direction'];
-			if(($direction=="S")||($direction=="SB")||($direction=="NB")) { $location="Stn. ".$location; }
+			/* item #7 fix: SB/NB never got spelled out the way D/ML do below, so the
+			   description used to end with a raw code ("...  SB," / "...  NB,"). S means
+			   "station" (not a direction), so it is blanked rather than spelled out --
+			   matching how edit_ccdr.php already treats S on its own display. Confirmed
+			   2026-07: S=Station, SB=Southbound, NB=Northbound, D=Depot, ML=Mainline. */
+			if($direction=="S"){ $location="Stn. ".$location; $direction=""; }
+			else if($direction=="SB"){ $location="Stn. ".$location; $direction="Southbound"; }
+			else if($direction=="NB"){ $location="Stn. ".$location; $direction="Northbound"; }
 			else if($direction=="D"){ $direction="Depot"; }
 			else if($direction=="ML"){ $direction="Mainline"; }
-			$description="Index #".$row['index_no'].",".$carClause.$location."  ".$direction.", ".$row['description'].", Reported By ".$reported_by.", ";
+			/* item #7 fix: omit the "  " separator when $direction was blanked (S), so the
+			   description reads "Stn. Ayala, ..." instead of "Stn. Ayala  , ...". */
+			$description="Index #".$row['index_no'].",".$carClause.$location.($direction!=""?"  ".$direction:"").", ".$row['description'].", Reported By ".$reported_by.", ";
 		
 		}
 		else if(($incident_type=="unload")||($incident_type=='nload')){
@@ -453,6 +494,8 @@ for($i=0;$i<$nm;$i++){
 <tr <?php if($i%2>0){ echo "class='rowClass'"; } ?>>
 <td align=center><a href='#' class="two2" onclick='window.open("edit_ccdr.php?ir=<?php echo $row['incident_id']; ?>")'><?php echo $row['incident_no']; ?></a></td>
 <td align=center><?php echo $hourStamp; ?></td>
+<td align=center>&nbsp;</td>
+
 <td><?php echo $row['duration']; ?></td>
 <td><?php echo $description; ?></td>
 <td><?php echo $row['action_dotc']; ?></td>

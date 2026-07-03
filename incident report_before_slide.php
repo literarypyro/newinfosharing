@@ -3,14 +3,7 @@ session_start();
 ?>
 <?php
 ini_set("date.timezone","Asia/Kuala_Lumpur");
-/* embed=1 -> page is hosted inside the train_operations slide-panel iframe.
-   Tmenu.php still runs (it provides $db / session / auth side effects) but
-   its printed chrome is captured and discarded so only the incident form
-   shows inside the panel. Opened standalone (no embed), nothing changes. */
-$IR_EMBED = isset($_GET['embed']);
-if($IR_EMBED){ ob_start(); }
 require("Tmenu.php");
-if($IR_EMBED){ ob_end_clean(); }
 ?>
 <?php
 /* =========================================================================
@@ -235,8 +228,7 @@ if(isset($_POST['equipment'])){
 		$rs=$db->query($sql);
 		$sql="insert into train_incident_report(train_ava_id,incident_id) values ('".$_GET['cancel']."','".$_SESSION['incident_id']."')";
 		$rs=$db->query($sql);
-		if($IR_EMBED){ echo "<script>parent.postMessage('ir-saved','*');</script>"; }
-		else { echo "<script language='javascript'>window.opener.location='train_availability.php';</script>"; }
+		echo "<script language='javascript'>window.opener.location='train_availability.php';</script>";
 	}
 	if(isset($_GET['add_incident'])){
 		$sql="insert into train_incident_report(train_ava_id,incident_id) values ('".$_GET['add_incident']."','".$incident_code."')";
@@ -245,8 +237,7 @@ if(isset($_POST['equipment'])){
 			$sql="update train_ava_time set cancel_loop='".$cancel."' where train_ava_id='".$_GET['cancel']."'";
 			$rs=$db->query($sql);
 		}
-		if($IR_EMBED){ echo "<script>parent.postMessage('ir-saved','*');</script>"; }
-		else { echo "<script language='javascript'>window.opener.location='train_availability.php';</script>"; }
+		echo "<script language='javascript'>window.opener.location='train_availability.php';</script>";
 	}
 	
 	if($level_condition=='3'){
@@ -1334,7 +1325,7 @@ document.addEventListener('keydown',function(e){
 	</div>
 
 	<div class="ir-form-body">
-	<form action='incident report.php<?php if(isset($_GET['cancel'])){ echo "?cancel=".$_GET['cancel']; } else if(isset($_GET['add_incident'])){ echo "?add_incident=".$_GET['add_incident']; } if($IR_EMBED){ echo (isset($_GET['cancel'])||isset($_GET['add_incident']))?"&embed=1":"?embed=1"; } ?>' method='post'>
+	<form action='incident report.php<?php if(isset($_GET['cancel'])){ echo "?cancel=".$_GET['cancel']; } else if(isset($_GET['add_incident'])){ echo "?add_incident=".$_GET['add_incident']; } ?>' method='post'>
 
 	<!-- ═══════════════════════════════════════════
 	     SECTION 1: Incident Details

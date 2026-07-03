@@ -1276,7 +1276,12 @@ if(isset($_POST['fieldType'])){
 		
 		
 		$update="update incident_no set incident_number='".$_POST['incident_digit']."', suffix='".$_POST['incident_suffix']."' where incident_id='".$incident_report."'";
-		$db2=new mysqli("localhost","root","","user_transport");
+		/* item #1 fix: was `new mysqli("localhost","root","","user_transport")` -- root,
+		   blank password, and the pre-migration database name. Confirmed (2026-07):
+		   is_user_transport is the current name; this almost certainly meant incident
+		   renumbering never reached the live table. Centralized via db_config.php. */
+		require_once("db_config.php");
+		$db2=iss_db('user_transport');
 		$rs=$db2->query($update);
 	}
 		

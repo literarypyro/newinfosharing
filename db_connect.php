@@ -1,29 +1,25 @@
 <?php
 /* =========================================================================
    db_connect.php — single shared MySQL connection + prepared-statement
-   helpers for the ISS pages. (Item #2 of the train_availability pass.)
+   helpers for train_availability.php. (Item #2 of the train_availability
+   pass.)
+
+   2026-07 update: credentials no longer live here. They live in exactly
+   one place system-wide -- db_config.php -- and this file just asks it
+   for the 'transport' (is_transport) connection. Every other file that
+   was touched in the same pass (processing.php, edit_ccdr.php, the
+   generate_*.php / weekly_printout.php printouts) draws from the same
+   db_config.php, so a credential rotation is now a one-file change.
 
    Adoption: any ISS page can switch to this by adding
        require_once("db_connect.php");
    and replacing  $db->query($sql)  call sites with db_query()/db_exec().
-
-   CREDENTIALS — pick one, then rotate the password (it has lived inside
-   page source for years; old copies/backups may still carry it):
-     a) Preferred: move this file OUTSIDE the web root and require it as
-        require_once(__DIR__."/../iss_private/db_connect.php");
-     b) Or keep it beside the pages but deny direct HTTP access to it in
-        the server config (Apache 2.4:  <Files "db_connect.php">
-        Require all denied </Files>).
    ========================================================================= */
 
-$DB_HOST = "localhost";
-$DB_USER = "psssilva";
-$DB_PASS = "!D40nkC2azXg$";   /* TODO: rotate in MySQL, then update here only */
-$DB_NAME = "is_transport";
+require_once("db_config.php");
 
-$db = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
-if ($db->connect_errno) {
-	error_log("ISS db_connect (".$db->connect_errno."): ".$db->connect_error);
+$db = iss_db('transport');
+if ($db === false) {
 	die("Database connection failed.");
 }
 

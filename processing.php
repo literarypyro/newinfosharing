@@ -2,11 +2,12 @@
 session_start();
 ?>
 <?php
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	require_once("db_config.php"); /* centralized credentials -- see db_config.php */
+	$db=iss_db('transport');
 
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
-	$db3=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_timetable");
-	$db4=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
+	$db2=iss_db('external');
+	$db3=iss_db('timetable');
+	$db4=iss_db('user_transport');
 
 ?>
 <?php
@@ -81,7 +82,7 @@ if(isset($_GET['searchIncidents'])){
 }
 
 if(isset($_GET['ajaxSwitch'])){
-    $db = new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+    $db = iss_db('transport'); /* was a redundant standalone connect; centralized -- see db_config.php */
     
     $train_ava_id = intval($_GET['train_ava_id']);
     $new_index    = $db->real_escape_string($_GET['new_index']);
@@ -448,7 +449,14 @@ if(isset($_GET['removeTimetableHour'])){
 }
 
 function clearIncidentRecords($incident){
-	$db=new mysqli("localhost","root","","transport");
+	/* item #1 fix: this was `new mysqli("localhost","root","","transport")` -- root,
+	   blank password, and the pre-migration database name (no "is_" prefix). Production
+	   no longer has that user/database; every delete below was very likely silently
+	   failing, leaving incident_description/incident_no/level/service_interruption/
+	   incident_cars rows behind every time an incident was "deleted" from
+	   incident_summary.php or via removeRow's cascade. Now uses the real, current
+	   connection via db_config.php (this file's own require_once already loaded it). */
+	$db=iss_db('transport');
 
 	$update="delete from incident_description where incident_id='".$incident."'";
 	$rs=$db->query($update);
@@ -524,7 +532,12 @@ if(isset($_GET['checkIncidentNo'])){
 
 if(isset($_GET['search_preencoded'])){
 
-	$db2=new mysqli("localhost","root","","external");
+	/* item #1 fix: was `new mysqli("localhost","root","","external")` -- same stale
+	   pre-migration name/credentials as clearIncidentRecords() above. $db2 was already
+	   opened correctly at the top of this file via db_config.php, so this line is
+	   redundant now, but kept (harmlessly re-fetching the same cached connection) to
+	   match the file's existing per-handler structure. */
+	$db2=iss_db('external');
 	$sql="select * from preencoded";
 
 	//	$sql="select * from preencoded where content like '%".$_GET['query']."%%'";
