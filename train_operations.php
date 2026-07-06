@@ -244,6 +244,9 @@ if(isset($_POST['edit_car'])){
 	--c-removed:   #378ADD;
 	--c-cancelled: #E24B4A;
 }
+
+
+
 .ta-ops { font-family:var(--ta-sans); color:var(--ink); }
 .ta-ops * { box-sizing:border-box; }
 
@@ -356,7 +359,7 @@ td.del-cell a.disabled { display:none; }
 /* ── Slide panel (operations.php) — hosts the original generated forms ── */
 .ta-overlay       { position:fixed; inset:0; background:rgba(10,25,50,.45); opacity:0; visibility:hidden; transition:opacity .2s; z-index:99998; }
 .ta-overlay.active{ opacity:1; visibility:visible; }
-.ta-panel         { position:fixed; top:0; right:-500px; width:480px; max-width:96vw; height:100vh; background:var(--paper); box-shadow:-6px 0 24px rgba(0,30,80,.25); transition:right .25s ease; z-index:99999; display:flex; flex-direction:column; font-family:var(--ta-sans); }
+.ta-panel         { position:fixed; top:0; right:-900px; width:480px; max-width:96vw; height:100vh; background:var(--paper); box-shadow:-6px 0 24px rgba(0,30,80,.25); transition:right .25s ease; z-index:99999; display:flex; flex-direction:column; font-family:var(--ta-sans); }
 .ta-panel.active  { right:0; }
 .ta-panel-head    { background:var(--rail); border-bottom:3px solid var(--gold); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex:none; }
 .ta-panel-head h3 { margin:0; color:#fff; font-size:13px; font-weight:600; letter-spacing:.3px; }
@@ -412,6 +415,7 @@ a.LEdit:visited { color:blue; } a.LDel:visited { color:red; }
 .alink a.disabled { color:#666; text-decoration:none; }
 
 @media (max-width:768px){
+	
 	.ops-header, .ops-strip, .ops-section { padding-left:10px; padding-right:10px; }
 	.ops-table-wrap { margin:8px 6px 12px; }
 	.ta-panel { width:100vw; max-width:100vw; }
@@ -762,6 +766,25 @@ function openIncidentPanel(query,title){
 		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
 	},6000);
 }
+function openEditIncidentPanel(query,title){
+	var url="edit_ccdr.php?ir="+query+"&embed=1";
+	document.getElementById('ir-panel-title').textContent=title||"Incident Report Details";
+	document.getElementById('irFallbackLink').href="edit_ccdr.php?ir="+query; /* no embed=1: full standalone page */
+	var frame=document.getElementById('irFrame');
+	frame.classList.remove('ready');
+	document.getElementById('irLoading').classList.remove('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	clearTimeout(irLoadTimer);
+	irExpectingLoad=true;
+	frame.src=url;
+	document.getElementById('irPanel').classList.add('active');
+	document.getElementById('taOverlay').classList.add('active');
+	irLoadTimer=setTimeout(function(){
+		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
+	},6000);
+}
+
+
 function irFrameLoaded(){
 	if(!irExpectingLoad) return; /* ignore the about:blank resets from closeIncidentPanel/initial markup */
 	irExpectingLoad=false;
@@ -1083,7 +1106,7 @@ for($i=0; $i<$nm; $i++){
 				$cancelRow = $cancelRS->fetch_assoc();
 				$level     = $cancelRow['level'];
 				$order     = getLevel($cancelRow['incident_id'],$db);
-				$incLink   = "<a href='#' class='$SRemove' onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
+				$incLink   = "<a href='#' class='$SRemove' onclick='openEditIncidentPanel(\"".$cancelRow['incident_id']."\",\"Incident Details &mdash; Index ".$row['index_no']."\")'>IN ".$cancelRow['incident_no']."</a>";
 				$incidentClause .= ($m==0) ? $incLink : ",<br>".$incLink;
 				if($level==2){ $level2Clause.=($l2Count>0?",<br>":"").getOrdinal($order); $l2Count++; }
 				elseif($level==3){ $level3Clause.=($l3Count>0?",<br>":"").getOrdinal($order); $l3Count++; }
@@ -1140,7 +1163,7 @@ for($i=0; $i<$nm; $i++){
 			$cancelRow = $cancelRS->fetch_assoc();
 			$level     = $cancelRow['level'];
 			$order     = getLevel($cancelRow['incident_id'],$db);
-			$incLink   = "<a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$cancelRow['incident_id']."\")'>IN ".$cancelRow['incident_no']."</a>";
+			$incLink   = "<a href='#' onclick='openEditIncidentPanel(\"".$cancelRow['incident_id']."\",\"Incident Details &mdash; Index ".$row['index_no']."\")'>IN ".$cancelRow['incident_no']."</a>";
 			$incidentClause .= ($m==0) ? $incLink : ",<br>".$incLink;
 			if($level==2){ $level2Clause.=($l2Count>0?",<br>":"").getOrdinal($order); $l2Count++; }
 			elseif($level==3){ $level3Clause.=($l3Count>0?",<br>":"").getOrdinal($order); $l3Count++; }

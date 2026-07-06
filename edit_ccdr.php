@@ -1,7 +1,15 @@
 <?php
+$IR_EMBED = isset($_GET['embed']);
+if($IR_EMBED){ ob_start(); }
 require("Tmenu.php");
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
+if($IR_EMBED){ ob_end_clean(); }
+require_once("db_config.php"); /* centralized credentials -- see db_config.php */
+	
+	$db=iss_db('transport');
+
+	$db2=iss_db('external');
+	
+	
 global $Mup;
 ?>
 <!---- Modified: Jun
@@ -1623,6 +1631,9 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 
 <div id="freeow" class="freeow freeow-bottom-right"></div>
 <div class="ta-grid ta-console">
+<?php
+if($IR_EMBED){ ob_start(); }
+?>
 <div class="cc-search-bar">
 <form action='edit_ccdr.php' method='post'><b>Search Incident Number</b> <input class='text_input' type=text name='search_incident_number'/><input type=submit value='Search' /></form>
 
@@ -1631,6 +1642,9 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+
+
+
 ?>
 <?php
 if(isset($_POST['search_incident_number'])){
@@ -1659,6 +1673,10 @@ if(isset($_POST['search_incident_number'])){
 ?>
 </div><!-- /.cc-search-bar -->
 <?php
+
+
+
+if($IR_EMBED){ ob_end_clean(); }
 ?>
 <?php
 	if((isset($_POST['incident_report']))||(isset($_GET['ir']))){
