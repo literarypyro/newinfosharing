@@ -31,6 +31,21 @@ if(isset($_GET['searchEquipment'])){
 }
 
 
+if(isset($_GET['searchReportedBy'])){
+	$q = $db->real_escape_string($_GET['searchReportedBy']);
+
+	$sql = "select distinct reported_by from incident_description
+	        where reported_by like '%".$q."%'
+	        order by reported_by limit 20";
+	$rs  = $db->query($sql);
+	$out = "";
+	while($row = $rs->fetch_assoc()){
+		$out .= $row['reported_by']."==>";
+	}
+
+	echo ($out=="") ? "No data available" : $out;
+}
+
 if(isset($_GET['searchIncidents'])){
 	$q     = $db->real_escape_string($_GET['searchIncidents']);
 	$scope = isset($_GET['scope']) ? $_GET['scope'] : 'today';

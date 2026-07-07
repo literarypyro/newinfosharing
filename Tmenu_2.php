@@ -265,36 +265,7 @@ body { height: 100%; overflow: hidden; }
 		<li><a href='clearance form.php' id='dr'>Clearance Form</a></li>
 		<li><a href='#'>Statistics Report</a>
 		<ul>
-			<li><a href='#'>Problems by Category</a>
-			<ul>			
-        		<?php 
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-			
-				$sql="select * from equipment_type where equipment_name not in ('OTHERS') order by equipment_name";
-				$rs=$db->query($sql);
-				$nm=$rs->num_rows;
-			
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-				?>
-				<li ><a href='#'  onclick="window.open('problem_history.php?problem=<?php echo $row['equipment_code']; ?>')"><?php echo $row['equipment_name']; ?></a> </li>
-				<?php
-				}
-
-				$sql="select * from equipment_type where equipment_name in ('OTHERS') order by equipment_name";
-				$rs=$db->query($sql);
-				$nm=$rs->num_rows;
-			
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-				?>
-				<li ><a href='#'  onclick="window.open('problem_history.php?problem=<?php echo $row['equipment_code']; ?>')"><?php echo $row['equipment_name']; ?></a> </li>
-				<?php
-				}
-				?>
-
-			
-			</ul>
+			<li><a href='#' onclick="window.open('problem_history.php')">Problems by Category</a>
 			</li>
 
 			<li><a href='#' onclick="window.open('car_statistics_report.php')">Car Incidents By Year</a></li>
