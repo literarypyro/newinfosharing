@@ -941,27 +941,21 @@ if(isset($_POST['fieldType'])){
 //$incident_report=$_POST['incident_report'];
 	//Mjun@
 	$fieldT=$_POST['fieldType'];
-	$incident_report=$_POST['inc_report'];
+	if ($fieldT<>"") {			
+	$incident_report=$_POST['inc_report'];	
 
-	/* -- Multi-equipment / multi-linked-incident writes -------------------
-	   These no longer depend on a specific fieldType value -- equipment_ids
-	   and incident_links now travel with edit_form itself (attached via
-	   form="edit_form" on their hidden inputs, since the equipment/link
-	   editors are no longer separate <form>s). That means they run
-	   whenever their hidden field is present, REGARDLESS of what (if
-	   anything) fieldType says -- including when fieldType is empty, which
-	   is what the standalone "Save Equipment & Linked Incidents" button
-	   submits when the user hasn't touched any other field.
-
-	   IMPORTANT: because these hidden fields are now present on every
-	   edit_form submission (not just when their own editor was opened),
-	   they are seeded from the existing DB rows unconditionally on page
-	   load now (ccEqSeedExisting()/ccLinkSeedExisting() are called
-	   immediately, not just on first modal-open -- see the bottom of the
-	   script block below). Without that, editing an unrelated field like
-	   Level would submit an EMPTY equipment_ids/incident_links and wipe
-	   out equipment/links the user never touched this session. ---------- */
-	if(isset($_POST['equipment_ids'])){
+	/* -- New multi-field save handlers (junction tables) -----------------
+	   These two fieldTypes come from the ported multi-equipment / multi-link
+	   editors. They don't fit the generic "update incident_report set X
+	   where id" shape the switch below builds, so they're handled here in
+	   full. They set $Mup=1 (same success signal every other save uses) and
+	   then skip the generic update via the $ccHandled flag - NOT via a
+	   header() redirect, because Tmenu.php has already emitted output by this
+	   point and header() would fail with "headers already sent". The page
+	   re-renders inline afterward and the read-back queries pick up the new
+	   junction rows, exactly like the existing edits do. ------------------ */
+	$ccHandled=false;
+	if($_POST['fieldType']=='equipment_multi'){
 		$db->query("delete from incident_equipment where incident_id='".$incident_report."'");
 		if(!empty($_POST['equipment_ids'])){
 			$pairs=array_filter(is_array($_POST['equipment_ids'])
@@ -977,9 +971,9 @@ if(isset($_POST['fieldType'])){
 				$db->query("insert ignore into incident_equipment(incident_id,equipt_id,subitem_id) values ('".$incident_report."','".$equipt_id."','".$subitem_id."')");
 			}
 		}
-		$Mup=1;
+		$Mup=1; $ccHandled=true;
 	}
-	if(isset($_POST['incident_links'])){
+	if($_POST['fieldType']=='link_multi'){
 		$db->query("delete from incident_linked_reports where incident_id='".$incident_report."'");
 		$firstLink=true;
 		if(!empty($_POST['incident_links'])){
@@ -999,15 +993,10 @@ if(isset($_POST['fieldType'])){
 		if($firstLink){
 			$db->query("update incident_report set linked_to='' where id='".$incident_report."'");
 		}
-		$Mup=1;
+		$Mup=1; $ccHandled=true;
 	}
 
-	/* -- Generic single-field update (unchanged switch/cases) -- only when
-	   a specific field edit was actually requested via one of the "Edit"
-	   links elsewhere on the page. The standalone equipment/links save
-	   leaves fieldType empty, so this whole block correctly does nothing
-	   extra in that case -- the two writes above already covered it. ---- */
-	if ($fieldT<>"") {			
+	if(!$ccHandled){
 	$sql="update incident_report ";		
 	switch($_POST['fieldType']){
 		case "onboard_equipt":
@@ -1312,11 +1301,12 @@ if(isset($_POST['fieldType'])){
 	
 	// echo '<script type="text/javascript">window.onload = function () { alert("Data Update!"); }</script>';
 	
-	} /* end if($fieldT<>"") - generic single-field update path */
+	} /* end if(!$ccHandled) - generic single-field update path */
 	
 	//Mjun@ initialize
 	$incident_report="";
 	
+	}
 }
 ?>
 
@@ -1629,8 +1619,6 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 .cc-result-scroll{max-height:240px;overflow-y:auto;border:1px solid var(--cc-border);border-radius:4px;}
 .cc-input{height:28px;font-size:12px;font-family:var(--cc-sans);border:1px solid var(--cc-border);background:#fff;color:var(--cc-dark);border-radius:4px;padding:0 8px;}
 .cc-editor-note{font-size:10px;color:var(--cc-muted);font-style:italic;margin-top:6px;}
-.cc-picker-badge{display:inline-block;font-size:11px;font-weight:600;border-radius:10px;padding:2px 9px;margin-left:6px;background:var(--cc-row-odd);color:var(--cc-blue);}
-.cc-picker-badge-empty{background:var(--cc-bg);color:var(--cc-muted);}
 
 </style>
 
@@ -2090,8 +2078,7 @@ if($equipment_rows_display!==""){
 }
 ?>
 </td>
-<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccEqOpenEditor()'>Edit</a>
-	<span id="cc-eq-badge" class="cc-picker-badge cc-picker-badge-empty">none yet</span></td>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccEqOpenEditor()'>Edit</a></td>
 </tr>
 
 
@@ -2108,8 +2095,7 @@ if($linked_rows_display!==""){
 }
 ?>
 </td>
-<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccLinkOpenEditor()'>Edit</a>
-	<span id="cc-link-badge" class="cc-picker-badge cc-picker-badge-empty">none yet</span></td>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccLinkOpenEditor()'>Edit</a></td>
 </tr>
 <tr>
 <th>Index Number</th>
@@ -2222,7 +2208,7 @@ else {
 				<button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
 				<h3>Edit CCDR Field</h3>
 			</div>
-<form id='edit_form' name='edit_form' action='edit_ccdr.php?ir=<?php echo $incident_report; if($IR_EMBED){ echo "&embed=1"; } ?>'  method='post'>
+<form id='edit_form' name='edit_form' action='edit_ccdr.php?ir=<?php echo $incident_report; ?>'  method='post'>
 
 			<div class="modal-body">	
 				<table id='edit_table' name='edit_table' width=80%>	
@@ -2273,6 +2259,7 @@ else {
 			<h4>Edit Equipment Involved</h4>
 			<button class="cc-modal-close" type="button" onclick="ccEqCloseEditor()">&times;</button>
 		</div>
+		<form id='cc-eq-form' action='edit_ccdr.php?ir=<?php echo $incident_report; ?>' method='post'>
 		<div class="cc-modal-body">
 			<div style="display:flex;gap:7px;margin-bottom:6px;">
 				<input type='text' class="cc-input" id='cc-eq-search-input' style="flex:1"
@@ -2292,33 +2279,19 @@ else {
 			<div class="cc-eq-chips" id="cc-eq-chips">
 				<span class="cc-eq-empty">No equipment selected</span>
 			</div>
-			<!-- No longer its own <form>: this incident's equipment set now
-			     rides along with whatever edit_form submission happens next
-			     (a single-field edit elsewhere, or the standalone "Save
-			     Equipment & Linked Incidents" button), via form="edit_form".
-			     fieldType/inc_report hidden fields removed -- no longer
-			     needed, the server now keys off equipment_ids being present
-			     rather than a specific fieldType value.
-
-			     equipment_ids travels as a REAL PHP array now, not one
-			     joined string: ccEqSyncHidden() (re)populates this
-			     container with one equipment_ids[] hidden input per
-			     equipment item (each "id:subitem"), all form="edit_form".
-			     The server's is_array($_POST['equipment_ids']) branch
-			     already expected exactly this shape -- it just never
-			     received it before. -->
-			<div id="cc-eq-ids-container"></div>
-			<div class="cc-editor-note">Selections here are saved to the form as you make them -- Submit persists them, same as editing any other field.</div>
+			<input type='hidden' name='equipment_ids' id='cc-eq-ids-hidden' value=''>
+			<input type='hidden' name='fieldType' value='equipment_multi'>
+			<input type='hidden' name='inc_report' value='<?php echo $incident_report; ?>'>
+			<div class="cc-editor-note">Saving replaces the incident's full equipment set with the list above.</div>
 		</div>
 		<div class="cc-modal-foot">
 			<span class="cc-modal-sel-count" id="cc-eq-sel-note">&nbsp;</span>
 			<div style="display:flex;gap:8px;">
-				<input type='button' value='Close' onclick='ccEqCloseEditor()' />
-				<button type='submit' form='edit_form' class="btn btn-primary"
-					onclick="document.getElementById('fieldType').value='';"
-					style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Submit</button>
+				<input type='button' value='Cancel' onclick='ccEqCloseEditor()' />
+				<button type='submit' class="btn btn-primary" style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Save equipment</button>
 			</div>
 		</div>
+		</form>
 	</div>
 </div>
 
@@ -2329,6 +2302,7 @@ else {
 			<h4>Edit Linked Incident Report(s)</h4>
 			<button class="cc-modal-close" type="button" onclick="ccLinkCloseEditor()">&times;</button>
 		</div>
+		<form id='cc-link-form' action='edit_ccdr.php?ir=<?php echo $incident_report; ?>' method='post'>
 		<div class="cc-modal-body">
 			<div style="display:flex;gap:7px;margin-bottom:8px;">
 				<input type='text' id='cc-link-search-input' class="cc-input" style="flex:1"
@@ -2354,21 +2328,19 @@ else {
 			<div class="cc-link-chips" id="cc-link-chips">
 				<span class="cc-link-empty">No incidents linked yet</span>
 			</div>
-			<!-- No longer its own <form>: see the equivalent note in the
-			     equipment editor above -- same reasoning, same mechanism.
-			     incident_links travels as a real PHP array too now. -->
-			<div id="cc-link-ids-container"></div>
-			<div class="cc-editor-note">Selections here are saved to the form as you make them -- Submit persists them, same as editing any other field.</div>
+			<input type='hidden' name='incident_links' id='cc-link-ids-hidden' value=''>
+			<input type='hidden' name='fieldType' value='link_multi'>
+			<input type='hidden' name='inc_report' value='<?php echo $incident_report; ?>'>
+			<div class="cc-editor-note">Saving replaces the incident's full linked-incident set with the list above.</div>
 		</div>
 		<div class="cc-modal-foot">
 			<span class="cc-modal-sel-count" id="cc-link-sel-count">0 selected</span>
 			<div style="display:flex;gap:8px;">
-				<input type='button' value='Close' onclick='ccLinkCloseEditor()' />
-				<button type='submit' form='edit_form' class="btn btn-primary"
-					onclick="document.getElementById('fieldType').value='';"
-					style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Submit</button>
+				<input type='button' value='Cancel' onclick='ccLinkCloseEditor()' />
+				<button type='submit' class="btn btn-primary" style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Save links</button>
 			</div>
 		</div>
+		</form>
 	</div>
 </div>
 
@@ -2377,8 +2349,7 @@ else {
 <?php	
 if(isset($_POST['submit'])){	
 	if ($Mup==1) {		
-	if($IR_EMBED){ echo "<script>parent.postMessage('sp:saved','*');</script>"; }
-	else { echo "<script typ=javascript> sampleFreeow();</script>"; }
+	echo "<script typ=javascript> sampleFreeow();</script>"; 
 	$Mup=0;
 	}
 }
@@ -2635,45 +2606,10 @@ function ccEqRemoveChip(id){
 	ccEqSyncHidden();
 }
 function ccEqSyncHidden(){
-	/* One equipment_ids[] hidden input per item ("id:subitem" each), not one
-	   joined string -- $_POST['equipment_ids'] arrives as a real PHP array,
-	   engaging the is_array() branch the server already has.
-
-	   If ccEqLinked is empty (user removed everything), a plain marker
-	   input (no [] -- just name="equipment_ids", empty value) is emitted
-	   instead of nothing at all. Without it, isset($_POST['equipment_ids'])
-	   would be false when the array is empty (PHP simply never receives
-	   that key if zero equipment_ids[] inputs exist), and the server would
-	   skip its delete-then-reinsert entirely -- silently failing to clear
-	   equipment the user deliberately emptied out. The marker keeps
-	   isset() true; the server's existing explode(',','') / empty() path
-	   already handles an empty string correctly. */
-	var container=document.getElementById('cc-eq-ids-container');
-	container.innerHTML='';
-	var ids=Object.keys(ccEqLinked);
-	if(ids.length===0){
-		var marker=document.createElement('input');
-		marker.type='hidden'; marker.name='equipment_ids'; marker.value='';
-		marker.setAttribute('form','edit_form');
-		container.appendChild(marker);
-	} else {
-		ids.forEach(function(id){
-			var input=document.createElement('input');
-			input.type='hidden';
-			input.name='equipment_ids[]';
-			input.value=id+":"+(ccEqSubItemChoice[id]||'');
-			input.setAttribute('form','edit_form');
-			container.appendChild(input);
-		});
-	}
-	ccEqUpdateCount();
-}
-function ccEqUpdateCount(){
-	var n=Object.keys(ccEqLinked).length;
-	document.getElementById('cc-eq-sel-note').textContent = n ? n+' selected' : '\u00A0';
-	var badge=document.getElementById('cc-eq-badge');
-	badge.textContent = n ? n+' selected' : 'none yet';
-	badge.className = n ? 'cc-picker-badge' : 'cc-picker-badge cc-picker-badge-empty';
+	var pairs=Object.keys(ccEqLinked).map(function(id){
+		return id+":"+(ccEqSubItemChoice[id]||'');
+	});
+	document.getElementById('cc-eq-ids-hidden').value=pairs.join(',');
 }
 
 /* -- MULTI-LINK -------------------------------------------------------- */
@@ -2779,9 +2715,6 @@ function ccLinkToggle(id,no,checked){
 function ccLinkUpdateCount(){
 	var n=Object.keys(ccLinked).length; /* chips are the source of truth */
 	document.getElementById('cc-link-sel-count').textContent=n+' linked';
-	var badge=document.getElementById('cc-link-badge');
-	badge.textContent = n ? n+' linked' : 'none yet';
-	badge.className = n ? 'cc-picker-badge' : 'cc-picker-badge cc-picker-badge-empty';
 }
 function ccLinkAddChip(id,label){
 	id=String(id);
@@ -2812,47 +2745,13 @@ function ccLinkRemoveChip(id){
 	ccLinkUpdateCount();
 }
 function ccLinkSyncHidden(){
-	/* Same shape change and same empty-set marker fix as ccEqSyncHidden()
-	   above -- see that comment for why the marker is necessary. */
-	var container=document.getElementById('cc-link-ids-container');
-	container.innerHTML='';
-	var ids=Object.keys(ccLinked);
-	if(ids.length===0){
-		var marker=document.createElement('input');
-		marker.type='hidden'; marker.name='incident_links'; marker.value='';
-		marker.setAttribute('form','edit_form');
-		container.appendChild(marker);
-	} else {
-		ids.forEach(function(id){
-			var input=document.createElement('input');
-			input.type='hidden';
-			input.name='incident_links[]';
-			input.value=id;
-			input.setAttribute('form','edit_form');
-			container.appendChild(input);
-		});
-	}
-	ccLinkUpdateCount();
+	document.getElementById('cc-link-ids-hidden').value=Object.keys(ccLinked).join(',');
 }
 
 /* Backdrop-click + Esc close for both editors */
 document.getElementById('cc-eq-modal').addEventListener('click',function(e){ if(e.target===this) ccEqCloseEditor(); });
 document.getElementById('cc-link-modal').addEventListener('click',function(e){ if(e.target===this) ccLinkCloseEditor(); });
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ ccEqCloseEditor(); ccLinkCloseEditor(); } });
-
-/* -- Seed both editors' hidden fields immediately, not just on first open --
-   equipment_ids / incident_links now travel with EVERY edit_form submission
-   (attached via form="edit_form"), including submissions that have nothing
-   to do with either editor -- a plain Level edit, for instance. If those
-   hidden fields were only ever populated the first time their own modal was
-   opened, a user who edits an unrelated field without ever opening the
-   equipment/link editors would submit them empty, and the server-side
-   delete-then-reinsert would silently wipe out equipment/links they never
-   touched this session. Seeding here, unconditionally, closes that gap. -- */
-ccEqSeedExisting();
-ccEqSeeded=true;
-ccLinkSeedExisting();
-ccLinkSeeded=true;
 
 </script>
 

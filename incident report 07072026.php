@@ -892,21 +892,8 @@ function irRemoveChip(id){
 }
 
 function irSyncHidden(){
-	/* Same array-format change as eqSyncHidden() above -- one
-	   incident_links[] hidden input per linked incident, not one joined
-	   string. The legacy single-link fallback fields (incident_link /
-	   incident_no_link) are untouched -- still set from the first linked
-	   id, exactly as before, for whatever older code still reads them. */
 	var ids=Object.keys(irLinked);
-	var container=document.getElementById('ir-links-container');
-	container.innerHTML='';
-	ids.forEach(function(id){
-		var input=document.createElement('input');
-		input.type='hidden';
-		input.name='incident_links[]';
-		input.value=id;
-		container.appendChild(input);
-	});
+	document.getElementById('ir-links-hidden').value=ids.join(',');
 	document.getElementById('incident_link').value=ids.length?ids[0]:'';
 	document.getElementById('incident_no_link').value=ids.length?Object.values(irLinked)[0]:'';
 }
@@ -1240,23 +1227,14 @@ function eqRemoveChip(id){
 }
 
 function eqSyncHidden(){
-	/* One equipment_ids[] hidden input per item ("id:subitem" each), not one
-	   joined string -- $_POST['equipment_ids'] arrives as a real PHP array,
-	   engaging the is_array() branch the server already has (it just never
-	   received one before). No empty-marker needed here, unlike edit_ccdr's
-	   version of this fix: this form only ever creates a NEW incident, so
-	   there's no pre-existing equipment that a deliberately-emptied
-	   selection could wipe -- an absent field and an empty field are
-	   handled identically by the server's !empty() check either way. */
-	var container=document.getElementById('eq-ids-container');
-	container.innerHTML='';
-	Object.keys(eqLinked).forEach(function(id){
-		var input=document.createElement('input');
-		input.type='hidden';
-		input.name='equipment_ids[]';
-		input.value=id+":"+(eqSubItemChoice[id]||'');
-		container.appendChild(input);
+	/* Each pair travels as equipt_id:subitem_id so the PHP handler can
+	   split on ":" then "," — subitem_id may be empty if not yet chosen,
+	   which the server treats as "no sub-item specified" rather than
+	   discarding the equipment selection itself. */
+	var pairs=Object.keys(eqLinked).map(function(id){
+		return id+":"+(eqSubItemChoice[id]||'');
 	});
+	document.getElementById('eq-ids-hidden').value=pairs.join(',');
 }
 
 /* ── Option C specifics (incident linking) ── */
@@ -1421,7 +1399,7 @@ document.addEventListener('keydown',function(e){
 			<div class="ir-eq-chips" id="eq-chips">
 				<span class="ir-eq-empty">No equipment selected</span>
 			</div>
-			<div id="eq-ids-container"></div>
+			<input type='hidden' name='equipment_ids' id='eq-ids-hidden' value=''>
 			<div class="ir-subtle-note">Each item added above gets its own sub-item dropdown once its list loads.</div>
 
 		</td>
@@ -1483,7 +1461,7 @@ document.addEventListener('keydown',function(e){
 			</div>
 
 			<!-- Hidden fields -->
-			<div id="ir-links-container"></div>
+			<input type='hidden' name='incident_links' id='ir-links-hidden' value=''>
 			<input type='hidden' name='incident_link'  id='incident_link' value=''>
 			<input type='text'   name='incident_no_link' id='incident_no_link' style='display:none' />
 
