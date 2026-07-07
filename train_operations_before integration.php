@@ -49,29 +49,9 @@ function getPHTrainDriver($id,$dbase){
 	return $id;
 }
 function getLevel($id,$dbase){
-	/* === item #16 PORTED 2026-07 from train_availability.php (the one fix this
-	   page's fork predated -- items #2, #1, and #3 were already carried/re-derived
-	   in the redesign) ===
-	   `level`.`order` is a MyISAM per-(date,level) AUTO_INCREMENT -- it numbers by
-	   INSERTION ORDER, so late entries, corrections (edit_ccdr deletes+reinserts
-	   the level row), and deletions desync it permanently. The ordinal is computed
-	   live instead: this incident's chronological position (by incident_report.
-	   incident_date, ties by id) among ALL same-day, same-level incidents -- the
-	   same population the stored counter numbered. The `order` column keeps being
-	   written by the engine as before; it's just no longer read here. Covers both
-	   call sites on this page (active and cancelled branches). === END PORT === */
-	$rs=db_query($dbase,"select l.date,l.level,ir.incident_date,ir.id as ir_id
-		from level l join incident_report ir on ir.id=l.incident_id
-		where l.incident_id=? limit 1",array($id));
-	if($rs===false || $rs->num_rows==0) return "";
-	$l0=$rs->fetch_assoc();
-	$rs=db_query($dbase,"select count(*)+1 as rnk
-		from level l join incident_report ir on ir.id=l.incident_id
-		where l.date=? and l.level=?
-		and (ir.incident_date<? or (ir.incident_date=? and ir.id<?))",
-		array($l0['date'],$l0['level'],$l0['incident_date'],$l0['incident_date'],$l0['ir_id']));
+	$rs=db_query($dbase,"select * from level where incident_id=?",array($id));
 	$row=$rs->fetch_assoc();
-	return $row['rnk'];
+	return $row['order'];
 }
 function insertCompo($train_id,$car,$dbase){
 	if($car=="") return;

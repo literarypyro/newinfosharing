@@ -253,9 +253,9 @@ body { height: 100%; overflow: hidden; }
 		
 	</ul>
 	</li>
-		<li><a href='#'>Train</a>	
+		<li><a href='#'>Train Operations</a>	
 	<ul>
-		<li><a style='text-decoration:none;' href='train_availability.php'>Train Availability</a></li>  
+		<li><a style='text-decoration:none;' href='train_operations.php'>Train Availability</a></li>  
 		<li><a style='text-decoration:none;' href='train hourly.php'>Train Hourly Monitoring Report</a></li>
 		<li><a style='text-decoration:none;' href='onboard equipment.php'>Onboard Equipment and Accessories</a></li>
 		<li><a style='text-decoration:none;' href='depot_insertion.php'>Depot Insertion Program</a></li>
@@ -265,7 +265,7 @@ body { height: 100%; overflow: hidden; }
 		<li><a href='clearance form.php' id='dr'>Clearance Form</a></li>
 		<li><a href='#'>Statistics Report</a>
 		<ul>
-			<li><a href='#'>Problem Type</a>
+			<li><a href='#'>Problems by Category</a>
 			<ul>			
         		<?php 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");

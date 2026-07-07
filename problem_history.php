@@ -218,6 +218,9 @@ border:1px solid #4ad;
 */
 ?>
 <body>
+<input type=text name='filter' /><input type='button'>Filter</button>
+
+
 <br>
 Incident History (Others)
 <br>

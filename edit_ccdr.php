@@ -2360,6 +2360,7 @@ if(isset($_POST['submit'])){
 /* PHP-emitted seed data: the incident's existing junction-table rows, so the
    editors open pre-populated with the current set rather than empty. */
 var ccSelfIncidentId = '<?php echo (int)$incident_report; ?>';
+var ccProblemType = '<?php echo isset($problem_type2) ? $problem_type2 : ""; ?>';
 var ccExistingEqPairs = '<?php echo isset($existing_eq_pairs) ? $existing_eq_pairs : ""; ?>';
 var ccExistingLinks = '<?php echo isset($existing_link_ids) ? $existing_link_ids : ""; ?>';
 var ccExistingLinkLabels = <?php echo isset($existing_link_labels) ? json_encode($existing_link_labels) : "''"; ?>;
@@ -2445,7 +2446,7 @@ function ccEqSeedExisting(){
 
 function ccEqSearch(q,cb){
 	ccEqSearchCallback=cb;
-	makeajax("processing.php?searchEquipment="+encodeURIComponent(q),"ccEqSearchResponse");
+	makeajax("processing.php?probname="+encodeURIComponent(ccProblemType)+"&searchEquipment="+encodeURIComponent(q),"ccEqSearchResponse");
 }
 
 function ccEqSearchResponse(ajaxHTML){
