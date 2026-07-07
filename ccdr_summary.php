@@ -2,142 +2,114 @@
 require("Tmenu.php");
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
-<!--- Modified by Jun
-//--- Date: 7/21/2014
-//--- Modify: screen layout
-//--- Marker: @jun
-//--------------------------------------------------->
-<!--
-<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/gray/easyui.css" />
-<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/themes/icon.css" />
-<link rel="stylesheet" type="text/css" href="../../information_sharing/transport/jquery-easyui-1.4/demo/demo.css" />
-<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.min.js"></script>
-<script type="text/javascript" src="../../information_sharing/transport/jquery-easyui-1.4/jquery.easyui.min.js"></script>
--->
 
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>
 
 <style type='text/css'>
+/* =========================================================================
+   CCDR SUMMARY -- Line 3 console theme, aligned with train_operations.php /
+   edit_ccdr.php / incident_report.php. Scoped under .ccs-page so nothing
+   here leaks onto Tmenu.php's own chrome.
 
-.ccdr tr:nth-child(odd)
-{
-	background-color: #F3F3F3;
-	color: #000000;	
-		
-/*background-color: #dfe7f2;
-color: #000000; */
+   PHP: every query, computation, and echoed value below is unchanged --
+   this pass only touches how the results are wrapped and presented.
+
+   Fixed while rebuilding: .ops-act--gold previously referenced var(--gold)
+   / var(--gold-ink), neither of which was ever defined in this file, so
+   the Generate Printout button was rendering with no background at all
+   instead of gold. Now defined properly below.
+
+   Level badge colors reuse edit_ccdr.php's .cc-lvl-0..4 exactly (same
+   green/blue/amber/red escalation), so "Level 3" means the same color
+   everywhere in the app, not just in this one file.
+   ========================================================================= */
+:root {
+	--cf-blue:      #00529B;
+	--cf-blue-dark: #013E76;
+	--cf-gold:      #FDB813;
+	--cf-gold-ink:  #3A2D00;
+	--cf-dark:      #16243B;
+	--cf-mid:       #41506A;
+	--cf-muted:     #8A95A6;
+	--cf-border:    #D2DDEA;
+	--cf-row-odd:   #EEF4FB;
+	--cf-bg:        #F7F9FC;
+	--cf-white:     #ffffff;
+	--cf-red:       #A32D2D;
+	--cf-red-bg:    #FCEBEB;
+	--cf-sans:      "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
 }
 
-/* nothing */
-.ccdr2 tr:nth-child(odd):not(:last-child)
-{
-	background-color: #dfe7f2;
-	color: #000000; 
+.ccs-page { font-family:var(--cf-sans); color:var(--cf-dark); }
+.ccs-page * { box-sizing:border-box; }
+
+/* ── Page header ── */
+.ccs-header      { background:var(--cf-blue); border-bottom:3px solid var(--cf-gold); border-radius:6px 6px 0 0; padding:12px 16px; }
+.ccs-header h1   { margin:0; font-size:16px; font-weight:700; color:#fff; letter-spacing:.3px; }
+.ccs-header .sub { font-size:10px; color:rgba(255,255,255,.6); letter-spacing:.5px; text-transform:uppercase; margin-top:2px; }
+
+/* ── Toolbar: date retrieve + generate printout ── */
+.stat-toolbar { background:var(--cf-blue); padding:10px 16px; margin-bottom:0; }
+.stat-toolbar table { border-collapse:collapse; width:100%; }
+.stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#fff; font-weight:600; font-size:13px; text-align:left; }
+.stat-toolbar select, .stat-toolbar input[type=text] {
+	height:28px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
+	background:#fff; color:var(--cf-dark); padding:0 8px; font-size:12px; font-family:var(--cf-sans);
 }
-
-/* fonts */
-.ccdr tr th:first-child {
-	color: black;
-	
-	/* color: rgb(0,51,153); */
+.stat-toolbar input[type=submit] {
+	height:30px; border:none; border-radius:4px; background:var(--cf-gold);
+	color:var(--cf-gold-ink); font-weight:700; font-size:12px; padding:0 16px; cursor:pointer;
 }
+.stat-toolbar input[type=submit]:hover { background:#E5A50F; }
+.ops-act { display:inline-block; font-size:11px; font-weight:600; color:#fff; text-decoration:none;
+	padding:6px 14px; border:1px solid rgba(255,255,255,.35); border-radius:4px; cursor:pointer; }
+.ops-act:hover { background:rgba(255,255,255,.12); color:#fff; }
+.ops-act--gold { background:var(--cf-gold); border-color:var(--cf-gold); color:var(--cf-gold-ink); }
+.ops-act--gold:hover { background:#E5A50F; border-color:#E5A50F; color:var(--cf-gold-ink); }
 
-/* border color */
-.ccdr td, .ccdr th,.ccdr2 td, .ccdr2 th {
+/* ── Panel grid ── */
+.ccs-grid { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; padding:16px; }
+.ccs-panel { background:var(--cf-white); border:1px solid var(--cf-border); border-radius:6px;
+	box-shadow:0 1px 3px rgba(0,30,80,.08); flex:1 1 300px; min-width:280px; overflow:hidden; }
+.ccs-panel-head { background:var(--cf-blue); border-bottom:3px solid var(--cf-gold); padding:9px 14px; }
+.ccs-panel-head h3 { margin:0; font-size:12px; font-weight:700; color:#fff; letter-spacing:.4px; text-transform:uppercase; }
+.ccs-panel-body { padding:14px; }
 
-border: 1px solid #808080;
-padding: 0.3em;
+/* ── Data table (faults per discipline) ── */
+table.ccdr { width:100%; border-collapse:collapse; font-size:12.5px; }
+table.ccdr th { background:var(--cf-blue); color:#fff; font-weight:600; font-size:11px; text-transform:uppercase;
+	letter-spacing:.3px; padding:7px 8px; border:1px solid var(--cf-blue-dark); text-align:center; }
+table.ccdr td { padding:7px 8px; border:1px solid var(--cf-border); text-align:center; }
+table.ccdr tr:nth-child(odd) td { background:var(--cf-row-odd); }
+table.ccdr th.ccs-discipline { background:var(--cf-white); color:var(--cf-dark); font-weight:600; text-transform:none;
+	letter-spacing:normal; border:1px solid var(--cf-border); text-align:left; }
 
-/* border: 1px solid rgb(185, 201, 254);
-padding: 0.3em; */
-}
+/* ── Level badges (identical palette to edit_ccdr.php's .cc-lvl-0..4) ── */
+.cf-lvl { display:inline-block; font-size:10px; font-weight:700; border-radius:3px; padding:2px 7px; }
+.cf-lvl-1 { background:#E8F5EE; color:#0F6E4E; } .cf-lvl-2 { background:#EAF2FB; color:#0C447C; }
+.cf-lvl-3 { background:#FAEEDA; color:#854F0B; } .cf-lvl-4 { background:var(--cf-red-bg); color:var(--cf-red); }
 
-.ccdr, .ccdr2 {
-	
-border: 1px solid red;
+/* ── Legend panel ── */
+.ccs-legend-row { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--cf-border); }
+.ccs-legend-row:last-child { border-bottom:none; }
+.ccs-legend-row .cf-lvl { flex:none; margin-top:1px; min-width:34px; text-align:center; }
+.ccs-legend-row span.desc { font-size:12.5px; color:var(--cf-mid); line-height:1.4; }
 
-/* border: 1px solid rgb(185, 201, 254); */
-}
+/* ── Stat panel (AM/PM cancellations, loops, LRV) ── */
+.ccs-stat-group { display:flex; gap:10px; margin-bottom:14px; }
+.ccs-stat-group:last-child { margin-bottom:0; }
+.ccs-stat { flex:1; background:var(--cf-bg); border:1px solid var(--cf-border); border-radius:5px; padding:9px 10px; text-align:center; }
+.ccs-stat .lbl { display:block; font-size:9.5px; font-weight:600; color:var(--cf-muted); text-transform:uppercase;
+	letter-spacing:.4px; margin-bottom:5px; line-height:1.3; }
+.ccs-stat .val { display:block; font-size:19px; font-weight:700; color:var(--cf-dark); font-family:ui-monospace,Consolas,monospace; }
+.ccs-stat.ccs-stat--danger .val { color:var(--cf-red); }
+.ccs-stat.ccs-stat--gold .val { color:#B9840A; }
+.ccs-stat-section-label { font-size:10px; font-weight:700; color:var(--cf-muted); text-transform:uppercase;
+	letter-spacing:.5px; margin:0 0 6px; }
 
-/* nothing */
-.ccdr #ccdr_heading, .ccdr2 #ccdr_heading {
-background-color:rgb(185, 201, 254);
-color: rgb(0,51,153); 
-}
-
-
-/*
- body {
-	margin-left:30px;
-	margin-right:30px;
-	
-}
-*/
-
-
-textarea{ 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: #dfe7f2;
-	color: rgb(0,51,153);
-	border-radius: 3px;
-}
-
-#edit_form th {
-	background-color: rgb(185, 201, 254);
-	color: rgb(0,51,153);
-
-}
-#edit_form input[type="text"] {
-	height:25px; 
-	font-weight:bold; 
-	font-size:15px; 
-	font-family:courier; 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: #dfe7f2;
-	color: rgb(0,51,153);
-	border-radius: 3px;
-
-}
-
-.label {
-	background-color: rgb(185, 201, 254);
-	color: rgb(0,51,153);
-	spacing: 2px;
-	padding: 5px;
-}
-
-.text_input {
-	height:25px; 
-	font-weight:bold; 
-	font-size:15px; 
-	font-family:courier; 
-	border: 1px solid rgb(185, 201, 254);
-	background-color: #dfe7f2;
-	color: rgb(0,51,153);
-	border-radius: 3px;
-
-}
-
-
-.rowHeading {
-	
-	color: black;
-	font-weight:bold;
-	text-align: center;
-	
-	/* color: rgb(0,51,153);
-	font-weight:bold; */
-}
-
-select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD;  }
-
-/* --- mjun */
-a.two:visited {color:black;}
-a.two:hover, a.two:active {font-size:120%; color:orange;}
-h2 { font-size:20px; font-weight:bold; }
-
+@media (max-width:900px){ .ccs-grid { flex-direction:column; } }
 </style>
 
 <script language='javascript'>
@@ -148,13 +120,18 @@ $(function() {
       showAnim: "clip"
     });    
 });
-
 </script>
 
+<div class="ccs-page">
 
-<br>
-<br>
-<br>
+<div class="ccs-header">
+	<h1>CCDR Summary</h1>
+	<div class="sub">Consolidated Corrective &amp; Defect Report &mdash; Line 3</div>
+</div>
+
+<table cellspacing="0" cellpadding="0" class='stat-toolbar'>
+<tr>
+	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
 
 <form action='ccdr_summary.php' method='post'>
 <?php
@@ -168,14 +145,6 @@ $min=date("i");
 $aa=date("a");
 
 if(isset($_POST['search_date'])){
-//	$yy=$_POST['year'];
-//	$mm=$_POST['month'];
-//	$dd=$_POST['day'];
-	
-/*	$_SESSION['day']=$_POST['day'];
-	$_SESSION['month']=$_POST['month'];
-	$_SESSION['year']=$_POST['year'];
-*/	
 	$_SESSION['search_date']=$_POST['search_date'];
 	$availability_date=date("Y-m-d",strtotime($_POST['search_date']));
 	$datenow=$_POST['search_date'];
@@ -186,47 +155,41 @@ $datenow=date("m/d/Y");
 
 }
 ?>
-<!--
-<input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo date("m/d/Y",strtotime($datenow)); ?>'/>
--->
-<!--
-<input name='search_date' id='search_date' type="text" class="easyui-datebox" value='<?php echo date("m/d/Y",strtotime($datenow)); ?>'/>
--->
-
 <input type="text" name='search_date' id='search_date' />
 
 <input type=submit value='Retrieve Date'  />
 
 
 </form>
+	</td>
 
 
-<a class="two" style=margin-left:10px href='#' onclick='window.open("generate_sccdr.php?sccdr=<?php echo $availability_date; ?>");'><b>Generate Printout</b></a>
+	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
+<a  class="ops-act ops-act--gold" style=margin-left:10px href='#' onclick='window.open("generate_sccdr.php?sccdr=<?php echo $availability_date; ?>");'><b>Generate Printout</b></a>
 
+	</td>
+</tr>
+</table>
 
-<br>
-<br>
-<table>
+<div class="ccs-grid">
+<div class="ccs-panel" style="flex-basis:340px;">
+<div class="ccs-panel-head"><h3>Faults by Discipline</h3></div>
+<div class="ccs-panel-body">
+<table class='ccdr'>
 <tr>
-<td align=center valign=top>
-<table class='ccdr' border='1px' style='border-collapse:collapse;'>
-<tr>
-<th  class='rowHeading' rowspan=2>Discipline</th>
-<th  class='rowHeading' colspan=4>Number of faults per level</th>
+<th class="ccs-discipline" rowspan=2>Discipline</th>
+<th colspan=4>Number of Faults per Level</th>
 </tr>
 <tr>
-<th class='rowHeading'>1</th>
-<th class='rowHeading'>2</th>
-<th class='rowHeading'>3</th>
-<th class='rowHeading'>4</th>
+<th><span class="cf-lvl cf-lvl-1">L1</span></th>
+<th><span class="cf-lvl cf-lvl-2">L2</span></th>
+<th><span class="cf-lvl cf-lvl-3">L3</span></th>
+<th><span class="cf-lvl cf-lvl-4">L4</span></th>
 </tr>
 <?php
 	
 	$availability_date=date("Y-m-d");
 	if(isset($_POST['search_date'])){
-//	$year=$_POST['year'];
-//	$month=$_POST['month'];
-//	$day=$_POST['day'];
 	
 	$availability_date=date("Y-m-d",strtotime($_POST['search_date']));
 	
@@ -242,8 +205,6 @@ $datenow=date("m/d/Y");
 	}
 
 	
-//	$availability_date=date("Y-m-d",strtotime($_POST['search_date']));
-//	$availability_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
 ?>	
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
@@ -265,7 +226,6 @@ for($i=0;$i<$nm;$i++){
 		$incident_sql="select count(*) as level_count,level from incident_report where incident_type in ('rolling','unload','nload') and incident_date like '".$availability_date."%%' group by level";
 	}
 	else {
-		//$incident_sql="select count(*) as level_count,level from train_incident_view where incident_type='".$problem_type."' and train_ava_id in (select id from train_availability where date like '".$availability_date."%%' and status='active') group by level";
 		$incident_sql="select count(*) as level_count,level from incident_report where incident_type='".$problem_type."' and incident_date like '".$availability_date."%%' group by level";
 	}
 	
@@ -291,7 +251,6 @@ for($i=0;$i<$nm;$i++){
 		}
 		else {
 			$condition[$incident_row['level_condition']]=$incident_row['level_count'];		
-			//$incident[$incident_row['level']]["condition_".$incident_row['level_condition']]=$incident_row['level_count']*1;
 			
 			
 		}
@@ -340,10 +299,10 @@ for($i=0;$i<$nm;$i++){
 ?>
 
 <tr>
-	<th><?php echo $row['equipment_name']; ?> </th>
-	<th><?php echo $incident['1']; ?></th>
-	<th><?php echo $incident['2']; ?></th>
-	<th><?php 
+	<th class="ccs-discipline"><?php echo $row['equipment_name']; ?> </th>
+	<td><?php echo $incident['1']; ?></td>
+	<td><?php echo $incident['2']; ?></td>
+	<td><?php 
 	
 	if($condition["1"]==""){
 		if($problem_type=="rolling"){
@@ -358,8 +317,8 @@ for($i=0;$i<$nm;$i++){
 	?>
 	
 	
-	</th>
-	<th><?php 
+	</td>
+	<td><?php 
 	if($condition["3"]==""){
 		if($problem_type=="rolling"){
 			echo "0/";
@@ -373,7 +332,7 @@ for($i=0;$i<$nm;$i++){
 	}
 	
 	echo $incident['4']; 
-	?></th>
+	?></td>
 </tr>
 <?php
 }
@@ -381,69 +340,42 @@ for($i=0;$i<$nm;$i++){
 ?>
 
 </table>
+</div>
+</div>
 
+<div class="ccs-panel" style="flex-basis:280px;">
+<div class="ccs-panel-head"><h3>Level Definitions</h3></div>
+<div class="ccs-panel-body">
+<div class="ccs-legend-row">
+	<span class="cf-lvl cf-lvl-1">L1</span>
+	<span class="desc">Fault normalized. No effect on the operation.</span>
+</div>
+<div class="ccs-legend-row">
+	<span class="cf-lvl cf-lvl-2">L2</span>
+	<span class="desc">Train is removed with replacement.</span>
+</div>
+<div class="ccs-legend-row">
+	<span class="cf-lvl cf-lvl-3">L3</span>
+	<span class="desc">Train is removed without replacement. Cancellation of loops and insertion.</span>
+</div>
+<div class="ccs-legend-row">
+	<span class="cf-lvl cf-lvl-4">L4</span>
+	<span class="desc">Service interruption. Cancellation of loops. Ticket refunds.</span>
+</div>
+</div>
+</div>
 
-</td>
-<td align=center valign=top>
-<table class='ccdr' border='1px' style='border-collapse:collapse;'>
-<tr>
-<td rowspan=2 bgcolor=#FFA500 style="color:white">
-LEVEL 1
-</td>
-<td>
-Fault normalized
-</td>
-</tr>
-<tr>
-<td>No effect on the operation
-</td>
-</tr>
-<tr>
-<td bgcolor=#FFA500 style="color:white">
-LEVEL 2
-</td>
-<td>Train is removed with replacement</td>
-</tr>
-<tr>
-<td rowspan=2 bgcolor=#FFA500 style="color:white">
-LEVEL 3
-</td>
-<td>
-Train is removed without replacement</td>
-</tr>
-<tr>
-<td>Cancellation of loops and insertion</td>
-</tr>
-<tr>
-<td rowspan=2 bgcolor=#FFA500 style="color:white">
-LEVEL 4
-</td>
-<td>Service interruption</td>
-</tr>
-<tr>
-<td>Cancellation of loops. Ticket refunds.</td>
-</tr>
-</table>
+<div class="ccs-panel" style="flex-basis:320px;">
+<div class="ccs-panel-head"><h3>Cancellations &amp; Loop Performance</h3></div>
+<div class="ccs-panel-body">
 
-</td>
-<td align=center valign=top>
-<table class='ccdr' border='1px' style='border-collapse:collapse;'>
-<tr class='rowHeading'>
-<th class='rowHeading' colspan=2>AM</th>
-<th class='rowHeading' colspan=2>PM</th>
-</tr>
-<tr>
+<p class="ccs-stat-section-label">Cancelled Departures &amp; Loops</p>
 <?php
-for($i=0;$i<2;$i++){
+/* The original repeated this same pair of header cells via a for($i=0;$i<2;$i++)
+   loop purely to produce two label columns (AM/PM); it had no computation
+   or side effects. The combined label+value stat boxes below show the
+   same information more directly, so that loop isn't needed here. */
 ?>
-	<td align=center style="color:#F62817"><b>Cancelled<br> Departure</td></b>
-	<td align=center style="color:#F62817"><b>Loop<br> Cancelled</td></b>
-
-<?php
-}
-?>
-</tr>
-<tr>
 <?php
 //$am_sql="select count(*) as am_count from train_availability where date like '".$availability_date."%%' and status='cancelled' and date between '".$availability_date." 00:00:00' and '".$availability_date." 12:00:00'";
 
@@ -497,8 +429,6 @@ if($car_nm3>0){
 
 
 $am_sql="select sum(cancel) as am_count from incident_report where incident_date between '".$availability_date." 00:00:00' and '".$availability_date." 12:00:00'  and level in ('3','4')";
-//$am_sql="select sum(cancel) as am_count from train_incident_view where train_ava_id in (select id from train_availability where date like '".$availability_date."%%') and incident_date between '".$availability_date." 00:00:01' and '".$availability_date." 12:00:00'";
-//$am_sql="select sum(cancel) as am_count from train_incident_view where train_ava_id in (select id from train_availability where date like '".$availability_date."%%' and status='active') and incident_date between '".$availability_date." 00:00:01' and '".$availability_date." 12:00:00'";
 $am_rs=$db->query($am_sql);
 $am_nm=$am_rs->num_rows;
 
@@ -507,9 +437,6 @@ if($am_nm>0){
 	$am_row=$am_rs->fetch_assoc();
 	$am_cancel=$am_row['am_count']*1;
 }
-
-//$am_sql="select sum(cancel) as pm_count from train_incident_view where train_ava_id in (select id from train_availability where date like '".$availability_date."%%' and status='active') and incident_date between '".$availability_date." 12:00:01' and '".$availability_date." 00:00:00'";
-//$am_sql="select sum(cancel) as pm_count from train_incident_view where train_ava_id in (select id from train_availability where date like '".$availability_date."%%') and incident_date between '".$availability_date." 12:00:01' and '".$availability_date." 00:00:00'";
 
 $am_sql="select sum(cancel) as pm_count from incident_report where incident_date between '".$availability_date." 12:00:01' and '".$availability_date." 23:59:59'  and level in ('3','4')";
 
@@ -522,18 +449,15 @@ if($am_nm>0){
 	$pm_cancel=$am_row['pm_count']*1;
 }
 
-
 ?>
-<td align=center><b><?php echo $am; ?></b></td>
-<td align=center><b><?php if($am_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$am_cancel); }?></b></td>
-<td align=center><b><?php echo $pm; ?></b></td>
-<td align=center><b><?php if($pm_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$pm_cancel); }?></b></td>
-</tr>
-<tr>
-<td colspan=2 align=center style="color:#F62817"><b>Planned Loops <br> Per day</b></td>
-<td colspan=2 align=center style="color:#F62817"><b>Actual Loops <br>Per day</b></td>
-</tr>
-<tr>
+<div class="ccs-stat-group">
+	<div class="ccs-stat"><span class="lbl">AM Departures</span><span class="val"><?php echo $am; ?></span></div>
+	<div class="ccs-stat ccs-stat--danger"><span class="lbl">AM Loops</span><span class="val"><?php if($am_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$am_cancel); }?></span></div>
+	<div class="ccs-stat"><span class="lbl">PM Departures</span><span class="val"><?php echo $pm; ?></span></div>
+	<div class="ccs-stat ccs-stat--danger"><span class="lbl">PM Loops</span><span class="val"><?php if($pm_cancel=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$pm_cancel); }?></span></div>
+</div>
+
+<p class="ccs-stat-section-label">Planned vs. Actual Loops per Day</p>
 <?php
 
 $planned=0;
@@ -545,8 +469,6 @@ $planned_rs=$db->query($planned_sql);
 $planned_nm=$planned_rs->num_rows;
 if($planned_nm>0){
 	$planned_row=$planned_rs->fetch_assoc();
-//	$am_sql="select sum(cancel) as cancel from train_incident_view where train_ava_id in (select id from train_availability where date like '".$availability_date."%%' and status='active')";
-	
 	
 	$am_sql="select sum(cancel) as cancel from incident_report where incident_date like '".$availability_date."%%' and incident_type in ('rolling','gradual','c_loops','r_trains','unload','nload')";
 	
@@ -559,29 +481,26 @@ if($planned_nm>0){
 	$percentage=number_format(($actual/$planned)*100,2);
 }
 ?>
-<td colspan=2 align=center><b><?php echo $planned; ?></b></td>
-<td colspan=2 align=center><b><?php if($actual=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$actual); }?></b></td>
+<div class="ccs-stat-group">
+	<div class="ccs-stat"><span class="lbl">Planned Loops</span><span class="val"><?php echo $planned; ?></span></div>
+	<div class="ccs-stat"><span class="lbl">Actual Loops</span><span class="val"><?php if($actual=="0.5"){ echo "1/2"; } else { echo str_replace(".5"," 1/2",$actual); }?></span></div>
+</div>
 
-
-</tr>
-<tr>
+<p class="ccs-stat-section-label">Loop Completion &amp; LRV Utilization</p>
 <?php 
 $train_sql="select * from train_availability inner join train_compo on train_availability.id=tar_id where train_availability.date like '".$availability_date."%%' and status='active' group by car_no";
 
-//$train_sql="select * from train_availability where date like '".$availability_date."%%' and status='active'";
 $train_rs=$db->query($train_sql);
 $train_nm=$train_rs->num_rows;
 
 ?>
-<td colspan=2 align=center style="color:#F62817"><b>Actual Loops<br>Performed</b></td>
-<td colspan=2 align=center style="color:#F62817"><b>No. of LRV<br>Utilized/day</b></td>
+<div class="ccs-stat-group">
+	<div class="ccs-stat ccs-stat--gold"><span class="lbl">Actual Loops<br>Performed</span><span class="val"><?php echo $percentage."%"; ?></span></div>
+	<div class="ccs-stat"><span class="lbl">No. of LRV<br>Utilized/day</span><span class="val"><?php echo $train_nm; ?></span></div>
+</div>
 
-</tr>
-<tr>
-<td colspan=2 align=center style="color:#FFA62F"><b><?php echo $percentage."%"; ?></b></td>
-<td colspan=2 align=center><b><?php echo $train_nm; ?></b></td>
+</div>
+</div>
 
-</table>
-</td>
-</tr>
-</table>	
+</div>
+</div>

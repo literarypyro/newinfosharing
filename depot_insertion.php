@@ -17,6 +17,24 @@ global $varR;
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>
 
 <style type='text/css'>
+:root {
+		--ta-sans: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+	--ta-mono: ui-monospace, "Cascadia Mono", "Consolas", "Liberation Mono", monospace;
+	--rail:      #00529B;
+	--rail-dark: #013E76;
+	--rail-wash: #EEF4FB;
+	--gold:      #FDB813;
+	--cf-blue:    #00529B;
+	--cf-gold:    #FDB813;
+	--cf-dark:    #16243B;
+	--cf-mid:     #41506A;
+	--cf-muted:   #8A95A6;
+	--cf-border:  #D2DDEA;
+	--cf-row-odd: #EEF4FB;
+	--cf-bg:      #F7F9FC;
+	--cf-white:   #ffffff;
+	--cf-sans:    "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
 table{
 	border-collapse:collapse;
 }
@@ -25,16 +43,6 @@ table{
 /* color header */
 .rowHeading {background-color: #cccccc}
 
-.train_ava td{
-	border: 1px solid #FBCC2A;
-	color: rgb(0,51,153);
-	cellpadding: 5px;
-}
-
- .train_ava th {
-	border: 1px solid #FBCC2A;;
-	cellpadding: 5px;	
-}
 /*
 body {
 	margin-left:30px;
@@ -132,7 +140,27 @@ a.LDel:visited {color:red;}
         color: #666;
         text-decoration: none;
     }
-    
+ .stat-toolbar {
+	background:#00529B; border-bottom:3px solid #FDB813;
+	border-radius:6px 6px 0 0; padding:10px 16px; margin-bottom:0;
+}
+.stat-toolbar table { border-collapse:collapse; }
+.stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#FFFFFF; font-weight:600; font-size:13px; text-align:left; }
+.stat-toolbar select, .stat-toolbar input[type=text] {
+	height:26px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
+	background:#FFFFFF; color:#1A2238; padding:0 8px; font-size:12px;
+}
+.stat-toolbar input[type=submit] {
+	height:28px; border:none; border-radius:4px; background:#FDB813;
+	color:#3A2D00; font-weight:700; font-size:12px; padding:0 14px; cursor:pointer;
+}
+.stat-toolbar input[type=submit]:hover { background:#E5A50F; }
+.ops-act--gold    { background:var(--gold); border-color:var(--gold); color:var(--gold-ink); font-weight:600; }
+.ops-act          { display:inline-block; font-size:11px; font-weight:500; color:#fff; text-decoration:none; padding:5px 11px; border:1px solid rgba(255,255,255,.35); border-radius:4px; float:none !important; width:auto !important; cursor:pointer; }
+   table.train_ava   { width:100%; border-collapse:separate; border-spacing:0; min-width:980px; }
+table.train_ava th{ background:var(--rail); color:#fff; padding:9px 10px; font-family:var(--ta-sans); font-weight:600; font-size:11px; letter-spacing:.4px; text-transform:uppercase; text-align:center; border-right:1px solid rgba(255,255,255,.18); border-bottom:3px solid var(--gold); }
+table.train_ava td{ padding:8px 10px; vertical-align:top; border-right:1px solid #E6EDF5; border-bottom:1px solid #E6EDF5; font-family:var(--ta-sans); font-size:12.5px; }
+table.train_ava tr.row-first td { border-top:2px solid var(--line); }
 </style>
 
 <?php
@@ -414,6 +442,77 @@ function fillReceived(ajaxHTML){
 
 }
 
+function processSlidePanel(type){
+		
+		var htmlCode="";
+		
+		
+		if(type=='addEntry'){
+			
+			htmlCode="<table><tr><th colspan=2>Add Removal</th></tr>";
+			htmlCode+="<tr><td>Removal Time</td><td id='cell' name='cell'></td></tr>";
+		htmlCode+="<tr><td>Remarks/Cause of <br>Failure/Removal</td>";
+		htmlCode+="<td><span name='remarks_space' id='remarks_space'><textarea name='remarks' cols=50></textarea></span>";
+		htmlCode+="<input type=checkbox name='remarks_check' id='remarks_check' onclick='setPreset(this)' />Preset Values</td></tr>";
+		htmlCode+="<tr><td>Removed From</td><td><select name='removed_from' id='removed_from'>";
+		htmlCode+="<option value='north'>North Ave.</option><option value='quezon'>Quezon Ave.</option>";
+		htmlCode+="</select></td></tr>";
+
+
+		htmlCode+="<tr><th colspan=2>";
+
+		htmlCode+="Departure at Stabling Area</th></tr>";
+
+
+		
+		htmlCode+="<tr><td>Remarks</td><td><input type=text name='remarks' /></td></tr>";
+		
+		
+		htmlCode+="<tr><td colspan=2 class='submit' align=center>";
+		htmlCode+="<input type=hidden name='remove_id' id='remove_id' value='"+form_id+"' />";
+		htmlCode+="<input type=submit value='Submit' /></td></tr></table>";
+
+
+			openSlidePanel('','Depot Insertion','');"
+
+
+
+
+			
+			
+		}
+	
+	
+}
+
+/**
+
+	else if(form_type=="removal"){
+		htmlCode="<table><tr><th colspan=2>Add Removal</th></tr>";
+		htmlCode+="<tr><td>Removal Time</td><td id='cell' name='cell'></td></tr>";
+		htmlCode+="<tr><td>Train Driver</td>";
+		if(form_extra=="unimog") htmlCode+="<td id='ph_trams_tag' name='ph_trams_tag'></td>";
+		else if(form_extra=="test") htmlCode+="<td id='ph_trams_tag' name='ph_trams_tag'></td>";
+		else if(form_extra=="reserve") htmlCode+="<td><input type=text name='unimog_train_driver' /></td>";
+		else if(form_extra=="schooling") htmlCode+="<td id='school_tag' name='school_tag'></td>";
+		else htmlCode+="<td id='td' name='td'></td>";
+		htmlCode+="</tr>";
+		htmlCode+="<tr><td>Remarks/Cause of <br>Failure/Removal</td>";
+		htmlCode+="<td><span name='remarks_space' id='remarks_space'><textarea name='remarks' cols=50></textarea></span>";
+		htmlCode+="<input type=checkbox name='remarks_check' id='remarks_check' onclick='setPreset(this)' />Preset Values</td></tr>";
+		htmlCode+="<tr><td>Removed From</td><td><select name='removed_from' id='removed_from'>";
+		htmlCode+="<option value='north'>North Ave.</option><option value='quezon'>Quezon Ave.</option>";
+		htmlCode+="</select></td></tr>";
+		htmlCode+="<tr><td>Add Incident?</td><td>";
+		htmlCode+="<input type='checkbox' name='cancel_loop' id='cancel_loop' />Open Incident Report</td></tr>";
+		htmlCode+="<tr><td colspan=2 class='submit' align=center>";
+		htmlCode+="<input type=hidden name='remove_id' id='remove_id' value='"+form_id+"' />";
+		htmlCode+="<input type=submit value='Submit' /></td></tr></table>";
+	}
+
+
+
+*/
 
 $(function() {
     $( "#search_date" ).datepicker({
@@ -433,9 +532,17 @@ $(document).ready(function(){
 
 </script>
 <body>
-<br>
-<br>
-<br>
+
+
+
+
+
+
+
+<table cellspacing="0" cellpadding="0" class='stat-toolbar'>
+<tr>
+	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
+
 <form action='depot_insertion.php' method='post'>
 <?php
 $mm=date("m");
@@ -494,17 +601,39 @@ if ($ULev>=2){
 
 <input type=submit value='Retrieve Date' />
 </form>
-<div class="alink">
-<!-- <div class='pull-left'> -->
-<a href='#' class="<?php echo $SRemove; ?>" onclick='window.open("insertion_entry.php");'><b>Add New Entry</b></a>
+	</td>
+
+
+	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
+<a href='#' class="ops-act ops-act--gold" onclick="processSlidePanel('addEntry')"
+
+<?php 
+/**
 <!--
-|
-<a href='#' class="<?php // echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php //echo $clearance_date; ?>");'><b>Generate Printout</b></a>
+onclick='window.open("insertion_entry.php");'
+
 -->
-<!-- </div> -->
+*/
+?>
+
+><b>Add New Entry</b></a>
+
+
+
+
+
+
+	</td>
+</tr>
+</table>
+
+
+
+
+
 
 <table class='train_ava' width=100%>
-<tr class='rowHeading'>
+<tr >
 	<th rowspan=2>Index</th>
 	<th rowspan=2>Time of <br>Train <br>Availability <br>at Stabling Area</th>
 	<th rowspan=2>Actual time of completion <br>of train preparation (Ready for insertion)</th>
@@ -514,7 +643,7 @@ if ($ULev>=2){
 	<th rowspan=2>Remarks</th>
 
 </tr>
-<tr class='rowHeading'>
+<tr >
 	<th>Planned</th>
 	<th>Actual</th>
 	<th>Planned</th>
@@ -652,7 +781,7 @@ $varR=0;
 		</div>
 
 
-
+<?php require("slide_panel2.php"); ?>
 </body>
 	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
 		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	

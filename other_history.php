@@ -236,7 +236,12 @@ for($i=0;$i<$nm;$i++){
 		<td><?php echo "<span>".date("Y-m-d",strtotime($row['incident_date']))."</span>"; ?></td>
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
 
-		<td><a href='#' onclick='window.open("edit_ccdr.php?ir=<?php echo $row['id']; ?>")'><?php echo $row['incident_no']; ?></a></td>
+		<td><a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
+</td>
+		
+		
+		
+		
 		<td><?php echo $row['description']; ?></td>
 	
 	</tr>
@@ -336,7 +341,7 @@ for($i=0;$i<$nm;$i++){
 		<script src="js/charts.min.js"></script>	
 		<script src="js/custom.min.js"></script>
 		<script src="js/additional.js"></script>
-
+<?php require("slide_panel.php"); ?>
 </body>
 <?php
 function getProblemType($db,$type){
