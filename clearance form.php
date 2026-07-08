@@ -730,6 +730,12 @@ if(isset($_POST['search_date'])){
 	$clearance_date=date("Y-m-d",strtotime($_POST['search_date']));
 	
 }	
+if(isset($_SESSION['search_date'])){
+	$datenow      = date("m/d/Y", strtotime($_SESSION['search_date']));
+	$clearance_date = date("Y-m-d",  strtotime($_SESSION['search_date']));
+}
+
+
 
 
 
