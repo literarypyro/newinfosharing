@@ -210,8 +210,12 @@ if(isset($_POST['switch_id'])){
 	$hour=$_POST['hour']; $minute=$_POST['minute']; $amorpm=$_POST['amorpm'];
 	if($amorpm=="pm"){ if($hour<12) $hour+=12; }
 	else { if($hour=="12") $hour=0; }
+	
+	$switchDriver="";
+	$switchDriver=$_POST['train_driver'];
+	
 	$availability_date=date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
-	db_exec($db,"insert into train_switch(train_ava_id,new_index,date_change) values (?,?,?)",array($_POST['switch_id'],$_POST['new_index'],$availability_date));
+	db_exec($db,"insert into train_switch(train_ava_id,new_index,date_change,train_driver) values (?,?,?,?)",array($_POST['switch_id'],$_POST['new_index'],$availability_date),$switchDriver);
 	$switchRow=db_query($db,"select * from train_availability where id=? limit 1",array($_POST['switch_id']))->fetch_assoc();
 	if($switchRow['type']=="reserve"){
 		db_exec($db,"update train_availability set type='revenue' where id=?",array($_POST['switch_id']));
