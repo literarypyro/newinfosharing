@@ -733,7 +733,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 //	if($highestCar['total']==$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
 	
 	?>
-		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>",target="_blank")' >
+		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>")' >
 	
 	<?php echo $row['equipment_name']; ?>
 	</a>
@@ -743,7 +743,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 	}
 	else {
 	?>	
-		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>",target="_blank")' >
+		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>")' >
 	
 	
 	<?php echo $row['equipment_name']; ?>

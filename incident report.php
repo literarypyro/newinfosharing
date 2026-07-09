@@ -44,6 +44,15 @@ if(isset($_POST['equipment'])){
 	$minute=$_POST['minute'];
 	$amorpm=$_POST['amorpm'];
 
+
+	$resolution_day=date("Y-m-d H:i",strtotime($_POST['resolution_date']));
+
+	$hour2=$_POST['hour2'];
+	$minute2=$_POST['minute2'];
+	$amorpm2=$_POST['amorpm2'];
+	
+
+
 	$equipment=$_POST['equipment'];
 	
 	if($equipment=="others"){
@@ -65,12 +74,25 @@ if(isset($_POST['equipment'])){
 	else {
 		if($hour=="12"){ $hour=0; }
 	}
+
+	if($amorpm2=="pm"){
+		if($hour2<12){ $hour2+=12; }
+	}
+	else {
+		if($hour2=="12"){ $hour2=0; }
+	}
+
 	
 	$reported_by=$_POST['reported_by'];
 	$received_by=$_POST['received_by'];
 	$level_condition=$_POST['condition'];
 	
 	$incident_date=date("Y-m-d H:i",strtotime($_POST['incident_day']." ".$hour.":".$minute));
+
+	$resolution_date=date("Y-m-d H:i",strtotime($_POST['resolution_day']." ".$hour2.":".$minute2));
+
+
+
 	$incidentYear=$year;
 	
 	$type=$_POST['type'];
@@ -90,10 +112,10 @@ if(isset($_POST['equipment'])){
 	$description=$db->real_escape_string($description);
 	
 	$sql="insert into incident_report ";
-	$sql.="(incident_type,incident_no,level,incident_date,";
+	$sql.="(incident_type,incident_no,level,incident_date,resolution_date";
 	$sql.="description,action_dotc,action_maintenance,duration,equipt,cancel,unit_no,level_condition,recommending_approval,approving_person,action_type)";
 	$sql.=" values ";
-	$sql.="(\"".$type."\",\"".$incident_id."\",'".$level."','".$incident_date."',";
+	$sql.="(\"".$type."\",\"".$incident_id."\",'".$level."','".$incident_date."','".$resolution_date."'";
 	$sql.="\"".$description."\",\"".$dotc_taken."\",\"".$maintenance_taken."\",\"".$duration."\",'".$equipment."','".$cancel."','".$unit_no."','".$level_condition."','".$_POST['recommending_approval']."','".$_POST['approving_person']."','".$_POST['action_type']."')";
 
 	$rs=$db->query($sql);
@@ -1656,19 +1678,19 @@ document.addEventListener('keydown',function(e){
 				$incident_date_label=date("m/d/Y");
 			}
 			?>
-			<input type='text' name='incident_date' id='incident_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
+			<input type='text' name='resolution_date' id='resolution_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
 
-			<select name='hour' class="ir-sel--time">
+			<select name='hour2' class="ir-sel--time">
 				<?php for($i=1;$i<=12;$i++){ ?>
 				<option value='<?php echo $i; ?>' <?php if($i*1==$hh*1){ echo "selected"; } ?>><?php echo $i; ?></option>
 				<?php } ?>
 			</select>
-			<select name='minute' class="ir-sel--time">
+			<select name='minute2' class="ir-sel--time">
 				<?php for($i=0;$i<=59;$i++){ ?>
 				<option value='<?php echo $i; ?>' <?php if($i*1==$min*1){ echo "selected"; } ?>><?php echo ($i<10?"0":"").$i; ?></option>
 				<?php } ?>
 			</select>
-			<select name='amorpm' class="ir-sel--time">
+			<select name='amorpm2' class="ir-sel--time">
 				<option value='am' <?php if($aa=="am"){ echo "selected"; } ?>>AM</option>
 				<option value='pm' <?php if($aa=="pm"){ echo "selected"; } ?>>PM</option>
 			</select>
