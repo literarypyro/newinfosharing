@@ -51,6 +51,23 @@ h2 { color:#1A2238; font-size:20px; }
 }
 .stat-toolbar input[type=submit]:hover { background:#E5A50F; }
 
+
+
+.stat-toolbar a.btn-generate {
+
+	display:inline-block; height:28px; line-height:28px; border:none; border-radius:4px;
+
+	background:#FDB813; color:#3A2D00; font-weight:700; font-size:12px; padding:0 14px;
+
+	cursor:pointer; text-decoration:none; vertical-align:middle;
+
+}
+
+.stat-toolbar a.btn-generate:visited { color:#3A2D00; }
+
+.stat-toolbar a.btn-generate:hover, .stat-toolbar a.btn-generate:active { background:#E5A50F; color:#3A2D00; text-decoration:none; }
+
+
 .stat-legend {
 	display:flex; align-items:center; gap:16px; flex-wrap:wrap;
 	background:#F1EEE3; border:1px solid #E5DECC; border-top:none;
@@ -77,6 +94,8 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	font-weight:bold;
 }
 </style>
+<?php include("history_theme.php"); ?>
+
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>
@@ -125,51 +144,7 @@ $(function() {
 </script>
 </head>
 <body>
-
-<!-- <form action='statistics_report.php' method='post'> -->
-<form action='statistics_report_modified.php' method='post' class="stat-toolbar">
-<table>
-<tr><th>Level</th>
-<td>
-<select name='level'>
-<option <?php if($_POST['level']==1){ echo "selected"; } ?> value='1'>1</option>
-<option <?php if($_POST['level']==2){ echo "selected"; } ?> value='2'>2</option>
-<option <?php if($_POST['level']==3){ echo "selected"; } ?> value='3'>3</option>
-</select>
-</td>
-<th>From</th>
-<td> <input type="text" name='search_date2' id='search_date2'>
-</td>
-<th>To</th>
-<td> <input type="text" name='search_date' id='search_date'>
-</td>
-<!--
-
-<tr>
-<th>Range</th>
-<td>
-
-<select name='range'>
-<option value='daily'>Daily</option>
-<option value='weekly'>Weekly</option>
-<option value='monthly'>Monthly</option>
-<option value='yearly'>Yearly</option>
-<option value='custom'>Range</option>
-
-</select>
-
-</tr>
--->
-
-<th><input type=submit value='Submit' /></th>
-</tr>
-</table>
-</form>
-<div class="stat-legend">
-	<span><span class="swatch" style="background:#00529B;"></span>Click an equipment name to see which cars had this failure</span>
-	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count to see that month's incident list</span>
-	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this period (&ge;60% of the peak)</span>
-</div>
+<div class="ccs-page">
 
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
@@ -200,12 +175,107 @@ $dates=explode(" - ",$_POST['search_date2']);
 
 }
 else {
-$start_date=date("Y-m-d",strtotime("first day of this month"));
+//$start_date=date("Y-m-d",strtotime("first day of this month"));
+
+$start_date=date("Y-m-d",(date("Y")."-01-01"));
+
 $end_date=date("Y-m-d",strtotime("last day of this month"));
 	$period=date("F d", strtotime($start_date))." - ".date("F d Y", strtotime($end_date));
 
 	$level=2;
 }
+
+
+if(isset($_POST['level'])){
+//	$year=$_POST['year'];
+	$level=$_POST['level'];
+}
+else {
+//	$year=date("Y");
+	$level="2";
+}
+?>
+<!-- <form action='statistics_report.php' method='post'> -->
+<div class="ccs-header">
+
+<h1><?php echo $period; echo " / ";echo " Level ".$level;?></h1>
+<div class='sub'><!-- <h2><?php echo "Level ".$level; ?></h2> --></div>
+</div>
+<div class="ccs-panel">
+<div class="ccs-panel-head">
+<table>
+
+<form action='statistics_report_modified.php' method='post'>
+
+<table cellspacing="0" cellpadding="0" class='stat-toolbar'>
+<tr>
+	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
+		<form action='statistics_report_modififed.php' method='post' >
+<div width="50%" align=left>
+<table>
+<tr><th>Level</th>
+<td>
+<select name='level'>
+<option <?php if($_POST['level']==1){ echo "selected"; } ?> value='1'>1</option>
+<option <?php if($_POST['level']==2){ echo "selected"; } ?> value='2'>2</option>
+<option <?php if($_POST['level']==3){ echo "selected"; } ?> value='3'>3</option>
+</select>
+</td>
+
+<th>From</th>
+<td> <input type="text" name='search_date2' id='search_date2'>
+</td>
+<th>To</th>
+<td> <input type="text" name='search_date' id='search_date'>
+</td>
+<th><input type=submit value='Submit' /></th>
+
+</tr>
+</table>
+</form>
+	</td>
+	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
+
+<a href='#' class="btn-generate" onclick='window.open("generate_statistics_report.php?sd=<?php echo date("Y-m-d",strtotime($_POST['search_date2'])); ?>&ed=<?php echo date("Y-m-d",strtotime($_POST['search_date'])); ?>&range=<?php echo $_POST['range']; ?>&level=<?php echo $level; ?>");'><b>Generate Printout</b></a>
+
+
+
+
+	</td>
+</tr>
+</table>
+
+
+<!--
+
+<tr>
+<th>Range</th>
+<td>
+
+<select name='range'>
+<option value='daily'>Daily</option>
+<option value='weekly'>Weekly</option>
+<option value='monthly'>Monthly</option>
+<option value='yearly'>Yearly</option>
+<option value='custom'>Range</option>
+
+</select>
+
+</tr>
+-->
+<!--
+</tr>
+</table>
+</form>
+
+-->
+<div class="stat-legend">
+	<span><span class="swatch" style="background:#00529B;"></span>Click an equipment name to see which cars had this failure</span>
+	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count to see that month's incident list</span>
+	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this period (&ge;60% of the peak)</span>
+</div>
+</div>
+<?php
 
 /**
 if($_POST['range']=="daily"){
@@ -340,10 +410,9 @@ else {
 }
 
 ?>
-<h2><?php echo $period; echo " / ";echo " Level ".$level;?></h2>
-<!-- <h2><?php echo "Level ".$level; ?></h2> -->
-<table class='train_ava' border=1px style='border-collapse:collapse;' width=100%>
-<tr class='rowHeading'>
+<div class='css-panel-body'>
+<table class="table table-striped table-bordered bootstrap-datatable datatable2" border=1px style='border-collapse:collapse;' width=100%>
+<tr >
 <th>&nbsp;</th>
 <?php
 
@@ -375,13 +444,17 @@ if(isset($_POST['search_date2'])){
 else {
 	
 $difference=0;	
+
+$start_date=date("Y-01-01");
 	
 $start=date("Ym",strtotime($start_date));
 $end=date("Ym",strtotime($end_date));
 
 
+$startM=date("m",strtotime($start_date));
+$endM=date("m",strtotime($end_date));
 
-
+$difference=$endM-$startM;
 
 //	$start=1;
 //	$end=12;
@@ -488,7 +561,7 @@ for($i=0;$i<=$difference;$i++){
 
 
 	if($i==0){
-	$date_limit=date("t",strtotime($start_date));
+	$date_limit=date("t",strtotime($end_date));
 	}
 	else {
 	
@@ -498,14 +571,21 @@ for($i=0;$i<=$difference;$i++){
 
 	}
 
-	
+
 
 
 
 	if($i==0){
-	$yy=date("Y",strtotime($start_date));
+		
+
+	$yy=date("Y");
 
 	$mon=date("m",strtotime($start_date));
+	
+	$yy2=date("Y",strtotime($start_date));
+
+	$mon2=date("m",strtotime($start_date));
+	
 		
 	}
 	else {
@@ -513,6 +593,11 @@ for($i=0;$i<=$difference;$i++){
 
 	$mon=date("m",strtotime($tag_date."+".$i." months"));
 	
+
+	$yy2=date("Y",strtotime($tag_date."+".$i." months"));
+
+	$mon2=date("m",strtotime($tag_date."+".$i." months"));
+
 	$fn=date("F",strtotime($tag_date."+".$i." months"));
 	
 	
@@ -522,8 +607,11 @@ for($i=0;$i<=$difference;$i++){
 
 
 	$start_date1=date("Y-m-d",strtotime($yy."-".$mon."-01"));
-	$end_date1=date("Y-m-d",strtotime($yy."-".$mon."-".$date_limit));
-
+	$end_date1=date("Y-m-d",strtotime($yy2."-".$mon2."-".$date_limit));
+	$level=2;
+	
+	
+	
 	
 	$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
 	if($i==1){
@@ -626,12 +714,26 @@ if($i%2>0){ echo "class='rowClass'"; }
 	<th>
 
 	<?php
+		if(isset($_POST['level'])){
+			$level=$_POST['level'];
+			$start_date=$_POST['search_date'];
+			$end_date=$_POST['search_date2'];
+		}
+		else {
+			$start_date=date("Y-01-01");
+			$end_date=$end_date1;
+
+		}			
+
+
 	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
+		
+		
 
 //	if($highestCar['total']==$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
 	
 	?>
-		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $_POST['level']; ?>&range=<?php echo $_POST['range']; ?>&sd=<?php echo $_POST['search_date2']; ?>&ed=<?php echo $_POST['search_date'];?>",target="_blank")' >
+		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>",target="_blank")' >
 	
 	<?php echo $row['equipment_name']; ?>
 	</a>
@@ -641,7 +743,8 @@ if($i%2>0){ echo "class='rowClass'"; }
 	}
 	else {
 	?>	
-		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $_POST['level']; ?>&range=<?php echo $_POST['range']; ?>&sd=<?php echo $_POST['search_date2']; ?>&ed=<?php echo $_POST['search_date'];?>",target="_blank")' >
+		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>",target="_blank")' >
+	
 	
 	<?php echo $row['equipment_name']; ?>
 	</a>
@@ -784,8 +887,9 @@ function sortCar($equipt_a,$equipt_b){
 
 
 </table>
+</div>
 <br>
 <br>
-<a href='#' class="two" onclick='window.open("generate_statistics_report.php?sd=<?php echo date("Y-m-d",strtotime($_POST['search_date2'])); ?>&ed=<?php echo date("Y-m-d",strtotime($_POST['search_date'])); ?>&range=<?php echo $_POST['range']; ?>&level=<?php echo $level; ?>");'><b>Generate Printout</b></a>
+</div>
 </body>
 </html>

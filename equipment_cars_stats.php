@@ -89,6 +89,7 @@ $year=date("Y",strtotime($_GET['sd']));
 $start_date=date("Y-m-d",strtotime($_GET['sd']));
 
 $init_start=$start_date;
+$end_date=date("Y-m-d",strtotime($_GET['ed']));
 
 
 if($_GET['range']=="daily"){
@@ -130,11 +131,10 @@ $row=$rs->fetch_assoc();
 $ename=$row['equipment_name'];
 
 
-$sql="SELECT * FROM `incident_cars` inner join incident_report on incident_cars.incident_id=incident_report.id where equipt='$equipt_id' and level='$level' and incident_date between '".$init_start." 00:00:00' and '".$end_date." 23:59:59' group by car_no order by car_no";
+$sql="SELECT * FROM `incident_cars` inner join incident_report on incident_cars.incident_id=incident_report.id where equipt='$equipt_id' and level='$level' and incident_date between '".$init_start." 00:00:00' and '".$end_date." 23:59:59' group by incident_date,car_no order by car_no";
 //$sql="SELECT * FROM `incident_cars` inner join incident_report on incident_cars.incident_id=incident_report.id where equipt='$equipt_id' group by car_no order by car_no";
 
 //$sql="select * from equipment where type='RS' order by equipment_name";
-
 $rs=$db->query($sql);
 
 $nm=$rs->num_rows;
@@ -167,15 +167,29 @@ else {
 }
 */
 ?>
-<h2>
-<?php echo $ename; ?>
-<br>
 
-<?php echo "Year ".$year; echo " / ";echo " Level ".$level;?></h2>
-<!-- <h2><?php echo "Level ".$level; ?></h2> -->
-<table class='train_ava' border=1px style='border-collapse:collapse;' width=100%>
-<tr class='rowHeading'>
-<th>&nbsp;</th>
+<body>
+<div class="ccs-page">
+<div class="ccs-panel">
+
+<div class='ccs-header'>
+<h1>
+<?php echo $ename." - Failures By Car"; ?>
+</h1>
+<div class='sub'></div>
+
+</div>
+
+<div class='ccs-panel-head'><h2><?php echo "Year ".$year; echo " / ";echo " Level ".$level; ?></h2></div>
+
+</div>
+
+<div class='css-panel-body'>
+
+
+<table class="table table-striped table-bordered bootstrap-datatable datatable2" border=1px style='border-collapse:collapse;' width=100%>
+<tr >
+<th>Car Number</th>
 <?php
 if(isset($_GET['sd'])){
 	$start=date("m",strtotime($start_date));
@@ -357,7 +371,7 @@ for($i=0;$i<$nm;$i++){
 <tr <?php 
 
 	if(($highestCar['total']*0.60)<$car_count["Car_".$car[$i]['id']]["total"]){
-	echo "style='background-color:red; color:white;'";
+	echo "style='background-color:#F9D6D6; color:#7A1F1F;'";
 		
 	}
 	else {
@@ -372,8 +386,8 @@ if($i%2>0){ echo "class='rowClass'"; }
 	<th>
 	<?php
 	if(($highestCar['total']*0.60)<$car_count["Car_".$car[$i]['id']]["total"]){
-	echo "<font color='white'>".$row['car_no']."</font>";
-		
+//	echo "<font color='white'>".$row['car_no']."</font>";
+		echo $row['car_no'];	
 	}
 	else {
 		echo $row['car_no']; 
@@ -400,7 +414,7 @@ if($i%2>0){ echo "class='rowClass'"; }
 	align=center>
 		<?php
 	if(($highestCar['total']*0.60)<$car_count["Car_".$car[$i]['id']]["total"]){
-	echo "<b><font color='white'>".$car_count["Car_".$car[$i]['id']]["Month_".$k]."</font></b>";
+	echo $car_count["Car_".$car[$i]['id']]["Month_".$k]."</b>";
 		
 	}
 	else {
@@ -418,7 +432,6 @@ if($i%2>0){ echo "class='rowClass'"; }
 	<?php 
 	if(($highestCar['total']*0.60)<$car_count["Car_".$car[$i]['id']]["total"]){
 		?>
-		style='background-color:red; color:white;'
 		
 		<?php
 		
@@ -447,6 +460,8 @@ if($i%2>0){ echo "class='rowClass'"; }
 <br>
 <br>
 
+</div>
+</div>
 
 
 <style type='text/css'>
@@ -456,3 +471,5 @@ if($i%2>0){ echo "class='rowClass'"; }
 	font-weight:bold;
 }
 </style>
+<?php include("history_theme.php"); ?>
+</body>
