@@ -198,6 +198,18 @@ function fillEdit(elementName){
 		document.getElementById('fieldType').value='date';
 		
 	}
+	else if(elementName=="resolution_date"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+	
+		var dateHTML=setDate();
+//		var dateHTML=document.getElementById('dateStamp').innerHTML;
+		elementContents+="<tr><th width=20%>Date/Time</th><td>"+dateHTML+"</td></tr>";
+		document.getElementById('fieldType').value='resolution_date';
+		
+	}
+	
+	
+	
 	else if(elementName=="problem"){
 		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
 		elementContents+="<tr><th width=20%>Type of Problem</th>";
@@ -1137,6 +1149,38 @@ if(isset($_POST['fieldType'])){
 	//		echo $incident_date;
 			$sql.="set incident_date='".$incident_date."' ";
 			break;
+			
+			
+		case "resolution_date":
+			$year=$_POST['year'];
+			$month=$_POST['month'];
+			$day=$_POST['day'];
+			
+			$hour=$_POST['hour'];
+//			echo $hour;
+			$minute=$_POST['minute'];
+//			echo $minute;
+			$amorpm=$_POST['amorpm'];
+//			echo $amorpm;
+			$equipment=$_POST['equipment'];
+			if($amorpm=="pm"){
+				if($hour<12){
+					$hour+=12;
+				}
+				else {
+				}
+			}
+			else {
+				if($hour=="12"){
+					$hour=0;
+				}
+			}
+			
+			$resolution_date=$year."-".$month."-".$day." ".$hour.":".$minute;
+			//date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
+	//		echo $incident_date;
+			$sql.="set resolution_date='".$resolution_date."' ";
+			break;
 		}
 	$sql.=" where id='".$incident_report."'";
 	
@@ -1222,6 +1266,7 @@ if(isset($_POST['fieldType'])){
 		$incidentRow=$incidentRS->fetch_assoc();
 
 		$incident_date=date("Y-m-d",strtotime($incidentRow['incident_date']));
+		$resolution_date=date("Y-m-d",strtotime($incidentRow['resolution_date']));
 
 		
 		$updateSQL="delete from level where incident_id='".$incident_report."'";
@@ -1764,7 +1809,8 @@ if($IR_EMBED){ ob_end_clean(); }
 		$time=date("H:ia",strtotime($row['incident_date']));
 		
 		$incident_time=date("Y-m-d H:ia",strtotime($row['incident_date']));
-		
+				$resolution_time=date("Y-m-d H:ia",strtotime($row['resolution_date']));
+
 		$duration=$row['duration'];
 		$equipt=$row['equipt'];
 		
@@ -2160,7 +2206,7 @@ else {
 <tr><th>Level</th><td><?php echo $level; echo $levelClause; echo ". ".$condition; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("level")'>Edit</a></td></tr>
 
 <tr><th>Incident Date/Time</th><td><?php echo $incident_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
-<tr><th>Time Resolved</th><td>&nbsp;</td></tr>
+<tr><th>Time Resolved</th><td><?php echo $resolution_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("resolution_date")'>Edit</a></td></tr>
 <tr><th>Incident Duration</th><td><?php echo $duration; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("duration")'>Edit</a></td></tr>
 
 <tr><th>Location/Direction</th><td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>

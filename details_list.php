@@ -151,6 +151,8 @@ a.two2:hover, a.two:active {font-size:105%; color:orange;}
 h2 { font-size:20px; font-weight:bold; }
 a.LDel:visited {color:red;}
 </style>
+<?php include("history_theme.php"); ?>
+
 <script language='javascript'>
 function addSignatory(){
 	$('#addModal').modal('show');
@@ -185,12 +187,15 @@ $rs=$db->query($sql);
 $nm=$rs->num_rows;
 
 ?>
-<br>
-<br>
-<br>
-<br>
-<br>
+
+<div class="ccs-page">
+<div class="ccs-panel">
+<div class="ccs-panel-head">
 <a href='#' onclick='addSignatory()'>Add Details</a>
+</div>
+<div class="ccs-panel-body">
+
+
 <table width='80%' class='table table-striped table-bordered bootstrap-datatable datatable2'>
 	<thead>
 	<tr  class='rowHeading'>
@@ -220,6 +225,9 @@ for($i=0;$i<$nm;$i++){
 ?>
 </tbody>
 </table>
+</div>
+</div>
+</div>
 
 
 		<div class="modal hide fade" id="addModal">

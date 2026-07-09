@@ -79,7 +79,7 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 .ta-grid.ta-console .cf-td-date { width: 1%; }
 .ta-grid.ta-console .cf-date-label { font-size: 15px; font-weight: 700; color: #fff; }
 .ta-grid.ta-console .cf-date-day   { font-size: 11px; color: rgba(255,255,255,.6); margin-left: 8px; }
-.ta-grid.ta-console .cf-td-search  { text-align: center; }
+.ta-grid.ta-console .cf-td-search  { text-align: left; padding:4px; !important }
 .ta-grid.ta-console .cf-td-actions {
 	text-align: right;
 	white-space: normal !important; /* override the global nowrap on toolbar
@@ -766,7 +766,7 @@ $SRemove4 = "LEdit";
 <table class="cf-toolbar-table" cellspacing="0" cellpadding="0">
 <tr>
 	<td class="cf-td-date">
-		<span class="cf-date-label"><?php echo $datenow; ?></span>
+		<span class="cf-date-label"><?php echo date("F d, Y", strtotime($datenow)); ?></span>
 		<span class="cf-date-day"><?php echo date("l", strtotime($datenow)); ?></span>
 	</td>
 	<td class="cf-td-search">

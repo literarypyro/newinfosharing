@@ -282,33 +282,9 @@ body { height: 100%; overflow: hidden; }
 
 			<li><a href='#' onclick="window.open('td_history.php')">Personnel</a></li>
 
-			<!-- Divider: AFC is fare-collection/ridership data by station,
-			     a different subject from the train-ops/incident stats
-			     above -- not just another entry in the same flat list. -->
-			<li class="ta-nav-divider"><span>Fare Collection (AFC)</span></li>
-			<li><a href='#'>By Station</a>
-			<ul>			
-        		<?php 
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-			
-				$sql="select * from station";
-				$rs=$db->query($sql);
-				$nm=$rs->num_rows;
-			
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-				?>
-				<li ><a href='#'  onclick="window.open('statistics_report_afc.php?station=<?php echo $row['id']; ?>&station_name=<?php echo $row['station_name']; ?>')"><?php echo $row['station_name']; ?></a> </li>
-				<?php
-				}
-				?>
-	<li><a href='#' onclick="window.open('statistics_report_afc.php?station=D&station_name=Depot')">Depot</a></li>
-
-
 			</ul>
 			
 			</li>		
-</ul>
 	<li><a href='#'>Transport</a>	
 	<ul>
 		<li><a style='text-decoration:none;' href='indexAdd.php'>Transport Employees</a></li>  
