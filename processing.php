@@ -30,7 +30,11 @@ if(isset($_GET['searchEquipment'])){
 
 }
 
-
+if (isset($_GET['removeEquipment'])) {
+    $stmt = $db->prepare("delete from equipment where id=?");
+    $stmt->bind_param("i", $_GET['removeEquipment']);
+    $stmt->execute();
+}
 if(isset($_GET['searchReportedBy'])){
 	$q = $db->real_escape_string($_GET['searchReportedBy']);
 

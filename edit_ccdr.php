@@ -1809,7 +1809,12 @@ if($IR_EMBED){ ob_end_clean(); }
 		$time=date("H:ia",strtotime($row['incident_date']));
 		
 		$incident_time=date("Y-m-d H:ia",strtotime($row['incident_date']));
-				$resolution_time=date("Y-m-d H:ia",strtotime($row['resolution_date']));
+		if($row['resolution_date']==""){
+			$resolution_time="";
+		}
+		else {
+			$resolution_time=date("Y-m-d H:ia",strtotime($row['resolution_date']));
+		}
 
 		$duration=$row['duration'];
 		$equipt=$row['equipt'];

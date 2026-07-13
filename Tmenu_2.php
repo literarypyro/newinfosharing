@@ -15,7 +15,8 @@ ul#navMenu {
 	margin: 0;
 	width: auto;
 	list-style: none;
-	position: static;
+	position: relative;
+	z-index: 2000;
 	background: #013E76;
 	border-top: 1px solid rgba(255,255,255,0.15);
 }
@@ -32,7 +33,7 @@ ul#navMenu ul {
 	border-radius: 4px;
 	box-shadow: 0 4px 12px rgba(0,30,80,.15);
 	min-width: 200px;
-	z-index: 10;
+	z-index: 2001;
 }
 
 ul#navMenu li {
@@ -198,7 +199,7 @@ body { height: 100%; overflow: hidden; }
  <script src="nprogress-master/nprogress.js"></script>
  -->
 
-<script type="text/javascript" src="js/jquery-1.10.2.min.js"</script>
+<script type="text/javascript" src="js/jquery-1.10.2.min.js"></script>
 
 <script language='javascript' src='ajax.js'></script>
 <script language='javascript'>
@@ -285,13 +286,13 @@ body { height: 100%; overflow: hidden; }
 			</ul>
 			
 			</li>		
-	<li><a href='#'>Transport</a>	
+	<li><a href='#'>Database Records</a>	
 	<ul>
 		<li><a style='text-decoration:none;' href='indexAdd.php'>Transport Employees</a></li>  
 		<li><a style='text-decoration:none;' href='UserAdd.php'>Transport Users</a></li>	
 		<li><a style='text-decoration:none;' href='signatories_list.php'>Signatories</a></li>	
 		<li><a style='text-decoration:none;' href='equipment_list.php'>Equipment</a></li>	
-		<li><a style='text-decoration:none;' href='details_list.php'>Preencoded Details</a></li>	
+		<li><a style='text-decoration:none;' href='details_list.php'>Preencoded Remarks</a></li>	
 
 	</ul>	
 	</li>

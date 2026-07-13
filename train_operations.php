@@ -581,6 +581,15 @@ function changeForm(form_type,form_id,form_extra){
 		htmlCode+="<tr><td>Train Driver</td><td id='td' name='td'></td></tr>";
 		htmlCode+="<tr><td colspan=2 align=center><button type='button' onclick='submitSwitch("+form_id+")'>Submit</button></td></tr></table>";
 	}
+	else if(form_type=="timetable"){
+		htmlCode="<table><tr><th colspan=2>Set Timetable</th></tr>";
+		htmlCode+="<tr><td>New Index No.</td><td><input type=text id='new_index_input' /></td></tr>";
+		htmlCode+="<tr><td>Time of Switch</td><td id='cell' name='cell'></td></tr>";
+		htmlCode+="<tr><td>Train Driver</td><td id='td' name='td'></td></tr>";
+		htmlCode+="<tr><td colspan=2 align=center><button type='button' onclick='submitSwitch("+form_id+")'>Submit</button></td></tr></table>";
+	}
+	
+	
 	else if(form_type=="editIndex"){
 		htmlCode="<table><tr><th colspan=2>Edit Index No.</th></tr>";
 		htmlCode+="<tr><td>New Index No.</td><td><input type=text name='edit_index' /></td></tr>";

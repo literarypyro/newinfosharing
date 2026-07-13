@@ -198,12 +198,12 @@ $nm=$rs->num_rows;
 
 <table width='80%' class='table table-striped table-bordered bootstrap-datatable datatable2'>
 	<thead>
-	<tr  class='rowHeading'>
-		<td>ID</td>
+	<tr>
+		<th>ID</th>
 		<!--
 		<td>Code</td>
 		-->
-		<td>Details</td>
+		<th>Details</th>
 	</tr>
 	</thead>
 	<tbody>

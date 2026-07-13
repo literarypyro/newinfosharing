@@ -19,7 +19,7 @@ require("Tmenu.php");
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>
-
+<?php require("slide_panel.php"); ?>
 <style type='text/css'>
 
 .rowClass {background-color: #F3F3F3;}
@@ -524,11 +524,13 @@ for($i=0;$i<$nm;$i++){
 			$row2=$rs2->fetch_assoc();
 			if($n==0){
 
-			echo "<a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$row2['incident_id']."\")'>Car # ".$row2['car_no']." - See IN ".$row2['incident_no']."</a>"; 
+
+
+			echo "<a href='#' onclick='openSlidePanel(\"edit_ccdr.php?ir=".$row2['incident_id']."&embed=1\",\"Incident - ".htmlspecialchars($row2['car_no'])."\")')'>Car # ".$row2['car_no']." - See IN ".$row2['incident_no']."</a>"; 
 			
 			}
 			else {
-				echo ", <a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$row2['incident_id']."\")'>Car # ".$row2['car_no']." - See IN ".$row2['incident_no']."</a>"; 
+				echo ", <a href='#' onclick='openSlidePanel(\"edit_ccdr.php?ir=".$row2['incident_id']."&embed=1\",\"Incident - ".htmlspecialchars($row2['car_no'])."\")'>Car # ".$row2['car_no']." - See IN ".$row2['incident_no']."</a>"; 
 			}
 		?>
 			<br>	
