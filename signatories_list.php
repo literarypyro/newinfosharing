@@ -157,7 +157,7 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 /* -- Layout wrapper: keeps the toolbar and table aligned, and holds a sane
    width for a small (3-column) table. Remove max-width if you'd rather it
    run full-bleed like the wider console pages. -- */
-.ta-grid.ta-console .cf-eq-wrap { width: 96%;  max-width: 1800px; margin-top:30px; }
+.ta-grid.ta-console .cf-eq-wrap { width: 96%;  max-width: 1400px; margin-top:20px; }
 
 /* -- Toolbar band: blue with the gold underline, same tokens as the other
    pages. Title + count on the left, primary action on the right. -- */
@@ -227,6 +227,13 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 
 /* -- Modal shell (Add + Edit) -- console theme, matches the other pages -- */
 .modal { z-index: 99999; }
+/* Guarantee the modal stays out of layout until it is opened. modal_only.css
+   hides it ONLY via the .hide class (there is no display:none on .modal itself),
+   and the modal is position:fixed / top:-25% / 560px wide -- so any time .hide
+   stops winning, its lower edge drops over the top of the page and eats the menu's
+   hover. This id-level rule removes that dependency; Bootstrap sets an inline
+   display:block when it opens the modal, so opening still works. */
+#addModal { display: none; }
 #addModal, #editModal {
 	border-radius: 8px; overflow: hidden; border: none;
 	box-shadow: 0 8px 32px rgba(0,30,80,.18), 0 2px 8px rgba(0,30,80,.10);
@@ -333,6 +340,7 @@ $nm=$rs->num_rows;
 
 ?>
 
+
 <div class="ta-grid ta-console" align="center">
 <div class="cf-eq-wrap">
 
@@ -353,7 +361,7 @@ $nm=$rs->num_rows;
 	<tr class='rowHeading'>
 		<th>As of (Date)</th>
 		<th>General Manager/OIC</th>
-		<th>Director for Operations/OIC</th>
+		<th>Director of Operations</th>
 		<th>Chief, Transport</th>
 		<th>Maintenance Provider</th>
 	</tr>
@@ -380,6 +388,8 @@ for($i=0;$i<$nm;$i++){
 
 ?>
 </table>
+</div><!-- /.cf-eq-wrap -->
+</div><!-- /.ta-grid.ta-console -->
 
 
 		<div class="modal hide fade" id="addModal">
@@ -459,8 +469,6 @@ for($i=0;$i<$nm;$i++){
 				<button type='submit' class="btn btn-primary" id='Suc' value='Submit'>Save Signatories</button>
 			</div>
 			  </form>
-		</div>
-		</div>
 		</div>
 		
 		<script src="js/jquery-migrate-1.2.1.min.js"></script>	

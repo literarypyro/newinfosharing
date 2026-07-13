@@ -157,10 +157,90 @@ a.LDel:visited {color:red;}
 .stat-toolbar input[type=submit]:hover { background:#E5A50F; }
 .ops-act--gold    { background:var(--gold); border-color:var(--gold); color:var(--gold-ink); font-weight:600; }
 .ops-act          { display:inline-block; font-size:11px; font-weight:500; color:#fff; text-decoration:none; padding:5px 11px; border:1px solid rgba(255,255,255,.35); border-radius:4px; float:none !important; width:auto !important; cursor:pointer; }
-   table.train_ava   { width:100%; border-collapse:separate; border-spacing:0; min-width:980px; }
+
+
+
+   table.train_ava   { margin-top:20px;width:100%; border-collapse:separate; border-spacing:0; min-width:920px; }
+   
 table.train_ava th{ background:var(--rail); color:#fff; padding:9px 10px; font-family:var(--ta-sans); font-weight:600; font-size:11px; letter-spacing:.4px; text-transform:uppercase; text-align:center; border-right:1px solid rgba(255,255,255,.18); border-bottom:3px solid var(--gold); }
 table.train_ava td{ padding:8px 10px; vertical-align:top; border-right:1px solid #E6EDF5; border-bottom:1px solid #E6EDF5; font-family:var(--ta-sans); font-size:12.5px; }
 table.train_ava tr.row-first td { border-top:2px solid var(--line); }
+
+
+
+
+/* =========================================================================
+   DEPOT INSERTION -- console softening pass, matched to ccdr_summary.php.
+   Appended so later rules override the stronger legacy colors above without
+   disturbing anything the slide panel also reads. Also defines --gold-ink
+   and --line, which .ops-act--gold and tr.row-first referenced but which
+   were never defined here (same undefined-token bug ccdr_summary's rebuild
+   notes fixed on that page) -- the Add New Entry button was rendering
+   white-on-gold because of it.
+   ========================================================================= */
+:root { --cf-blue-dark:#013E76; --cf-gold-ink:#3A2D00; --gold-ink:#3A2D00; --line:#D2DDEA; }
+
+/* Inputs: lemon/gold -> console white (these generic selectors also feed
+   the slide-panel entry form, which is the point) */
+input[type="text"] {
+	height:26px; font-weight:normal; font-size:12.5px; font-family:var(--cf-sans);
+	border:1px solid var(--cf-border); background:var(--cf-white); color:var(--cf-dark);
+	border-radius:4px; padding:0 8px; margin-bottom:0; vertical-align:middle;
+}
+textarea {
+	font-size:12.5px; font-family:var(--cf-sans); font-weight:normal;
+	border:1px solid var(--cf-border); background:var(--cf-white); color:var(--cf-dark);
+	border-radius:4px; padding:6px 8px; margin-bottom:0;
+}
+input[type="text"]:focus, textarea:focus {
+	background:var(--cf-white); font-weight:normal;
+	border-color:var(--cf-blue); outline:none; box-shadow:0 0 0 2px rgba(0,82,155,.12);
+}
+select {
+	border:1px solid var(--cf-border); background:var(--cf-white); color:var(--cf-dark);
+	border-radius:4px; height:26px; line-height:normal; font-size:12.5px;
+	font-family:var(--cf-sans); margin-bottom:0; vertical-align:middle;
+}
+
+/* Row striping: legacy gray -> console wash */
+.rowClass { background-color: var(--cf-row-odd); }
+
+/* Slide-panel form palette: flat grays -> console */
+#add_form th { background:var(--cf-blue); color:#fff; }
+#add_form td:nth-child(odd)  { background:var(--cf-row-odd); color:var(--cf-dark); font-weight:600; padding:7px 10px; border:1px solid var(--cf-border); }
+#add_form td:nth-child(even) { background:var(--cf-white); border:1px solid var(--cf-border); padding:6px 8px; }
+#add_form input[type=submit] { height:28px; border:none; border-radius:4px; background:var(--cf-gold); color:var(--cf-gold-ink); font-weight:700; font-size:12px; padding:0 16px; cursor:pointer; }
+#add_form input[type=submit]:hover { background:#E5A50F; }
+
+/* Page header band above the toolbar -- ccdr composition: the header
+   carries the radius + gold rule, the toolbar below is a plain blue band */
+.dip-header { background:var(--cf-blue); border-bottom:3px solid var(--cf-gold); border-radius:6px 6px 0 0; padding:12px 16px; font-family:var(--cf-sans); }
+.dip-header h1 { margin:0; font-size:16px; font-weight:700; color:#fff; letter-spacing:.3px; }
+.dip-header .sub { font-size:10px; color:rgba(255,255,255,.6); letter-spacing:.5px; text-transform:uppercase; margin-top:2px; }
+.stat-toolbar { border-bottom:none; border-radius:0; }
+.stat-toolbar form { margin:0; display:inline; }  /* bootstrap.min.css gives form 20px bottom margin -> bloated toolbar */
+.stat-toolbar select, .stat-toolbar input[type=text] { height:28px; margin-bottom:0; vertical-align:middle; }
+.stat-toolbar input[type=submit] { height:30px; padding:0 16px; margin-bottom:0; vertical-align:middle; }
+
+/* Panel card around the log table (ccdr's treatment) */
+.dip-wrap { padding:16px; font-family:var(--cf-sans); }
+.dip-panel { background:var(--cf-white); border:1px solid var(--cf-border); border-radius:6px; box-shadow:0 1px 3px rgba(0,30,80,.08); overflow:hidden; }
+.dip-panel-head { background:var(--cf-blue); border-bottom:3px solid var(--cf-gold); padding:9px 14px; display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px; }
+.dip-panel-head h3 { margin:0; font-size:12px; font-weight:700; color:#fff; letter-spacing:.4px; text-transform:uppercase; }
+.dip-panel-head .dip-date { font-size:11px; color:rgba(255,255,255,.75); font-weight:600; }
+.dip-panel-body { padding:14px; overflow-x:auto; }
+
+/* Table breathing room inside the panel */
+table.train_ava { margin-top:0; }
+table.train_ava th { border-bottom:1px solid #0A639E; line-height:1.35; }  /* the panel head carries the gold rule now */
+table.train_ava td { text-align:center; }
+table.train_ava td:last-child { text-align:left; }
+tr.cf-empty-row td { text-align:center; color:var(--cf-muted); font-style:italic; padding:18px; background:var(--cf-white); }
+
+/* Modal: forced resting state (same guard as the other console pages; the
+   modal is otherwise hidden only by Bootstrap's .hide class. Bootstrap sets
+   inline display:block on open, so opening is unaffected) */
+#addModal { display:none; }
 </style>
 
 <?php
@@ -432,7 +512,7 @@ function fillReceived(ajaxHTML){
 		for(var n=0;n<count;n++){
 			var parts=driverTerms[n].split(";");
 			driverHTML+="<option value='"+parts[0]+"'>";
-			driverHTML+=parts[1].replace("_ENYE_","Ñ");
+			driverHTML+=parts[1].replace("_ENYE_","?");
 			driverHTML+="</option>";
 		
 		}
@@ -533,6 +613,11 @@ $(document).ready(function(){
 </script>
 <body>
 
+<div class="dip-header">
+	<h1>Depot Insertion Program</h1>
+	<div class="sub">Train Insertion &amp; Stabling Departures &mdash; Line 3</div>
+</div>
+
 
 
 
@@ -632,11 +717,26 @@ onclick='window.open("insertion_entry.php");'
 
 
 
+<div class="dip-wrap">
+<div class="dip-panel">
+<div class="dip-panel-head">
+	<h3>Insertion Log</h3>
+	<span class="dip-date"><?php
+		/* display-only: same POST -> SESSION precedence the table query uses,
+		   so the chip always names the date actually being shown */
+		if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
+			$dip_shown=isset($_POST['search_date'])?$_POST['search_date']:$_SESSION['search_date'];
+			echo date("F d, Y",strtotime($dip_shown))." &middot; ".date("l",strtotime($dip_shown));
+		}
+		else { echo "No date selected"; }
+	?></span>
+</div>
+<div class="dip-panel-body">
 <table class='train_ava' width=100%>
 <tr >
 	<th rowspan=2>Index</th>
-	<th rowspan=2>Time of <br>Train <br>Availability <br>at Stabling Area</th>
-	<th rowspan=2>Actual time of completion <br>of train preparation (Ready for insertion)</th>
+	<th rowspan=2>Time of Train Availability at Stabling Area</th>
+	<th rowspan=2>Actual time of completion of train preparation (Ready for insertion)</th>
 	<th colspan=2>Departure at Stabling Area for 1st loop</th>
 	<th colspan=2>Departure at Stabling Area for 2nd loop</th>
 	<th colspan=2>Departure at Stabling Area for 3rd loop</th>
@@ -737,14 +837,23 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 <?php		
 		}	
 	}
+	else {
+		/* empty state: date searched, no rows recorded */
+		echo "<tr class='cf-empty-row'><td colspan=10>No insertion records for ".date("F d, Y",strtotime($insertion_date)).".</td></tr>";
+	}
 	
 
 }
-
+else {
+	/* empty state: no date chosen yet */
+	echo "<tr class='cf-empty-row'><td colspan=10>Select a date and click Retrieve Date to view the insertion program.</td></tr>";
+}
 
 ?>
 </table>
-</div>
+</div><!-- /.dip-panel-body (absorbs a previously stray closing div here) -->
+</div><!-- /.dip-panel -->
+</div><!-- /.dip-wrap -->
 
 <!--
 <a href='#' class="Llink" onclick='window.open("clearance entry.php");'><b>Add New Entry</b></a>
@@ -762,8 +871,8 @@ $varR=0;
 <br>
 		<div class="modal hide fade" id="addModal">
 			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal">×</button>
-				<h3>Edit</h3>
+				<button type="button" class="close" data-dismiss="modal">&times;</button>
+				<h3>Edit Entry</h3>
 			</div>
 			<form action='clearance form.php' method='post'>
 

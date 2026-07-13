@@ -241,7 +241,7 @@ textarea{
 	background-color: #FFFACD;
 	border-radius: 3px;
 }
-
+/*
 #add_form th{background-color: #cccccc;}
 
 #add_form td:nth-child(odd) {
@@ -253,7 +253,7 @@ padding:5px;
 #add_form td:last-child{background-color:white;}
 
 #add_form td:nth-child(even) { background-color: #f5f5f5; border:1px solid #cccccc; }
-
+*/
 select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; }
 
 /* --- mjun -- generate */
@@ -266,8 +266,344 @@ a.two:hover, a.two:active {font-size:120%; color:orange;}
     }
 
 
+.stat-toolbar {
+	background:#00529B; border-bottom:3px solid #FDB813;
+	border-radius:6px 6px 0 0; padding:10px 16px; margin-bottom:0;
+}
+.stat-toolbar table { border-collapse:collapse; }
+.stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#FFFFFF; font-weight:600; font-size:13px; text-align:left; }
+.stat-toolbar select, .stat-toolbar input[type=text] {
+	height:26px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
+	background:#FFFFFF; color:#1A2238; padding:0 8px; font-size:12px;
+}
+.stat-toolbar input[type=submit] {
+	height:28px; border:none; border-radius:4px; background:#FDB813;
+	color:#3A2D00; font-weight:700; font-size:12px; padding:0 14px; cursor:pointer;
+}
+.stat-toolbar input[type=submit]:hover { background:#E5A50F; }
 </style>
+<style type='text/css'>
+:root {
+	--cf-blue:    #00529B;
+	--cf-gold:    #FDB813;
+	--cf-dark:    #16243B;
+	--cf-mid:     #41506A;
+	--cf-muted:   #8A95A6;
+	--cf-border:  #D2DDEA;
+	--cf-row-odd: #EEF4FB;
+	--cf-bg:      #F7F9FC;
+	--cf-white:   #ffffff;
+	--cf-sans:    "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+	
+	
+	--cf-blue-dark: #013E76;
+	--cf-gold:      #FDB813;
+	--cf-gold-ink:  #3A2D00;
+	--cf-red:       #A32D2D;
+	--cf-red-bg:    #FCEBEB;
+	
+}
+body { font-family: var(--cf-sans); color: var(--cf-dark); }
 
+/* -- Toolbar: single row matching train_availability.php's layout --
+   date display (left) / search+Go (center) / action buttons (right),
+   all in one table row instead of two stacked blocks. Colors reuse the
+   same --cf-blue/--cf-gold tokens train_availability.php hardcodes as
+   #00529B/#FDB813, so the two pages stay visually identical. */
+.ta-grid.ta-console .cf-toolbar-table {
+	width: 100% !important;
+	background: var(--cf-blue) !important;
+	border-bottom: 3px solid var(--cf-gold) !important;
+	border-collapse: collapse !important;
+	border-radius: 8px 8px 0 0 !important;
+	overflow: hidden;
+}
+.ta-grid.ta-console .cf-toolbar-table td {
+	padding: 8px 14px !important;
+	vertical-align: middle !important;
+	border: none !important;
+	white-space: nowrap !important;
+}
+.ta-grid.ta-console .cf-td-date { width: 1%; }
+.ta-grid.ta-console .cf-date-label { font-size: 15px; font-weight: 700; color: #fff; }
+.ta-grid.ta-console .cf-date-day   { font-size: 11px; color: rgba(255,255,255,.6); margin-left: 8px; }
+.ta-grid.ta-console .cf-td-search  { text-align: center; }
+.ta-grid.ta-console .cf-td-actions {
+	text-align: right;
+	white-space: normal !important; /* override the global nowrap on toolbar
+		cells -- degrade to two lines instead of clipping "+ Add New Entry"
+		off past the edge when the row runs short on horizontal space */
+}
+.ta-grid.ta-console .cf-tbtn { margin-top: 3px !important; }
+.ta-grid.ta-console .cf-toolbar-table input[type="text"] {
+	height: 26px !important;
+	font-size: 12px !important;
+	font-weight: 400 !important;
+	font-family: var(--cf-sans) !important;
+	background: var(--cf-white) !important;
+	color: var(--cf-dark) !important;
+	border: 1px solid rgba(255,255,255,.5) !important;
+	border-radius: 4px !important;
+	padding: 0 7px !important;
+	width: 120px !important;
+	vertical-align: middle !important;
+}
+.ta-grid.ta-console .cf-toolbar-table input[type="submit"] {
+	height: 26px !important;
+	font-size: 11px !important;
+	font-weight: 700 !important;
+	font-family: var(--cf-sans) !important;
+	background: var(--cf-gold) !important;
+	color: #3A2D00 !important;
+	border: none !important;
+	border-radius: 4px !important;
+	padding: 0 12px !important;
+	cursor: pointer !important;
+	vertical-align: middle !important;
+	margin-left: 4px !important;
+}
+.ta-grid.ta-console .cf-toolbar-table input[type="submit"]:hover { background: #E5A50F !important; }
+
+/* Action buttons: outlined (Add New Entry) / gold-filled (Generate
+   Printout) pills, same treatment as train_availability's +Add Train /
+   Generate Printout buttons. $SRemove / $SRemove2 (unchanged PHP) still
+   control enabled vs disabled -- a.disabled below overrides these via
+   !important when they apply, so the existing permission logic keeps
+   working exactly as it did before. */
+.ta-grid.ta-console .cf-tbtn {
+	display: inline-block !important;
+	font-size: 11px !important;
+	font-weight: 500 !important;
+	color: #fff !important;
+	text-decoration: none !important;
+	padding: 4px 10px !important;
+	border: 1px solid rgba(255,255,255,.35) !important;
+	border-radius: 3px !important;
+	margin-left: 6px !important;
+}
+.ta-grid.ta-console .cf-tbtn:hover { background: rgba(255,255,255,.12) !important; }
+.ta-grid.ta-console .cf-tbtn--primary {
+	font-weight: 600 !important;
+	color: #3A2D00 !important;
+	background: var(--cf-gold) !important;
+	border-color: var(--cf-gold) !important;
+}
+.ta-grid.ta-console .cf-tbtn--primary:hover { background: #E5A50F !important; }
+/* -- Data table -- */
+.ta-grid.ta-console table.train_ava {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+.ta-grid.ta-console table.train_ava td,
+.ta-grid.ta-console table.train_ava th {
+	border: 1px solid var(--cf-border);
+	padding: 7px 9px;
+	text-align: left;
+}
+.ta-grid.ta-console table.train_ava th {
+	background: var(--cf-blue);
+	color: #fff;
+	font-weight: 600;
+	font-size: 11px;
+	text-align: center;
+	border-color: #0A639E;
+}
+.ta-grid.ta-console table.train_ava tr.rowHeading th { background: var(--cf-blue); }
+.ta-grid.ta-console table.train_ava tr.cf-row--even td { background: var(--cf-white); }
+.ta-grid.ta-console table.train_ava tr.cf-row--odd td  { background: var(--cf-row-odd); }
+.ta-grid.ta-console table.train_ava tbody tr:hover td { background: #E3EEFA; }
+
+/* -- Inline Edit / Delete links inside cells -- */
+/* Inline per-cell Edit links: there are up to 8 of these in a single row
+   (one per editable field), so a permanently-visible bordered button per
+   link reads as noisy and cluttered next to the actual data. a.LEdit is
+   fully invisible (opacity 0) until the row is hovered, at which point it
+   appears as a small pill -- a light outline at rest, filling solid blue
+   only when the pill itself is hovered/targeted. a.Llink (Add New Entry /
+   Generate Printout, outside the table) keeps the older plain-text
+   treatment since it isn't a per-row repeated affordance.
+
+   !important is used throughout this block deliberately: this page loads
+   css/style.min.css and css/bootstrap.min.css BEFORE this stylesheet, and
+   neither file's contents are visible from here. Bootstrap in particular
+   typically sets a uniform default <a> color/text-decoration with enough
+   reach that a same-specificity rule loaded later doesn't reliably win
+   against it in practice. The uniform solid-blue underlined links seen in
+   testing -- identical across every row regardless of hover state -- are
+   the signature of that kind of generic rule winning, not a row-specific
+   bug. !important forces these specific rules to apply regardless of
+   what either external stylesheet contains. */
+.ta-grid.ta-console a.Llink {
+	display: inline-block !important;
+	font-size: 10px !important;
+	font-weight: 600 !important;
+	text-decoration: none !important;
+	margin-left: 6px !important;
+	padding: 1px 6px !important;
+	border-radius: 3px !important;
+	border: 1px solid transparent !important;
+	background: transparent !important;
+	color: var(--cf-muted) !important;
+	opacity: .55 !important;
+	transition: opacity .12s, background .12s, border-color .12s, color .12s;
+}
+.ta-grid.ta-console a.Llink:hover {
+	opacity: 1 !important;
+	color: var(--cf-blue) !important;
+	background: var(--cf-row-odd) !important;
+	border-color: var(--cf-border) !important;
+}
+
+/* -- a.LEdit: pill-shaped, hidden until the specific cell is hovered --
+   scoped to td:hover (not tr:hover) so hovering one field -- e.g.
+   Location -- doesn't pop all 8 Edit pills in the row at once; only
+   that field's own pill appears. */
+.ta-grid.ta-console a.LEdit {
+	display: inline-flex !important;
+	align-items: center !important;
+	font-size: 10px !important;
+	font-weight: 600 !important;
+	text-decoration: none !important;
+	margin-left: 6px !important;
+	padding: 2px 9px !important;
+	border-radius: 999px !important;
+	border: 1px solid var(--cf-border) !important;
+	background: var(--cf-white) !important;
+	color: var(--cf-muted) !important;
+	opacity: 0 !important;
+	transform: translateY(1px);
+	transition: opacity .12s, background .12s, border-color .12s, color .12s, transform .12s;
+}
+.ta-grid.ta-console table.train_ava td:hover a.LEdit {
+	opacity: 1 !important;
+	transform: translateY(0);
+}
+.ta-grid.ta-console a.LEdit:hover {
+	background: var(--cf-blue) !important;
+	border-color: var(--cf-blue) !important;
+	color: #fff !important;
+}
+/* The row-level delete (X) link stays a touch more visible at rest than
+   the per-field edit links, since it's a single destructive action per
+   row rather than one of eight repeated affordances, and warrants being
+   a little easier to locate without hovering first. */
+.ta-grid.ta-console a.LDel {
+	display: inline-block !important;
+	font-size: 11px !important;
+	font-weight: 700 !important;
+	text-decoration: none !important;
+	color: #B23A33 !important;
+	opacity: .7 !important;
+	padding: 1px 6px !important;
+	border-radius: 3px !important;
+	border: 1px solid transparent !important;
+	background: transparent !important;
+	transition: opacity .12s, background .12s, border-color .12s;
+}
+.ta-grid.ta-console a.LDel:hover {
+	opacity: 1 !important;
+	background: #FDEDEC !important;
+	border-color: #F1C3C0 !important;
+}
+.ta-grid.ta-console a.two {
+	font-weight: 600 !important; color: var(--cf-blue) !important; text-decoration: none !important;
+}
+.ta-grid.ta-console a.two:hover { text-decoration: underline !important; }
+/* Disabled links: originally scoped only to .alink (the Add New Entry /
+   Generate Printout action bar), so a.disabled inside the data table
+   (per-row Edit/Delete, when $ULev < 2) fell through with zero styling
+   -- rendering as a plain default blue link, fully visible and, worse,
+   still clickable, since the JS href-stripping below is also scoped to
+   .alink only. Widening the CSS selector here fixes the *look* (muted,
+   non-interactive) for every disabled link in the console, table
+   included. It does not by itself stop the click -- that's a JS-side
+   href removal this pass intentionally leaves untouched per the
+   CSS/structure-only scope of this work; flagging it separately. */
+.ta-grid.ta-console a.disabled {
+	color: var(--cf-muted) !important;
+	text-decoration: none !important;
+	cursor: default !important;
+	opacity: .4 !important;
+	pointer-events: none !important;
+}
+.ta-grid.ta-console table.train_ava a.disabled {
+	display: inline-flex !important;
+	align-items: center !important;
+	font-size: 10px !important;
+	margin-left: 6px !important;
+	padding: 2px 9px !important;
+	border-radius: 999px !important;
+	border: 1px solid var(--cf-border) !important;
+	background: var(--cf-bg) !important;
+	opacity: 0 !important;
+	transform: translateY(1px);
+	transition: opacity .12s, transform .12s;
+}
+.ta-grid.ta-console table.train_ava tr:hover a.disabled {
+	opacity: .4 !important;
+	transform: translateY(0);
+}
+</style>
+<style type='text/css'>
+.ccs-page { font-family:var(--cf-sans); color:var(--cf-dark); }
+.ccs-page * { box-sizing:border-box; }
+
+/* ── Page header ── */
+.ccs-header      { background:var(--cf-blue); border-bottom:3px solid var(--cf-gold); border-radius:6px 6px 0 0; padding:12px 16px; }
+.ccs-header h1   { margin:0; font-size:16px; font-weight:700; color:#fff; letter-spacing:.3px; }
+.ccs-header .sub { font-size:10px; color:rgba(255,255,255,.6); letter-spacing:.5px; text-transform:uppercase; margin-top:2px; }
+/* ── Panel grid ── */
+.ccs-grid { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; padding:16px; }
+.ccs-panel { background:var(--cf-white); border:1px solid var(--cf-border); border-radius:6px;
+	box-shadow:0 1px 3px rgba(0,30,80,.08); flex:1 1 300px; min-width:280px; overflow:hidden; }
+.ccs-panel-head { background:var(--cf-blue); border-bottom:3px solid var(--cf-gold); padding:9px 14px; }
+.ccs-panel-head h3 { margin:0; font-size:12px; font-weight:700; color:#fff; letter-spacing:.4px; text-transform:uppercase; }
+.ccs-panel-body { padding:14px; }
+
+/* ── Data table (faults per discipline) ── */
+table.ccdr { width:100%; border-collapse:collapse; font-size:12.5px; }
+table.ccdr th { background:var(--cf-blue); color:#fff; font-weight:600; font-size:11px; text-transform:uppercase;
+	letter-spacing:.3px; padding:7px 8px; border:1px solid var(--cf-blue-dark); text-align:center; }
+table.ccdr td { padding:7px 8px; border:1px solid var(--cf-border); text-align:center; }
+table.ccdr tr:nth-child(odd) td { background:var(--cf-row-odd); }
+table.ccdr th.ccs-discipline { background:var(--cf-white); color:var(--cf-dark); font-weight:600; text-transform:none;
+	letter-spacing:normal; border:1px solid var(--cf-border); text-align:left; }
+
+table.ccdr tr td input[type=submit] {
+	height:28px; border:none; border-radius:4px; background:#FDB813;
+	color:#3A2D00; font-weight:700; font-size:12px; padding:0 14px; cursor:pointer;
+}
+table.ccdr tr td input[type=submit]:hover { background:#E5A50F; }
+
+
+/* ── Level badges (identical palette to edit_ccdr.php's .cc-lvl-0..4) ── */
+.cf-lvl { display:inline-block; font-size:10px; font-weight:700; border-radius:3px; padding:2px 7px; }
+.cf-lvl-1 { background:#E8F5EE; color:#0F6E4E; } .cf-lvl-2 { background:#EAF2FB; color:#0C447C; }
+.cf-lvl-3 { background:#FAEEDA; color:#854F0B; } .cf-lvl-4 { background:var(--cf-red-bg); color:var(--cf-red); }
+
+/* ── Legend panel ── */
+.ccs-legend-row { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid var(--cf-border); }
+.ccs-legend-row:last-child { border-bottom:none; }
+.ccs-legend-row .cf-lvl { flex:none; margin-top:1px; min-width:34px; text-align:center; }
+.ccs-legend-row span.desc { font-size:12.5px; color:var(--cf-mid); line-height:1.4; }
+
+/* ── Stat panel (AM/PM cancellations, loops, LRV) ── */
+.ccs-stat-group { display:flex; gap:10px; margin-bottom:14px; }
+.ccs-stat-group:last-child { margin-bottom:0; }
+.ccs-stat { flex:1; background:var(--cf-bg); border:1px solid var(--cf-border); border-radius:5px; padding:9px 10px; text-align:center; }
+.ccs-stat .lbl { display:block; font-size:9.5px; font-weight:600; color:var(--cf-muted); text-transform:uppercase;
+	letter-spacing:.4px; margin-bottom:5px; line-height:1.3; }
+.ccs-stat .val { display:block; font-size:19px; font-weight:700; color:var(--cf-dark); font-family:ui-monospace,Consolas,monospace; }
+.ccs-stat.ccs-stat--danger .val { color:var(--cf-red); }
+.ccs-stat.ccs-stat--gold .val { color:#B9840A; }
+.ccs-stat-section-label { font-size:10px; font-weight:700; color:var(--cf-muted); text-transform:uppercase;
+	letter-spacing:.5px; margin:0 0 6px; }
+
+/* toolbar search form sits inline inside its cf-toolbar-table cell */
+.ta-grid.ta-console .cf-td-search form { margin:0; display:inline-block; }
+
+</style>
 <script language='javascript'>
 
 $(function() {
@@ -312,17 +648,33 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 ?>
 
 <body>
-<br>
-<br>
-<br>
+
+<div class="ta-grid ta-console">
+
+<!-- Toolbar rebuilt onto the cf-toolbar-table layout this page's CSS
+     already defined (date left / search center); the date that used to
+     render as a bare <h2> below now lives in the cf-td-date cell. -->
+<table cellspacing="0" cellpadding="0" class="cf-toolbar-table">
+<tr>
+	<td class="cf-td-date">
+<?php if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){ ?>
+		<span class="cf-date-label"><?php echo date("F d, Y",strtotime($datenow)); ?></span>
+		<span class="cf-date-day"><?php echo date("l",strtotime($datenow)); ?></span>
+<?php } else { ?>
+		<span class="cf-date-day">No date selected</span>
+<?php } ?>
+	</td>
+	<td class="cf-td-search">
 <form action='train hourly.php' method='post'>
 <!--
-<input type='text' name='search_date' id='search_date' class="easyui-datebox" value='<?php echo $datenow; ?>' />
+<input type='text' name='search_date' id='search_date' class="easyui-datebox" value='<?php // echo $datenow; ?>' />
 -->
 <input type="text" name='search_date' id='search_date' />
-
 <input type=submit value='Access Monitoring' />
 </form>
+	</td>
+</tr>
+</table>
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
@@ -359,7 +711,7 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 	
 	}
 	
-echo "<h2>".date("F d, Y",strtotime($timetable))."</h2><br>";
+/* date heading moved into the toolbar's cf-td-date cell above */
 	
 }
 
@@ -375,7 +727,7 @@ if ($ULev>=2){
 	$SRemove2 = "disabled";	
 }
 ?>
-<div class="alink">
+<div class="alink"></div>
 
 <table class='train_ava' width=100%>
 <tr class='rowHeading'>
@@ -704,21 +1056,27 @@ if ($timetable_code<>'') { ?>
 <?php }
 ?>
 </div>
-<br>
-<br>
+</div>
+
+
+
+<div class="ccs-page">
+
+<div class="ccs-grid">
+<div class="ccs-panel" style="flex-basis:340px;">
+<div class="ccs-panel-head"><h3>Enter Cars Provided
+</h3></div>
+
+<div class="ccs-panel-body">
+
 <form action='train hourly.php' method='post'>
-<table id='add_form' name='add_form'>
+<table class='ccdr' id='add_form' name='add_form'>
 <tr>
-<th colspan=2>
-Enter Cars Provided
-</th>
-</tr>
-<tr>
-<td>Enter Cars Provided</td>
+<th class="ccs-discipline">Enter Cars Provided</th>
 <td><input type='text' name='cars_provided' id='cars_provided' /></td>
 </tr>
 <tr>
-<td>Enter Hour</td>
+<th class="ccs-discipline">Enter Hour</th>
 <td>
 <select name='provided_hour' id='provided_hour'>
 <?php
@@ -755,23 +1113,24 @@ if ($ULev>=2){
 </tr>
 </table>
 </form>
+</div>
+</div>
+<div class="ccs-panel" style="flex-basis:280px;">
+<div class="ccs-panel-head"><h3>Reserve Provided
+</h3></div>
+<div class="ccs-panel-body" >
 
 
 
-<br>
 <form action='train hourly.php' method='post'>
-<table id='add_form' name='add_form'>
+<table class='ccdr' id='add_form' name='add_form'>
+
 <tr>
-<th colspan=2>
-Reserve Provided
-</th>
-</tr>
-<tr>
-<td>Enter Reserve</td>
+<th class="ccs-discipline" >Enter Reserve</th>
 <td><input type='text' name='reserve' id='reserve' /></td>
 </tr>
 <tr>
-<td>Enter Hour</td>
+<th class="ccs-discipline" >Enter Hour</th>
 <td>
 <select name='reserve_hour' id='reserve_hour'>
 <?php
@@ -792,7 +1151,7 @@ for($i=0;$i<$nm;$i++){
 </tr>
 
 <tr>
-<td colspan=2 align=center>
+<td class="ccs-discipline" colspan=2 align=center>
 
 <?php
 if ($ULev>=2){
@@ -809,20 +1168,26 @@ if ($ULev>=2){
 </tr>
 </table>
 </form>
-<br>
+</div>
+</div>
+
+
+<div class="ccs-panel" style="flex-basis:320px;">
+<div class="ccs-panel-head"><h3>Train Hourly Remarks
+
+</h3></div>
+
+
+<div class="ccs-panel-body"  >
+
 <form action='train hourly.php' method='post'>
-<table id='add_form' name='add_form'>
+<table class='ccdr' id='add_form' name='add_form'>
 <tr>
-<th colspan=2>
-Train Hourly Remarks
-</th>
-</tr>
-<tr>
-<td>Enter Remarks</td>
+<th  class="ccs-discipline">Enter Remarks</th>
 <td><textarea name='remarks' cols=50></textarea></td>
 </tr>
 <tr>
-<td>Enter Hour</td>
+<th  class="ccs-discipline">Enter Hour</th>
 <td>
 <select name='remarks_hour' id='remarks_hour'>
 <?php
@@ -842,7 +1207,7 @@ for($i=0;$i<$nm;$i++){
 </td>
 </tr>
 <tr>
-<td colspan=2 align=center>
+<td colspan=2 align=center  class="ccs-discipline">
 
 <?php
 if ($ULev>=2){
@@ -859,6 +1224,10 @@ if ($ULev>=2){
 </tr>
 </table>
 </form>
+</div>
+</div>
+</div>
+</div>
 </body>
 		<script src="js/jquery-1.10.2.min.js"></script>
 	<script src="js/jquery-migrate-1.2.1.min.js"></script>	

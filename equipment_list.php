@@ -289,6 +289,20 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 
 /* -- Modal shell (Add + Edit) -- console theme, matches the other pages -- */
 .modal { z-index: 99999; }
+/* Keep the modals out of layout until opened. modal_only.css hides them
+   ONLY via the .hide class -- .modal has no display:none of its own, and it is
+   a position:fixed / top:-25% / 560px-wide box, so any time .hide stops winning
+   the slab drops over the top of the page and eats the menu hover. This id-level
+   rule forces the hidden state; Bootstrap sets an inline display:block on open,
+   so the modals still open normally. */
+#addModal, #editModal { display: none; }
+
+#addModal {
+	display:none;
+	
+}
+
+
 #addModal, #editModal {
 	border-radius: 8px; overflow: hidden; border: none;
 	box-shadow: 0 8px 32px rgba(0,30,80,.18), 0 2px 8px rgba(0,30,80,.10);

@@ -33,11 +33,11 @@ body { margin:24px 30px; background:#FAFAF6; color:#1A2238; font-family:"Segoe U
 h2 { color:#1A2238; font-size:20px; }
 
 .stat-toolbar {
+	display:flex; align-items:center; gap:10px; flex-wrap:wrap;
 	background:#00529B; border-bottom:3px solid #FDB813;
 	border-radius:6px 6px 0 0; padding:10px 16px; margin-bottom:0;
 }
-.stat-toolbar table { border-collapse:collapse; }
-.stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#FFFFFF; font-weight:600; font-size:13px; text-align:left; }
+.stat-toolbar label { color:#FFFFFF; font-weight:600; font-size:13px; }
 .stat-toolbar select, .stat-toolbar input[type=text] {
 	height:26px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
 	background:#FFFFFF; color:#1A2238; padding:0 8px; font-size:12px;
@@ -77,52 +77,12 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	font-weight:bold;
 }
 </style>
+<?php include("history_theme.php"); ?>
+
 </head>
 <body>
-
-
-
-<form action='car_statistics_report.php' method='post' class="stat-toolbar">
-<table>
-<!--
-<tr><th>Level</th>
-<td>
-<select name='level'>
-<option value='2'>2</option>
-<option value='3'>3</option>
-</select>
-</td>
-</tr>
--->
-<tr>
-<th>Year</th>
-<td>
-<?php
-$startYear=2013;
-
-$endYear=date("Y")*1+16;
-
-?>
-<select name='year'>
-<?php
-for($k=$startYear;$k<=$endYear;$k++){
-?>
-	<option value="<?php echo $k; ?>"><?php echo $k; ?></option>
-
-<?php
-}
-?>
-</select>
-</td>
-<th><input type=submit value='Submit' /></th>
-</tr>
-</table>
-</form>
-<div class="stat-legend">
-	<span><span class="swatch" style="background:#00529B;"></span>Click a car number for its full-year history</span>
-	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count for that car's incidents that month</span>
-	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this year (&ge;60% of the peak)</span>
-</div>
+<div class="ccs-page">
+<div class="ccs-header">
 <?php
 if(isset($_POST['year'])){
 	$year=$_POST['year'];
@@ -137,12 +97,49 @@ else {
 
 ?>
 
-<h2><?php echo "Year ".$year; ?></h2>
+<h1><?php echo "Car Incidents By Year"; ?></h1>
+<div class='sub'> <?php echo "For the Year ".$year; ?> </div>
+</div>
+
+<div class="ccs-panel">
+<div class="ccs-panel-head">
+<form action='car_statistics_report.php' method='post' class="stat-toolbar">
+<!--
+<label for='levelSelect'>Level</label>
+<select name='level' id='levelSelect'>
+<option value='2'>2</option>
+<option value='3'>3</option>
+</select>
+-->
+<label for='yearSelect'>Year</label>
+<?php
+$startYear=2013;
+
+$endYear=date("Y")*1+16;
+
+?>
+<select name='year' id='yearSelect'>
+<?php
+for($k=$startYear;$k<=$endYear;$k++){
+?>
+<option value="<?php echo $k; ?>"<?php if($k==$year) echo " selected"; ?>><?php echo $k; ?></option>
+<?php
+}
+?>
+</select>
+<input type=submit value='Submit' />
+</form>
+<div class="stat-legend">
+	<span><span class="swatch" style="background:#00529B;"></span>Click a car number for its full-year history</span>
+	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count for that car's incidents that month</span>
+	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this year (&ge;60% of the peak)</span>
+</div>
+</div>
+<div class='css-panel-body'>
 
 
-<table class='train_ava' border=1 style='border-collapse:collapse;' width=100%>
-<tr class='rowHeading'><th colspan=13>Car Incidents By Year</th></tr>
-<tr class='rowHeading2'>	
+<table class='table table-striped table-bordered bootstrap-datatable datatable2' border=1 style='border-collapse:collapse;' width=100%>
+<tr>	
 	<th>Car #</th>
 	<th>January</th>
 	<th>February</th>
@@ -205,7 +202,7 @@ if($isFlagged){
 }
 else {
 
-	if($i%2>0){ echo "class='rowClass'"; } 
+//	if($i%2>0){ echo "class='rowClass'"; } 
 
 }
 
@@ -243,5 +240,8 @@ function sortCar($count_a,$count_b){
 	
 }
 ?>
+</div>
+</div>
+</div>
 </body>
 </html>

@@ -198,8 +198,8 @@ else {
 <!-- <form action='statistics_report.php' method='post'> -->
 <div class="ccs-header">
 
-<h1><?php echo $period; echo " / ";echo " Level ".$level;?></h1>
-<div class='sub'><!-- <h2><?php echo "Level ".$level; ?></h2> --></div>
+<h1>Equipment Failures Per Year</h1>
+<div class='sub'><?php echo $period; echo " / ";echo " Level ".$level;?></div>
 </div>
 <div class="ccs-panel">
 <div class="ccs-panel-head">

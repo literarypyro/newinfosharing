@@ -635,6 +635,7 @@ function scrollType(element){
 			document.getElementById('rolling_category').innerHTML=rollingHTML;
 		}
 		else {
+			rollingHTML="";
 			document.getElementById('rolling_category').innerHTML=rollingHTML;
 		}
 		document.getElementById('index_id').disabled=true;
