@@ -121,6 +121,9 @@ table.exception {
 .header-wrapper table:not(.exception) td {
 	padding: 2px 8px;
 }
+
+#addModal { display: none; }
+
 </style>
 
 
@@ -145,7 +148,7 @@ table.exception {
 <table width=100%>
 	<tr>	
 		<td>
-			<a class="ex1 grow" href='../index.php'><font color="white" face="Century" size="4">Log Out</font></a> 
+			<a class="ex1 grow" href='logout.php'><font color="white" face="Century" size="4">Log Out</font></a> 
 			<!-- <a class="float" href='../index.php'><font face="Century" size="4">Log Out</font></a> -->
 		</td>
 		

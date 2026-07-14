@@ -1518,6 +1518,33 @@ body { font-family: var(--cc-sans); color: var(--cc-dark); }
 
 /* -- Modal shell ? console theme, uniform with the other pages -- */
 .modal { z-index: 99999; }
+/* -- Embed-safe Bootstrap-2 modal shims --------------------------------
+   Standalone, Tmenu.php's <head> prints the full bootstrap.css -- which is
+   where .hide, the generic .fade transition, .modal.fade's top slide and
+   the .modal-backdrop rules actually live; modal_only.css only carries the
+   .modal shell. With embed=1 (train_operations slide-panel iframe) the
+   Tmenu require is wrapped in ob_start/ob_end_clean, so ALL of that CSS is
+   discarded -- and bootstrap-modal.js, seeing a .fade modal, appends the
+   backdrop and waits for a transitionend on it before it ever calls
+   $element.show() on the modal. With no .fade transition rule in the
+   document that event never fires, so $('#addModal').modal('show') runs
+   but the modal never appears: the Edit click looks dead inside the panel,
+   while standalone (Tmenu CSS present) works fine. Duplicating the exact
+   BS2 rules here is a no-op standalone and makes the modal self-sufficient
+   when embedded. Two deliberate deltas: the id-level display guard (same
+   fix as equipment_list/signatories_list, so the hidden modal can never
+   sit invisibly over the page intercepting clicks), and backdrop z-index
+   raised to sit just under this page's .modal { z-index: 99999 }. -- */
+#addModal { display: none; }
+#addModal.in { display: block; }
+.hide { display: none; }
+.fade { opacity: 0; -webkit-transition: opacity .15s linear; -moz-transition: opacity .15s linear; -o-transition: opacity .15s linear; transition: opacity .15s linear; }
+.fade.in { opacity: 1; }
+.modal.fade { top: -25%; -webkit-transition: opacity .3s linear, top .3s ease-out; -moz-transition: opacity .3s linear, top .3s ease-out; -o-transition: opacity .3s linear, top .3s ease-out; transition: opacity .3s linear, top .3s ease-out; }
+.modal.fade.in, #addModal.in { top: 10%; }
+.modal-backdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 99998; background-color: #000000; }
+.modal-backdrop.fade { opacity: 0; }
+.modal-backdrop, .modal-backdrop.fade.in { opacity: 0.8; }
 #addModal {
 	border-radius: 8px;
 	overflow: hidden;
@@ -2072,6 +2099,10 @@ $(document).ready(function(){
 
 
 <?php
+/* Embed diagnostic (temporary): shows what $ULev the iframe request actually
+   carries. Open the panel, right-click inside it -> View frame source, and
+   look for this comment just above the details table. Remove once confirmed. */
+if($IR_EMBED){ echo "<!-- embed diag: ULev=" . (isset($ULev) ? var_export($ULev,true) : "(unset)") . " -->"; }
 if ($ULev>=2){
 	$SRemove = "";
 } else {

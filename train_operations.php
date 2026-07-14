@@ -781,7 +781,7 @@ document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closePane
       Loading state: the iframe fades in on load; if nothing's loaded after
       6s (blocked by a security header, 404'd filename, etc.) a fallback
       offers a direct link instead of leaving a blank panel. ── */
-var irLoadTimer=null, irExpectingLoad=false;
+var irLoadTimer=null, irExpectingLoad=false, irNeedsReload=false;
 function openIncidentPanel(query,title){
 	var url="incident report.php?"+query+"&embed=1";
 	document.getElementById('ir-panel-title').textContent=title||"Incident Report";
@@ -835,9 +835,15 @@ function closeIncidentPanel(){
 	document.getElementById('irFrame').src="about:blank"; /* drop any half-filled form */
 	if(!document.getElementById('taPanel').classList.contains('active'))
 		document.getElementById('taOverlay').classList.remove('active');
+	if(irNeedsReload){ irNeedsReload=false; self.location="<?php echo $selfPage; ?>"; } /* pick up field edits saved inside the panel */
 }
 window.addEventListener('message',function(e){
 	if(e.data==='ir-saved'){ closeIncidentPanel(); self.location="<?php echo $selfPage; ?>"; }
+	/* edit_ccdr.php (embed=1) announces each saved field edit with 'sp:saved'.
+	   Unlike 'ir-saved' the panel stays open -- editing a CCDR is usually a
+	   run of several field edits -- we just remember the table behind is now
+	   stale; closeIncidentPanel() reloads once when the user is done. */
+	if(e.data==='sp:saved'){ irNeedsReload=true; }
 });
 
 /* ── Date prev/today/next (operations.php header) -> posts the existing
@@ -967,11 +973,16 @@ if($SRemove!="disabled"){
 
 <!-- ── INFO STRIP (operations.php bottom header row) ── -->
 <div class="ops-strip">
+
+<?php
+/**
 	<div class="ops-info">
 		<i class="ti ti-file-text" aria-hidden="true"></i>
 		<div><span class="lbl">Timetable Code</span>
 			<span class="val"><?php echo $ttCode; ?> <?php echo $ttLink; ?></span></div>
 	</div>
+	
+	*/ ?>
 	<div class="ops-info">
 		<i class="ti ti-calendar-event" aria-hidden="true"></i>
 		<div><span class="lbl">Date</span>

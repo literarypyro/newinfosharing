@@ -1,3 +1,4 @@
+
 <?php
 require("trans menu_2.php"); //added mjun@
 ?> 

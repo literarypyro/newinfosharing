@@ -1,4 +1,11 @@
 <?php
+session_start();
+?>
+<?php
+if(!isset($_SESSION['username'])){ 
+header("Location: ../index.php"); 
+} ?>
+<?php
 /* Tmenu.php retired as a standalone file -- its nav markup was a
    byte-for-byte duplicate of Tmenu_2.php (same menu links, same DB
    loops), which is exactly the kind of drift that caused the earlier
