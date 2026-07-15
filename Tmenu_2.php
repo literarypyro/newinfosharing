@@ -1,4 +1,3 @@
-
 <?php
 require("trans menu_2.php"); //added mjun@
 ?> 
@@ -34,6 +33,17 @@ ul#navMenu ul {
 	border-radius: 4px;
 	box-shadow: 0 4px 12px rgba(0,30,80,.15);
 	min-width: 200px;
+	/* No explicit width -- the browser shrink-to-fits this absolutely
+	   positioned box around its content's *preferred* width. Without
+	   white-space:nowrap on the links below, "preferred width" falls
+	   back to the wrap-at-word-boundary measurement, so a long label
+	   (e.g. "Onboard Equipment and Accessories") wraps to two lines
+	   inside a box stuck near the 200px floor instead of the box
+	   growing to fit it on one line -- min-width alone can't fix that,
+	   since it's a floor, not a signal to stop wrapping. Short labels
+	   never hit this path, which is why the menus looked "uniform and
+	   fine" except for the long ones. */
+	white-space: nowrap;
 	z-index: 2001;
 }
 
@@ -259,7 +269,7 @@ body { height: 100%; overflow: hidden; }
 	<ul>
 		<li><a style='text-decoration:none;' href='train_operations.php'>Train Availability</a></li>  
 		<li><a style='text-decoration:none;' href='train hourly.php'>Train Hourly Monitoring Report</a></li>
-		<li><a style='text-decoration:none;' href='onboard equipment.php'>Onboard Equipment and Accessories</a></li>
+		<li><a style='text-decoration:none;' href='onboard equipment.php'>Onboard Equipment</a></li>
 		<li><a style='text-decoration:none;' href='depot_insertion.php'>Depot Insertion Program</a></li>
 
 	</ul>

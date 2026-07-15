@@ -327,7 +327,9 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 .ta-grid.ta-console .cf-td-date { width: 1%; }
 .ta-grid.ta-console .cf-date-label { font-size: 15px; font-weight: 700; color: #fff; }
 .ta-grid.ta-console .cf-date-day   { font-size: 11px; color: rgba(255,255,255,.6); margin-left: 8px; }
-.ta-grid.ta-console .cf-td-search  { text-align: center; }
+/* was text-align:center -- floated the date field mid-bar; it now sits
+   beside the date chip, same arrangement as depot_insertion. */
+.ta-grid.ta-console .cf-td-search  { text-align: left; width: 1%; }
 .ta-grid.ta-console .cf-td-actions {
 	text-align: right;
 	white-space: normal !important; /* override the global nowrap on toolbar

@@ -131,9 +131,6 @@ $(function() {
 
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
-	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
-
-<form action='ccdr_summary.php' method='post'>
 <?php
 $mm=date("m");
 $yy=date("Y");
@@ -155,6 +152,13 @@ $datenow=date("m/d/Y");
 
 }
 ?>
+
+	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none;">
+	<?php echo date("F d, Y",strtotime($availability_date)); ?>
+	</td>
+	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
+
+<form action='ccdr_summary.php' method='post'>
 <input type="text" name='search_date' id='search_date' />
 
 <input type=submit value='Retrieve Date'  />

@@ -221,18 +221,41 @@ select {
 .stat-toolbar form { margin:0; display:inline; }  /* bootstrap.min.css gives form 20px bottom margin -> bloated toolbar */
 .stat-toolbar select, .stat-toolbar input[type=text] { height:28px; margin-bottom:0; vertical-align:middle; }
 .stat-toolbar input[type=submit] { height:30px; padding:0 16px; margin-bottom:0; vertical-align:middle; }
+/* Force the date field's text to render. The value was always being set
+   (console-verified: the property held the picked date while the box
+   looked empty) -- the text was painting invisibly. Most likely cause:
+   style.min.css / bootstrap.min.css (loaded on THIS page only among the
+   console pages) make inputs inherit color, and these toolbar cells are
+   color:#FFFFFF -- white text on a white field. This rule pins every
+   text-visibility vector (color, webkit text-fill, indent, opacity) so
+   no stylesheet can blank it again. */
+.stat-toolbar input[type="text"], .stat-toolbar input[type="text"]:focus {
+	color:#16243B !important;
+	-webkit-text-fill-color:#16243B !important;
+	opacity:1 !important;
+	text-indent:0 !important;
+}
 
 /* Panel card around the log table (ccdr's treatment) */
 .dip-wrap { padding:16px; font-family:var(--cf-sans); }
 .dip-panel { background:var(--cf-white); border:1px solid var(--cf-border); border-radius:6px; box-shadow:0 1px 3px rgba(0,30,80,.08); overflow:hidden; }
-.dip-panel-head { background:var(--cf-blue); border-bottom:3px solid var(--cf-gold); padding:9px 14px; display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px; }
-.dip-panel-head h3 { margin:0; font-size:12px; font-weight:700; color:#fff; letter-spacing:.4px; text-transform:uppercase; }
-.dip-panel-head .dip-date { font-size:11px; color:rgba(255,255,255,.75); font-weight:600; }
+/* (flattened) the blue .dip-panel-head band made a THIRD stacked blue/gold
+   layer under the header + toolbar; the date chip lives in the toolbar's
+   left cell instead -- same date-left / search-center / action-right
+   anatomy as train_hourly and train_availability. */
+.stat-toolbar .cf-td-date { width:1%; white-space:nowrap; }
+.stat-toolbar .cf-date-label { font-size:15px; font-weight:700; color:#fff; }
+.stat-toolbar .cf-date-day { font-size:11px; color:rgba(255,255,255,.6); margin-left:8px; }
+/* search sits beside the date chip; centering (copied from train_hourly's
+   two-cell toolbar) floated it mid-bar here, where a third action cell
+   exists on the right. */
+.stat-toolbar .cf-td-search { text-align:left; width:1%; }
+.stat-toolbar .cf-td-search input[type=text] { width:120px; }
 .dip-panel-body { padding:14px; overflow-x:auto; }
 
 /* Table breathing room inside the panel */
 table.train_ava { margin-top:0; }
-table.train_ava th { border-bottom:1px solid #0A639E; line-height:1.35; }  /* the panel head carries the gold rule now */
+table.train_ava th { border-bottom:1px solid #0A639E; line-height:1.35; }  /* the page header carries the gold rule */
 table.train_ava td { text-align:center; }
 table.train_ava td:last-child { text-align:left; }
 tr.cf-empty-row td { text-align:center; color:var(--cf-muted); font-style:italic; padding:18px; background:var(--cf-white); }
@@ -512,7 +535,7 @@ function fillReceived(ajaxHTML){
 		for(var n=0;n<count;n++){
 			var parts=driverTerms[n].split(";");
 			driverHTML+="<option value='"+parts[0]+"'>";
-			driverHTML+=parts[1].replace("_ENYE_","?");
+			driverHTML+=parts[1].replace("_ENYE_","\u00D1")  /* ASCII-safe escape: the raw N-tilde byte here got mangled to '?' in a save/transfer once already */;
 			driverHTML+="</option>";
 		
 		}
@@ -553,7 +576,9 @@ function processSlidePanel(type){
 		htmlCode+="<input type=submit value='Submit' /></td></tr></table>";
 
 
-			openSlidePanel('','Depot Insertion','');"
+			openSlidePanel('','Depot Insertion','');  /* stray trailing quote removed: it was a SyntaxError that prevented this ENTIRE
+			   script block from executing -- datepicker init, deleteRow, fillEdit and the
+			   Add New Entry wiring included */
 
 
 
@@ -626,7 +651,19 @@ $(document).ready(function(){
 
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
-	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
+	<td class="cf-td-date" style="padding:8px 14px;vertical-align:middle;border:none">
+<?php
+	/* active-date chip: same POST -> SESSION precedence the table query uses */
+	if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
+		$dip_shown=isset($_POST['search_date'])?$_POST['search_date']:$_SESSION['search_date'];
+		echo "<span class='cf-date-label'>".date("F d, Y",strtotime($dip_shown))."</span><span class='cf-date-day'>".date("l",strtotime($dip_shown))."</span>";
+	}
+	else {
+		echo "<span class='cf-date-day'>No date selected</span>";
+	}
+?>
+	</td>
+	<td class="cf-td-search" style="padding:8px 14px;vertical-align:middle;white-space:nowrap;border:none">
 
 <form action='depot_insertion.php' method='post'>
 <?php
@@ -682,7 +719,7 @@ if ($ULev>=2){
 <input type='text' name='search_date' id='search_date' class='datepicker' value='<?php echo $datenow; ?>' />
 -->
 
-<input type="text" name='search_date' id='search_date' />
+<input type="text" name='search_date' id='search_date' placeholder='mm/dd/yyyy' value='<?php echo isset($dip_shown)?date("m/d/Y",strtotime($dip_shown)):""; ?>' />
 
 <input type=submit value='Retrieve Date' />
 </form>
@@ -719,18 +756,6 @@ onclick='window.open("insertion_entry.php");'
 
 <div class="dip-wrap">
 <div class="dip-panel">
-<div class="dip-panel-head">
-	<h3>Insertion Log</h3>
-	<span class="dip-date"><?php
-		/* display-only: same POST -> SESSION precedence the table query uses,
-		   so the chip always names the date actually being shown */
-		if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
-			$dip_shown=isset($_POST['search_date'])?$_POST['search_date']:$_SESSION['search_date'];
-			echo date("F d, Y",strtotime($dip_shown))." &middot; ".date("l",strtotime($dip_shown));
-		}
-		else { echo "No date selected"; }
-	?></span>
-</div>
 <div class="dip-panel-body">
 <table class='train_ava' width=100%>
 <tr >
