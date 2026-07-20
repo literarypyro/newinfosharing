@@ -264,99 +264,8 @@ tr.cf-empty-row td { text-align:center; color:var(--cf-muted); font-style:italic
    modal is otherwise hidden only by Bootstrap's .hide class. Bootstrap sets
    inline display:block on open, so opening is unaffected) */
 #addModal { display:none; }
-
-/* =========================================================================
-   SLIDE-PANEL ENTRY FORM -- parity pass with train_operations.php.
-   Verbatim copy of its "Original modal-form table CSS" + .ta-panel field
-   rules, rescoped: .ta-panel -> #spPanel (slide_panel2.php's container) and
-   #add_form -> #spPanel #add_form (the entry table built by
-   processSlidePanel now carries that id; the extra #spPanel keeps these off
-   the dead #addModal clearance table, which fillEdit() also names add_form).
-   Token map --rail/--gold/--line/--paper -> --cf-blue/--cf-gold/--cf-border/
-   --cf-bg: identical hex values on both pages, so rendering is identical.
-   New here vs train_operations: input[type=time] + .tnow/.tf-* (this page
-   uses native time pickers where that page builds hour/minute/ampm selects
-   into #cell via setDate() -- see the processSlidePanel annotation).
-   ========================================================================= */
-#spPanel #add_form         { width:100%; border-collapse:collapse; font-size:12px; font-family:var(--cf-sans); }
-#spPanel #add_form th      { background:var(--cf-blue); color:#fff; font-size:11px; font-weight:600; letter-spacing:.4px; padding:6px 10px; text-align:left; border-bottom:2px solid var(--cf-gold); }
-#spPanel #add_form td:nth-child(odd)  { background:var(--cf-row-odd); color:#1A2238; font-weight:600; font-size:11px; padding:7px 10px; white-space:nowrap; width:130px; border:none; border-bottom:1px solid var(--cf-border); vertical-align:middle; }
-#spPanel #add_form td:nth-child(even) { background:#fff; padding:5px 10px; border:none; border-bottom:1px solid var(--cf-border); vertical-align:middle; }
-#spPanel #add_form td:last-child      { background:var(--cf-bg); text-align:center; padding:10px; }
-#spPanel #add_form td[colspan="2"]    { background:var(--cf-bg); text-align:center; padding:10px; border-bottom:none; }
-#spPanel #add_form td.submit          { background:var(--cf-bg); text-align:center; padding:10px; }
-#spPanel input[type="text"], #spPanel input[type="number"] { height:28px; font-size:12px; font-weight:400; font-family:var(--cf-sans); border:1px solid #C5D8EE; background:#fff; color:#1A2238; border-radius:4px; padding:0 8px; width:100%; box-sizing:border-box; }
-#spPanel input[type="text"]:focus, #spPanel input[type="number"]:focus { border-color:var(--cf-blue); outline:none; box-shadow:0 0 0 2px rgba(0,82,155,.12); }
-#spPanel select   { height:28px; font-size:12px; font-family:var(--cf-sans); border:1px solid #C5D8EE; background:#fff; color:#1A2238; border-radius:4px; padding:0 6px; width:100%; box-sizing:border-box; }
-#spPanel select:focus { border-color:var(--cf-blue); outline:none; }
-#spPanel textarea { font-size:12px; font-family:var(--cf-sans); font-weight:normal; border:1px solid #C5D8EE; background:#fff; color:#1A2238; border-radius:4px; padding:6px 8px; width:100%; box-sizing:border-box; resize:vertical; min-height:70px; }
-#spPanel textarea:focus { border-color:var(--cf-blue); outline:none; box-shadow:0 0 0 2px rgba(0,82,155,.12); background:#fff; font-weight:normal; }
-#spPanel input[type="submit"], #spPanel button[type="button"] { height:30px; font-size:12px; font-weight:600; font-family:var(--cf-sans); background:var(--cf-blue); color:#fff; border:1px solid var(--cf-blue); border-radius:4px; padding:0 18px; cursor:pointer; }
-#spPanel input[type="submit"]:hover, #spPanel button[type="button"]:hover { background:var(--cf-blue-dark); border-color:var(--cf-blue-dark); }
-#spPanel input[type="checkbox"] { margin-right:5px; vertical-align:middle; }
-/* Native time picker fields (value is always 24h HH:MM regardless of the
-   browser's 12h/24h display locale) */
-#spPanel input[type="time"] { height:28px; width:112px; display:inline-block; font-size:12.5px; font-family:var(--ta-mono); border:1px solid #C5D8EE; background:#fff; color:#1A2238; border-radius:4px; padding:0 6px; box-sizing:border-box; vertical-align:middle; }
-#spPanel input[type="time"]:focus { border-color:var(--cf-blue); outline:none; box-shadow:0 0 0 2px rgba(0,82,155,.12); }
-/* "now" chip beside the actual-time fields (same look as train_operations'
-   .ta-act action chips) */
-#spPanel a.tnow { display:inline-block; font-size:10px; font-weight:600; text-decoration:none; padding:2px 7px; border-radius:3px; border:1px solid #B8B0A2; background:#F1EEE3; color:var(--cf-blue); line-height:1.5; cursor:pointer; vertical-align:middle; }
-#spPanel a.tnow:hover { background:var(--cf-blue); color:#fff; border-color:var(--cf-blue); }
-/* planned/actual sub-groups inside a loop row */
-#spPanel .tf-group { display:inline-block; margin-right:14px; vertical-align:top; }
-#spPanel .tf-group:last-child { margin-right:0; }
-#spPanel .tf-sub   { display:block; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--cf-muted); margin-bottom:2px; }
-
-#spPanel select[name="month"], #spPanel select[name="day"], #spPanel select[name="year"]{ width:auto; display:inline-block; margin-right:4px; }
 </style>
-<?php
 
-if(isset($_POST['year'])){
-	$planned_1=$_POST['planned_1'];
-	$actual_1=$_POST['actual_1'];
-
-	$planned_2=$_POST['planned_2'];
-	$actual_2=$_POST['actual_2'];
-
-	$planned_3=$_POST['planned_3'];
-	$actual_3=$_POST['actual_3'];
-	
-	
-	
-	$remarks=$_POST['remarks'];
-	$actual_completion=date("Y-m-d",strtotime($_POST['actual_completion']));
-	
-	
-	$tar_time=date("Y-m-d",strtotime($_POST['tar_time']));
-	$index_no=$_POST['index_no'];
-	
-	$year=$_POST['year'];
-	$month=$_POST['month'];
-	$day=$_POST['day'];
-	
-	
-	$insertion_date=date("Y-m-d",strtotime($year."-".$month."-".$day));
-
-
-	
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-	$sql="insert into depot_insertion(index_no,insertion_date,tar_time,actual_completion,remarks)";
-	$sql.=" values ";
-	
-	$sql.="('".$index_no."','".$insertion_date."','".$tar_time."','".$actual_completion."',\"".$remarks."\")";
-	$rs=$db->query($sql);
-	
-	$insertion_id=$db->insert_id;
-	
-	$sql="insert into stabling_departure(depot_insertion_id,planned,actual,loop_no)";
-	$sql.=" values ";
-	
-	$sql.="('".$insertion_id."','".$planned_1."','".$actual_1."','1'),";
-	$sql.="('".$insertion_id."','".$planned_2."','".$actual_2."','2'),";
-	$sql.="('".$insertion_id."','".$planned_3."','".$actual_3."','3')";
-	$rs=$db->query($sql);
-}	
-?>
 <?php
 function setTime($hour,$minute,$amorpm){
 
@@ -431,47 +340,6 @@ if(isset($_POST['clearanceId'])){
 	$updateRS=$db->query($update);
 	
 
-}
-?>
-
-<?php
-/* =========================================================================
-   ADD-ENTRY HANDLER for the slide-panel form (panel port completion).
-   The old popup posted to insertion_entry.php; the panel form now posts
-   back to this page instead, so the insert lives here. Field names are
-   this page's own -- if insertion_entry.php must stay authoritative,
-   reconcile the names/format against its INSERT before go-live, and check
-   depot_insertion for NOT NULL columns beyond the five written here.
-   Times arrive as 24h "HH:MM" from <input type=time>; insertion_date is
-   stored as the toolbar/session date + entry clock time, which the table
-   query's  like 'YYYY-MM-DD%%'  prefix match already accommodates.
-   All values are bound, not interpolated.
-   ========================================================================= */
-if(isset($_POST['add_insertion'])){
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-
-	$entry_date = isset($_SESSION['search_date'])
-		? date("Y-m-d",strtotime($_SESSION['search_date']))
-		: date("Y-m-d");
-	$entry_stamp = $entry_date." ".date("H:i:s");
-
-	$stmt=$db->prepare("insert into depot_insertion(index_no,tar_time,actual_completion,remarks,insertion_date) values (?,?,?,?,?)");
-	$stmt->bind_param("sssss",$_POST['index_no'],$_POST['tar_time'],$_POST['actual_completion'],$_POST['remarks'],$entry_stamp);
-	$stmt->execute();
-	$new_insertion_id=$db->insert_id;
-	$stmt->close();
-
-	if($new_insertion_id){
-		$stmt=$db->prepare("insert into stabling_departure(depot_insertion_id,loop_no,planned,actual) values (?,?,?,?)");
-		$stmt->bind_param("iiss",$new_insertion_id,$loop_no,$loop_planned,$loop_actual);
-		for($loop_no=1;$loop_no<=3;$loop_no++){
-			$loop_planned = isset($_POST['planned'][$loop_no]) ? $_POST['planned'][$loop_no] : "";
-			$loop_actual  = isset($_POST['actual'][$loop_no])  ? $_POST['actual'][$loop_no]  : "";
-			if($loop_planned=="" && $loop_actual=="") continue; /* untouched loop: no row, matching legacy sparse data */
-			$stmt->execute();
-		}
-		$stmt->close();
-	}
 }
 ?>
 
@@ -678,76 +546,48 @@ function fillReceived(ajaxHTML){
 }
 
 function processSlidePanel(type){
-	/* =====================================================================
-	   REBUILT -- parity + correctness pass with train_operations.php.
-	   What sat here before was the removal form copied verbatim from the
-	   train availability page: "Add Removal" heading, Removed From
-	   (North/Quezon), a Preset Values checkbox wired to setPreset() which
-	   does not exist on this page (ReferenceError on click), a duplicate
-	   remarks field, and a "Removal Time" #cell that nothing ever filled
-	   (no setDate() here either). None of it matched this page's tables.
-	   Fields below mirror the on-page log exactly: depot_insertion
-	   (index_no, tar_time, actual_completion, remarks) + stabling_departure
-	   loops 1-3 planned/actual. The table carries id='add_form' so the
-	   console form CSS attaches (the bare <table> before is why the panel
-	   rendered unstyled). Time fields are native <input type=time> (value
-	   always 24h HH:MM) instead of train_operations' hour/minute/ampm
-	   selects; "now" chips stamp the actual-time fields the way setDate()
-	   pre-selects the current time over there. Posts to this page -- see
-	   the add_insertion handler up top.
-	   NOTE: the form wraps the table here in the panel HTML; if
-	   slide_panel2.php ever wraps #panel-content in its own <form>, drop
-	   this inner one (nested forms are ignored by browsers).
-	   ===================================================================== */
-	var htmlCode="";
-
-	if(type=='addEntry'){
-
-		htmlCode="<form action='depot_insertion.php' method='post'>";
-		htmlCode+="<table id='add_form'>";
-		htmlCode+="<tr><th colspan=2>Add Insertion Entry</th></tr>";
-
-		htmlCode+="<tr><td>Date</td><td id='insert_date'>";
 		
+		var htmlCode="";
+		
+		
+		if(type=='addEntry'){
+			
+			htmlCode="<table><tr><th colspan=2>Add Removal</th></tr>";
+			htmlCode+="<tr><td>Removal Time</td><td id='cell' name='cell'></td></tr>";
+		htmlCode+="<tr><td>Remarks/Cause of <br>Failure/Removal</td>";
+		htmlCode+="<td><span name='remarks_space' id='remarks_space'><textarea name='remarks' cols=50></textarea></span>";
+		htmlCode+="<input type=checkbox name='remarks_check' id='remarks_check' onclick='setPreset(this)' />Preset Values</td></tr>";
+		htmlCode+="<tr><td>Removed From</td><td><select name='removed_from' id='removed_from'>";
+		htmlCode+="<option value='north'>North Ave.</option><option value='quezon'>Quezon Ave.</option>";
+		htmlCode+="</select></td></tr>";
 
-		htmlCode+=fillDate();
+
+		htmlCode+="<tr><th colspan=2>";
+
+		htmlCode+="Departure at Stabling Area</th></tr>";
+
 
 		
-		htmlCode+="</td>";
+		htmlCode+="<tr><td>Remarks</td><td><input type=text name='remarks' /></td></tr>";
+		
+		
+		htmlCode+="<tr><td colspan=2 class='submit' align=center>";
+//		htmlCode+="<input type=hidden name='remove_id' id='remove_id' value='"+form_id+"' />";
+		htmlCode+="<input type=submit value='Submit' /></td></tr></table>";
 
 
-		htmlCode+="<tr><td>Index No.</td><td><input type=text name='index_no' autocomplete='off' /></td></tr>";
-		htmlCode+="<tr><td>Availability at<br>Stabling Area</td>";
-		htmlCode+="<td><input type='time' name='tar_time' id='tar_time' /> <a href='#' class='tnow' onclick=\"setNow('tar_time');return false;\">now</a></td></tr>";
-		htmlCode+="<tr><td>Ready for Insertion<br><span class='tf-sub'>prep completed</span></td>";
-		htmlCode+="<td><input type='time' name='actual_completion' id='actual_completion' /> <a href='#' class='tnow' onclick=\"setNow('actual_completion');return false;\">now</a></td></tr>";
+			openSlidePanel(htmlCode,'Depot Insertion','');  /* stray trailing quote removed: it was a SyntaxError that prevented this ENTIRE
+			   script block from executing -- datepicker init, deleteRow, fillEdit and the
+			   Add New Entry wiring included */
 
-		htmlCode+="<tr><th colspan=2>Departure at Stabling Area</th></tr>";
-		var ord=["","1st","2nd","3rd"];
-		for(var L=1;L<=3;L++){
-			htmlCode+="<tr><td>"+ord[L]+" Loop</td><td>";
-			htmlCode+="<span class='tf-group'><span class='tf-sub'>Planned</span><input type='text' name='planned["+L+"]' /></span>";
-			htmlCode+="<span class='tf-group'><span class='tf-sub'>Actual</span><input type='text' name='actual["+L+"]' id='actual_"+L+"' /> </span>";
-			htmlCode+="</td></tr>";
+
+
+
+			
+			
 		}
-
-		htmlCode+="<tr><td>Remarks</td><td><textarea name='remarks' rows=3></textarea></td></tr>";
-
-		htmlCode+="<tr><td colspan=2 class='submit'>";
-		htmlCode+="<input type=hidden name='add_insertion' value='1' />";
-		htmlCode+="<input type=submit value='Submit' /></td></tr>";
-		htmlCode+="</table></form>";
-
-
-
-		openSlidePanel(htmlCode,'Depot Insertion \u2014 Add Entry');
-	}
-}
-
-/* Stamp a time field with the current clock time (the "now" chips). */
-function setNow(id){
-	var d=new Date(), h=d.getHours(), m=d.getMinutes();
-	document.getElementById(id).value=(h<10?"0"+h:""+h)+":"+(m<10?"0"+m:""+m);
+	
+	
 }
 
 /**
@@ -796,46 +636,18 @@ $(document).ready(function(){
 });
 
 </script>
-
-<?php
-$mm = date("m");
-$yy = date("Y");
-$dd = date("d");
-
-$monthOptions = "";
-for ($i = 1; $i < 13; $i++) {
-	$monthOptions .= "<option value='".$i."'".($i == $mm ? " selected" : "").">"
-		.date("F", strtotime(date("Y")."-".$i."-01"))."</option>";
-}
-
-$dayOptions = "";
-for ($i = 1; $i <= 31; $i++) {
-	$dayOptions .= "<option value='".$i."'".($i == $dd ? " selected" : "").">".$i."</option>";
-}
-
-$yearOptions = "";
-$dateRecent = date("Y") * 1 + 16;
-for ($i = 1999; $i <= $dateRecent; $i++) {
-	$yearOptions .= "<option value='".$i."'".($i == $yy ? " selected" : "").">".$i."</option>";
-}
-?>
-<script language='javascript'>
-function fillDate(){
-	var dateCode = "<select name='month'><?php echo $monthOptions; ?></select>";
-	dateCode += "<select name='day'><?php echo $dayOptions; ?></select>";
-	dateCode += "<select name='year'><?php echo $yearOptions; ?></select>";
-	return dateCode;
-}
-</script>
-
-
-
 <body>
 
 <div class="dip-header">
 	<h1>Depot Insertion Program</h1>
 	<div class="sub">Train Insertion &amp; Stabling Departures &mdash; Line 3</div>
 </div>
+
+
+
+
+
+
 
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
@@ -1005,13 +817,6 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 			$actual_completion=$row['actual_completion'];
 			$remarks=$row['remarks'];
 
-			/* Reset per row -- these arrays carried values across rows, so an
-			   entry with no stabling_departure rows (or a missing loop) showed
-			   the PREVIOUS entry's times in those cells. Cells now blank via
-			   the isset guards below when a loop has no row. */
-			$planned=array();
-			$actual=array();
-
 		
 			$sql2="select * from stabling_departure where depot_insertion_id='".$row['id']."'";
 			$rs2=$db->query($sql2);
@@ -1043,12 +848,12 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 				<td><?php echo $tar_time; ?></td>
 				<td><?php echo $actual_completion; ?></td>
 				
-				<td><?php echo isset($planned[1])?$planned[1]:""; ?></td>
-				<td><?php echo isset($actual[1])?$actual[1]:""; ?></td>
-				<td><?php echo isset($planned[2])?$planned[2]:""; ?></td>
-				<td><?php echo isset($actual[2])?$actual[2]:""; ?></td>
-				<td><?php echo isset($planned[3])?$planned[3]:""; ?></td>
-				<td><?php echo isset($actual[3])?$actual[3]:""; ?></td>
+				<td><?php echo $planned[1]; ?></td>
+				<td><?php echo $actual[1]; ?></td>
+				<td><?php echo $planned[2]; ?></td>
+				<td><?php echo $actual[2]; ?></td>
+				<td><?php echo $planned[3]; ?></td>
+				<td><?php echo $actual[3]; ?></td>
 
 				<td><?php echo $remarks; ?></td>
 

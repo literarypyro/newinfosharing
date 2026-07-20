@@ -367,6 +367,10 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 }
 #addModal input[type="submit"]:hover { background: #013E76; }
 /* time selects in the login/logout form stay compact and inline */
+
+#addModal select[name$="year"],
+#addModal select[name$="month"],
+#addModal select[name$="day"],
 #addModal select[name$="_hour"],
 #addModal select[name$="_minute"],
 #addModal select[name$="_second"],
@@ -456,7 +460,110 @@ if(isset($_POST['clearanceId'])){
 
 <script src="js/jquery-1.10.2.min.js"></script>
 <script language='javascript' src='ajax.js'></script>
+
+
+
+<?php
+$mm = date("m");
+$yy = date("Y");
+$dd = date("d");
+
+$driverOptions="";
+
+
+$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	
+	$sql="select * from train_driver where position in ('STDO','CCRE')";
+$rs=$db->query($sql);
+$nm=$rs->num_rows;
+
+for($i=0;$i<$nm;$i++){
+	$row=$rs->fetch_assoc();
+	$driverOptions.="<option value='".$row['id']."'>".$row['lastName'].", ".$row['firstName'].", ".$row['position']."</option>";
+}
+
+
+$monthOptions = "";
+for ($i = 1; $i < 13; $i++) {
+	$monthOptions .= "<option value='".$i."'".($i == $mm ? " selected" : "").">"
+		.date("F", strtotime(date("Y")."-".$i."-01"))."</option>";
+}
+
+$dayOptions = "";
+for ($i = 1; $i <= 31; $i++) {
+	$dayOptions .= "<option value='".$i."'".($i == $dd ? " selected" : "").">".$i."</option>";
+}
+
+$yearOptions = "";
+$dateRecent = date("Y") * 1 + 16;
+for ($i = 1999; $i <= $dateRecent; $i++) {
+	$yearOptions .= "<option value='".$i."'".($i == $yy ? " selected" : "").">".$i."</option>";
+}
+
+
+
+$hourOptions = "";
+
+for($i=1;$i<=12;$i++){
+
+	$hourOptions.="<option value='".$i."'>".$i."</option>"; 
+	
+}
+
+$minuteOptions = "";
+
+for($i=0;$i<=12;$i++){
+
+	$minuteOptions.="<option value='".$i."'>";
+	
+	if($i<10){
+	$minuteOptions.="0".$i;
+	}
+	else {
+	$minuteOptions.=$i;
+	}
+	
+	$minuteOptions.="</option>"; 
+	
+}
+
+$secondOptions = "";
+
+for($i=0;$i<=59;$i++){
+
+	$secondOptions.="<option value='".$i."'>".$i."</option>"; 
+	
+}
+
+	
+?>
+
+
+
+
 <script language='javascript'>
+function fillDate(){
+	var dateCode = "<select name='month'><?php echo $monthOptions; ?></select>";
+	dateCode += "<select name='day'><?php echo $dayOptions; ?></select>";
+	dateCode += "<select name='year'><?php echo $yearOptions; ?></select>";
+	return dateCode;
+}
+
+function fillTD(){
+	var driver="<select name='received_by'><?php echo $driverOptions; ?></select>";
+	return driver;
+}
+
+function fillTime(prefix){
+	var timeCode="<select name='"+prefix+"_hour'><?php echo $hourOptions; ?></select>";
+	timeCode+="<select name='"+prefix+"_minute'><?php echo $minuteOptions; ?></select>";
+	timeCode+="<select name='"+prefix+"_second'><?php echo $secondOptions; ?></select>";
+	timeCode+="<select name='"+prefix+"_amorpm'><option value='am'>AM</option><option value='pm'>PM</option></select>";
+	return timeCode;
+
+
+}
+
 function deleteRow(index,index_date){
 	var check=confirm("Remove Record?");
 	if(check){
@@ -628,6 +735,76 @@ function fillEdit(element,clearance_id){
 	
 	
 	}
+	else if(element=="create_entry"){
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Date</td>";
+		elementHTML+="<td>"+fillDate()+"</td>";
+		elementHTML+="</tr>";
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Location</td>";
+		elementHTML+="<td><textarea rows=5 cols=50 name='location'></textarea>";
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Activity</td>";
+		elementHTML+="<td><textarea rows=5 cols=50 name='activity'></textarea>";
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Person</td>";
+		elementHTML+="<td><input type=text name='person' />";
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Position</td>";
+		elementHTML+="<td><input type=text name='position' />";
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+		
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Company</td>";
+		elementHTML+="<td><input type=text name='company' />";
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Received By</td>";
+		elementHTML+="<td>"+fillTD();
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Log In Time</td>";
+		elementHTML+="<td>";
+		elementHTML+=fillTime("login");
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+
+		elementHTML+="<tr>";
+		elementHTML+="<td>Log Out Time</td>";
+		elementHTML+="<td>";
+		elementHTML+=fillTime("logout");
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+	
+		elementHTML+="<tr>";
+		elementHTML+="<td>Work Permit/Control No.</td>";
+		elementHTML+="<td><input type=text name='control_no' />";
+		elementHTML+="</select>";
+		elementHTML+="</td>";
+		elementHTML+="</tr>";
+
+
+	
+	}
 	
 	else {
 		elementHTML+="<tr>";
@@ -702,6 +879,10 @@ $(document).ready(function(){
 });
 
 </script>
+
+
+
+
 <body>
 <form action='clearance form.php' method='post'>
 <?php
@@ -776,7 +957,7 @@ $SRemove4 = "LEdit";
 		</form>
 	</td>
 	<td class="cf-td-actions alink">
-		<a href='#' class="cf-tbtn <?php echo $SRemove; ?>" onclick='window.open("clearance entry.php");'>+ Add New Entry</a>
+		<a href='#' class="cf-tbtn <?php echo $SRemove; ?>" onclick="fillEdit('create_entry','<?php echo $clearance_no; ?>')">+ Add New Entry</a>
 		<a href='#' class="cf-tbtn cf-tbtn--primary <?php echo $SRemove2; ?>" onclick='window.open("generate_clearance_form.php?clearance_date=<?php echo $clearance_date; ?>");'>Generate Printout</a>
 	</td>
 </tr>

@@ -63,7 +63,7 @@
 /* transform, not a hardcoded right offset -- correct for ANY panel width
    (the default, or a per-call opts.width override) without needing a
    matching "hidden position" constant tuned per width. */
-.sp-panel          { position:fixed; top:0; right:0; width:820px; max-width:96vw; height:100vh; background:var(--sp-paper); box-shadow:-6px 0 24px rgba(0,30,80,.25); transition:transform .25s ease; z-index:99999; display:flex; flex-direction:column; font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif; transform:translateX(calc(100% + 30px)); }
+.sp-panel          { position:fixed; top:0; right:0; width:540px; max-width:120vw; height:100vh; background:var(--sp-paper); box-shadow:-6px 0 24px rgba(0,30,80,.25); transition:transform .25s ease; z-index:99999; display:flex; flex-direction:column; font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif; transform:translateX(calc(100% + 30px)); }
 .sp-panel.active   { transform:translateX(0); }
 
 .sp-panel-head     { background:var(--sp-rail); border-bottom:3px solid var(--sp-gold); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex:none; }
@@ -140,14 +140,27 @@ function fillPanel(ajaxHTML){
 	document.getElementById('panel-content').innerHTML=ajaxHTML;
 }
 
-
+function openSlidePanel(contents, title, opts){
+	opts = opts || {};
+	var panel = document.getElementById('spPanel');
+	panel.style.width = opts.width || '';
+	document.getElementById('sp-panel-title').textContent = title || 'Details';
+	fillPanel(contents);
+	document.getElementById('spLoading').classList.add('hidden');
+	document.getElementById('spFallback').classList.add('hidden');
+	clearTimeout(spLoadTimer);
+	spExpectingLoad = false;
+	panel.classList.add('active');
+	document.getElementById('spOverlay').classList.add('active');
+}
+/*
 
 function openSlidePanel(contents, title, opts){
 	opts = opts || {};
 //	var standaloneUrl = opts.standaloneUrl || url.replace(/([?&])embed=1(&|$)/,'$1').replace(/[?&]$/,'');
 	var panel = document.getElementById('spPanel');
 
-	panel.style.width = opts.width || '';
+//	panel.style.width = opts.width || '';
 	document.getElementById('sp-panel-title').textContent = title || 'Details';
 //	document.getElementById('spFallbackLink').href = standaloneUrl;
 
@@ -170,7 +183,7 @@ function openSlidePanel(contents, title, opts){
 		if(spExpectingLoad) document.getElementById('spFallback').classList.remove('hidden');
 	}, opts.timeout || 6000);
 }
-
+*/
 function spFrameLoaded(){
 	if(!spExpectingLoad) return; /* ignore the about:blank reset fired by closeSlidePanel() / initial markup */
 	spExpectingLoad = false;
