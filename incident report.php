@@ -192,6 +192,10 @@ if(isset($_POST['type'])){
 		$pairs=array_filter(is_array($_POST['equipment_ids'])
 			? $_POST['equipment_ids']
 			: explode(',',$_POST['equipment_ids']));
+		$n=0;
+		
+		$initial_equipt="";
+		$initial_subitem="";
 		foreach($pairs as $pair){
 			$pair=trim($pair);
 			if($pair==='') continue;
@@ -199,7 +203,16 @@ if(isset($_POST['type'])){
 			$equipt_id =(int)trim($parts[0]);
 			$subitem_id=isset($parts[1]) ? (int)trim($parts[1]) : 0;
 			if($equipt_id<=0) continue;
+			if($n==0){ 
+			
+				$initial_equipt=$equipt_id;
+				$initial_subitem=$subitem_id;
+				$db->query("update incident_report set equipt='".$equipt_id."' where id='".$incident_code."'";
+			}
+			
 			$db->query("insert ignore into incident_equipment(incident_id,equipt_id,subitem_id) values ('".$incident_code."','".$equipt_id."','".$subitem_id."')");
+		
+			$n++;
 		}
 	}
 
@@ -239,7 +252,7 @@ if(isset($_POST['type'])){
 	$sql="insert into incident_description ";
 	$sql.="(incident_id,location,direction,equipt,subitem,index_no,car_no,reported_by,received_by)";	
 	$sql.=" values ";
-	$sql.=" ('".$incident_code."','".$location."','".$direction."','".$equipment."','".$subitem."','".$index_no."','".$car_no."','".$reported_by."','".$received_by."')";
+	$sql.=" ('".$incident_code."','".$location."','".$direction."','".$initial_equipt."','".$initial_subitem."','".$index_no."','".$car_no."','".$reported_by."','".$received_by."')";
 	$rs=$db->query($sql);
 	
 	foreach(['car_id','car_id_2','car_id_3','car_id_4'] as $car_field){

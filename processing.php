@@ -16,9 +16,16 @@ if(isset($_GET['searchEquipment'])){
 	$q = $db->real_escape_string($_GET['searchEquipment']);
 	$p = $db->real_escape_string($_GET['probname']);
 
+
+	if($p=="others"){ 
+
+			$sql="select id,problem as equipment_name,'Other' as category from other_problem";
+	}
+	else {
 	$sql = "select equipment.id as id,equipment.equipment_name as equipment_name,category from equipment_type inner join equipment on type=incident_code
 	        where equipment_code='".$p."' and equipment.equipment_name like '%".$q."%'
 	        order by equipment_name";
+	}
 	$rs = $db->query($sql);
 	$out = "";
 	while($row = $rs->fetch_assoc()){

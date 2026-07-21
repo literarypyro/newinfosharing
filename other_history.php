@@ -20,6 +20,7 @@ $car_id=$_GET['car_id'];
 	<th>Index No</th>
 	<th>Incident Date</th>
 	<th>Problem Type</th>
+	<th>Cause/Issue</th>
 	<th>Incident Number</th>
 	<th>Description</th>
 	</tr>
@@ -38,6 +39,8 @@ for($i=0;$i<$nm;$i++){
 		<td><?php echo $row['index_no']; ?></td>
 		<td><?php echo "<span>".date("Y-m-d",strtotime($row['incident_date']))."</span>"; ?></td>
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
+		<td><?php echo  getCategory($db,$row['equipt']); ?></td>
+		
 
 		<td><a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
 </td>
@@ -158,6 +161,16 @@ function getProblemType($db,$type){
 	$row=$rs->fetch_assoc();
 
 	$problem=$row['equipment_name'];
+	return $problem;
+}
+function getCategory($db,$type){
+	$sql="select * from other_problem where id='".$type."'";
+	$rs=$db->query($sql);
+
+	$nm=$rs->num_rows;
+	$row=$rs->fetch_assoc();
+
+	$problem=$row['problem'];
 	return $problem;
 }
 ?>
