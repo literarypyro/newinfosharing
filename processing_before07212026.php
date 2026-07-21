@@ -13,43 +13,28 @@ session_start();
 <?php
  
 if(isset($_GET['searchEquipment'])){
-	$q   = $db->real_escape_string($_GET['searchEquipment']);
-	$p   = isset($_GET['probname']) ? $db->real_escape_string($_GET['probname']) : '';
-	$cat = isset($_GET['category']) ? $db->real_escape_string($_GET['category']) : '';
+	$q = $db->real_escape_string($_GET['searchEquipment']);
+	$p = $db->real_escape_string($_GET['probname']);
 
-	if($p=="others"){
-		/* "Other problems" live in their own table, not equipment. */
-		$sql = "select id,problem as equipment_name,'Other' as category from other_problem
-		        where problem like '%".$q."%'
-		        order by problem";
+
+	if($p=="others"){ 
+
+			$sql="select id,problem as equipment_name,'Other' as category from other_problem";
 	}
 	else {
-		/* Resolve the problem code to its equipment type, exactly as the
-		   scrollRolling case does, then apply the name search. */
-		$rt  = $db->query("select incident_code from equipment_type where equipment_code='".$p."'");
-		$row = $rt ? $rt->fetch_assoc() : null;
-		$incident_code = $row ? $row['incident_code'] : '';
-
-		if($incident_code=="PWR"){
-			/* Power equipment is distinguished by sub-category (OCS/SS/TPSS),
-			   not by type -- mirror scrollRolling and filter on category. */
-			$sql = "select id,equipment_name,category from equipment
-			        where category='".$cat."' and equipment_name like '%".$q."%'
-			        order by equipment_name";
-		}
-		else {
-			$sql = "select id,equipment_name,category from equipment
-			        where type='".$incident_code."' and equipment_name like '%".$q."%'
-			        order by equipment_name";
-		}
+	$sql = "select equipment.id as id,equipment.equipment_name as equipment_name,category from equipment_type inner join equipment on type=incident_code
+	        where equipment_code='".$p."' and equipment.equipment_name like '%".$q."%'
+	        order by equipment_name";
 	}
-
 	$rs = $db->query($sql);
 	$out = "";
 	while($row = $rs->fetch_assoc()){
 		$out .= $row['id'].";".$row['equipment_name'].";".$row['category']."==>";
 	}
+	
 	echo ($out=="") ? "No data available" : $out;
+
+
 }
 
 if (isset($_GET['removeEquipment'])) {

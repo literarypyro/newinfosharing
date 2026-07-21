@@ -85,7 +85,9 @@ $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelCl
 	<thead>
 	<tr>
 	<th>Index No</th>
-	<th>Incident Date</th>
+	<th>Incident Date/Time</th>
+	        <th>Time Resolved</th>
+        <th>Duration</th>
 	<th>Type of Problem</th>
 	<th>Incident Number</th>
 	
@@ -105,7 +107,10 @@ for($i=0;$i<$nm;$i++){
 ?>	
 	<tr>
 		<td><?php echo $row['index_no']; ?></td>
-		<td><?php echo date("Y-m-d",strtotime($row['incident_date']));  ?></td>
+		<td><?php echo date("Y-m-d H:iA",strtotime($row['incident_date']));  ?></td>
+		        <td>&nbsp;</td>
+        <td><?php echo $row['duration']; ?></td>
+
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
 		<td>
 		<a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>

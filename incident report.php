@@ -53,20 +53,8 @@ if(isset($_POST['type'])){
 	
 
 
-	$equipment=$_POST['equipment'];
-	
-	if($equipment=="others"){
-		$otherEquipment=$_POST['otherEquipment'];
-		
-		$sqlAdd="insert into equipment(equipment_name,type,category) values ";
-		$sqlAdd.="(";
-		$sqlAdd.="'".$otherEquipment."',";
-		$sqlAdd.="'RS','EXT'";
-		$sqlAdd.=")";
-		
-		$rsAdd=$db->query($sqlAdd);
-		$equipment=$db->insert_id;
-	}
+	/* Legacy single-select equipment removed — equipment now comes from
+	   the multi-equipment picker ($_POST['equipment_ids']) only. */
 	
 	if($amorpm=="pm"){
 		if($hour<12){ $hour+=12; }
@@ -112,11 +100,11 @@ if(isset($_POST['type'])){
 	$description=$db->real_escape_string($description);
 	
 	$sql="insert into incident_report ";
-	$sql.="(incident_type,incident_no,level,incident_date,resolution_date";
+	$sql.="(incident_type,incident_no,level,incident_date,resolution_date,";
 	$sql.="description,action_dotc,action_maintenance,duration,equipt,cancel,unit_no,level_condition,recommending_approval,approving_person,action_type)";
 	$sql.=" values ";
-	$sql.="(\"".$type."\",\"".$incident_id."\",'".$level."','".$incident_date."','".$resolution_date."'";
-	$sql.="\"".$description."\",\"".$dotc_taken."\",\"".$maintenance_taken."\",\"".$duration."\",'".$equipment."','".$cancel."','".$unit_no."','".$level_condition."','".$_POST['recommending_approval']."','".$_POST['approving_person']."','".$_POST['action_type']."')";
+	$sql.="(\"".$type."\",\"".$incident_id."\",'".$level."','".$incident_date."','".$resolution_date."',";
+	$sql.="\"".$description."\",\"".$dotc_taken."\",\"".$maintenance_taken."\",\"".$duration."\",'','".$cancel."','".$unit_no."','".$level_condition."','".$_POST['recommending_approval']."','".$_POST['approving_person']."','".$_POST['action_type']."')";
 
 	$rs=$db->query($sql);
 	$incident_code=$db->insert_id;
@@ -171,9 +159,9 @@ if(isset($_POST['type'])){
 	   either had no data or the user hadn't picked one yet; it's still
 	   recorded as an equipment selection with subitem_id left at 0.
 
-	   The legacy $_POST['equipment'] / $_POST['subitem'] single pair still
-	   writes into incident_description.equipt/subitem exactly as before,
-	   completely untouched by this block.
+	   incident_description.equipt/subitem is populated from the FIRST item in
+	   this list (see $initial_equipt / $initial_subitem below). The old
+	   single-select equipment field has been removed.
 
 	   Required DDL — note this widens the table from the previous turn's
 	   version by one column; if incident_equipment already exists without
@@ -188,14 +176,14 @@ if(isset($_POST['type'])){
 	     -- or, if the table from before already exists:
 	     ALTER TABLE incident_equipment ADD COLUMN subitem_id int NOT NULL DEFAULT 0;
 	   ─────────────────────────────────────────────────────────────────── */
+	$initial_equipt="";
+	$initial_subitem="";
 	if(!empty($_POST['equipment_ids'])){
 		$pairs=array_filter(is_array($_POST['equipment_ids'])
 			? $_POST['equipment_ids']
 			: explode(',',$_POST['equipment_ids']));
 		$n=0;
 		
-		$initial_equipt="";
-		$initial_subitem="";
 		foreach($pairs as $pair){
 			$pair=trim($pair);
 			if($pair==='') continue;
@@ -207,7 +195,7 @@ if(isset($_POST['type'])){
 			
 				$initial_equipt=$equipt_id;
 				$initial_subitem=$subitem_id;
-				$db->query("update incident_report set equipt='".$equipt_id."' where id='".$incident_code."'";
+				$db->query("update incident_report set equipt='".$equipt_id."' where id='".$incident_code."'");
 			}
 			
 			$db->query("insert ignore into incident_equipment(incident_id,equipt_id,subitem_id) values ('".$incident_code."','".$equipt_id."','".$subitem_id."')");
@@ -231,21 +219,19 @@ if(isset($_POST['type'])){
 			? $_POST['incident_links']
 			: explode(',',$_POST['incident_links']));
 		$first=true;
+		$m=0;
 		foreach($links as $linked_id){
 			$linked_id=(int)trim($linked_id);
 			if($linked_id<=0) continue;
+			
+			if($m==0){ $initial_linked=$linked_id; }
 			$db->query("insert ignore into incident_linked_reports(incident_id,linked_to) values ('".$incident_code."','".$linked_id."')");
 			if($first){ $db->query("update incident_report set linked_to='".$linked_id."' where id='".$incident_code."'"); $first=false; }
+			$m++;
 		}
 	}
-	/* Legacy single-link fallback */
-	if(empty($_POST['incident_links']) && !empty($_POST['incident_link'])){
-		$db->query("update incident_report set linked_to='".(int)$_POST['incident_link']."' where id='".$incident_code."'");
-	}
-	
 	$location=$_POST['location'];
 	$direction=$_POST['direction'];
-	$subitem=$_POST['subitem'];
 	$index_no=$_POST['index_id'];
 	$car_no=$_POST['car_id'];
 	
@@ -604,10 +590,6 @@ body { background: #EAEEF3; font-family: var(--ir-sans); color: var(--ir-dark); 
 <script language='javascript' src='ajax.js'></script>
 <script language='javascript'>
 
-function openLink(){
-	window.open("link_incident.php","_blank");
-}
-
 function scrollCat(){
 	eqSelected={};   /* sub-category changed → previous ticks no longer apply */
 	var problemType=document.getElementById('type').value;
@@ -704,53 +686,32 @@ function scrollType(element){
 		equiptHTML="<input type='text' name='unit_no' id='unit_no' class='ir-input--xs' />";
 		document.getElementById('unit_space').innerHTML=equiptHTML;
 	}
-}
-
-function subItemScroll(){
-	var problemType=document.getElementById('equipment').value;
-	if(problemType=="others"){
-		var innerHTML="<input type='text' name='otherEquipment' />";
-		document.getElementById('equipment_space').innerHTML=innerHTML;
-	}
 	else {
-		makeajax("processing.php?scrollSubItem="+problemType,"subItem");	
+		document.getElementById('unit_space').innerHTML="";
 	}
+	eqUnitRowSync();
 }
 
-function subItem(ajaxHTML){
-	var subHTML="";
-	if(ajaxHTML!="No data available"){
-		var subItemTerms=ajaxHTML.split("==>");
-		var count=(subItemTerms.length)*1-1;
-		subHTML="<select id='subitem' name='subitem'><option></option>";
-		for(var n=0;n<count;n++){
-			var parts=subItemTerms[n].split(";");
-			subHTML+="<option value='"+parts[0]+"'>"+parts[1]+"</option>";
-		}
-		subHTML+="</select>";
-	}
-	document.getElementById('sub_item_space').innerHTML=subHTML;
+function eqUnitRowSync(){
+	/* The Equipment/Unit row only holds type-specific inputs (CC/Station/Depot
+	   free-text, AFC unit number); hide it whenever both spans are empty so it
+	   doesn't show as a blank labelled row for the other problem types. */
+	var eq=document.getElementById('equipment_space');
+	var un=document.getElementById('unit_space');
+	var row=document.getElementById('equip_unit_row');
+	if(!row){ return; }
+	var has=((eq&&eq.innerHTML.trim()!=="")||(un&&un.innerHTML.trim()!==""));
+	row.style.display=has?"":"none";
 }
 
 function scrollRolling(ajaxHTML){
-	var rollingHTML="<option></option>";
-	if(ajaxHTML!="No data available"){
-		var equipmentTerms=ajaxHTML.split("==>");
-		var count=(equipmentTerms.length)*1-1;
-		for(var n=0;n<count;n++){
-			var parts=equipmentTerms[n].split(";");
-			rollingHTML+="<option value='"+parts[0]+"'>"+parts[1]+"</option>";
-		}
-	}
-	document.getElementById('equipment').innerHTML=rollingHTML;	
-	document.getElementById('sub_item_space').innerHTML="";
-	/* Category (or sub-category) just changed and its equipment list has
-	   finished loading. Refresh the multi-equipment picker too, so its list
-	   reflects the new category instead of the one it loaded on last open.
-	   Runs here (inside the scrollRolling callback) rather than directly in
-	   scrollType/scrollCat so it never fires a second makeajax while the
-	   legacy select's request is still in flight. */
-	if(typeof eqReloadList==='function'){ eqReloadList(); }	
+	/* This callback used to populate the legacy single-select #equipment,
+	   which has been removed. scrollType()/scrollCat() still fire the
+	   scrollRolling fetch on a Problem Category change, so this now serves
+	   only to refresh the multi-equipment picker afterward — kept here (not
+	   called directly from those handlers) so it stays serialized after the
+	   in-flight request. */
+	if(typeof eqReloadList==='function'){ eqReloadList(); }
 }
 
 function getMore(cancel){
@@ -999,31 +960,10 @@ var eqSearchResults=[];
 
 function eqSearch(q,cb,prob){
 	eqSearchCallback=cb;
-	/* Calls processing.php?searchEquipment=  — add this case to processing.php:
-	     if(isset($_GET['searchEquipment'])){
-	         $q = $db->real_escape_string($_GET['searchEquipment']);
-	         $q   = $db->real_escape_string($_GET['searchEquipment']);
-	         $cat = $db->real_escape_string($_GET['category']);   // sub-category, '' when none
-	         // Apply the SAME probname->type mapping the existing scrollRolling
-	         // case already uses (rolling->'RS', power->…), THEN the name search.
-	         // A supplied sub-category must constrain the list too — that is what
-	         // makes the picker react to the sub-category dropdown.
-	         $sql = "select id,equipment_name,category from equipment
-	                 where equipment_name like '%".$q."%'";
-	         if($cat!==''){ $sql .= " and category='".$cat."'"; }
-	         // TODO: replace the old hardcoded  type='RS'  with the mapped type
-	         //       for $_GET['probname'] so non-RS categories aren't served
-	         //       Rolling Stock equipment. Mirror scrollRolling exactly.
-	         $sql .= " order by equipment_name";
-	         $rs = $db->query($sql);
-	         $out = "";
-	         while($row = $rs->fetch_assoc()){
-	             $out .= $row['id'].";".$row['equipment_name'].";".$row['category']."==>";
-	         }
-	         echo ($out=="") ? "No data available" : $out;
-	     }
-	   Response format matches the existing scrollRolling/getDriver convention:
-	   rows separated by "==>", fields within a row separated by ";". */
+	/* Fetches from processing.php?searchEquipment= (implemented there). Sends
+	   probname + sub-category + the search term; processing.php resolves probname
+	   -> type via equipment_type (power filters by sub-category instead), then
+	   name-searches. Response: rows "==>"-separated, fields ";"-separated. */
 	var cat=eqCurrentSubCategory();
 	makeajax("processing.php?probname="+encodeURIComponent(prob)
 		+"&category="+encodeURIComponent(cat)
@@ -1515,28 +1455,13 @@ document.addEventListener('keydown',function(e){
 		</td>
 	</tr>
 
-	<!-- Equipment / Train Unavailability (legacy single-select — kept, retired to fallback) -->
-	<tr>
-		<td class="ir-label">Equipment <span class="ir-subtle-note" style="display:block;font-weight:400">(legacy, single item)</span></td>
+	<!-- Type-specific inputs: free-text equipment for CC/Station/Depot,
+	     unit number for AFC — injected by scrollType() into these spans. -->
+	<tr id="equip_unit_row" style="display:none">
+		<td class="ir-label">Equipment / Unit</td>
 		<td class="ir-field">
-			<select name='equipment' id='equipment' class="ir-sel--full" onchange='subItemScroll()'>
-				<option></option>
-				<?php 
-				$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-				$sql="select * from equipment where type='RS' order by equipment_name";
-				$rs=$db->query($sql);
-				$nm=$rs->num_rows;
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-				?>
-				<option value='<?php echo $row['id']; ?>'><?php echo $row['equipment_name']; ?></option>
-				<?php } ?>
-				<option value='others'>OTHERS</option>
-			</select>
 			<span name='equipment_space' id='equipment_space'></span>
-			<span id='sub_item_space' name='sub_item_space'></span>
 			<span id='unit_space' name='unit_space'></span>
-			<div class="ir-subtle-note">Legacy field — still writes to the original equipt/subitem columns if used.</div>
 		</td>
 	</tr>
 
@@ -1561,7 +1486,6 @@ document.addEventListener('keydown',function(e){
 			<div style="display:flex;gap:7px;align-items:center;margin-bottom:6px;">
 				<input type='button' value='Link incidents…' onclick='cOpenModal()'
 					style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
-				<input type='button' value='Popup (original)' onclick='openLink()' style="opacity:.6" />
 			</div>
 
 			<!-- Linked chips -->
