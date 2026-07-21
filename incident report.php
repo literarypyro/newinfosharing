@@ -21,7 +21,7 @@ if($IR_EMBED){ ob_end_clean(); }
    CSS: replaced. Inline border/color attributes on inputs cleaned up
         (cosmetic only — all name/id/onchange/data-* untouched).
    ========================================================================= */
-if(isset($_POST['equipment'])){
+if(isset($_POST['type'])){
 	
 	$incident_id=$_POST['incident_no']." ".$_POST['incident_suffix'];
 	$description=$_POST['description'];
@@ -596,6 +596,7 @@ function openLink(){
 }
 
 function scrollCat(){
+	eqSelected={};   /* sub-category changed → previous ticks no longer apply */
 	var problemType=document.getElementById('type').value;
 	var category=document.getElementById('category').value;
 	if(problemType=="rolling"){
@@ -618,6 +619,17 @@ function scrollType(element){
 	else {
 		$('#incident_suffix').val($("#type").find("option:selected").data("incident_type"));
 	}
+
+	/* Always start from a clean sub-category slot. The block below only
+	   REFILLS rolling_category for problem types that actually have a
+	   sub-category (currently just "power"); the rolling/unload branch never
+	   touched it, so a dropdown left over from a previous "power" selection
+	   (e.g. Overhead Catenary System) survived under Rolling Stock. Resetting
+	   here first is what makes the sub-category react to the category change.
+	   Uncommitted equipment ticks are dropped too — they belonged to the
+	   previous category's equipment set and shouldn't carry over. */
+	document.getElementById('rolling_category').innerHTML='';
+	eqSelected={};
 
 	var rollingHTML="";
 	
@@ -718,7 +730,14 @@ function scrollRolling(ajaxHTML){
 		}
 	}
 	document.getElementById('equipment').innerHTML=rollingHTML;	
-	document.getElementById('sub_item_space').innerHTML="";	
+	document.getElementById('sub_item_space').innerHTML="";
+	/* Category (or sub-category) just changed and its equipment list has
+	   finished loading. Refresh the multi-equipment picker too, so its list
+	   reflects the new category instead of the one it loaded on last open.
+	   Runs here (inside the scrollRolling callback) rather than directly in
+	   scrollType/scrollCat so it never fires a second makeajax while the
+	   legacy select's request is still in flight. */
+	if(typeof eqReloadList==='function'){ eqReloadList(); }	
 }
 
 function getMore(cancel){
@@ -970,9 +989,19 @@ function eqSearch(q,cb,prob){
 	/* Calls processing.php?searchEquipment=  — add this case to processing.php:
 	     if(isset($_GET['searchEquipment'])){
 	         $q = $db->real_escape_string($_GET['searchEquipment']);
+	         $q   = $db->real_escape_string($_GET['searchEquipment']);
+	         $cat = $db->real_escape_string($_GET['category']);   // sub-category, '' when none
+	         // Apply the SAME probname->type mapping the existing scrollRolling
+	         // case already uses (rolling->'RS', power->…), THEN the name search.
+	         // A supplied sub-category must constrain the list too — that is what
+	         // makes the picker react to the sub-category dropdown.
 	         $sql = "select id,equipment_name,category from equipment
-	                 where type='RS' and equipment_name like '%".$q."%'
-	                 order by equipment_name";
+	                 where equipment_name like '%".$q."%'";
+	         if($cat!==''){ $sql .= " and category='".$cat."'"; }
+	         // TODO: replace the old hardcoded  type='RS'  with the mapped type
+	         //       for $_GET['probname'] so non-RS categories aren't served
+	         //       Rolling Stock equipment. Mirror scrollRolling exactly.
+	         $sql .= " order by equipment_name";
 	         $rs = $db->query($sql);
 	         $out = "";
 	         while($row = $rs->fetch_assoc()){
@@ -982,7 +1011,10 @@ function eqSearch(q,cb,prob){
 	     }
 	   Response format matches the existing scrollRolling/getDriver convention:
 	   rows separated by "==>", fields within a row separated by ";". */
-	makeajax("processing.php?probname="+encodeURIComponent(prob)+"&searchEquipment="+encodeURIComponent(q),"eqSearchResponse");
+	var cat=eqCurrentSubCategory();
+	makeajax("processing.php?probname="+encodeURIComponent(prob)
+		+"&category="+encodeURIComponent(cat)
+		+"&searchEquipment="+encodeURIComponent(q),"eqSearchResponse");
 }
 
 var eqSearchCallback=null;
@@ -1071,6 +1103,26 @@ function eqSearchResponse(ajaxHTML){
 	}
 	eqSearchResults=results;
 	if(eqSearchCallback) eqSearchCallback(results);
+}
+
+function eqCurrentSubCategory(){
+	/* The sub-category <select id='category'> only exists in the DOM for
+	   problem types that have one (e.g. Power → OCS/SS/TPSS). For every other
+	   type it isn't rendered at all, so fall back to an empty string. */
+	var el=document.getElementById('category');
+	return el ? el.value : '';
+}
+
+function eqReloadList(){
+	/* Re-fetch the picker list for the currently selected Problem Category /
+	   sub-category. Only acts when the panel is open, so changing the category
+	   actually updates what the user is looking at; when it's closed, the next
+	   eqTogglePanel() already fetches fresh, so there's nothing to do. */
+	var panel=document.getElementById('eq-panel');
+	if(!panel || panel.style.display==='none') return;
+	var prob=document.getElementById('type').value;
+	var box=document.getElementById('eq-search-input');
+	eqSearch(box ? box.value : '', eqRenderList, prob);
 }
 
 function eqTogglePanel(){
