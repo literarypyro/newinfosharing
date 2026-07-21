@@ -32,27 +32,75 @@ $sql="select * from incident_description inner join incident_report on incident_
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
 
-for($i=0;$i<$nm;$i++){
-	$row=$rs->fetch_assoc();
-	
-	
-	
-		$problemType=getProblemType($db,$row['equipt']);
+// ---- Cause map: other_problem is tiny (~5 rows), so load it once and
+// resolve every row against it instead of a query per row. ----
+$causeMap=array();
+$cmRs=$db->query("select id, problem from other_problem");
+if($cmRs){ while($cm=$cmRs->fetch_assoc()){ if(trim($cm['problem'])!=='') $causeMap[$cm['id']]=$cm['problem']; } }
+
+// ---- Buffer all rows so we can make two passes: the categorized rows
+// are the training set for the description classifier; the blanks are
+// then scored against it. DB is never written — suggestions live only
+// in this page's rendering. ----
+$allRows=array();
+for($i=0;$i<$nm;$i++){ $allRows[]=$rs->fetch_assoc(); }
+
+// Pass 1 — learn word patterns per cause from rows that HAVE a cause.
+$nbModel = ccsTrainClassifier($allRows,$causeMap);
+
+// Pass 2 — render + aggregate. Blanks get a suggested cause when the
+// classifier is confident enough; otherwise they stay Uncategorized.
+$suggestedCounts=array();  // [cause] => how many were auto-suggested
+$suggestedTotal=0;
+
+foreach($allRows as $row){
+
+	$isSuggested=false;
+	if(isset($causeMap[$row['equipt']])){
+		$cause=$causeMap[$row['equipt']];
+	}
+	else{
+		$guess=ccsClassifyDescription($nbModel,$row['description']);
+		if($guess!==null){
+			$cause=$guess;
+			$isSuggested=true;
+			if(!isset($suggestedCounts[$cause])) $suggestedCounts[$cause]=0;
+			$suggestedCounts[$cause]++;
+			$suggestedTotal++;
+		}
+		else{
+			$cause='Uncategorized';
+		}
+	}
 
 	$monthKey=date("Y-m", strtotime($row['incident_date']));
 	if(!isset($monthlyCounts[$monthKey])) $monthlyCounts[$monthKey]=array();
-	if(!isset($monthlyCounts[$monthKey][$problemType])) $monthlyCounts[$monthKey][$problemType]=0;
-	$monthlyCounts[$monthKey][$problemType]++;
+	if(!isset($monthlyCounts[$monthKey][$cause])) $monthlyCounts[$monthKey][$cause]=0;
+	$monthlyCounts[$monthKey][$cause]++;
 
-	if(!isset($problemCounts[$problemType])) $problemCounts[$problemType]=0;
-	$problemCounts[$problemType]++;
-	
+	if(!isset($problemCounts[$cause])) $problemCounts[$cause]=0;
+	$problemCounts[$cause]++;
 ?>	
 	<tr>
 		<td><?php echo $row['index_no']; ?></td>
 		<td><?php echo "<span>".date("Y-m-d",strtotime($row['incident_date']))."</span>"; ?></td>
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
-		<td><?php echo  getCategory($db,$row['equipt']); ?></td>
+		<td><?php
+			// Confirmed causes render plain; auto-suggested ones are
+			// visibly marked so nobody mistakes inference for data.
+			if($isSuggested){
+				echo "<span style='font-style:italic; opacity:.75;' title='Auto-suggested from the description text — not a recorded category'>".htmlspecialchars($cause)." <small>(suggested)</small></span>";
+			}
+			else if($cause==='Uncategorized'){
+				echo "<span style='opacity:.55;'>Uncategorized</span>";
+			}
+			else{
+				echo htmlspecialchars($cause);
+			}
+			/** previous direct lookup, replaced by the preloaded $causeMap:
+			echo getCategory($db,$row['equipt']);
+			*/
+		?></td>
 		
 
 		<td><a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
@@ -121,13 +169,9 @@ for($i=0;$i<$nm;$i++){
 		<script src="js/additional.js"></script>
 -->
 <div id="ccs-print-charts" style="display:none;">
-	<div style="display:flex; gap:24px; flex-wrap:wrap;">
-		<div style="width:340px;">
-			<canvas id="ccsChartMonthly" width="340" height="230"></canvas>
-		</div>
-		<div style="width:340px;">
-			<canvas id="ccsChartPareto" width="340" height="200"></canvas>
-		</div>
+	<div style="display:flex; flex-direction:column; gap:16px;">
+		<canvas id="ccsHeatmap" width="560" height="220"></canvas>
+		<canvas id="ccsChartPareto" width="440" height="200"></canvas>
 	</div>
 </div>
 
@@ -135,6 +179,8 @@ for($i=0;$i<$nm;$i++){
 // Raw aggregates from the same query/filter as the table above.
 var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts); ?>;
 var ccsProblemCounts = <?php echo json_encode($problemCounts); ?>;
+var ccsSuggested = <?php echo json_encode($suggestedCounts, JSON_FORCE_OBJECT); ?>;
+var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
 </script>
 
 		<script src="js/jquery-1.10.2.min.js"></script>
@@ -197,136 +243,174 @@ function getProblemType($db,$type){
 <script>
 $(function(){
 
-	// ---- 1. Build the two charts once, from the PHP-aggregated data ----
-	// Only the top N categories get their own series/bar; the rest is
-	// summarised in text rather than drawn as a competing bar, so a large
-	// tail can't visually outrank the leaders. Rows with no matched
-	// equipment (blank equipment_name) are counted separately and never
-	// enter the top-N ranking.
-	var TOP_N = 3;
-	var BLANK_KEY = ''; // PHP null / no-match equipment_name lands here
-
-	var palette = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300'];
-	var othersColor = '#9c9a92';
+	// ---- Build both charts from the PHP cause/issue aggregates ----
+	// Cause/issue has a small fixed cardinality (~6 incl. Uncategorized),
+	// so no top-N folding is needed — every cause gets its own heatmap row
+	// and its own Pareto bar. "Uncategorized" is always sorted last.
+	var palette = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7'];
+	var uncatColor = '#9c9a92';
 	var textInk = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#111';
 	var mutedInk = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#555';
 	var gridInk = 'rgba(137,135,129,0.20)';
+	var UNCAT = 'Uncategorized';
 
 	var months = Object.keys(ccsMonthlyCounts).sort();
-	var blankCount = ccsProblemCounts[BLANK_KEY] || 0;
 
-	var rankedTypes = Object.keys(ccsProblemCounts)
-		.filter(function(t){ return t !== BLANK_KEY; })
-		.sort(function(a,b){ return ccsProblemCounts[b]-ccsProblemCounts[a]; });
-	var topTypes = rankedTypes.slice(0, TOP_N);
-	var tailTypes = rankedTypes.slice(TOP_N);
-
-	var totalIncidents = rankedTypes.reduce(function(s,t){ return s+ccsProblemCounts[t]; }, 0) + blankCount;
-	var tailTotal = tailTypes.reduce(function(s,t){ return s+ccsProblemCounts[t]; }, 0);
-
-	// ---- Chart 1: monthly stacked trend, top 3 + Others (blank folded
-	// into Others here — the month trend is about volume over time, so a
-	// separate blank series would just add noise). ----
-	function trendBucket(type){
-		if(type === BLANK_KEY) return 'Others';
-		return topTypes.indexOf(type) !== -1 ? type : 'Others';
-	}
-	var trendCategories = topTypes.concat((tailTypes.length || blankCount) ? ['Others'] : []);
-	var monthlyBucketed = {};
-	months.forEach(function(m){
-		monthlyBucketed[m] = {};
-		trendCategories.forEach(function(c){ monthlyBucketed[m][c] = 0; });
-		Object.keys(ccsMonthlyCounts[m]).forEach(function(type){
-			monthlyBucketed[m][trendBucket(type)] += ccsMonthlyCounts[m][type];
-		});
+	// Causes ranked by total, Uncategorized forced to the end.
+	var causes = Object.keys(ccsProblemCounts).sort(function(a,b){
+		if(a === UNCAT) return 1;
+		if(b === UNCAT) return -1;
+		return ccsProblemCounts[b] - ccsProblemCounts[a];
 	});
-	var monthlyDatasets = trendCategories.map(function(cat, idx){
-		return {
-			label: cat === 'Others' ? 'Others' : cat,
-			data: months.map(function(m){ return monthlyBucketed[m][cat]; }),
-			backgroundColor: cat === 'Others' ? othersColor : palette[idx % palette.length]
-		};
-	});
+	function causeColor(cause, idx){ return cause === UNCAT ? uncatColor : palette[idx % palette.length]; }
 
-	new Chart(document.getElementById('ccsChartMonthly'), {
-		type: 'bar',
-		data: { labels: months, datasets: monthlyDatasets },
-		options: {
-			responsive: false,
-			animation: false,
-			plugins: {
-				title: { display: true, text: 'Incidents by month — top ' + TOP_N + ' equipment', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 6 } },
-				legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, color: mutedInk } }
-			},
-			scales: {
-				x: { stacked: true, ticks: { color: mutedInk, font: { size: 10 } }, grid: { display: false } },
-				y: { stacked: true, ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } }
-			}
-		}
-	});
+	// ================= Chart 1: cause/issue × month heatmap =================
+	// Hand-drawn on a raw canvas (not Chart.js) so it flattens to an image
+	// for the TableTools print handoff, like the Pareto below. Rows = causes,
+	// columns = months, cell shaded by incident count.
+	(function drawHeatmap(){
+		var cv = document.getElementById('ccsHeatmap');
+		var ctx = cv.getContext('2d');
+		var W = cv.width, H = cv.height;
+		ctx.clearRect(0,0,W,H);
+		ctx.textBaseline = 'middle';
 
-	// ---- Chart 2: top-3 leaders as horizontal bars, with the tail and
-	// blanks drawn as a footnote *inside* the canvas (so it survives the
-	// toDataURL handoff into the print window — sibling HTML would not).
-	var footnotePlugin = {
-		id: 'ccsFootnote',
-		afterDraw: function(chart){
-			var ctx = chart.ctx;
-			var area = chart.chartArea;
-			var lines = [];
-			if(tailTotal > 0){
-				lines.push('+ ' + tailTotal + ' more across ' + tailTypes.length + ' other equipment type' + (tailTypes.length === 1 ? '' : 's'));
-			}
-			if(blankCount > 0){
-				lines.push('+ ' + blankCount + ' with unspecified equipment');
-			}
-			if(!lines.length) return;
-			ctx.save();
+		ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = textInk; ctx.textAlign = 'left';
+		ctx.fillText('"Others" incidents — cause/issue by month', 0, 9);
+
+		if(!months.length || !causes.length){ ctx.fillStyle = mutedInk; ctx.font = '10px Arial'; ctx.fillText('No data', 0, 40); return; }
+
+		var padL = 150, padT = 30, padR = 10, padB = 22;
+		var gridW = W - padL - padR, gridH = H - padT - padB;
+		var cellW = gridW / months.length, cellH = gridH / causes.length;
+
+		var maxV = 0;
+		causes.forEach(function(c){ months.forEach(function(m){ maxV = Math.max(maxV, (ccsMonthlyCounts[m] && ccsMonthlyCounts[m][c]) || 0); }); });
+		if(maxV === 0) maxV = 1;
+
+		// month column headers (show every month; abbreviate to MM)
+		ctx.font = '9px Arial, sans-serif'; ctx.fillStyle = mutedInk; ctx.textAlign = 'center';
+		months.forEach(function(m,ci){ ctx.fillText(m.slice(5), padL + ci*cellW + cellW/2, padT - 9); });
+
+		causes.forEach(function(cause,ri){
+			var y = padT + ri*cellH;
+			// row label
 			ctx.font = '10px Arial, sans-serif';
-			ctx.fillStyle = mutedInk;
-			ctx.textAlign = 'left';
-			ctx.textBaseline = 'top';
-			var y = chart.height - (lines.length * 13) - 6;
-			ctx.strokeStyle = gridInk;
-			ctx.lineWidth = 1;
-			ctx.beginPath();
-			ctx.moveTo(area.left, y - 6);
-			ctx.lineTo(chart.width - 8, y - 6);
-			ctx.stroke();
-			lines.forEach(function(ln, i){ ctx.fillText(ln, area.left, y + i * 13); });
+			ctx.fillStyle = cause === UNCAT ? mutedInk : textInk;
+			ctx.textAlign = 'right';
+			var label = cause.length > 22 ? cause.slice(0,21)+'\u2026' : cause;
+			ctx.fillText(label, padL - 6, y + cellH/2);
+			// cells
+			months.forEach(function(m,ci){
+				var v = (ccsMonthlyCounts[m] && ccsMonthlyCounts[m][cause]) || 0;
+				var x = padL + ci*cellW;
+				var base = cause === UNCAT ? '156,154,146' : '42,120,214';
+				var t = v === 0 ? 0.04 : 0.12 + (v/maxV)*0.82;
+				ctx.fillStyle = 'rgba('+base+','+t.toFixed(3)+')';
+				ctx.fillRect(x+1, y+1, cellW-2, cellH-2);
+				if(v > 0){
+					ctx.fillStyle = (v/maxV > 0.55) ? '#fff' : mutedInk;
+					ctx.font = '9px Arial, sans-serif'; ctx.textAlign = 'center';
+					ctx.fillText(String(v), x + cellW/2, y + cellH/2);
+				}
+			});
+		});
+
+		// legend
+		ctx.font = '9px Arial, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = mutedInk;
+		ctx.fillText('Darker = more incidents', padL, H - 8);
+	})();
+
+	// ================= Chart 2: Pareto of causes =================
+	// Two stacked layers per bar: solid = confirmed categorization,
+	// lighter = auto-suggested from descriptions. Inference is always
+	// visually distinct from recorded data.
+	var totalIncidents = causes.reduce(function(s,c){ return s+ccsProblemCounts[c]; }, 0);
+	var uncatRemaining = ccsProblemCounts[UNCAT] || 0;
+
+	function hexToRgba(hex, a){
+		var n = parseInt(hex.slice(1), 16);
+		return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+	}
+	function suggestedColor(cause, idx){
+		return cause === UNCAT ? 'rgba(156,154,146,0.45)' : hexToRgba(palette[idx % palette.length], 0.4);
+	}
+
+	var confirmedData = causes.map(function(c){ return (ccsProblemCounts[c]||0) - (ccsSuggested[c]||0); });
+	var suggestedData = causes.map(function(c){ return ccsSuggested[c]||0; });
+
+	var paretoNote = {
+		id: 'paretoNote',
+		afterDraw: function(chart){
+			if(!ccsSuggestedTotal) return;
+			var ctx = chart.ctx, area = chart.chartArea;
+			ctx.save();
+			ctx.font = '10px Arial, sans-serif'; ctx.fillStyle = mutedInk;
+			ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+			var y = chart.height - 14;
+			ctx.strokeStyle = gridInk; ctx.lineWidth = 1;
+			ctx.beginPath(); ctx.moveTo(area.left, y - 5); ctx.lineTo(chart.width - 8, y - 5); ctx.stroke();
+			ctx.fillText('Lighter segments: ' + ccsSuggestedTotal + ' auto-suggested from descriptions \u00b7 ' + uncatRemaining + ' remain uncategorized', area.left, y);
 			ctx.restore();
 		}
 	};
 
-	var topShare = totalIncidents ? Math.round(topTypes.reduce(function(s,t){ return s+ccsProblemCounts[t]; }, 0) / totalIncidents * 100) : 0;
-
 	new Chart(document.getElementById('ccsChartPareto'), {
 		type: 'bar',
 		data: {
-			labels: topTypes,
-			datasets: [{
-				data: topTypes.map(function(t){ return ccsProblemCounts[t]; }),
-				backgroundColor: topTypes.map(function(t, idx){ return palette[idx % palette.length]; }),
-				borderRadius: 3,
-				barThickness: 22
-			}]
+			labels: causes,
+			datasets: [
+				{
+					label: 'Confirmed',
+					data: confirmedData,
+					backgroundColor: causes.map(causeColor),
+					categoryPercentage: 0.6,
+					barPercentage: 0.9
+				},
+				{
+					label: 'Suggested',
+					data: suggestedData,
+					backgroundColor: causes.map(suggestedColor),
+					borderRadius: 3,
+					categoryPercentage: 0.6,
+					barPercentage: 0.9
+				}
+			]
 		},
 		options: {
 			indexAxis: 'y',
 			responsive: false,
 			animation: false,
-			layout: { padding: { bottom: 30 } },
+			layout: { padding: { right: 22, bottom: ccsSuggestedTotal ? 18 : 4 } },
 			plugins: {
-				title: { display: true, text: 'Top ' + TOP_N + ' equipment by incidents (' + topShare + '% of total)', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 8 } },
+				title: { display: true, text: 'Cause/issue by total incidents', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 8 } },
 				legend: { display: false },
-				tooltip: { callbacks: { label: function(c){ return c.parsed.x + ' incidents'; } } }
+				tooltip: { callbacks: { label: function(c){
+					var kind = c.datasetIndex === 1 ? ' suggested' : ' confirmed';
+					var p = totalIncidents ? Math.round(c.parsed.x/totalIncidents*100) : 0;
+					return c.parsed.x + kind + ' (' + p + '% of all)';
+				} } }
 			},
 			scales: {
-				x: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } },
-				y: { ticks: { color: textInk, font: { size: 11 } }, grid: { display: false } }
+				x: { stacked: true, ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } },
+				y: { stacked: true, ticks: { color: textInk, font: { size: 11 } }, grid: { display: false } }
 			}
 		},
-		plugins: [footnotePlugin]
+		plugins: [{
+			id: 'paretoValueLabels',
+			afterDatasetsDraw: function(chart){
+				// label the TOTAL at the end of the stacked bar (dataset 1's
+				// meta ends where the full stack ends)
+				var ctx = chart.ctx, meta = chart.getDatasetMeta(1);
+				ctx.save(); ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = textInk;
+				ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+				meta.data.forEach(function(bar,i){
+					var total = confirmedData[i] + suggestedData[i];
+					ctx.fillText(total, bar.x + 6, bar.y);
+				});
+				ctx.restore();
+			}
+		}, paretoNote]
 	});
 
 	// ---- 2. Intercept the existing TableTools print button ----
@@ -347,8 +431,8 @@ $(function(){
 	}
 
 	function ccsPrintWithCharts(){
-		var chartMonthlyImg = document.getElementById('ccsChartMonthly').toDataURL('image/png');
-		var chartParetoImg  = document.getElementById('ccsChartPareto').toDataURL('image/png');
+		var heatmapImg     = document.getElementById('ccsHeatmap').toDataURL('image/png');
+		var chartParetoImg = document.getElementById('ccsChartPareto').toDataURL('image/png');
 		var tableHtml = document.getElementById('add_form').outerHTML;
 
 		var win = window.open('', '_blank');
@@ -358,8 +442,8 @@ $(function(){
 				'body{font-family:Arial,sans-serif;margin:24px;color:#111;}' +
 				'h1{font-size:16px;margin:0 0 2px;}' +
 				'.sub{font-size:11px;color:#555;margin:0 0 16px;}' +
-				'.charts{display:flex;gap:16px;margin-bottom:20px;}' +
-				'img{max-width:100%;}' +
+				'.charts{display:flex;flex-direction:column;gap:14px;margin-bottom:20px;}' +
+				'.charts img{border:0.5px solid #ddd;max-width:580px;}' +
 				'table{width:100%;border-collapse:collapse;font-size:11px;}' +
 				'th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;}' +
 				'a{color:inherit;text-decoration:none;pointer-events:none;}' + // dead-link the slide-panel column in print
@@ -367,7 +451,7 @@ $(function(){
 			'<h1>Other Recorded Incidences</h1>' +
 			'<div class="sub">Printed <?php echo date("Y-m-d H:i"); ?><?php echo isset($_GET["y"]) ? " — filter: ".htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".htmlspecialchars($_GET["m"]) : "") : " — all records"; ?></div>' +
 			'<div class="charts">' +
-				'<img src="' + chartMonthlyImg + '">' +
+				'<img src="' + heatmapImg + '">' +
 				'<img src="' + chartParetoImg + '">' +
 			'</div>' +
 			tableHtml +
@@ -404,5 +488,84 @@ function getCategory($db,$type){
 
 	$problem=$row['problem'];
 	return $problem;
+}
+
+// ============================================================
+// Description -> cause/issue suggestion (naive Bayes, pure PHP).
+//
+// The categorized rows are the training set: each is a labelled example
+// of "descriptions like this belong to cause X". Blanks are then scored
+// against those word patterns. No hardcoded keyword lists — it re-learns
+// from whatever is categorized on every page load, so it improves as
+// staff categorize more rows. Suggestions are display-only; nothing is
+// ever written back to the database.
+// ============================================================
+
+function ccsTokenize($text){
+	if($text===null) return array();
+	$text = strtolower($text);
+	$text = preg_replace('/[^a-z0-9\s]/',' ',$text);
+	$tokens = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+	static $stop = array('the'=>1,'a'=>1,'an'=>1,'and'=>1,'or'=>1,'of'=>1,'to'=>1,'in'=>1,'on'=>1,'at'=>1,
+		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
+		'as'=>1,'be'=>1,'been'=>1,'are'=>1,'it'=>1,'its'=>1,'has'=>1,'had'=>1,'have'=>1,'per'=>1,
+		'am'=>1,'pm'=>1,'hrs'=>1,'nb'=>1,'sb'=>1);
+	$out=array();
+	foreach($tokens as $t){
+		if(strlen($t) >= 3 && !isset($stop[$t]) && !ctype_digit($t)) $out[]=$t;
+	}
+	return $out;
+}
+
+function ccsTrainClassifier($rows,$causeMap){
+	$m = array('docs'=>array(), 'words'=>array(), 'wtotal'=>array(), 'vocab'=>array(), 'ndocs'=>0);
+	foreach($rows as $row){
+		if(!isset($causeMap[$row['equipt']])) continue;   // only categorized rows train
+		$cat = $causeMap[$row['equipt']];
+		$toks = ccsTokenize(isset($row['description']) ? $row['description'] : '');
+		if(!count($toks)) continue;
+		if(!isset($m['docs'][$cat])){ $m['docs'][$cat]=0; $m['words'][$cat]=array(); $m['wtotal'][$cat]=0; }
+		$m['docs'][$cat]++; $m['ndocs']++;
+		foreach($toks as $t){
+			if(!isset($m['words'][$cat][$t])) $m['words'][$cat][$t]=0;
+			$m['words'][$cat][$t]++;
+			$m['wtotal'][$cat]++;
+			$m['vocab'][$t]=true;
+		}
+	}
+	return $m;
+}
+
+function ccsClassifyDescription($m,$desc){
+	// Need at least two trained causes to discriminate between anything.
+	if($m['ndocs'] < 4 || count($m['docs']) < 2) return null;
+
+	$toks = ccsTokenize($desc);
+	if(!count($toks)) return null;
+
+	// Confidence gate 1: the description must contain at least two words
+	// the model has ever seen — otherwise it has no basis to guess.
+	$known=0;
+	foreach($toks as $t){ if(isset($m['vocab'][$t])) $known++; }
+	if($known < 2) return null;
+
+	$V = count($m['vocab']);
+	$best=null; $bestS=-INF; $secondS=-INF;
+	foreach($m['docs'] as $cat=>$dc){
+		$s = log($dc / $m['ndocs']);   // prior
+		foreach($toks as $t){
+			$wc = isset($m['words'][$cat][$t]) ? $m['words'][$cat][$t] : 0;
+			$s += log(($wc + 1) / ($m['wtotal'][$cat] + $V));   // Laplace-smoothed likelihood
+		}
+		if($s > $bestS){ $secondS=$bestS; $bestS=$s; $best=$cat; }
+		elseif($s > $secondS){ $secondS=$s; }
+	}
+
+	// Confidence gate 2: the winner must beat the runner-up by ~2x
+	// likelihood (0.69 in log space). Ties stay Uncategorized — an honest
+	// residual beats a confident wrong answer.
+	if(($bestS - $secondS) < 0.69) return null;
+
+	return $best;
 }
 ?>

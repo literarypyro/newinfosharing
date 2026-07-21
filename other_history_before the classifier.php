@@ -282,14 +282,6 @@ if(isset($_POST['type'])){
 }
 ?>
 
-<?php
-/* Display-path DB connection. This page used to rely on the connection opened
-   inside the legacy equipment <select> (now removed); restore it here so the
-   form's own queries (incident-suffix list, index/car lookups, etc.) still run
-   on a GET request, when the POST-only save block above never opens one. */
-$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-?>
-
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>

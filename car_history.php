@@ -81,16 +81,47 @@ $sql.="(select * from is_transport_old.incident_cars inner join is_transport_old
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
 
-// Chart aggregates, built in the same pass as the table rows —
-// avoids a second query and guarantees the charts and table always
-// reflect the same $dateClause filter.
-$monthlyCounts=array();   // [ "YYYY-MM" => [ problemType => count ] ]
-$problemCounts=array();   // [ problemType => count ]
+// ---- Equipment map: load once and resolve rows against it instead of a
+// query per row. This is also the label set the classifier learns. ----
+$causeMap=array();
+$cmRs=$db->query("select id, equipment_name from equipment");
+if($cmRs){ while($cm=$cmRs->fetch_assoc()){ if(trim($cm['equipment_name'])!=='') $causeMap[$cm['id']]=$cm['equipment_name']; } }
 
-for($i=0;$i<$nm;$i++){
+// ---- Buffer all rows for two passes: categorized rows train the
+// description classifier, then blanks are scored against it. DB is never
+// written — suggestions live only in this page's rendering. ----
+$allRows=array();
+for($i=0;$i<$nm;$i++){ $allRows[]=$rs->fetch_assoc(); }
 
-	$row=$rs->fetch_assoc();
-	$problemType=getEquipmentType($db,$row['equipt']);
+// Pass 1 — learn word patterns per equipment from rows that HAVE one.
+$nbModel = ccsTrainClassifier($allRows,$causeMap);
+
+// Pass 2 — render + aggregate. Chart aggregates are built in the same
+// pass, so charts and table always reflect the same $dateClause filter.
+$monthlyCounts=array();   // [ "YYYY-MM" => [ equipment => count ] ]
+$problemCounts=array();   // [ equipment => count ]
+$suggestedCounts=array(); // [ equipment => how many were auto-suggested ]
+$suggestedTotal=0;
+
+foreach($allRows as $row){
+
+	$isSuggested=false;
+	if(isset($causeMap[$row['equipt']])){
+		$problemType=$causeMap[$row['equipt']];
+	}
+	else{
+		$guess=ccsClassifyDescription($nbModel,$row['description']);
+		if($guess!==null){
+			$problemType=$guess;
+			$isSuggested=true;
+			if(!isset($suggestedCounts[$problemType])) $suggestedCounts[$problemType]=0;
+			$suggestedCounts[$problemType]++;
+			$suggestedTotal++;
+		}
+		else{
+			$problemType='';   // stays the blank bucket the charts already handle
+		}
+	}
 
 	$monthKey=date("Y-m", strtotime($row['incident_date']));
 	if(!isset($monthlyCounts[$monthKey])) $monthlyCounts[$monthKey]=array();
@@ -105,8 +136,20 @@ for($i=0;$i<$nm;$i++){
         <td><?php echo date("Y-m-d H:iA", strtotime($row['incident_date'])); ?></td>
         <td>&nbsp;</td>
         <td><?php echo $row['duration']; ?></td>
-        <td><?php echo $problemType; ?></td>
-        <td><?php echo getEquipmentType($db,$row['equipt']); ?></td>
+        <td><?php
+			// Confirmed equipment renders plain; auto-suggested is visibly
+			// marked so nobody mistakes inference for recorded data.
+			if($isSuggested){
+				echo "<span style='font-style:italic; opacity:.75;' title='Auto-suggested from the description text — not a recorded value'>".htmlspecialchars($problemType)." <small>(suggested)</small></span>";
+			}
+			else if($problemType===''){
+				echo "<span style='opacity:.55;'>Unspecified</span>";
+			}
+			else{
+				echo htmlspecialchars($problemType);
+			}
+		?></td>
+        <td><?php echo isset($causeMap[$row['equipt']]) ? htmlspecialchars($causeMap[$row['equipt']]) : "&nbsp;"; ?></td>
 	<td>
 <a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
 </td>
@@ -145,6 +188,8 @@ for($i=0;$i<$nm;$i++){
 // Raw aggregates from the same query/filter as the table above.
 var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts); ?>;
 var ccsProblemCounts = <?php echo json_encode($problemCounts); ?>;
+var ccsSuggested = <?php echo json_encode($suggestedCounts, JSON_FORCE_OBJECT); ?>;
+var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
 </script>
 
 		<script src="js/jquery-1.10.2.min.js"></script>
@@ -269,9 +314,16 @@ $(function(){
 		}
 	});
 
-	// ---- Chart 2: top-3 leaders as horizontal bars, with the tail and
-	// blanks drawn as a footnote *inside* the canvas (so it survives the
-	// toDataURL handoff into the print window — sibling HTML would not).
+	// ---- Chart 2: top-3 leaders as horizontal bars — two stacked layers
+	// per bar: solid = recorded equipment, lighter = auto-suggested from
+	// descriptions. Tail and remaining blanks are drawn as a footnote
+	// *inside* the canvas (so it survives the toDataURL handoff into the
+	// print window — sibling HTML would not).
+	function hexToRgba(hex, a){
+		var n = parseInt(hex.slice(1), 16);
+		return 'rgba(' + ((n>>16)&255) + ',' + ((n>>8)&255) + ',' + (n&255) + ',' + a + ')';
+	}
+
 	var footnotePlugin = {
 		id: 'ccsFootnote',
 		afterDraw: function(chart){
@@ -280,6 +332,9 @@ $(function(){
 			var lines = [];
 			if(tailTotal > 0){
 				lines.push('+ ' + tailTotal + ' more across ' + tailTypes.length + ' other equipment type' + (tailTypes.length === 1 ? '' : 's'));
+			}
+			if(ccsSuggestedTotal > 0){
+				lines.push('Lighter segments: ' + ccsSuggestedTotal + ' auto-suggested from descriptions');
 			}
 			if(blankCount > 0){
 				lines.push('+ ' + blankCount + ' with unspecified equipment');
@@ -304,33 +359,56 @@ $(function(){
 
 	var topShare = totalIncidents ? Math.round(topTypes.reduce(function(s,t){ return s+ccsProblemCounts[t]; }, 0) / totalIncidents * 100) : 0;
 
+	var topConfirmed = topTypes.map(function(t){ return (ccsProblemCounts[t]||0) - (ccsSuggested[t]||0); });
+	var topSuggested = topTypes.map(function(t){ return ccsSuggested[t]||0; });
+
 	new Chart(document.getElementById('ccsChartPareto'), {
 		type: 'bar',
 		data: {
 			labels: topTypes,
-			datasets: [{
-				data: topTypes.map(function(t){ return ccsProblemCounts[t]; }),
-				backgroundColor: topTypes.map(function(t, idx){ return palette[idx % palette.length]; }),
-				borderRadius: 3,
-				barThickness: 22
-			}]
+			datasets: [
+				{
+					label: 'Confirmed',
+					data: topConfirmed,
+					backgroundColor: topTypes.map(function(t, idx){ return palette[idx % palette.length]; }),
+					barThickness: 22
+				},
+				{
+					label: 'Suggested',
+					data: topSuggested,
+					backgroundColor: topTypes.map(function(t, idx){ return hexToRgba(palette[idx % palette.length], 0.4); }),
+					borderRadius: 3,
+					barThickness: 22
+				}
+			]
 		},
 		options: {
 			indexAxis: 'y',
 			responsive: false,
 			animation: false,
-			layout: { padding: { bottom: 30 } },
+			layout: { padding: { bottom: 44 } },
 			plugins: {
 				title: { display: true, text: 'Top ' + TOP_N + ' equipment by incidents (' + topShare + '% of total)', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 8 } },
 				legend: { display: false },
-				tooltip: { callbacks: { label: function(c){ return c.parsed.x + ' incidents'; } } }
+				tooltip: { callbacks: { label: function(c){ return c.parsed.x + (c.datasetIndex === 1 ? ' suggested' : ' confirmed'); } } }
 			},
 			scales: {
-				x: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } },
-				y: { ticks: { color: textInk, font: { size: 11 } }, grid: { display: false } }
+				x: { stacked: true, ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } },
+				y: { stacked: true, ticks: { color: textInk, font: { size: 11 } }, grid: { display: false } }
 			}
 		},
-		plugins: [footnotePlugin]
+		plugins: [footnotePlugin, {
+			id: 'barTotalLabels',
+			afterDatasetsDraw: function(chart){
+				var ctx = chart.ctx, meta = chart.getDatasetMeta(1);
+				ctx.save(); ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = textInk;
+				ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+				meta.data.forEach(function(bar,i){
+					ctx.fillText(topConfirmed[i] + topSuggested[i], bar.x + 6, bar.y);
+				});
+				ctx.restore();
+			}
+		}]
 	});
 
 	// ---- 2. Intercept the existing TableTools print button ----
@@ -406,6 +484,84 @@ function getEquipmentType($db,$type){
 	return $problem;
 }
 
+// ============================================================
+// Description -> cause/issue suggestion (naive Bayes, pure PHP).
+//
+// The categorized rows are the training set: each is a labelled example
+// of "descriptions like this belong to cause X". Blanks are then scored
+// against those word patterns. No hardcoded keyword lists — it re-learns
+// from whatever is categorized on every page load, so it improves as
+// staff categorize more rows. Suggestions are display-only; nothing is
+// ever written back to the database.
+// ============================================================
+
+function ccsTokenize($text){
+	if($text===null) return array();
+	$text = strtolower($text);
+	$text = preg_replace('/[^a-z0-9\s]/',' ',$text);
+	$tokens = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+	static $stop = array('the'=>1,'a'=>1,'an'=>1,'and'=>1,'or'=>1,'of'=>1,'to'=>1,'in'=>1,'on'=>1,'at'=>1,
+		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
+		'as'=>1,'be'=>1,'been'=>1,'are'=>1,'it'=>1,'its'=>1,'has'=>1,'had'=>1,'have'=>1,'per'=>1,
+		'am'=>1,'pm'=>1,'hrs'=>1,'nb'=>1,'sb'=>1);
+	$out=array();
+	foreach($tokens as $t){
+		if(strlen($t) >= 3 && !isset($stop[$t]) && !ctype_digit($t)) $out[]=$t;
+	}
+	return $out;
+}
+
+function ccsTrainClassifier($rows,$causeMap){
+	$m = array('docs'=>array(), 'words'=>array(), 'wtotal'=>array(), 'vocab'=>array(), 'ndocs'=>0);
+	foreach($rows as $row){
+		if(!isset($causeMap[$row['equipt']])) continue;   // only categorized rows train
+		$cat = $causeMap[$row['equipt']];
+		$toks = ccsTokenize(isset($row['description']) ? $row['description'] : '');
+		if(!count($toks)) continue;
+		if(!isset($m['docs'][$cat])){ $m['docs'][$cat]=0; $m['words'][$cat]=array(); $m['wtotal'][$cat]=0; }
+		$m['docs'][$cat]++; $m['ndocs']++;
+		foreach($toks as $t){
+			if(!isset($m['words'][$cat][$t])) $m['words'][$cat][$t]=0;
+			$m['words'][$cat][$t]++;
+			$m['wtotal'][$cat]++;
+			$m['vocab'][$t]=true;
+		}
+	}
+	return $m;
+}
+
+function ccsClassifyDescription($m,$desc){
+	// Need at least two trained causes to discriminate between anything.
+	if($m['ndocs'] < 4 || count($m['docs']) < 2) return null;
+
+	$toks = ccsTokenize($desc);
+	if(!count($toks)) return null;
+
+	// Confidence gate 1: the description must contain at least two words
+	// the model has ever seen — otherwise it has no basis to guess.
+	$known=0;
+	foreach($toks as $t){ if(isset($m['vocab'][$t])) $known++; }
+	if($known < 2) return null;
+
+	$V = count($m['vocab']);
+	$best=null; $bestS=-INF; $secondS=-INF;
+	foreach($m['docs'] as $cat=>$dc){
+		$s = log($dc / $m['ndocs']);   // prior
+		foreach($toks as $t){
+			$wc = isset($m['words'][$cat][$t]) ? $m['words'][$cat][$t] : 0;
+			$s += log(($wc + 1) / ($m['wtotal'][$cat] + $V));   // Laplace-smoothed likelihood
+		}
+		if($s > $bestS){ $secondS=$bestS; $bestS=$s; $best=$cat; }
+		elseif($s > $secondS){ $secondS=$s; }
+	}
+
+	// Confidence gate 2: the winner must beat the runner-up by ~2x
+	// likelihood (0.69 in log space). Ties stay Uncategorized — an honest
+	// residual beats a confident wrong answer.
+	if(($bestS - $secondS) < 0.69) return null;
+
+	return $best;
+}
 ?>
 <?php require("slide_panel.php"); ?>
 </body>
