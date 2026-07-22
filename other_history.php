@@ -430,36 +430,134 @@ $(function(){
 		});
 	}
 
+		// DataTables removes off-page rows from the DOM, so reading the live
+	// table's outerHTML only ever captures the current page. Rebuild a full
+	// copy from the DataTables API instead.
+	//
+	// Two APIs to handle: isDataTable()/.DataTable() only exist in 1.10+.
+	// This template ships an older DataTables (TableTools is a 1.9-era
+	// plugin), where the equivalent is fnGetNodes() — it returns every row
+	// node regardless of pagination. bRetrieve:true asks 1.9 for the
+	// EXISTING instance rather than re-initialising (which is what throws
+	// "Cannot reinitialise DataTable").
+	function ccsFullTableHtml(){
+		var el   = document.getElementById('add_form');
+		var $el  = $(el);
+		var rows = null;
+
+		try{
+			// DataTables 1.10+
+			if($.fn.dataTable && $.fn.dataTable.isDataTable && $.fn.dataTable.isDataTable('#add_form')){
+				rows = $('#add_form').DataTable()
+				         .rows({ search:'applied', order:'applied' })
+				         .nodes().toArray();
+			}
+			// DataTables 1.9 (this template)
+			else if($.fn.dataTable){
+				rows = $el.dataTable({ bRetrieve:true }).fnGetNodes();
+			}
+		}catch(e){ rows = null; }
+
+		// Temporary diagnostic — delete once print is confirmed working.
+		console.log('print capture — rows found:', rows ? rows.length : 0);
+
+		if(!rows || !rows.length) return { html: el.outerHTML, count: $el.find('tbody tr').length };
+
+		var $clone = $el.clone();
+		var $tbody = $clone.find('tbody').empty();
+		$.each(rows, function(i, node){ $tbody.append($(node).clone()); });
+
+		// Strip DataTables' runtime artifacts — inline widths, sort classes
+		// and ARIA attributes — so the print stylesheet has full control.
+		$clone.removeAttr('style').removeAttr('width').removeClass('dataTable');
+		$clone.find('th, td').removeAttr('style').removeAttr('width');
+		$clone.find('th').removeAttr('class').removeAttr('aria-label')
+		      .removeAttr('aria-sort').removeAttr('tabindex').removeAttr('role');
+		$clone.find('tr').removeAttr('class').removeAttr('role');
+
+		return { html: $clone[0].outerHTML, count: rows.length };
+	}
+
 	function ccsPrintWithCharts(){
 		var heatmapImg     = document.getElementById('ccsHeatmap').toDataURL('image/png');
 		var chartParetoImg = document.getElementById('ccsChartPareto').toDataURL('image/png');
-		var tableHtml = document.getElementById('add_form').outerHTML;
+		var captured  = ccsFullTableHtml();
+		var tableHtml = captured.html;
+		var rowCount  = captured.count;
 
 		var win = window.open('', '_blank');
 		win.document.write(
 			'<html><head><title>Other Recorded Incidences</title>' +
 			'<style>' +
-				'body{font-family:Arial,sans-serif;margin:24px;color:#111;}' +
-				'h1{font-size:16px;margin:0 0 2px;}' +
-				'.sub{font-size:11px;color:#555;margin:0 0 16px;}' +
-				'.charts{display:flex;flex-direction:column;gap:14px;margin-bottom:20px;}' +
-				'.charts img{border:0.5px solid #ddd;max-width:580px;}' +
-				'table{width:100%;border-collapse:collapse;font-size:11px;}' +
-				'th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;}' +
-				'a{color:inherit;text-decoration:none;pointer-events:none;}' + // dead-link the slide-panel column in print
+				'@page{ size:A4 portrait; margin:14mm 12mm 15mm; }' +
+				'*{ box-sizing:border-box; }' +
+				'body{ font-family:"Segoe UI",Arial,Helvetica,sans-serif; color:#1a1a1a; margin:0;' +
+					' font-size:11px; line-height:1.45;' +
+					' -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
+				'.rpt-head{ border-bottom:2px solid #1f4e79; padding-bottom:9px; margin-bottom:4px; }' +
+				'.rpt-org{ font-size:8.5px; letter-spacing:.15em; text-transform:uppercase;' +
+					' color:#6b7280; margin-bottom:3px; }' +
+				'.rpt-title{ font-size:19px; font-weight:600; color:#1f4e79; margin:0 0 1px; }' +
+				'.rpt-subject{ font-size:12.5px; color:#374151; margin:0; }' +
+				'.rpt-meta{ margin:8px 0 0; font-size:9.5px; color:#4b5563; }' +
+				'.rpt-meta span{ margin-right:20px; white-space:nowrap; }' +
+				'.rpt-meta b{ color:#1f2937; font-weight:600; }' +
+				'h2.sec{ font-size:11px; text-transform:uppercase; letter-spacing:.09em;' +
+					' color:#1f4e79; border-bottom:1px solid #d1d5db; padding-bottom:4px;' +
+					' margin:20px 0 10px; font-weight:600; }' +
+				'.charts{ page-break-inside:avoid; }' +
+				'.chart{ display:inline-block; vertical-align:top; margin:0 14px 12px 0; }' +
+				'.chart img{ display:block; border:1px solid #e5e7eb; }' +
+				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
+				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
+				'.tbl-head{ margin-bottom:6px; }' +
+				'.tbl-head h3{ font-size:13px; font-weight:600; margin:0; display:inline-block; }' +
+				'.tbl-head .count{ font-size:9.5px; color:#6b7280; margin-left:8px; }' +
+				'table{ width:100%; border-collapse:collapse; font-size:9.5px; }' +
+				'thead{ display:table-header-group; }' +
+				'th{ background:#1f4e79; color:#fff; text-align:left; padding:6px 7px;' +
+					' font-size:9px; font-weight:600; text-transform:uppercase;' +
+					' letter-spacing:.04em; border:1px solid #1f4e79; }' +
+				'td{ padding:5px 7px; border:1px solid #e5e7eb; vertical-align:top; }' +
+				'tbody tr:nth-child(even) td{ background:#f6f8fa; }' +
+				'tr{ page-break-inside:avoid; }' +
+				'a{ color:inherit; text-decoration:none; pointer-events:none; }' +
+				'.rpt-foot{ margin-top:14px; border-top:1px solid #d1d5db; padding-top:6px;' +
+					' font-size:8.5px; color:#6b7280; }' +
 			'</style></head><body>' +
-			'<h1>Other Recorded Incidences</h1>' +
-			'<div class="sub">Printed <?php echo date("Y-m-d H:i"); ?><?php echo isset($_GET["y"]) ? " — filter: ".htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".htmlspecialchars($_GET["m"]) : "") : " — all records"; ?></div>' +
+			'<div class="rpt-head">' +
+				'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
+				'<h1 class="rpt-title">Other Recorded Incidences</h1>' +
+				'<p class="rpt-subject">Incidents outside the standard equipment categories</p>' +
+			'</div>' +
+			'<div class="rpt-meta">' +
+				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
+				'<span><b>Records:</b> ' + rowCount + '</span>' +
+				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
+			'</div>' +
+
+			'<h2 class="sec">Summary</h2>' +
 			'<div class="charts">' +
-				'<img src="' + heatmapImg + '">' +
-				'<img src="' + chartParetoImg + '">' +
+				'<div class="chart"><img src="' + heatmapImg + '">' + '<div class="cap">Figure 1 &mdash; Cause / issue by month</div></div>' +
+				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Cause / issue by total incidents</div></div>' +
+			(ccsSuggestedTotal ? '<p class="note">Italicised categories in the log are auto-suggested from description text (' + ccsSuggestedTotal + ' record' + (ccsSuggestedTotal===1?'':'s') + ') and are not recorded values.</p>' : '') +
+			'</div>' +
+
+			'<h2 class="sec">Incident Records</h2>' +
+			'<div class="tbl-head">' +
+				'<h3>Other recorded incidences &mdash; incident log</h3>' +
+				'<span class="count">' + rowCount + ' record' + (rowCount === 1 ? '' : 's') + '</span>' +
 			'</div>' +
 			tableHtml +
+
+			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 			'</body></html>'
 		);
 		win.document.close();
 		win.focus();
-		win.onload = function(){ win.print(); };
+		// Data-URL images occasionally decode after onload; the short delay
+		// keeps the charts from printing blank.
+		win.onload = function(){ setTimeout(function(){ win.print(); }, 250); };
 	}
 
 });
@@ -507,7 +605,7 @@ function ccsTokenize($text){
 	$text = preg_replace('/[^a-z0-9\s]/',' ',$text);
 	$tokens = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
 	static $stop = array('the'=>1,'a'=>1,'an'=>1,'and'=>1,'or'=>1,'of'=>1,'to'=>1,'in'=>1,'on'=>1,'at'=>1,
-		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
+		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'not'=>1,'failure'=>1,'train'=>1,'trains'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
 		'as'=>1,'be'=>1,'been'=>1,'are'=>1,'it'=>1,'its'=>1,'has'=>1,'had'=>1,'have'=>1,'per'=>1,
 		'am'=>1,'pm'=>1,'hrs'=>1,'nb'=>1,'sb'=>1);
 	$out=array();

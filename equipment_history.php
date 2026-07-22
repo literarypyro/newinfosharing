@@ -112,11 +112,8 @@ for($i=0;$i<$nm;$i++){
         <td><?php echo $row['duration']; ?></td>
 
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
-		<td>
-		<a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
-		</td>
+		<td><a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
 		<td><?php echo $row['description']; ?></td>
-	
 	</tr>
 <?php
 }
@@ -139,20 +136,11 @@ for($i=0;$i<$nm;$i++){
 	<tr>
 		<td><?php echo $row['index_no']; ?></td>
 		<td><?php echo date("Y-m-d",strtotime($row['incident_date']));  ?></td>
-		
+		<td>&nbsp;</td>
+		<td><?php echo isset($row['duration']) ? $row['duration'] : '&nbsp;'; ?></td>
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
-		
-		<td>
-		
-		
-		<a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
-
-		
-		
-		
-		</td>
+		<td><a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
 		<td><?php echo $row['description']; ?></td>
-	
 	</tr>
 <?php
 
@@ -194,16 +182,19 @@ function ehGroupSeverity(&$monthlyByLevel,&$levelSet,$rs){
 	}
 }
 
+//." ".$levelClause
+
+
 $sevInternalSql = "select date_format(incident_date,'%Y-%m') as mo, level as lvl, count(*) as cnt
                    from incident_union
-                   where equipt='".$_GET['equipt']."' ".$chartDateClause." ".$levelClause."
+                   where equipt='".$_GET['equipt']."' ".$chartDateClause."
                    group by mo, lvl";
 ehGroupSeverity($monthlyByLevel,$levelSet,$db->query($sevInternalSql));
 
 $sevExternalSql = "select date_format(incident_date,'%Y-%m') as mo, level as lvl, count(*) as cnt
                    from incident_union
                    inner join external.incident_defects on incident_union.id=external.incident_defects.incident_id
-                   where external.incident_defects.equipt_id='".$_GET['equipt']."' ".$chartDateClause." ".$levelClause."
+                   where external.incident_defects.equipt_id='".$_GET['equipt']."' ".$chartDateClause."
                    group by mo, lvl";
 ehGroupSeverity($monthlyByLevel,$levelSet,$db->query($sevExternalSql));
 
@@ -218,7 +209,7 @@ $carRows = array();
 $carSql = "select incident_cars.car_no as car_no, count(*) as cnt
            from incident_cars
            inner join incident_union on incident_cars.incident_id = incident_union.id
-           where incident_union.equipt = '".$_GET['equipt']."' ".$chartDateClause." ".$levelClause."
+           where incident_union.equipt = '".$_GET['equipt']."' ".$chartDateClause."
            group by incident_cars.car_no
            order by cnt desc";
 $carRs = $db->query($carSql);
@@ -402,38 +393,149 @@ $(function(){
 		});
 	}
 
+	// DataTables removes off-page rows from the DOM, so reading the live
+	// table's outerHTML only ever captures the current page. Rebuild a full
+	// copy from the DataTables API instead.
+	//
+	// Two APIs to handle: isDataTable()/.DataTable() only exist in 1.10+.
+	// This template ships an older DataTables (TableTools is a 1.9-era
+	// plugin), where the equivalent is fnGetNodes() — it returns every row
+	// node regardless of pagination. bRetrieve:true asks 1.9 for the
+	// EXISTING instance rather than re-initialising (which is what throws
+	// "Cannot reinitialise DataTable").
+	function ehFullTableHtml(){
+		var el   = document.getElementById('add_form');
+		var $el  = $(el);
+		var rows = null;
+
+		try{
+			// DataTables 1.10+
+			if($.fn.dataTable && $.fn.dataTable.isDataTable && $.fn.dataTable.isDataTable('#add_form')){
+				rows = $('#add_form').DataTable()
+				         .rows({ search:'applied', order:'applied' })
+				         .nodes().toArray();
+			}
+			// DataTables 1.9 (this template)
+			else if($.fn.dataTable){
+				rows = $el.dataTable({ bRetrieve:true }).fnGetNodes();
+			}
+		}catch(e){ rows = null; }
+
+		// Temporary diagnostic — delete once print is confirmed working.
+		console.log('print capture — rows found:', rows ? rows.length : 0);
+
+		if(!rows || !rows.length) return { html: el.outerHTML, count: $el.find('tbody tr').length };
+
+		var $clone = $el.clone();
+		var $tbody = $clone.find('tbody').empty();
+		$.each(rows, function(i, node){ $tbody.append($(node).clone()); });
+
+		// Strip DataTables' runtime artifacts — inline widths, sort classes
+		// and ARIA attributes — so the print stylesheet has full control.
+		$clone.removeAttr('style').removeAttr('width').removeClass('dataTable');
+		$clone.find('th, td').removeAttr('style').removeAttr('width');
+		$clone.find('th').removeAttr('class').removeAttr('aria-label')
+		      .removeAttr('aria-sort').removeAttr('tabindex').removeAttr('role');
+		$clone.find('tr').removeAttr('class').removeAttr('role');
+
+		return { html: $clone[0].outerHTML, count: rows.length };
+	}
+
 	function ehPrintWithCharts(){
 		var imgCars   = document.getElementById('ehCars').toDataURL('image/png');
 		var imgTrend  = document.getElementById('ehTrend').toDataURL('image/png');
-		var tableHtml = document.getElementById('add_form').outerHTML;
+		var captured  = ehFullTableHtml();
+		var tableHtml = captured.html;
+		var rowCount  = captured.count;
 
 		var win = window.open('', '_blank');
 		win.document.write(
-			'<html><head><title><?php echo htmlspecialchars($equipment_name); ?> — Equipment History</title>' +
+			'<html><head><title><?php echo htmlspecialchars($equipment_name); ?> — Equipment Incident History</title>' +
 			'<style>' +
-				'body{font-family:Arial,sans-serif;margin:24px;color:#111;}' +
-				'h1{font-size:16px;margin:0 0 2px;}' +
-				'.sub{font-size:11px;color:#555;margin:0 0 4px;}' +
-				'.chartnote{font-size:10px;color:#777;font-style:italic;margin:0 0 16px;}' +
-				'.charts{display:flex;flex-direction:column;gap:14px;margin-bottom:20px;}' +
-				'.charts img{border:0.5px solid #ddd;max-width:460px;}' +
-				'table{width:100%;border-collapse:collapse;font-size:11px;}' +
-				'th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;}' +
-				'a{color:inherit;text-decoration:none;pointer-events:none;}' +
+				// --- page setup -------------------------------------------
+				'@page{ size:A4 portrait; margin:14mm 12mm 15mm; }' +
+				'*{ box-sizing:border-box; }' +
+				'body{ font-family:"Segoe UI",Arial,Helvetica,sans-serif; color:#1a1a1a; margin:0;' +
+					' font-size:11px; line-height:1.45;' +
+					' -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
+
+				// --- masthead ---------------------------------------------
+				'.rpt-head{ border-bottom:2px solid #1f4e79; padding-bottom:9px; margin-bottom:4px; }' +
+				'.rpt-org{ font-size:8.5px; letter-spacing:.15em; text-transform:uppercase;' +
+					' color:#6b7280; margin-bottom:3px; }' +
+				'.rpt-title{ font-size:19px; font-weight:600; color:#1f4e79; margin:0 0 1px; }' +
+				'.rpt-subject{ font-size:12.5px; color:#374151; margin:0; }' +
+				'.rpt-meta{ margin:8px 0 0; font-size:9.5px; color:#4b5563; }' +
+				'.rpt-meta span{ margin-right:20px; white-space:nowrap; }' +
+				'.rpt-meta b{ color:#1f2937; font-weight:600; }' +
+
+				// --- section headings -------------------------------------
+				'h2.sec{ font-size:11px; text-transform:uppercase; letter-spacing:.09em;' +
+					' color:#1f4e79; border-bottom:1px solid #d1d5db; padding-bottom:4px;' +
+					' margin:20px 0 10px; font-weight:600; }' +
+
+				// --- charts -----------------------------------------------
+				'.charts{ page-break-inside:avoid; }' +
+				'.chart{ display:inline-block; vertical-align:top; margin:0 14px 12px 0; }' +
+				'.chart img{ display:block; border:1px solid #e5e7eb; }' +
+				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
+				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
+
+				// --- table ------------------------------------------------
+				'.tbl-head{ margin-bottom:6px; }' +
+				'.tbl-head h3{ font-size:13px; font-weight:600; margin:0; display:inline-block; }' +
+				'.tbl-head .count{ font-size:9.5px; color:#6b7280; margin-left:8px; }' +
+				'table{ width:100%; border-collapse:collapse; font-size:9.5px; }' +
+				'thead{ display:table-header-group; }' +   // repeat header on every page
+				'th{ background:#1f4e79; color:#fff; text-align:left; padding:6px 7px;' +
+					' font-size:9px; font-weight:600; text-transform:uppercase;' +
+					' letter-spacing:.04em; border:1px solid #1f4e79; }' +
+				'td{ padding:5px 7px; border:1px solid #e5e7eb; vertical-align:top; }' +
+				'tbody tr:nth-child(even) td{ background:#f6f8fa; }' +
+				'tr{ page-break-inside:avoid; }' +
+				'a{ color:inherit; text-decoration:none; pointer-events:none; }' +
+
+				// --- footer -----------------------------------------------
+				'.rpt-foot{ margin-top:14px; border-top:1px solid #d1d5db; padding-top:6px;' +
+					' font-size:8.5px; color:#6b7280; }' +
 			'</style></head><body>' +
-			'<h1><?php echo htmlspecialchars($equipment_name); ?> — Equipment History</h1>' +
-			'<div class="sub">Printed <?php echo date("Y-m-d H:i"); ?> &nbsp;·&nbsp; Table: <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "all records"; ?><?php echo isset($_GET["level"]) ? " (level ".htmlspecialchars($_GET["level"]).")" : ""; ?></div>' +
-			'<div class="chartnote">Charts below cover all of <?php echo ($chartYear !== "") ? htmlspecialchars($chartYear) : "available records"; ?>, not just the filtered month — the wider window is needed for the by-car and severity views to be meaningful.</div>' +
+
+			'<div class="rpt-head">' +
+				'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
+				'<h1 class="rpt-title">Equipment Incident History</h1>' +
+				'<p class="rpt-subject"><?php echo htmlspecialchars($equipment_name); ?></p>' +
+			'</div>' +
+			'<div class="rpt-meta">' +
+				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
+				'<?php echo isset($_GET["level"]) ? "<span><b>Severity:</b> Level ".htmlspecialchars($_GET["level"])."</span>" : ""; ?>' +
+				'<span><b>Records:</b> ' + rowCount + '</span>' +
+				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
+			'</div>' +
+
+			'<h2 class="sec">Summary</h2>' +
 			'<div class="charts">' +
-				'<img src="' + imgCars + '">' +
-				'<img src="' + imgTrend + '">' +
+				'<div class="chart"><img src="' + imgCars + '">' +
+					'<div class="cap">Figure 1 &mdash; Incidents by car</div></div>' +
+				'<div class="chart"><img src="' + imgTrend + '">' +
+					'<div class="cap">Figure 2 &mdash; Severity mix over time</div></div>' +
+				'<p class="note">Charts cover all of <?php echo ($chartYear !== "") ? htmlspecialchars($chartYear) : "available records"; ?>, a wider window than the filtered table below, so the by-car and severity views carry enough data to read.</p>' +
+			'</div>' +
+
+			'<h2 class="sec">Incident Records</h2>' +
+			'<div class="tbl-head">' +
+				'<h3><?php echo htmlspecialchars($equipment_name); ?> &mdash; incident log</h3>' +
+				'<span class="count">' + rowCount + ' record' + (rowCount === 1 ? '' : 's') + '</span>' +
 			'</div>' +
 			tableHtml +
+
+			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 			'</body></html>'
 		);
 		win.document.close();
 		win.focus();
-		win.onload = function(){ win.print(); };
+		// Data-URL images occasionally decode after onload; the short delay
+		// keeps the charts from printing blank.
+		win.onload = function(){ setTimeout(function(){ win.print(); }, 250); };
 	}
 
 });
