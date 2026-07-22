@@ -608,12 +608,28 @@ for($i=0;$i<=$difference;$i++){
 
 	$start_date1=date("Y-m-d",strtotime($yy."-".$mon."-01"));
 	$end_date1=date("Y-m-d",strtotime($yy2."-".$mon2."-".$date_limit));
-	$level=2;
+	
+	
+	if(isset($_POST['level'])){
+		$level=$_POST['level'];
+	}
+	else {
+		$level=2;
+	}
 	
 	
 	
-	
-	$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
+	// Counts INCIDENT-CAR PAIRS, not incidents: the incident_cars join means an
+	// incident affecting three cars contributes three. This is what makes the
+	// figures here reconcile with equipment_cars_stats.php, which has always
+	// counted per car. Without the join this page counted one per incident and
+	// the two reports could never agree.
+	$sql="select incident_report.equipt as equipt, count(1) as equipt_count
+	       from incident_report
+	       inner join incident_cars on incident_report.id=incident_cars.incident_id
+	       where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
+	         and incident_report.equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
+	       group by incident_report.equipt";
 	if($i==1){
 	}
 	$rs=$db->query($sql);
@@ -630,7 +646,14 @@ for($i=0;$i<=$difference;$i++){
 	}
 
 
-	$sql="select *,count(1) as equipt_count from incident_report inner join is_external.incident_defects on incident_report.id=is_external.incident_defects.incident_id where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59' and is_external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt_id"; 
+	// Same pair-counting rule for the external defect rows.
+	$sql="select is_external.incident_defects.equipt_id as equipt_id, count(1) as equipt_count
+	       from incident_report
+	       inner join is_external.incident_defects on incident_report.id=is_external.incident_defects.incident_id
+	       inner join incident_cars on incident_report.id=incident_cars.incident_id
+	       where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
+	         and is_external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
+	       group by is_external.incident_defects.equipt_id"; 
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
 	if($i==1){

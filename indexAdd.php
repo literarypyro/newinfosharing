@@ -1,5 +1,5 @@
 <?php
-require("trans menu.php");
+require("Tmenu.php");
 ?>
 <!DOCTYPE html>
 <html>
@@ -324,8 +324,9 @@ body.DBody {
 
 <body class="DBody">      
 <div class="cf-page">
+<!--
     <a class="cf-back" href="train_operations.php">&#8592; Back to Main Menu</a>
-
+-->
     <table id="dg" title="Transport Employees" class="easyui-datagrid" style="width:100%;height:350px"
             url="get_users.php" 
             toolbar="#toolbar" pagination="true"

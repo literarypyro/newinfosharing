@@ -1,5 +1,5 @@
 <?php
-require("trans menu.php");
+require("Tmenu.php");
 global $PCmb;
 ?>
 <!--- Author by Jun
@@ -331,8 +331,9 @@ body.DBody {
 
 <body class="DBody">      
 <div class="cf-page">
+<!--
     <a class="cf-back" href="train_operations.php">&#8592; Back to Main Menu</a>
-
+-->
     <table id="dg" title="Transport Users" class="easyui-datagrid" style="width:100%;height:350px"
             url="get_Tusers.php" 
             toolbar="#toolbar" pagination="true"

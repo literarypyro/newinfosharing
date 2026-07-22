@@ -65,6 +65,26 @@ $identify_row=$identify_rs->fetch_assoc();
 
 $equipment_name=$identify_row['equipment_name'];
 
+// ---- Two counts, both stated on screen rather than left to be inferred ----
+// This page's table is an incident LOG: one row per incident, which is right
+// for something you read line by line. The summary and per-car reports count
+// incident-CAR pairs — an incident affecting three cars counts three times.
+// Neither is wrong, but a reader holding both reports needs to see why the
+// numbers differ, so both are shown in the header and the printout.
+//
+// Both counts use the table's own filter, not the wider chart window.
+$ehIncidents = 0;
+$ehPairs     = 0;
+
+$cq = $db->query("select count(*) as c from incident_union ".$initialClause." ".$dateClause." ".$levelClause);
+if($cq && ($cr = $cq->fetch_assoc())) $ehIncidents = (int)$cr['c'];
+
+$cq = $db->query("select count(*) as c
+                  from incident_cars
+                  inner join incident_union on incident_cars.incident_id = incident_union.id
+                  where incident_union.equipt = '".$_GET['equipt']."' ".$dateClause." ".$levelClause);
+if($cq && ($cr = $cq->fetch_assoc())) $ehPairs = (int)$cr['c'];
+
 $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelClause." order by incident_date desc";
 
 
@@ -77,6 +97,12 @@ $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelCl
 <div class="ccs-header">
 <h1 style='font-size:28px; font-weight:bold;'><?php echo $equipment_name; ?> - Equipment History</h1>
 	<div class="sub">Combined current &amp; legacy incident records &mdash; Line 3</div>
+	<div class="sub" style="margin-top:4px;">
+		<b><?php echo $ehIncidents; ?></b> incident<?php echo $ehIncidents==1?'':'s'; ?> listed
+		&nbsp;&middot;&nbsp;
+		<b><?php echo $ehPairs; ?></b> car-level failure<?php echo $ehPairs==1?'':'s'; ?>
+		<span style="opacity:.75;">&mdash; one incident can affect several cars, so the summary and per-car reports show the larger figure</span>
+	</div>
 </div>
 <div class="ccs-panel">
 <div class="ccs-panel-head"><h3>Incident History</h3></div>
@@ -342,7 +368,7 @@ $(function(){
 				indexAxis: 'y', responsive: false, animation: false,
 				layout: { padding: { right: 22, bottom: tailCars.length ? 26 : 4 } },
 				plugins: {
-					title: { display: true, text: 'Incidents by car — top ' + TOP_CARS, color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 10 } },
+					title: { display: true, text: 'Car-level failures by car — top ' + TOP_CARS, color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 10 } },
 					legend: { display: false },
 					tooltip: { callbacks: { label: function(c){ return c.parsed.x + ' incidents'; } } }
 				},
@@ -508,16 +534,18 @@ $(function(){
 			'<div class="rpt-meta">' +
 				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
 				'<?php echo isset($_GET["level"]) ? "<span><b>Severity:</b> Level ".htmlspecialchars($_GET["level"])."</span>" : ""; ?>' +
-				'<span><b>Records:</b> ' + rowCount + '</span>' +
+				'<span><b>Incidents listed:</b> ' + rowCount + '</span>' +
+				'<span><b>Car-level failures:</b> <?php echo (int)$ehPairs; ?></span>' +
 				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 			'</div>' +
 
 			'<h2 class="sec">Summary</h2>' +
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + imgCars + '">' +
-					'<div class="cap">Figure 1 &mdash; Incidents by car</div></div>' +
+					'<div class="cap">Figure 1 &mdash; Car-level failures by car (counts each affected car)</div></div>' +
 				'<div class="chart"><img src="' + imgTrend + '">' +
 					'<div class="cap">Figure 2 &mdash; Severity mix over time</div></div>' +
+				'<p class="note">This log lists one row per incident. The summary and per-car reports count incident-car failures &mdash; an incident affecting several cars counts once against each &mdash; which is why their totals are larger. Both figures for this view are given above.</p>' +
 				'<p class="note">Charts cover all of <?php echo ($chartYear !== "") ? htmlspecialchars($chartYear) : "available records"; ?>, a wider window than the filtered table below, so the by-car and severity views carry enough data to read.</p>' +
 			'</div>' +
 
