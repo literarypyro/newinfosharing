@@ -3,37 +3,22 @@ require("Tmenu.php");
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
 <?php
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
+	/* Centralized credentials -- see db_config.php. This page used to carry a
+	   hardcoded new mysqli(...) line, which put the DB password in the page
+	   source; iss_db() is the same accessor the rest of the console uses. */
+	require_once("db_config.php");
+	$db=iss_db('external');
 ?>
 <!--
 <link href="css/modal_only.css" rel="stylesheet" />
 -->
 
+<!-- The font-awesome / bootstrap / style / retina / dataTables stylesheet
+     links that used to sit here are emitted by history_theme.php (included
+     below), byte-identical. Keeping a second copy here just fetched every
+     one of them twice, so they have been dropped and the include is now the
+     single source -- same arrangement as the other console pages. -->
 
-
-
-
-<link href="css/font-awesome.min.css" rel="stylesheet">
-	<link href="css/bootstrap.min.css" rel="stylesheet" />
-	<link href="css/bootstrap-responsive.min.css" rel="stylesheet" />
-	<link href="css/style.min.css" rel="stylesheet" />
-	<link href="css/style-responsive.min.css" rel="stylesheet" />
-	<link href="css/retina.css" rel="stylesheet" />
-	<link rel="stylesheet" type="text/css" href="css/dataTables.tableTools.css">
-
-
-
-
-
-
-
-
-<!-- <link href="css/style.min.css" rel="stylesheet" /> -->
-<!--
-<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
-<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
-<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
--->
 <style type='text/css'>
 
 /* color background */
@@ -102,15 +87,25 @@ input[type="text"]:focus {
 
 }
 
+/* ---------------------------------------------------------------------------
+   The six rules below are commented out rather than deleted, per the usual
+   practice on these pages.
+
+   They are the only legacy rules on this page that still match live elements,
+   and they outrank the shared theme: #add_form td:nth-child(odd) carries an
+   id + a pseudo-class, so it beats history_theme.php's plainer #add_form
+   selectors and repainted the modal's label cells bright green, the field
+   cell periwinkle, and the heading cyan -- with the textarea itself blue,
+   turning dark red on focus. Everything else in this block (.rowClass,
+   .rowHeading, .train_ava, #cellHeading, input[type=text], select, a.two,
+   a.two2, a.LDel, .date, h2) matches nothing on this page and is left exactly
+   as it was. Replacement chrome, in --cf-* tokens, is in the page-specific
+   block after the theme include.
+
 textarea:focus {
 	background-color:rgb(158,27,32);
 	color:white;
 	font-weight:bold;
-}
-
-.date {
-	text-style:bold;
-	font-size:20px;
 }
 
 textarea{ 
@@ -139,6 +134,12 @@ background-color:white;
 background-color: rgb(185, 201, 254);  
 border:1px solid #4ad;
 }
+   --------------------------------------------------------------------------- */
+
+.date {
+	text-style:bold;
+	font-size:20px;
+}
 
 select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; } 
 
@@ -153,10 +154,111 @@ a.LDel:visited {color:red;}
 </style>
 <?php include("history_theme.php"); ?>
 
+<style type="text/css">
+/* =============================================================================
+   PREENCODED DETAILS (details_list.php) -- page-specific chrome
+   Sits after history_theme.php so it layers on top of the shared --cf-*
+   tokens, matching how equipment_list.php / signatories_list.php are built.
+   ============================================================================= */
+
+/* -- Shared modal visibility guard ------------------------------------------
+   modal_only.css / bootstrap hold .modal out of the page with the .hide class
+   alone -- nothing sets display:none on the modal itself. Whenever .hide isn't
+   holding, the modal is still a fixed, centered slab sitting invisibly over
+   the page, swallowing hover and clicks on the nav bar above it. This is the
+   same id-level guard already applied to equipment_list, signatories_list and
+   edit_ccdr; Bootstrap's inline display:block on open still overrides it, so
+   opening the modal is unaffected. -- */
+#addModal { display: none; }
+#addModal.in { display: block; }
+
+/* -- Panel head: title + primary action, same pill-button language used
+   for primary actions across the console (gold fill on the blue bar, as
+   in train_operations.php's .ops-act--gold). ccs-panel-head itself is
+   defined by history_theme.php; this just adds the flex layout and the
+   button skin for the "Add Details" action. -- */
+.ccs-panel-head { display: flex; align-items: center; justify-content: space-between; }
+.ccs-panel-head .cf-btn-add {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-family: var(--cf-sans);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: .2px;
+	text-decoration: none;
+	color: var(--cf-gold-ink);
+	background: var(--cf-gold);
+	border: 1px solid var(--cf-gold);
+	border-radius: 4px;
+	padding: 5px 12px;
+	cursor: pointer;
+}
+.ccs-panel-head .cf-btn-add:hover { background: #E5A50F; border-color: #E5A50F; color: var(--cf-gold-ink); text-decoration: none; }
+
+/* -- Add-details modal form -- */
+#addModal .modal-header { background: var(--cf-blue); border-bottom: 3px solid var(--cf-gold); border-radius: 6px 6px 0 0; }
+#addModal .modal-header h3 { color: #fff; font-size: 13px; font-weight: 600; margin: 0; }
+#addModal .modal-header .close { color: rgba(255,255,255,.7); text-shadow: none; opacity: 1; font-size: 18px; }
+#addModal .modal-header .close:hover { color: var(--cf-gold); }
+#addModal .modal-body { background: var(--cf-bg); }
+
+#add_form table { width: 100%; border-collapse: collapse; }
+#add_form th {
+	background: var(--cf-blue);
+	color: #fff;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .3px;
+	text-align: left;
+	padding: 7px 10px;
+}
+#add_form td {
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--cf-border);
+	font-size: 12px;
+	vertical-align: top;
+}
+#add_form td:first-child {
+	background: var(--cf-row-odd);
+	color: var(--cf-mid);
+	font-weight: 600;
+	width: 90px;
+	white-space: nowrap;
+}
+#add_form textarea {
+	width: 100%;
+	border: 1px solid var(--cf-border);
+	border-radius: 3px;
+	background: var(--cf-white);
+	color: var(--cf-dark);
+	font-family: var(--cf-sans);
+	font-size: 12px;
+	padding: 6px 8px;
+}
+#add_form textarea:focus {
+	outline: none;
+	border-color: var(--cf-blue);
+	background: var(--cf-white);
+	color: var(--cf-dark);
+	box-shadow: 0 0 0 2px rgba(0,82,155,.12);
+}
+
+/* -- Details column reads as prose, not as a data cell -- */
+.ccs-panel .detail-text { white-space: pre-wrap; color: var(--cf-dark); }
+.ccs-panel td.detail-id { width: 60px; color: var(--cf-muted); text-align: center; }
+</style>
+
 <script language='javascript'>
-function addSignatory(){
+/* Named addSignatory() until now -- a copy-paste carryover from
+   signatories_list.php, which this page was cloned from. */
+function addDetails(){
 	$('#addModal').modal('show');
 }
+
+/* The datepicker below bound #as_of_date, which does not exist on this page
+   (another signatories_list carryover). jQuery treated it as an empty set and
+   did nothing; kept here commented in case a date filter is added later.
 
 $(function() {
     $( "#as_of_date" ).datepicker({
@@ -165,18 +267,25 @@ $(function() {
       showAnim: "bounce"
     });    
 });
+*/
 
 </script>
 
 <script language='javascript' src='ajax.js'></script>
 <?php
 if(isset($_POST['content'])){
-	$update="insert into preencoded";
-	//$update.="(code,content)";
-	$update.="(content)";
-	$update.=" values ";
-	$update.="(\"".$_POST['content']."\")";
-	$updateRS=$db->query($update);
+	/* Escaped before interpolation -- this insert previously concatenated
+	   $_POST['content'] straight into the statement. */
+	$content=trim($_POST['content']);
+	if($content!==""){
+		$content=$db->real_escape_string($content);
+		$update="insert into preencoded";
+		//$update.="(code,content)";
+		$update.="(content)";
+		$update.=" values ";
+		$update.="(\"".$content."\")";
+		$updateRS=$db->query($update);
+	}
 
 }
 ?>
@@ -189,14 +298,21 @@ $nm=$rs->num_rows;
 ?>
 
 <div class="ccs-page">
+
+<div class="ccs-header">
+	<h1>Preencoded Details</h1>
+	<div class="sub">Transport &middot; canned description text offered by the incident forms</div>
+</div>
+
 <div class="ccs-panel">
 <div class="ccs-panel-head">
-<a href='#' onclick='addSignatory()'>Add Details</a>
+<h3 style="margin:0;font-size:12px;font-weight:700;color:#fff;letter-spacing:.4px;text-transform:uppercase;">All Details</h3>
+<a href='#' class="cf-btn-add" onclick='addDetails()'>+ Add Details</a>
 </div>
 <div class="ccs-panel-body">
 
 
-<table width='80%' class='table table-striped table-bordered bootstrap-datatable datatable2'>
+<table width='100%' class='table table-striped table-bordered bootstrap-datatable datatable2'>
 	<thead>
 	<tr>
 		<th>ID</th>
@@ -215,8 +331,8 @@ for($i=0;$i<$nm;$i++){
 	
 ?>
 	<tr>	
-		<td><?php echo $row['id']; ?></td>
-		<td><?php echo $details; ?></td>
+		<td class="detail-id"><?php echo $row['id']; ?></td>
+		<td class="detail-text"><?php echo htmlspecialchars($details, ENT_QUOTES, 'UTF-8'); ?></td>
 	</tr>
 <?php
 
@@ -232,8 +348,8 @@ for($i=0;$i<$nm;$i++){
 
 		<div class="modal hide fade" id="addModal">
 			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal">×</button>
-				<h3>Edit</h3>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+				<h3>Add Preencoded Detail</h3>
 				</div>
 				<form  action='details_list.php' method='post'>
 
@@ -268,7 +384,7 @@ for($i=0;$i<$nm;$i++){
 						
 			<div class="modal-footer">
 				<a href="#" class="btn" data-dismiss="modal">Close</a>
-				<button type='submit' class="btn btn-primary" id='Suc' value='Submit'>Edit </button>
+				<button type='submit' class="btn btn-primary" id='Suc' value='Submit'>Save</button>
 			</div>
 			  </form>
 		</div>

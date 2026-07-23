@@ -1,6 +1,14 @@
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
+// Which periods the console actually holds records for. This log can jump
+// across a gap with nothing on the page explaining why — a reader would
+// reasonably take the silence for "nothing happened" rather than "the records
+// are missing". See data_coverage.php.
+require_once("data_coverage.php");
+$coverage = ccsLoadCoverage($db);
+$coverageNote = ccsCoverageNote($coverage);
+
 // The personnel name arrives from the search form (POST). Guard the read so a
 // plain GET load doesn't raise a notice, and keep the display value separate
 // from the escaped value used in the query.
@@ -59,6 +67,9 @@ if($hasSearch){
 <div class="ccs-header">
 	<h1>Incident History &mdash; By Personnel</h1>
 	<div class="sub">Search incidents by reporting personnel &mdash; Line 3</div>
+<?php if($coverageNote !== ''){ ?>
+	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
+<?php } ?>
 </div>
 
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
@@ -258,6 +269,7 @@ foreach($termCounts as $t=>$c){
 </div>
 
 <script>
+var tdCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
 // Aggregates from the same query as the table above.
 var tdPersonName = <?php echo json_encode($reportedBy); ?>;
 var tdHasSearch  = <?php echo $hasSearch ? 'true' : 'false'; ?>;
@@ -714,6 +726,7 @@ $(function(){
 					'<div class="cap">Figure 3 &mdash; When reported incidents occur</div></div>' +
 				'<div class="chart"><img src="' + imgTerms + '">' +
 					'<div class="cap">Figure 4 &mdash; Recurring words in descriptions</div></div>' +
+				(tdCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+tdCoverageNote+'</p>' : '') +
 				'<p class="note">Counts reflect incidents this person filed. They describe reporting coverage and shift pattern, not individual performance &mdash; volume depends heavily on roster, assigned area and shift. Figure 2 shows recorded problem types only; Figure 4 counts words appearing in the descriptions themselves and does not assign a category.</p>' +
 			'</div>' +
 
@@ -766,7 +779,7 @@ function ccsTokenize($text){
 	$text = preg_replace('/[^a-z0-9\s]/',' ',$text);
 	$tokens = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
 	static $stop = array('the'=>1,'a'=>1,'an'=>1,'and'=>1,'or'=>1,'of'=>1,'to'=>1,'in'=>1,'on'=>1,'at'=>1,
-		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'not'=>1,'failure'=>1,'train'=>1,'trains'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
+		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
 		'as'=>1,'be'=>1,'been'=>1,'are'=>1,'it'=>1,'its'=>1,'has'=>1,'had'=>1,'have'=>1,'per'=>1,
 		'am'=>1,'pm'=>1,'hrs'=>1,'nb'=>1,'sb'=>1);
 	$out=array();

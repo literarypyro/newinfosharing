@@ -1,3 +1,31 @@
+<?php
+// ---------------------------------------------------------------------------
+// Loaded FIRST, before any markup. ccsCoverageCss() is echoed inside the <head>
+// style block far above the database connection, so loading the helper down
+// there meant the call happened while the function did not yet exist — a fatal
+// error inside <head>, which is why this page rendered completely blank.
+// ---------------------------------------------------------------------------
+// Which months the console actually has records for — see data_coverage.php.
+// Load the coverage helper if it is present. If data_coverage.php has not been
+// uploaded yet, fall back to stubs that report every month as covered — the
+// page then behaves exactly as it did before the helper existed, instead of
+// dying on a failed require and rendering a blank page.
+//
+// dirname(__FILE__) rather than a bare relative path: a bare path resolves
+// against the include_path and working directory, not the script's own folder.
+if(file_exists(dirname(__FILE__)."/data_coverage.php")){
+	require_once(dirname(__FILE__)."/data_coverage.php");
+}
+if(!function_exists('ccsLoadCoverage')){
+	function ccsLoadCoverage($db){ return array(); }
+	function ccsMonthStatus($coverage,$ym){ return 'covered'; }
+	function ccsMonthIsMissing($coverage,$ym){ return false; }
+	function ccsCoverageCell($status,$note=''){ return ''; }
+	function ccsCoverageCss(){ return ''; }
+	function ccsCoverageNote($coverage,$prefix=''){ return ''; }
+	function ccsUncoveredMonths($coverage,$f,$t){ return array(); }
+}
+?>
 <!--- Modified by Jun
 //--- Date: 8/6/2014
 //--- Modify: screen layout
@@ -88,6 +116,7 @@ a.two { color:#00529B; font-weight:600; text-decoration:none; }
 a.two:visited {color:#00529B;}
 a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
+<?php echo ccsCoverageCss(); ?>
 .stat_hover:hover {
 	background-color:#FFF1CC;
 	text-decoration:underline;
@@ -148,6 +177,8 @@ $(function() {
 
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+
+$coverage = ccsLoadCoverage($db);
 $sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
 
 //$sql="select * from equipment where type='RS' order by equipment_name";
@@ -234,14 +265,19 @@ else {
 </table>
 </form>
 	</td>
+	
 	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
+	<?php
+	/**
 
 <a href='#' class="btn-generate" onclick='window.open("generate_statistics_report.php?sd=<?php echo date("Y-m-d",strtotime($_POST['search_date2'])); ?>&ed=<?php echo date("Y-m-d",strtotime($_POST['search_date'])); ?>&range=<?php echo $_POST['range']; ?>&level=<?php echo $level; ?>");'><b>Generate Printout</b></a>
 
 
+	*/ ?>
 
 
 	</td>
+	
 </tr>
 </table>
 
@@ -719,7 +755,17 @@ foreach($equipt as $e){ if($e['total'] > 0) $equiptTotals[] = array($e['equipmen
 usort($equiptTotals, function($a,$b){ return $b[1]-$a[1]; });
 
 $monthSeries = array();
-foreach($monthKeys as $mi => $mk){ $monthSeries[] = array($monthNames[$mi], (int)$monthTotals[$mi]); }
+$uncoveredMonths = array();
+foreach($monthKeys as $mi => $mk){
+	$mks = (string)$mk;
+	$ym  = substr($mks,0,4)."-".substr($mks,4,2);
+	if(ccsMonthStatus($coverage, $ym) === 'missing'){
+		$monthSeries[] = array($monthNames[$mi], null);   // null, not 0
+		$uncoveredMonths[] = $monthNames[$mi];
+	}
+	else { $monthSeries[] = array($monthNames[$mi], (int)$monthTotals[$mi]); }
+}
+$coverageNote = ccsCoverageNote($coverage);
 
 // Distinct incidents behind these car-level failures, on the same scope as the
 // aggregation above — stated so the relationship to the incident logs is
@@ -762,7 +808,12 @@ foreach($equipt as $i => $e){
 		$yy = substr((string)$mk, 0, 4);
 		$mon= substr((string)$mk, 4, 2);
 ?>
+<?php
+		if(ccsMonthStatus($coverage, $yy."-".$mon) === 'missing'){ echo ccsCoverageCell('missing'); }
+		else {
+?>
 	<td class='stat_hover' align=center><a href='#' style='text-decoration:none; color:<?php echo $v>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("equipment_history.php?equipt=<?php echo $e['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")'><?php echo $v; ?></a></td>
+<?php } ?>
 <?php
 	}
 ?>
@@ -781,7 +832,10 @@ if(!count($equipt)){
 <tfoot>
 <tr style="background:#F1EEE3;font-weight:700;">
 	<th style="text-align:left;">All equipment</th>
-<?php foreach($monthTotals as $mt){ ?>
+<?php foreach($monthTotals as $mi => $mt){
+	$mk = (string)$monthKeys[$mi];
+	if(ccsMonthStatus($coverage, substr($mk,0,4)."-".substr($mk,4,2)) === 'missing'){ echo ccsCoverageCell('missing'); continue; }
+?>
 	<td align=center><?php echo $mt; ?></td>
 <?php } ?>
 	<td align=center><?php echo $grandTotal; ?></td>
@@ -833,6 +887,9 @@ $tableHtml = ob_get_clean();
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	<span style="display:inline-block;width:11px;height:11px;background:#F9D6D6;border:1px solid #7A1F1F;vertical-align:-1px;"></span>
 	Shaded rows are equipment at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
+	<?php if($coverageNote !== ''){ ?>
+	<div style="margin-bottom:6px;color:#7A1F1F;"><?php echo htmlspecialchars($coverageNote); ?></div>
+	<?php } ?>
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
 	Click an equipment name for its per-car breakdown, or a monthly figure for that month's incident log.
 </div>
@@ -846,6 +903,8 @@ var srmGrandTotal   = <?php echo (int)$grandTotal; ?>;
 var srmIncidents    = <?php echo (int)$distinctIncidents; ?>;
 var srmActive       = <?php echo (int)$activeEquipt; ?>;
 var srmPeakName     = <?php echo json_encode($peakName); ?>;
+var srmUncovered    = <?php echo json_encode($uncoveredMonths); ?>;
+var srmCoverageNote = <?php echo json_encode($coverageNote); ?>;
 </script>
 </div>
 <br>
@@ -987,6 +1046,7 @@ var srmPeakName     = <?php echo json_encode($peakName); ?>;
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgEq+'"><div class="cap">Figure 1 &mdash; Car-level failures by equipment</div></div>' +
 				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by month, all equipment</div></div>' +
+				(srmCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+esc(srmCoverageNote)+'</p>' : '') +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+srmIncidents+' incidents produce '+srmGrandTotal+' car-level failures. This matches the per-car reports; the incident history logs count one row per incident and show the smaller figure. Shaded rows are equipment at or above 60% of the highest total.</p>' +
 			'</div>' +
 			'<h2 class="sec">Monthly Breakdown by Equipment</h2>' +

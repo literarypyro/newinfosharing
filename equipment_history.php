@@ -9,6 +9,14 @@
 // $_GET['equipt'], not car_id -- leftover from wherever this was
 // originally copied from).
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+
+// Which periods the console actually holds records for. This log can jump
+// across a gap with nothing on the page explaining why — a reader would
+// reasonably take the silence for "nothing happened" rather than "the records
+// are missing". See data_coverage.php.
+require_once("data_coverage.php");
+$coverage = ccsLoadCoverage($db);
+$coverageNote = ccsCoverageNote($coverage);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -97,6 +105,9 @@ $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelCl
 <div class="ccs-header">
 <h1 style='font-size:28px; font-weight:bold;'><?php echo $equipment_name; ?> - Equipment History</h1>
 	<div class="sub">Combined current &amp; legacy incident records &mdash; Line 3</div>
+<?php if($coverageNote !== ''){ ?>
+	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
+<?php } ?>
 	<div class="sub" style="margin-top:4px;">
 		<b><?php echo $ehIncidents; ?></b> incident<?php echo $ehIncidents==1?'':'s'; ?> listed
 		&nbsp;&middot;&nbsp;
@@ -251,6 +262,7 @@ if($carRs){ while($cr = $carRs->fetch_assoc()){ $carRows[] = array($cr['car_no']
 </div>
 
 <script>
+var ccsCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
 // Raw aggregates from the same query/filter as the table above.
 var ehMonthlyLevel = <?php echo json_encode($monthlyByLevel, JSON_FORCE_OBJECT); ?>;
 var ehLevels = <?php echo json_encode(array_values($ehLevels)); ?>;
@@ -545,6 +557,7 @@ $(function(){
 					'<div class="cap">Figure 1 &mdash; Car-level failures by car (counts each affected car)</div></div>' +
 				'<div class="chart"><img src="' + imgTrend + '">' +
 					'<div class="cap">Figure 2 &mdash; Severity mix over time</div></div>' +
+				(ccsCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+ccsCoverageNote+'</p>' : '') +
 				'<p class="note">This log lists one row per incident. The summary and per-car reports count incident-car failures &mdash; an incident affecting several cars counts once against each &mdash; which is why their totals are larger. Both figures for this view are given above.</p>' +
 				'<p class="note">Charts cover all of <?php echo ($chartYear !== "") ? htmlspecialchars($chartYear) : "available records"; ?>, a wider window than the filtered table below, so the by-car and severity views carry enough data to read.</p>' +
 			'</div>' +

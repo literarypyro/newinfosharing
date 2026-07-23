@@ -13,6 +13,26 @@
 //--------------------------------------------------->
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+
+// Which months the console actually has records for. A missing month and a
+// quiet month are both a zero on a chart; this keeps them distinguishable.
+//
+// Loaded defensively: if data_coverage.php has not been uploaded yet, the
+// stubs below report every month as covered and the page renders as it did
+// before the helper existed, rather than dying on a failed require.
+if(file_exists(dirname(__FILE__)."/data_coverage.php")){
+	require_once(dirname(__FILE__)."/data_coverage.php");
+}
+if(!function_exists('ccsLoadCoverage')){
+	function ccsLoadCoverage($db){ return array(); }
+	function ccsMonthStatus($coverage,$ym){ return 'covered'; }
+	function ccsMonthIsMissing($coverage,$ym){ return false; }
+	function ccsCoverageCell($status,$note=''){ return ''; }
+	function ccsCoverageCss(){ return ''; }
+	function ccsCoverageNote($coverage,$prefix=''){ return ''; }
+	function ccsUncoveredMonths($coverage,$f,$t){ return array(); }
+}
+$coverage = ccsLoadCoverage($db);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -176,11 +196,24 @@ $highestCount=0;   // was only defined inside if($nm>0), but used unconditionall
 
 $sql="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$year."-%%' group by incident_cars.car_no*1,month(incident_date)";
 
-// UNION (not UNION ALL) silently DROPPED a legacy row whenever it happened to
-// produce an identical (car_no, month, count) triple as the current database —
-// e.g. car 12 with 2 incidents in March on both sides collapsed to one row.
-$sql.=" union all ";
-$sql.="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM is_transport_old.incident_cars inner join is_transport_old.incident_report on is_transport_old.incident_cars.incident_id=is_transport_old.incident_report.id where incident_date like '".$year."-%%' group by incident_cars.car_no*1,month(incident_date)";
+// The is_transport_old half is GONE, and deliberately so.
+//
+// When is_transport was corrupted, is_transport_old's rows were restored INTO
+// it. A year-by-year count confirms the duplication: 2013-2018 are identical on
+// both sides (4808/4808, 5549/5549, 1880/1880, 2694/2694, 2290/2290; 2016
+// differs by a single row), and everything the old database holds for 2019 is a
+// subset of what the current one holds.
+//
+// Reading both therefore counts the same incident twice. The original UNION
+// hid that by de-duplicating identical (car_no, month, count) triples — which
+// is why the figures looked plausible — but it also dropped genuinely distinct
+// rows, and it broke down wherever the two sides disagreed by even one row.
+// UNION ALL, briefly used here, made the double counting explicit instead.
+//
+// With the old data already present in is_transport, the correct answer is to
+// read one database. If any pre-2019 incident is ever found that exists ONLY in
+// is_transport_old, restore it into is_transport rather than re-adding a query
+// half here.
 
 $rs=$db->query($sql);
 
@@ -250,9 +283,10 @@ for($k=1;$k<=12;$k++){
 ?>
 <tr style="background:#F1EEE3;font-weight:700;">
 	<th>All cars</th>
-<?php for($k=1;$k<=12;$k++){ 
+<?php for($k=1;$k<=12;$k++){
 		$grandTotal+=$monthTotals[$k];
-
+		$ym = sprintf("%04d-%02d", $year, $k);
+		if(ccsMonthStatus($coverage, $ym) === 'missing'){ echo ccsCoverageCell('missing'); continue; }
 ?>
 	<td align=center><?php echo $monthTotals[$k]; ?></td>
 <?php } ?>
@@ -288,22 +322,26 @@ $peakTotal=$peak[1];
 $peakCar=$peak[0];
 $monthSeries = array();
 $mn = array(1=>'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
-for($k=1;$k<=12;$k++){ $monthSeries[] = array($mn[$k], (int)$monthTotals[$k]); }
+$uncoveredMonths = array();
+for($k=1;$k<=12;$k++){
+	$ym = sprintf("%04d-%02d", $year, $k);
+	if(ccsMonthStatus($coverage, $ym) === 'missing'){
+		// null, not 0 — Chart.js draws nothing, and a footnote names the gap.
+		$monthSeries[] = array($mn[$k], null);
+		$uncoveredMonths[] = $mn[$k];
+	}
+	else { $monthSeries[] = array($mn[$k], (int)$monthTotals[$k]); }
+}
+$coverageNote = ccsCoverageNote($coverage);
 
 // Distinct incidents behind those car-level failures, across both databases.
 // The source tag keeps ids from the two schemas from colliding.
 $distinctIncidents = 0;
-$dq = $db->query("select count(*) as c from (
-                    select distinct incident_cars.incident_id as iid, 'cur' as src
-                      from incident_cars
-                      inner join incident_report on incident_cars.incident_id=incident_report.id
-                      where incident_date like '".$year."-%'
-                    union all
-                    select distinct is_transport_old.incident_cars.incident_id as iid, 'old' as src
-                      from is_transport_old.incident_cars
-                      inner join is_transport_old.incident_report on is_transport_old.incident_cars.incident_id=is_transport_old.incident_report.id
-                      where incident_date like '".$year."-%'
-                  ) t");
+// Single database — see the note above the main query.
+$dq = $db->query("select count(distinct incident_cars.incident_id) as c
+                    from incident_cars
+                    inner join incident_report on incident_cars.incident_id=incident_report.id
+                   where incident_date like '".$year."-%'");
 if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 ?>
 
@@ -344,6 +382,9 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This matches the basis used by the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure.
 	Covers all severity levels &mdash; this page has no level filter.
+	<?php if($coverageNote !== ''){ ?>
+	<div style="margin-top:6px;color:#7A1F1F;"><?php echo htmlspecialchars($coverageNote); ?></div>
+	<?php } ?>
 </div>
 
 <script>
@@ -354,6 +395,8 @@ var csrGrandTotal  = <?php echo (int)$grandTotal; ?>;
 var csrIncidents   = <?php echo (int)$distinctIncidents; ?>;
 var csrCarsAffected= <?php echo (int)$carsWithFailures; ?>;
 var csrPeakCar     = <?php echo (int)$peakCar; ?>;
+var csrUncovered   = <?php echo json_encode($uncoveredMonths); ?>;
+var csrCoverageNote= <?php echo json_encode($coverageNote); ?>;
 </script>
 <?php
 
@@ -436,15 +479,35 @@ function sortCar($count_a,$count_b){
 		c.fillText('No failures recorded for this year.', 0, 34);
 	}
 
+	// Uncovered months carry null, so Chart.js draws no bar at all. A null and
+	// a zero look identical on a bar chart, so the gap is also named in a
+	// footnote painted into the canvas — which survives the print handoff.
+	var monthGapNote = {
+		id:'csrMonthGap',
+		afterDraw:function(chart){
+			if(!csrUncovered.length) return;
+			var ctx=chart.ctx, area=chart.chartArea;
+			ctx.save(); ctx.font='10px Arial, sans-serif'; ctx.fillStyle='#7A1F1F';
+			ctx.textAlign='left'; ctx.textBaseline='top';
+			var y=chart.height-13;
+			ctx.strokeStyle=grid; ctx.lineWidth=1;
+			ctx.beginPath(); ctx.moveTo(area.left,y-5); ctx.lineTo(chart.width-8,y-5); ctx.stroke();
+			ctx.fillText('No data: '+csrUncovered.join(', ')+' — not zero failures', area.left, y);
+			ctx.restore();
+		}
+	};
+
 	new Chart(document.getElementById('csrByMonth'), {
 		type:'bar',
 		data:{ labels: csrMonthSeries.map(function(r){ return r[0]; }),
 		       datasets:[{ data: csrMonthSeries.map(function(r){ return r[1]; }), backgroundColor:'#00529B', borderRadius:3 }] },
 		options:{ responsive:false, animation:false,
+			layout:{ padding:{ bottom: csrUncovered.length ? 16 : 2 } },
 			plugins:{ title:{ display:true, text:'Car-level failures by month, whole fleet', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
 			scales:{ x:{ ticks:{ color:muted, font:{size:10} }, grid:{ display:false } },
 			         y:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } } }
-		}
+		},
+		plugins:[monthGapNote]
 	});
 
 	window.csrPrintReport = function(){
@@ -508,6 +571,7 @@ function sortCar($count_a,$count_b){
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgCar+'"><div class="cap">Figure 1 &mdash; Car-level failures by car</div></div>' +
 				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by month, whole fleet</div></div>' +
+				(csrCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+esc(csrCoverageNote)+'</p>' : '') +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+csrIncidents+' incidents produce '+csrGrandTotal+' car-level failures. This matches the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure. Covers all severity levels. Shaded rows are cars at or above 60% of the worst car total.</p>' +
 			'</div>' +
 			'<h2 class="sec">Monthly Breakdown by Car</h2>' +

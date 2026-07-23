@@ -17,8 +17,17 @@
 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
+// Which periods the console actually holds records for. This log can jump
+// across a gap with nothing on the page explaining why — a reader would
+// reasonably take the silence for "nothing happened" rather than "the records
+// are missing". See data_coverage.php.
+require_once("data_coverage.php");
+$coverage = ccsLoadCoverage($db);
+$coverageNote = ccsCoverageNote($coverage);
 
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport_old");
+
+	// $db2 (is_transport_old) is no longer opened — that database's rows were
+	// restored into is_transport, so nothing on this page reads it any more.
 
 
 $car_id=$_GET['car_id'];
@@ -52,6 +61,9 @@ else {
 <div class="ccs-header">
 	<h1>Car #<?php echo htmlspecialchars($car_id); ?> &mdash; Incident History</h1>
 	<div class="sub">Combined current &amp; legacy incident records &mdash; Line 3</div>
+<?php if($coverageNote !== ''){ ?>
+	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
+<?php } ?>
 </div>
 
 <div class="ccs-panel">
@@ -73,11 +85,17 @@ else {
     </thead>
     <tbody>
 <?php
-$sql="(select * from incident_cars inner join incident_union on incident_cars.incident_id=incident_union.id where incident_cars.car_no*1='".$car_id."' ".$dateClause." order by incident_date desc)";
-
-$sql.=" union ";
-
-$sql.="(select * from is_transport_old.incident_cars inner join is_transport_old.incident_union on is_transport_old.incident_cars.incident_id=is_transport_old.incident_union.id where is_transport_old.incident_cars.car_no*1='".$car_id."' ".$dateClause." order by incident_date desc)";
+// Single database. The is_transport_old half that used to be UNIONed in here
+// is gone: when is_transport was corrupted, the old database's rows were
+// restored INTO it, so reading both returned the same incident twice. The
+// UNION was hiding that by de-duplicating identical rows — which also meant it
+// silently dropped genuinely distinct ones.
+//
+// Verified before removing: every incident_no in is_transport_old.incident_union
+// is present in is_transport.incident_union, with nothing held only in the old
+// database. If a pre-2019 incident is ever found missing, restore it into
+// is_transport rather than re-adding a query half here.
+$sql="select * from incident_cars inner join incident_union on incident_cars.incident_id=incident_union.id where incident_cars.car_no*1='".$car_id."' ".$dateClause." order by incident_date desc";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
 
@@ -242,6 +260,7 @@ foreach($blankTerms as $t=>$c){
 </div>
 
 <script>
+var ccsCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
 // Raw aggregates from the same query/filter as the table above.
 var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts); ?>;
 var ccsProblemCounts = <?php echo json_encode($problemCounts); ?>;
@@ -724,6 +743,7 @@ $(function(){
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Leading equipment by incident count</div></div>' +
 				'<div class="chart"><img src="' + severityImg + '">' + '<div class="cap">Figure 3 &mdash; Equipment by severity level</div></div>' +
 				'<div class="chart"><img src="' + blankTermsImg + '">' + '<div class="cap">Figure 4 &mdash; Recurring words among incidents left unplaced</div></div>' +
+				(ccsCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+ccsCoverageNote+'</p>' : '') +
 				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified; Figure 4 counts words appearing in those descriptions and assigns no category. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
 			'</div>' +
 

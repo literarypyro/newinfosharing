@@ -5,6 +5,14 @@
 	if(session_status()===PHP_SESSION_NONE) session_start();
 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+
+// Which periods the console actually holds records for. This log can jump
+// across a gap with nothing on the page explaining why — a reader would
+// reasonably take the silence for "nothing happened" rather than "the records
+// are missing". See data_coverage.php.
+require_once("data_coverage.php");
+$coverage = ccsLoadCoverage($db);
+$coverageNote = ccsCoverageNote($coverage);
 $car_id=$_GET['car_id'];
 
 
@@ -32,6 +40,9 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 <div class="ccs-header">
 	<h1>Incident History &mdash; By Category</h1>
 	<div class="sub">Filtered by: <?php echo htmlspecialchars($problem ? getProblemType($db,$problem) : '—'); ?> &mdash; Line 3</div>
+<?php if($coverageNote !== ''){ ?>
+	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
+<?php } ?>
 </div>
 
 <div class="ccs-panel">
@@ -143,6 +154,7 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 </div>
 
 <script>
+var pvCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
 // Aggregates from the same query/filter as the table above.
 var pvProblemName = <?php echo json_encode($problemName); ?>;
 var pvMonthly = <?php echo json_encode($monthlyVolume, JSON_FORCE_OBJECT); ?>;
@@ -522,6 +534,7 @@ $(function(){
 				'<div class="chart"><img src="' + imgVolume + '">' + '<div class="cap">Figure 1 &mdash; Monthly volume</div></div>' +
 				'<div class="chart"><img src="' + imgTiming + '">' + '<div class="cap">Figure 2 &mdash; When incidents occur</div></div>' +
 				'<div class="chart"><img src="' + imgTerms + '">' + '<div class="cap">Figure 3 &mdash; Recurring words in descriptions</div></div>' +
+				(pvCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+pvCoverageNote+'</p>' : '') +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
@@ -567,7 +580,7 @@ function ccsTokenize($text){
 	$text = preg_replace('/[^a-z0-9\s]/',' ',$text);
 	$tokens = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
 	static $stop = array('the'=>1,'a'=>1,'an'=>1,'and'=>1,'or'=>1,'of'=>1,'to'=>1,'in'=>1,'on'=>1,'at'=>1,
-		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'not'=>1,'failure'=>1,'train'=>1,'trains'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
+		'is'=>1,'was'=>1,'were'=>1,'for'=>1,'with'=>1,'from'=>1,'by'=>1,'due'=>1,'that'=>1,'this'=>1,
 		'as'=>1,'be'=>1,'been'=>1,'are'=>1,'it'=>1,'its'=>1,'has'=>1,'had'=>1,'have'=>1,'per'=>1,
 		'am'=>1,'pm'=>1,'hrs'=>1,'nb'=>1,'sb'=>1);
 	$out=array();

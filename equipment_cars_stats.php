@@ -129,6 +129,56 @@ $init_start=$start_date;
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
+// One place knows how an incident links to equipment — junction table
+// (incident_equipt) where rows exist, legacy incident_report.equipt otherwise.
+// See the counting notes in that file: joining cars AND equipment produces a
+// cross product, so count(*) is no longer safe here and every aggregate below
+// uses an explicit count(distinct ...) instead.
+// Load the equipment-link helper if present. Without it, fall back to the
+// legacy 1:1 incident_report.equipt behaviour this page had before the
+// junction table existed — degraded, but not a blank page.
+if(file_exists(dirname(__FILE__)."/incident_equipment.php")){
+	require_once(dirname(__FILE__)."/incident_equipment.php");
+}
+if(!function_exists('ccsEquipmentLinkSql')){
+	function ccsEquipmentLinkSql($schema=''){
+		$p = ($schema!=='') ? $schema.'.' : '';
+		return "(select ir.id as incident_id, ir.equipt as equipt_id, null as subitem_id
+		           from {$p}incident_report ir
+		          where ir.equipt is not null and ir.equipt <> '')";
+	}
+	function ccsCountIncidents($a='el'){ return "count(distinct {$a}.incident_id)"; }
+	function ccsCountEquipmentFailures($a='el'){ return "count(distinct {$a}.incident_id, {$a}.equipt_id)"; }
+	function ccsCountCarFailures($a='ic'){ return "count(distinct {$a}.incident_id, {$a}.car_no)"; }
+	function ccsEquipmentMap($db){ $m=array(); $rs=@$db->query("select id, equipment_name from equipment");
+		if($rs){ while($r=$rs->fetch_assoc()){ if(trim($r['equipment_name'])!=='') $m[$r['id']]=$r['equipment_name']; } } return $m; }
+	function ccsSubitemMap($db){ return array(); }
+	function ccsIncidentEquipment($db,$ids,$eq,$sub=array(),$schema=''){ return array(); }
+	function ccsEquipmentLabel($items,$showSub=true){ return "<span style='opacity:.55;'>Unspecified</span>"; }
+}
+
+// Which months the console actually has records for — see data_coverage.php.
+// Load the coverage helper if it is present. If data_coverage.php has not been
+// uploaded yet, fall back to stubs that report every month as covered — the
+// page then behaves exactly as it did before the helper existed, instead of
+// dying on a failed require and rendering a blank page.
+//
+// dirname(__FILE__) rather than a bare relative path: a bare path resolves
+// against the include_path and working directory, not the script's own folder.
+if(file_exists(dirname(__FILE__)."/data_coverage.php")){
+	require_once(dirname(__FILE__)."/data_coverage.php");
+}
+if(!function_exists('ccsLoadCoverage')){
+	function ccsLoadCoverage($db){ return array(); }
+	function ccsMonthStatus($coverage,$ym){ return 'covered'; }
+	function ccsMonthIsMissing($coverage,$ym){ return false; }
+	function ccsCoverageCell($status,$note=''){ return ''; }
+	function ccsCoverageCss(){ return ''; }
+	function ccsCoverageNote($coverage,$prefix=''){ return ''; }
+	function ccsUncoveredMonths($coverage,$f,$t){ return array(); }
+}
+$coverage = ccsLoadCoverage($db);
+
 $sql="select * from equipment where id='$equipt_id'";
 $rs=$db->query($sql);
 $row=$rs->fetch_assoc();
@@ -156,20 +206,22 @@ $car_count = array();
 // visible rather than inferred: one incident affecting three cars shows as
 // 1 incident / 3 car-level failures.
 $distinctIncidents = 0;
-$dq = $db->query("select count(distinct incident_cars.incident_id) as c
-                  from incident_cars
-                  inner join incident_report on incident_cars.incident_id=incident_report.id
-                  where incident_report.equipt='".$equipt_id."' and level='".$level."'
+$dq = $db->query("select ".ccsCountIncidents('el')." as c
+                  from incident_cars ic
+                  inner join incident_report on ic.incident_id=incident_report.id
+                  inner join ".ccsEquipmentLinkSql()." el on el.incident_id=incident_report.id
+                  where el.equipt_id='".$equipt_id."' and level='".$level."'
                     and incident_date between '".$range_start." 00:00:00' and '".$range_end." 23:59:59'");
 if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 
-$sql = "select incident_cars.car_no as car_no
-        from incident_cars
-        inner join incident_report on incident_cars.incident_id=incident_report.id
-        where incident_report.equipt='".$equipt_id."' and level='".$level."'
+$sql = "select ic.car_no as car_no
+        from incident_cars ic
+        inner join incident_report on ic.incident_id=incident_report.id
+        inner join ".ccsEquipmentLinkSql()." el on el.incident_id=incident_report.id
+        where el.equipt_id='".$equipt_id."' and level='".$level."'
           and incident_date between '".$range_start." 00:00:00' and '".$range_end." 23:59:59'
-        group by incident_cars.car_no
-        order by incident_cars.car_no";
+        group by ic.car_no
+        order by ic.car_no";
 $rs = $db->query($sql);
 
 if($rs){
@@ -303,12 +355,16 @@ for($i=$start;$i<=$end;$i++){
 
 	
 	// Counts incident-car pairs, matching statistics_report_modified.php.
-	$sql="select incident_cars.car_no as car_no, count(1) as car_count
+	// count(distinct incident, car) — NOT count(*). With the junction table an
+	// incident implicating two equipment items joins twice, which would double
+	// every figure here under the old count(*).
+	$sql="select ic.car_no as car_no, ".ccsCountCarFailures('ic')." as car_count
 	       from incident_report
-	       inner join incident_cars on incident_report.id=incident_cars.incident_id
+	       inner join incident_cars ic on incident_report.id=ic.incident_id
+	       inner join ".ccsEquipmentLinkSql()." el on el.incident_id=incident_report.id
 	       where level='".$level."' and incident_date between '".$m_start." 00:00:00' and '".$m_end." 23:59:59'
-	         and incident_report.equipt='".$equipt_id."'
-	       group by incident_cars.car_no";
+	         and el.equipt_id='".$equipt_id."'
+	       group by ic.car_no";
 	if($i==1){
 //		echo $sql;
 //		echo "<br>";
@@ -328,13 +384,17 @@ for($i=$start;$i<=$end;$i++){
 	// so the query failed, $rs came back false and external defects silently
 	// contributed nothing. Also needs the incident_cars join to produce a
 	// car_no at all, and to count per car like the internal query does.
-	$sql="select incident_cars.car_no as car_no, count(1) as car_count
+	// External defects carry their own equipt_id and are NOT part of the
+	// incident_equipt migration, so this half keeps its own filter — but it
+	// still needs distinct pairs, since one incident can appear on several
+	// defect rows for the same equipment.
+	$sql="select ic.car_no as car_no, ".ccsCountCarFailures('ic')." as car_count
 	       from incident_union
 	       inner join is_external.incident_defects on incident_union.id=is_external.incident_defects.incident_id
-	       inner join incident_cars on incident_union.id=incident_cars.incident_id
+	       inner join incident_cars ic on incident_union.id=ic.incident_id
 	       where level='".$level."' and incident_date between '".$m_start." 00:00:00' and '".$m_end." 23:59:59'
 	         and is_external.incident_defects.equipt_id='".$equipt_id."'
-	       group by incident_cars.car_no"; 
+	       group by ic.car_no"; 
 	$rs=$db->query($sql);
 	if($rs){
 		while($row=$rs->fetch_assoc()){
@@ -410,7 +470,13 @@ foreach($car as $i => $c){
 	for($k=$start;$k<=$end;$k++){
 		$v = $car_count["Car_".$carNo]["Month_".$k];
 ?>
+<?php
+		$ym = sprintf("%04d-%02d", (int)$year, (int)$k);
+		if(ccsMonthStatus($coverage, $ym) === 'missing'){ echo ccsCoverageCell('missing'); }
+		else {
+?>
 	<td<?php echo $flagged ? "" : " class='stat_hover'"; ?> align=center><?php echo ($v>0) ? $v : "<span style='opacity:.35'>0</span>"; ?></td>
+<?php } ?>
 <?php
 	}
 ?>
@@ -431,6 +497,8 @@ if(!count($car)){
 	for($k=$start;$k<=$end;$k++){
 		$colTot=0;
 		foreach($car as $c){ $colTot += $car_count["Car_".$c['id']]["Month_".$k]; }
+		$ym = sprintf("%04d-%02d", (int)$year, (int)$k);
+		if(ccsMonthStatus($coverage, $ym) === 'missing'){ echo ccsCoverageCell('missing'); continue; }
 ?>
 	<td align=center><?php echo $colTot; ?></td>
 <?php
@@ -444,11 +512,19 @@ if(!count($car)){
 $tableHtml = ob_get_clean();
 
 $monthTotals = array();
+$uncoveredMonths = array();
 for($k=$start;$k<=$end;$k++){
 	$t=0;
 	foreach($car as $c){ $t += $car_count["Car_".$c['id']]["Month_".$k]; }
-	$monthTotals[] = array(date("M",strtotime(date("Y")."-".$k."-01")), $t);
+	$lbl = date("M",strtotime(date("Y")."-".$k."-01"));
+	$ym  = sprintf("%04d-%02d", (int)$year, (int)$k);
+	if(ccsMonthStatus($coverage, $ym) === 'missing'){
+		$monthTotals[] = array($lbl, null);   // null, not 0 — no bar is drawn
+		$uncoveredMonths[] = $lbl;
+	}
+	else { $monthTotals[] = array($lbl, $t); }
 }
+$coverageNote = ccsCoverageNote($coverage);
 $carTotals = array();
 foreach($car as $c){ $carTotals[] = array($c['id'], (int)$car_count["Car_".$c['id']]["total"]); }
 usort($carTotals, function($a,$b){ return $b[1]-$a[1]; });
@@ -491,6 +567,9 @@ usort($carTotals, function($a,$b){ return $b[1]-$a[1]; });
 <div style="font-size:12px;color:#5b5749;margin-top:8px;">
 	<span style="display:inline-block;width:11px;height:11px;background:#F9D6D6;border:1px solid #7A1F1F;vertical-align:-1px;"></span>
 	Shaded rows are cars at or above 60% of the worst car's total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
+	<?php if($coverageNote !== ''){ ?>
+	<div style="margin-bottom:6px;color:#7A1F1F;"><?php echo htmlspecialchars($coverageNote); ?></div>
+	<?php } ?>
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> here produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the equipment summary report uses, so the two reconcile; the incident history log counts one row per incident and will show the smaller figure.
 </div>
 
@@ -504,6 +583,8 @@ var ecsGrandTotal  = <?php echo (int)$grandTotal; ?>;
 var ecsPeakCar     = <?php echo json_encode($peakCar); ?>;
 var ecsCarsAffected= <?php echo (int)$carsWithFailures; ?>;
 var ecsIncidents   = <?php echo (int)$distinctIncidents; ?>;
+var ecsUncovered   = <?php echo json_encode($uncoveredMonths); ?>;
+var ecsCoverageNote= <?php echo json_encode($coverageNote); ?>;
 </script>
 <br>
 <br>
@@ -513,6 +594,7 @@ var ecsIncidents   = <?php echo (int)$distinctIncidents; ?>;
 
 
 <style type='text/css'>
+<?php echo ccsCoverageCss(); ?>
 .stat_hover:hover {
 	background-color:#fbcc2a;
 	text-decoration:underline;
@@ -641,6 +723,7 @@ var ecsIncidents   = <?php echo (int)$distinctIncidents; ?>;
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgCar+'"><div class="cap">Figure 1 &mdash; Failures by car</div></div>' +
 				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Failures by month, all cars</div></div>' +
+				(ecsCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+esc(ecsCoverageNote)+'</p>' : '') +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+ecsIncidents+' incidents produce '+ecsGrandTotal+' car-level failures. This matches the basis used by the equipment summary report; the incident history log counts one row per incident and shows the smaller figure. Shaded rows are cars at or above 60% of the worst car total.</p>' +
 			'</div>' +
 			'<h2 class="sec">Monthly Breakdown by Car</h2>' +
