@@ -1025,7 +1025,7 @@ if(isset($_POST['fieldType'])){
 	   Level would submit an EMPTY equipment_ids/incident_links and wipe
 	   out equipment/links the user never touched this session. ---------- */
 	if(isset($_POST['equipment_ids'])){
-		$db->query("delete from incident_equipment where incident_id='".$incident_report."'");
+		$db->query("delete from incident_equipt where incident_id='".$incident_report."'");
 		if(!empty($_POST['equipment_ids'])){
 			$pairs=array_filter(is_array($_POST['equipment_ids'])
 				? $_POST['equipment_ids']
@@ -1037,7 +1037,7 @@ if(isset($_POST['fieldType'])){
 				$equipt_id =(int)trim($parts[0]);
 				$subitem_id=isset($parts[1]) ? (int)trim($parts[1]) : 0;
 				if($equipt_id<=0) continue;
-				$db->query("insert ignore into incident_equipment(incident_id,equipt_id,subitem_id) values ('".$incident_report."','".$equipt_id."','".$subitem_id."')");
+				$db->query("insert ignore into incident_equipt(incident_id,equipt_id,subitem_id) values ('".$incident_report."','".$equipt_id."','".$subitem_id."')");
 			}
 		}
 		$Mup=1;
@@ -2080,7 +2080,7 @@ if($IR_EMBED){ ob_end_clean(); }
 		$equipment_rows_display="";
 		$existing_eq_pairs="";
 		$eqJoinSQL="select ie.equipt_id, ie.subitem_id, e.equipment_name, s.sub_item
-		            from incident_equipment ie
+		            from incident_equipt ie
 		            left join equipment e on e.id=ie.equipt_id
 		            left join sub_item s on s.id=ie.subitem_id
 		            where ie.incident_id='".$incident_report."'
@@ -2379,16 +2379,15 @@ else {
 				     so the modal never opens -- exactly the "Index/Car edit
 				     doesn't work" symptom. Keeping the id on this element (now
 				     the sole authoritative source) fixes it with no JS changes. -->
-					 <?PHP
+					 
+					 <?php
 					 /**
-					 
-					 
 				<tr><th width=20%>Incident</th><td>
 					<span style="font-weight:600;color:var(--cc-blue);"><?php echo $incident_no; ?></span>
 					<span style="color:var(--cc-muted);font-size:11px;margin-left:6px;">(ID <?php echo $incident_report; ?>)</span>
 				</td></tr>
-
-*/ ?>				
+*/
+?>				
 				</table>
 				<br>
 				<input type="hidden" name='fieldType' id='fieldType' />

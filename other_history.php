@@ -1,5 +1,27 @@
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+
+// Which periods the console actually holds records for. This log can jump
+// across a gap with nothing on the page explaining why — a reader would take
+// the silence for "nothing happened" rather than "the records are missing".
+//
+// Loaded defensively: if data_coverage.php has not been uploaded, the stubs
+// report everything as covered and the page behaves exactly as before,
+// instead of dying on a failed require.
+if(file_exists(dirname(__FILE__)."/data_coverage.php")){
+	require_once(dirname(__FILE__)."/data_coverage.php");
+}
+if(!function_exists('ccsLoadCoverage')){
+	function ccsLoadCoverage($db){ return array(); }
+	function ccsMonthStatus($coverage,$ym){ return 'covered'; }
+	function ccsMonthIsMissing($coverage,$ym){ return false; }
+	function ccsCoverageCell($status,$note=''){ return ''; }
+	function ccsCoverageCss(){ return ''; }
+	function ccsCoverageNote($coverage,$prefix=''){ return ''; }
+	function ccsUncoveredMonths($coverage,$f,$t){ return array(); }
+}
+$coverage = ccsLoadCoverage($db);
+$coverageNote = ccsCoverageNote($coverage);
 $car_id=$_GET['car_id'];
 ?>
 <?php include("history_theme.php"); ?>
@@ -9,6 +31,9 @@ $car_id=$_GET['car_id'];
 <div class="ccs-header">
 	<h1>Incident History &mdash; Others</h1>
 	<div class="sub">Incidents categorized as "Others" &mdash; Line 3</div>
+<?php if($coverageNote !== ''){ ?>
+	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
+<?php } ?>
 </div>
 
 <div class="ccs-panel">
@@ -81,7 +106,7 @@ foreach($allRows as $row){
 	if(!isset($problemCounts[$cause])) $problemCounts[$cause]=0;
 	$problemCounts[$cause]++;
 ?>	
-	<tr>
+	<tr data-mo="<?php echo $monthKey; ?>">
 		<td><?php echo $row['index_no']; ?></td>
 		<td><?php echo "<span>".date("Y-m-d",strtotime($row['incident_date']))."</span>"; ?></td>
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
@@ -181,6 +206,7 @@ var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts); ?>;
 var ccsProblemCounts = <?php echo json_encode($problemCounts); ?>;
 var ccsSuggested = <?php echo json_encode($suggestedCounts, JSON_FORCE_OBJECT); ?>;
 var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
+var ccsCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
 </script>
 
 		<script src="js/jquery-1.10.2.min.js"></script>
@@ -254,7 +280,23 @@ $(function(){
 	var gridInk = 'rgba(137,135,129,0.20)';
 	var UNCAT = 'Uncategorized';
 
-	var months = Object.keys(ccsMonthlyCounts).sort();
+	// ---- Shared window -------------------------------------------------
+	// This page has no date filter, so it returns every "Others" incident back
+	// to 2013. Writing all of that into the print window — plus the chart
+	// images — is what freezes or crashes the print tab, and a heatmap with a
+	// hundred-odd month columns is unreadable anyway. The heatmap and the
+	// printed table are capped to the SAME trailing window so the two agree.
+	// The on-screen table is untouched and still shows everything.
+	var CCS_WINDOW_MONTHS = 24;
+	var ccsAllMonths  = Object.keys(ccsMonthlyCounts).sort();
+	var ccsWindowFrom = '';
+	var ccsTrimmed    = false;
+	var months = ccsAllMonths;
+	if(ccsAllMonths.length > CCS_WINDOW_MONTHS){
+		months = ccsAllMonths.slice(-CCS_WINDOW_MONTHS);
+		ccsTrimmed = true;
+	}
+	if(months.length) ccsWindowFrom = months[0];   // "YYYY-MM", inclusive
 
 	// Causes ranked by total, Uncategorized forced to the end.
 	var causes = Object.keys(ccsProblemCounts).sort(function(a,b){
@@ -461,11 +503,24 @@ $(function(){
 		// Temporary diagnostic — delete once print is confirmed working.
 		console.log('print capture — rows found:', rows ? rows.length : 0);
 
-		if(!rows || !rows.length) return { html: el.outerHTML, count: $el.find('tbody tr').length };
+		if(!rows || !rows.length) return { html: el.outerHTML, count: $el.find('tbody tr').length, omitted: 0 };
+
+		// Keep only rows inside the same window the heatmap covers. Rows carry
+		// data-mo="YYYY-MM" from PHP, so this is a string compare rather than
+		// parsing dates back out of the DOM. Rows without the attribute are
+		// kept, so nothing disappears unexpectedly.
+		var total = rows.length, kept = rows;
+		if(ccsWindowFrom){
+			kept = $.grep(rows, function(node){
+				var mo = $(node).attr('data-mo');
+				return !mo || mo >= ccsWindowFrom;
+			});
+		}
+		var omitted = total - kept.length;
 
 		var $clone = $el.clone();
 		var $tbody = $clone.find('tbody').empty();
-		$.each(rows, function(i, node){ $tbody.append($(node).clone()); });
+		$.each(kept, function(i, node){ $tbody.append($(node).clone()); });
 
 		// Strip DataTables' runtime artifacts — inline widths, sort classes
 		// and ARIA attributes — so the print stylesheet has full control.
@@ -475,7 +530,7 @@ $(function(){
 		      .removeAttr('aria-sort').removeAttr('tabindex').removeAttr('role');
 		$clone.find('tr').removeAttr('class').removeAttr('role');
 
-		return { html: $clone[0].outerHTML, count: rows.length };
+		return { html: $clone[0].outerHTML, count: kept.length, omitted: omitted };
 	}
 
 	function ccsPrintWithCharts(){
@@ -484,6 +539,10 @@ $(function(){
 		var captured  = ccsFullTableHtml();
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
+		var omitted   = captured.omitted;
+		var periodTxt = ccsWindowFrom
+			? (ccsWindowFrom + ' to ' + months[months.length-1] + (ccsTrimmed ? ' (last ' + CCS_WINDOW_MONTHS + ' months)' : ''))
+			: 'All records';
 
 		var win = window.open('', '_blank');
 		win.document.write(
@@ -531,7 +590,7 @@ $(function(){
 				'<p class="rpt-subject">Incidents outside the standard equipment categories</p>' +
 			'</div>' +
 			'<div class="rpt-meta">' +
-				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
+				'<span><b>Report period:</b> ' + periodTxt + '</span>' +
 				'<span><b>Records:</b> ' + rowCount + '</span>' +
 				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 			'</div>' +
@@ -540,13 +599,15 @@ $(function(){
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + heatmapImg + '">' + '<div class="cap">Figure 1 &mdash; Cause / issue by month</div></div>' +
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Cause / issue by total incidents</div></div>' +
+			(ccsCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+ccsCoverageNote+'</p>' : '') +
 			(ccsSuggestedTotal ? '<p class="note">Italicised categories in the log are auto-suggested from description text (' + ccsSuggestedTotal + ' record' + (ccsSuggestedTotal===1?'':'s') + ') and are not recorded values.</p>' : '') +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
 			'<div class="tbl-head">' +
 				'<h3>Other recorded incidences &mdash; incident log</h3>' +
-				'<span class="count">' + rowCount + ' record' + (rowCount === 1 ? '' : 's') + '</span>' +
+				'<span class="count">' + rowCount + ' record' + (rowCount === 1 ? '' : 's') +
+					(omitted ? ' &middot; ' + omitted + ' older record' + (omitted === 1 ? '' : 's') + ' outside the ' + CCS_WINDOW_MONTHS + '-month window not shown' : '') + '</span>' +
 			'</div>' +
 			tableHtml +
 

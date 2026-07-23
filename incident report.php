@@ -75,9 +75,9 @@ if(isset($_POST['type'])){
 	$received_by=$_POST['received_by'];
 	$level_condition=$_POST['condition'];
 	
-	$incident_date=date("Y-m-d H:i",strtotime($_POST['incident_day']." ".$hour.":".$minute));
+	$incident_date=date("Y-m-d H:i",strtotime($incident_day." ".$hour.":".$minute));
 
-	$resolution_date=date("Y-m-d H:i",strtotime($_POST['resolution_day']." ".$hour2.":".$minute2));
+	$resolution_date=date("Y-m-d H:i",strtotime($resolution_day." ".$hour2.":".$minute2));
 
 
 
@@ -198,7 +198,7 @@ if(isset($_POST['type'])){
 				$db->query("update incident_report set equipt='".$equipt_id."' where id='".$incident_code."'");
 			}
 			
-			$db->query("insert ignore into incident_equipment(incident_id,equipt_id,subitem_id) values ('".$incident_code."','".$equipt_id."','".$subitem_id."')");
+			$db->query("insert ignore into incident_equipt(incident_id,equipt_id,subitem_id) values ('".$incident_code."','".$equipt_id."','".$subitem_id."')");
 		
 			$n++;
 		}
