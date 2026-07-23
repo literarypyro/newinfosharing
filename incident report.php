@@ -1590,10 +1590,16 @@ document.addEventListener('keydown',function(e){
 		<td class="ir-label">Date / Time of Incident</td>
 		<td class="ir-field">
 			<?php
+			if(isset($daynow)){
+				$incident_date_label=date("m/d/Y",strtotime($daynow));
+				
+			}
+			else {
 			if(isset($_SESSION['month'])){
 				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
 			} else {
 				$incident_date_label=date("m/d/Y");
+			}
 			}
 			?>
 			<input type='text' name='incident_date' id='incident_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
