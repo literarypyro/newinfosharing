@@ -410,10 +410,16 @@ else {
 }
 
 ?>
-<div class='css-panel-body'>
+<div class='ccs-panel-body'>
+<?php
+// The summary figures are only known once the aggregation loop inside the
+// table has run, so buffer the table and emit the summary above it.
+ob_start();
+?>
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" border=1px style='border-collapse:collapse;' width=100%>
+<thead>
 <tr >
-<th>&nbsp;</th>
+<th>Equipment</th>
 <?php
 
 
@@ -509,9 +515,9 @@ $ee=$end;
 ?>
 <th>Total
 </th>
-
-
 </tr>
+</thead>
+<tbody>
 <?php
 /*
 if(isset($_POST['search_date2'])){
@@ -673,246 +679,326 @@ for($i=0;$i<=$difference;$i++){
 }	
 ?>	
 <?php
-$highestCar=$equipt[0];
-
-$car_len=count($equipt)*1-1;
-for($i=0;$i<$car_len;$i++){
-
-	if($i==0){
-		
-		$equipt[$i]['total']=$equipt_count["Equipt_".$equipt[$i]['id']]['total'];
-		$equipt[$i*1+1]['total']=$equipt_count["Equipt_".$equipt[$i*1+1]['id']]['total'];
-
-		$highestCar=sortCar($equipt[$i],$equipt[$i*1+1]);
-
-	}
-	else {
-		$equipt[$i*1+1]['total']=$equipt_count["Equipt_".$equipt[$i*1+1]['id']]['total'];
-
-		$highestCar=sortCar($highestCar,$equipt[$i*1+1]);
-	}
-/*
-	$car[$i]['id']=$row['car_no'];
-	$car[$i]['car']=$row['car_no'];
-	for ($k=1;$k<=12;$k++){
-		$car_count["Car_".$row['car_no']]["Month_".$k]=0;
-		
-	}
-	$car_count["Car_".$row['car_no']]["total"]=0;
-	*/
+// ---- Totals, peak equipment, and the highlight threshold -----------------
+// The old pairwise sortCar() walk left $highestCar without a 'total' whenever
+// the list held fewer than two entries, and never set $equipt[0]['total'].
+// A straight max is clearer and safe on any list length.
+//
+// Month labels are the YYYYMM keys the aggregation loop above wrote, rebuilt
+// here in the same order the columns are rendered.
+$monthKeys = array();
+$monthNames = array();
+for($k=0;$k<=$difference;$k++){
+	$monthKeys[]  = (int)date("Ym", strtotime($tag_date." +".$k." months"));
+	$monthNames[] = date("M y", strtotime($tag_date." +".$k." months"));
 }
 
-$sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
+$grandTotal = 0;
+$peakTotal  = 0;
+$peakName   = '';
+$activeEquipt = 0;
+$monthTotals = array_fill(0, count($monthKeys), 0);
 
-$rs=$db->query($sql);
+foreach($equipt as $idx => $e){
+	$key = "Equipt_".$e['id'];
+	$t = isset($equipt_count[$key]['total']) ? (int)$equipt_count[$key]['total'] : 0;
+	$equipt[$idx]['total'] = $t;
+	$grandTotal += $t;
+	if($t > 0) $activeEquipt++;
+	if($t > $peakTotal){ $peakTotal = $t; $peakName = $e['equipment']; }
+	foreach($monthKeys as $mi => $mk){
+		$monthTotals[$mi] += isset($equipt_count[$key]["Month_".$mk]) ? (int)$equipt_count[$key]["Month_".$mk] : 0;
+	}
+}
 
-$nm=$rs->num_rows;
+$flagThreshold = $peakTotal * 0.60;
+$avgPerActive  = $activeEquipt ? round($grandTotal / $activeEquipt, 1) : 0;
 
+$equiptTotals = array();
+foreach($equipt as $e){ if($e['total'] > 0) $equiptTotals[] = array($e['equipment'], (int)$e['total']); }
+usort($equiptTotals, function($a,$b){ return $b[1]-$a[1]; });
 
+$monthSeries = array();
+foreach($monthKeys as $mi => $mk){ $monthSeries[] = array($monthNames[$mi], (int)$monthTotals[$mi]); }
 
-for($i=0;$i<$nm;$i++){
-	$row=$rs->fetch_assoc();
+// Distinct incidents behind these car-level failures, on the same scope as the
+// aggregation above — stated so the relationship to the incident logs is
+// visible rather than inferred.
+$distinctIncidents = 0;
+$dq = $db->query("select count(distinct incident_report.id) as c
+                  from incident_report
+                  inner join incident_cars on incident_report.id=incident_cars.incident_id
+                  where level='".$level."'
+                    and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'");
+if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 
-?>
-<tr 
+// ---- Rows -----------------------------------------------------------------
+// Iterates the canonical $equipt list, so a row's label and its figures always
+// come from the same record. The previous version re-queried the equipment
+// table for labels while reading figures from $equipt by position, and emitted
+// two near-identical copies of every cell for the flagged / unflagged cases.
+foreach($equipt as $i => $e){
+	$key     = "Equipt_".$e['id'];
+	$rowTot  = $e['total'];
+	$flagged = ($flagThreshold > 0 && $rowTot >= $flagThreshold);
 
-<?php
-	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
-	echo "style='background-color:#F9D6D6; color:#7A1F1F;'";
-		
+	if(isset($_POST['level'])){
+		$link_sd = $_POST['search_date'];
+		$link_ed = $_POST['search_date2'];
 	}
 	else {
-
-if($i%2>0){ echo "class='rowClass'"; } 
-
+		$link_sd = date("Y-01-01");
+		$link_ed = $end_date1;
 	}
-
 ?>
-
-
-
-
-
->
-	<th>
-
-	<?php
-		if(isset($_POST['level'])){
-			$level=$_POST['level'];
-			$start_date=$_POST['search_date'];
-			$end_date=$_POST['search_date2'];
-		}
-		else {
-			$start_date=date("Y-01-01");
-			$end_date=$end_date1;
-
-		}			
-
-
-	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
-		
-		
-
-//	if($highestCar['total']==$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
-	
-	?>
-		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>")' >
-	
-	<?php echo $row['equipment_name']; ?>
-	</a>
-	
-
-	<?php	
-	}
-	else {
-	?>	
-		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $equipt[$i]['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $start_date; ?>&ed=<?php echo $end_date;?>")' >
-	
-	
-	<?php echo $row['equipment_name']; ?>
-	</a>
-	
-	<?php
-	}
-	?>
-	
+<tr <?php echo $flagged ? "style='background-color:#F9D6D6; color:#7A1F1F;'" : ($i%2>0 ? "class='rowClass'" : ""); ?>>
+	<th style="text-align:left;">
+		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $e['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $link_sd; ?>&ed=<?php echo $link_ed; ?>")'><?php echo htmlspecialchars($e['equipment']); ?></a>
+		<?php if($flagged){ echo " <span title='At or above 60% of the highest equipment total' style='font-size:11px;'>&#9679;</span>"; } ?>
 	</th>
-
-	<?php
-	for($k=0;$k<=$difference;$k++){
-	?>	
-	<td class='stat_hover' align=center>
-
-
-	<?php
-//	if($highestCar['total']==$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
-	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
-	if($k==0){
-	$yy=date("Y",strtotime($start_date));
-
-	$mon=date("m",strtotime($start_date));
-		$label=$yy.$mon;
-		
+<?php
+	foreach($monthKeys as $mi => $mk){
+		$v  = isset($equipt_count[$key]["Month_".$mk]) ? (int)$equipt_count[$key]["Month_".$mk] : 0;
+		$yy = substr((string)$mk, 0, 4);
+		$mon= substr((string)$mk, 4, 2);
+?>
+	<td class='stat_hover' align=center><a href='#' style='text-decoration:none; color:<?php echo $v>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("equipment_history.php?equipt=<?php echo $e['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")'><?php echo $v; ?></a></td>
+<?php
 	}
-	else {
-	$yy=date("Y",strtotime($tag_date."+".$k." months"));
-
-	$mon=date("m",strtotime($tag_date."+".$k." months"));
-	
-	$fn=date("F",strtotime($tag_date."+".$k." months"));
-	
-		$label=$yy.$mon;
-	
-	}
-	?>
-	<a href='#' style='text-decoration:none; color:#00529B;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
-		<?php
-		
-
-		
-		
-		echo $equipt_count["Equipt_".$equipt[$i]['id']]["Month_".($label*1)];
-
-		?>
-		</a>
-	
-
-	<?php	
-	}
-	else {
-		
-	if($k==0){
-	$yy=date("Y",strtotime($start_date));
-
-	$mon=date("m",strtotime($start_date));
-		
-		$label=$yy.$mon;
-	}
-	else {
-	$yy=date("Y",strtotime($tag_date."+".$k." months"));
-
-	$mon=date("m",strtotime($tag_date."+".$k." months"));
-	
-	$fn=date("F",strtotime($tag_date."+".$k." months"));
-		$label=$yy.$mon;
-	
-	
-	}
-	?>	
-	<a href='#' style='text-decoration:none; color:#00529B;' onclick='window.open("equipment_history.php?equipt=<?php echo $equipt[$i]['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")' >
-		<?php
-		
-
-		echo $equipt_count["Equipt_".$equipt[$i]['id']]["Month_".($label*1)];
-		?>
-		</a>
-	
-	<?php
-	}
-	?>
-
-		</td>
-	<?php
-	}
-	?>
-		<td class='stat_hover' align=center>
-
-	<?php
-	if(($highestCar['total']*0.60)<$equipt_count["Equipt_".$equipt[$i]['id']]["total"]){
-	
-	?>
-	<?php
-		echo $equipt_count["Equipt_".$equipt[$i]['id']]["total"];
-		?>
-	<?php	
-	}
-	else {
-	?>	
-		<?php
-		echo $equipt_count["Equipt_".$equipt[$i]['id']]["total"];
-		?>
-	
-	<?php
-	}
-	?>
-
-
-
-		</td>
-
-	
-</tr>	
-<?php	
-	
+?>
+	<td align=center style="font-weight:600;"><?php echo $rowTot; ?></td>
+</tr>
+<?php
 }
 
-
-
-
-
-function sortCar($equipt_a,$equipt_b){
-	
-	if($equipt_a['total']*1>$equipt_b['total']*1){
-		
-		return $equipt_a;
-
-	}
-	else {
-		return $equipt_b;	
-
-	}
-	
+if(!count($equipt)){
+?>
+<tr><td colspan="<?php echo count($monthKeys)+2; ?>" align=center style="padding:18px;opacity:.6;">No equipment failures recorded for this range.</td></tr>
+<?php
 }
-
-
-
+?>
+</tbody>
+<tfoot>
+<tr style="background:#F1EEE3;font-weight:700;">
+	<th style="text-align:left;">All equipment</th>
+<?php foreach($monthTotals as $mt){ ?>
+	<td align=center><?php echo $mt; ?></td>
+<?php } ?>
+	<td align=center><?php echo $grandTotal; ?></td>
+</tr>
+</tfoot>
+<?php
 ?>
 
 
 </table>
+<?php
+$tableHtml = ob_get_clean();
+?>
+
+<div style="display:flex;flex-wrap:wrap;gap:10px;margin:14px 0;">
+	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Car-level failures</div>
+		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $grandTotal; ?></div>
+		<div style="font-size:11px;color:#5A6275;">from <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?></div>
+	</div>
+	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Equipment types affected</div>
+		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $activeEquipt; ?></div>
+		<div style="font-size:11px;color:#5A6275;">of <?php echo count($equipt); ?> tracked</div>
+	</div>
+	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Highest equipment</div>
+		<div style="font-size:15px;font-weight:600;color:#7A1F1F;line-height:1.3;margin-top:3px;"><?php echo $peakName!=='' ? htmlspecialchars($peakName) : '&mdash;'; ?></div>
+		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failures</div>
+	</div>
+	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Avg per affected type</div>
+		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $avgPerActive; ?></div>
+		<div style="font-size:11px;color:#5A6275;">excludes types with none</div>
+	</div>
+</div>
+
+<div style="margin-bottom:14px;">
+	<button type="button" onclick="srmPrintReport()" style="padding:6px 14px;border:1px solid #00529B;background:#00529B;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">Print report</button>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
+	<div><canvas id="srmByEquipt" width="340" height="230"></canvas></div>
+	<div><canvas id="srmByMonth" width="340" height="200"></canvas></div>
+</div>
+
+<?php echo $tableHtml; ?>
+
+<div style="font-size:12px;color:#5A6275;margin-top:8px;">
+	<span style="display:inline-block;width:11px;height:11px;background:#F9D6D6;border:1px solid #7A1F1F;vertical-align:-1px;"></span>
+	Shaded rows are equipment at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
+	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
+	Click an equipment name for its per-car breakdown, or a monthly figure for that month's incident log.
+</div>
+
+<script>
+var srmEquiptTotals = <?php echo json_encode($equiptTotals); ?>;
+var srmMonthSeries  = <?php echo json_encode($monthSeries); ?>;
+var srmPeriod       = <?php echo json_encode(isset($period) ? $period : ''); ?>;
+var srmLevel        = <?php echo json_encode($level); ?>;
+var srmGrandTotal   = <?php echo (int)$grandTotal; ?>;
+var srmIncidents    = <?php echo (int)$distinctIncidents; ?>;
+var srmActive       = <?php echo (int)$activeEquipt; ?>;
+var srmPeakName     = <?php echo json_encode($peakName); ?>;
+</script>
 </div>
 <br>
 <br>
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+(function(){
+	var ink='#1A2238', muted='#5A6275', grid='rgba(137,135,129,0.20)';
+	var TOP_EQ = 8;
+
+	function valueLabels(){
+		return { id:'srmLabels', afterDatasetsDraw:function(chart){
+			var ctx=chart.ctx, meta=chart.getDatasetMeta(0);
+			ctx.save(); ctx.font='11px Arial, sans-serif'; ctx.fillStyle=ink;
+			ctx.textBaseline='middle'; ctx.textAlign='left';
+			meta.data.forEach(function(bar,i){ ctx.fillText(chart.data.datasets[0].data[i], bar.x+6, bar.y); });
+			ctx.restore();
+		}};
+	}
+	function shorten(t){ return t.length > 20 ? t.slice(0,19)+'\u2026' : t; }
+
+	var top = srmEquiptTotals.slice(0, TOP_EQ);
+	var tail = srmEquiptTotals.slice(TOP_EQ);
+	var tailTotal = tail.reduce(function(s,r){ return s+r[1]; }, 0);
+
+	if(top.length){
+		new Chart(document.getElementById('srmByEquipt'), {
+			type:'bar',
+			data:{ labels: top.map(function(r){ return shorten(r[0]); }),
+			       datasets:[{ data: top.map(function(r){ return r[1]; }),
+			                   backgroundColor: top.map(function(r){ return r[0]===srmPeakName ? '#A32D2D' : '#00529B'; }),
+			                   borderRadius:3, categoryPercentage:0.62, barPercentage:0.9 }] },
+			options:{ indexAxis:'y', responsive:false, animation:false,
+				layout:{ padding:{ right:22, bottom: tail.length ? 18 : 4 } },
+				plugins:{
+					title:{ display:true, text:'Car-level failures by equipment'+(tail.length?' (top '+TOP_EQ+')':''), color:ink, font:{size:11,weight:'normal'}, padding:{bottom:8} },
+					legend:{ display:false },
+					tooltip:{ callbacks:{ title:function(items){ return top[items[0].dataIndex][0]; },
+					                      label:function(c){ return c.parsed.x+' failures'; } } }
+				},
+				scales:{ x:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } },
+				         y:{ ticks:{ color:ink, font:{size:10} }, grid:{ display:false } } }
+			},
+			plugins:[ valueLabels(), { id:'srmTail', afterDraw:function(chart){
+				if(!tail.length) return;
+				var ctx=chart.ctx, area=chart.chartArea;
+				ctx.save(); ctx.font='10px Arial, sans-serif'; ctx.fillStyle=muted;
+				ctx.textAlign='left'; ctx.textBaseline='top';
+				var y=chart.height-14;
+				ctx.strokeStyle=grid; ctx.lineWidth=1;
+				ctx.beginPath(); ctx.moveTo(area.left,y-5); ctx.lineTo(chart.width-8,y-5); ctx.stroke();
+				ctx.fillText('+ '+tailTotal+' across '+tail.length+' further equipment type'+(tail.length===1?'':'s'), area.left, y);
+				ctx.restore();
+			}}]
+		});
+	}
+	else{
+		var cv=document.getElementById('srmByEquipt'), c=cv.getContext('2d');
+		c.textBaseline='middle'; c.textAlign='left';
+		c.font='11px Arial, sans-serif'; c.fillStyle=ink;
+		c.fillText('Car-level failures by equipment', 0, 9);
+		c.font='10px Arial, sans-serif'; c.fillStyle=muted;
+		c.fillText('No failures recorded for this range.', 0, 34);
+	}
+
+	new Chart(document.getElementById('srmByMonth'), {
+		type:'bar',
+		data:{ labels: srmMonthSeries.map(function(r){ return r[0]; }),
+		       datasets:[{ data: srmMonthSeries.map(function(r){ return r[1]; }), backgroundColor:'#00529B', borderRadius:3 }] },
+		options:{ responsive:false, animation:false,
+			plugins:{ title:{ display:true, text:'Car-level failures by month, all equipment', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
+			scales:{ x:{ ticks:{ color:muted, font:{size:9}, maxRotation:45 }, grid:{ display:false } },
+			         y:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } } }
+		}
+	});
+
+	window.srmPrintReport = function(){
+		var imgEq    = document.getElementById('srmByEquipt').toDataURL('image/png');
+		var imgMonth = document.getElementById('srmByMonth').toDataURL('image/png');
+		var tbl = document.querySelector('.ccs-panel-body table');
+		var tableHtml = tbl ? tbl.outerHTML : '';
+		function esc(x){ return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+		var win = window.open('', '_blank');
+		win.document.write(
+			'<html><head><title>Equipment Failures Summary</title>' +
+			'<style>' +
+				'@page{ size:A4 landscape; margin:12mm 10mm 13mm; }' +
+				'*{ box-sizing:border-box; }' +
+				'body{ font-family:"Segoe UI",Arial,Helvetica,sans-serif; color:#1a1a1a; margin:0; font-size:11px; line-height:1.45;' +
+					' -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
+				'.rpt-head{ border-bottom:2px solid #1f4e79; padding-bottom:9px; margin-bottom:4px; }' +
+				'.rpt-org{ font-size:8.5px; letter-spacing:.15em; text-transform:uppercase; color:#6b7280; margin-bottom:3px; }' +
+				'.rpt-title{ font-size:19px; font-weight:600; color:#1f4e79; margin:0 0 1px; }' +
+				'.rpt-subject{ font-size:12.5px; color:#374151; margin:0; }' +
+				'.rpt-meta{ margin:8px 0 0; font-size:9.5px; color:#4b5563; }' +
+				'.rpt-meta span{ margin-right:20px; white-space:nowrap; }' +
+				'.rpt-meta b{ color:#1f2937; font-weight:600; }' +
+				'h2.sec{ font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:#1f4e79;' +
+					' border-bottom:1px solid #d1d5db; padding-bottom:4px; margin:18px 0 10px; font-weight:600; }' +
+				'.charts{ margin-bottom:4px; }' +
+				'.chart{ display:inline-block; vertical-align:top; width:40%; margin:0 2% 10px 0; page-break-inside:avoid; }' +
+				'.chart img{ display:block; width:100%; height:auto; border:1px solid #e5e7eb; }' +
+				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
+				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
+				'table{ width:100%; border-collapse:collapse; font-size:8.5px; }' +
+				'thead{ display:table-header-group; }' +
+				// Navy fill applies to the HEADER ROW only. Each data row's first
+				// cell is also a <th>, so an unscoped th rule would paint the whole
+				// Equipment column solid navy.
+				'thead th{ background:#1f4e79; color:#fff; text-align:center; padding:4px 3px; font-size:8px; font-weight:600;' +
+					' text-transform:uppercase; letter-spacing:.03em; border:1px solid #1f4e79; }' +
+				'tbody th, tfoot th{ background:#F1EFE8; color:#1a1a1a; text-align:left; padding:3px 5px; font-size:8.5px;' +
+					' font-weight:600; border:1px solid #e5e7eb; }' +
+				'td{ padding:3px; border:1px solid #e5e7eb; text-align:center; }' +
+				'tfoot td{ background:#F1EFE8; font-weight:700; }' +
+				'tr{ page-break-inside:avoid; }' +
+				// !important because the equipment and month links carry inline
+				// colours, which would otherwise win over this rule.
+				'a{ color:inherit !important; text-decoration:none !important; pointer-events:none; }' +
+				'.rpt-foot{ margin-top:12px; border-top:1px solid #d1d5db; padding-top:6px; font-size:8.5px; color:#6b7280; }' +
+			'</style></head><body>' +
+			'<div class="rpt-head">' +
+				'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
+				'<h1 class="rpt-title">Equipment Failures Summary</h1>' +
+				'<p class="rpt-subject">'+esc(srmPeriod)+'</p>' +
+			'</div>' +
+			'<div class="rpt-meta">' +
+				'<span><b>Period:</b> '+esc(srmPeriod)+'</span>' +
+				'<span><b>Level:</b> '+esc(srmLevel)+'</span>' +
+				'<span><b>Car-level failures:</b> '+srmGrandTotal+'</span>' +
+				'<span><b>From incidents:</b> '+srmIncidents+'</span>' +
+				'<span><b>Equipment affected:</b> '+srmActive+'</span>' +
+				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
+			'</div>' +
+			'<h2 class="sec">Summary</h2>' +
+			'<div class="charts">' +
+				'<div class="chart"><img src="'+imgEq+'"><div class="cap">Figure 1 &mdash; Car-level failures by equipment</div></div>' +
+				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by month, all equipment</div></div>' +
+				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+srmIncidents+' incidents produce '+srmGrandTotal+' car-level failures. This matches the per-car reports; the incident history logs count one row per incident and show the smaller figure. Shaded rows are equipment at or above 60% of the highest total.</p>' +
+			'</div>' +
+			'<h2 class="sec">Monthly Breakdown by Equipment</h2>' +
+			tableHtml +
+			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
+			'</body></html>'
+		);
+		win.document.close();
+		win.focus();
+		win.onload = function(){ setTimeout(function(){ win.print(); }, 250); };
+	};
+})();
+</script>
 </body>
 </html>

@@ -79,6 +79,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </style>
 <?php include("history_theme.php"); ?>
 
+
 </head>
 <body>
 <div class="ccs-page">
@@ -142,6 +143,7 @@ for($k=$startYear;$k<=$endYear;$k++){
 ob_start();
 ?>
 <table class='table table-striped table-bordered bootstrap-datatable datatable2' border=1 style='border-collapse:collapse;' width=100%>
+<thead>
 <tr>	
 	<th>Car #</th>
 	<th>January</th>
@@ -158,6 +160,8 @@ ob_start();
 	<th>December</th>
 	<th>Total</th>
 </tr>
+</thead>
+<tbody>
 <?php
 $CAR_MAX = 73;
 for($i=1;$i<=$CAR_MAX;$i++){
@@ -254,6 +258,7 @@ for($k=1;$k<=12;$k++){
 <?php } ?>
 	<td align=center><?php echo $grandTotal; ?></td>
 </tr>
+</tbody>
 </table>
 <?php
 $tableHtml = ob_get_clean();
@@ -473,11 +478,18 @@ function sortCar($count_a,$count_b){
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
 				'table{ width:100%; border-collapse:collapse; font-size:8.5px; }' +
 				'thead{ display:table-header-group; }' +
-				'th{ background:#1f4e79; color:#fff; text-align:center; padding:4px 3px; font-size:8px; font-weight:600;' +
+				// Navy fill applies to the HEADER ROW only. Each data row's first
+				// cell is also a <th>, so an unscoped th rule painted the whole
+				// Car # column solid navy.
+				'thead th{ background:#1f4e79; color:#fff; text-align:center; padding:4px 3px; font-size:8px; font-weight:600;' +
 					' text-transform:uppercase; letter-spacing:.03em; border:1px solid #1f4e79; }' +
+				'tbody th{ background:#F1EFE8; color:#1a1a1a; text-align:center; padding:3px; font-size:8.5px;' +
+					' font-weight:600; border:1px solid #e5e7eb; }' +
 				'td{ padding:3px; border:1px solid #e5e7eb; text-align:center; }' +
 				'tr{ page-break-inside:avoid; }' +
-				'a{ color:inherit; text-decoration:none; pointer-events:none; }' +
+				// !important because the car-number and month links carry inline
+				// colours, which would otherwise win over this rule.
+				'a{ color:inherit !important; text-decoration:none !important; pointer-events:none; }' +
 				'.rpt-foot{ margin-top:12px; border-top:1px solid #d1d5db; padding-top:6px; font-size:8.5px; color:#6b7280; }' +
 			'</style></head><body>' +
 			'<div class="rpt-head">' +

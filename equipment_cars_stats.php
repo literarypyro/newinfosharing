@@ -224,6 +224,7 @@ ob_start();
 
 
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" border=1px style='border-collapse:collapse;' width=100%>
+<thead>
 <tr >
 <th>Car Number</th>
 <?php
@@ -252,6 +253,9 @@ for($k=$start;$k<=$end;$k++){
 }
 ?>
 <th>Total</th>
+</tr>
+</thead>
+<tbody>
 <?php
 //$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
 //$rs=$db->query($sql);
@@ -263,7 +267,7 @@ for($k=$start;$k<=$end;$k++){
 
 
 
-</tr>
+
 <?php
 
 if(isset($_GET['sd'])){
@@ -434,6 +438,7 @@ if(!count($car)){
 ?>
 	<td align=center><?php echo $grandTotal; ?></td>
 </tr>
+</tbody>
 </table>
 <?php
 $tableHtml = ob_get_clean();
@@ -607,9 +612,15 @@ var ecsIncidents   = <?php echo (int)$distinctIncidents; ?>;
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
 				'table{ width:100%; border-collapse:collapse; font-size:9px; }' +
 				'thead{ display:table-header-group; }' +
-				'th{ background:#1f4e79; color:#fff; text-align:left; padding:5px 5px; font-size:8.5px; font-weight:600;' +
+				// Navy fill applies to the HEADER ROW only. Each data row's first
+				// cell is also a <th>, so an unscoped th rule painted the whole
+				// Car Number column solid navy.
+				'thead th{ background:#1f4e79; color:#fff; text-align:center; padding:5px 5px; font-size:8.5px; font-weight:600;' +
 					' text-transform:uppercase; letter-spacing:.04em; border:1px solid #1f4e79; }' +
+				'tbody th{ background:#F1EFE8; color:#1a1a1a; text-align:center; padding:4px 5px; font-size:9px;' +
+					' font-weight:600; border:1px solid #e5e7eb; }' +
 				'td{ padding:4px 5px; border:1px solid #e5e7eb; text-align:center; }' +
+				'a{ color:inherit !important; text-decoration:none !important; pointer-events:none; }' +
 				'tr{ page-break-inside:avoid; }' +
 				'.rpt-foot{ margin-top:14px; border-top:1px solid #d1d5db; padding-top:6px; font-size:8.5px; color:#6b7280; }' +
 			'</style></head><body>' +

@@ -109,6 +109,8 @@ $suggestedCounts=array(); // [ equipment => how many were auto-suggested ]
 $suggestedTotal=0;
 $blankTerms=array();      // [ token => number of UNPLACED incidents mentioning it ]
 $blankTotal=0;
+$sevGrid=array();         // [ equipment => [ level => count ] ]
+$sevLevels=array();       // set of distinct severity levels present
 
 foreach($allRows as $row){
 
@@ -144,6 +146,21 @@ foreach($allRows as $row){
 
 	if(!isset($problemCounts[$problemType])) $problemCounts[$problemType]=0;
 	$problemCounts[$problemType]++;
+
+	// Equipment x severity. The other figures answer "what fails often"; this
+	// answers "what fails BADLY" — an equipment with a modest row total but a
+	// hot L4 cell is a maintenance priority a frequency ranking would bury.
+	// Suggested equipment is included: the severity is a recorded value even
+	// when the equipment was inferred, and excluding those rows would
+	// understate the serious faults. The print note says so.
+	$lvRaw = isset($row['level']) ? trim($row['level']) : '';
+	if($lvRaw === ''){ $lv = 'None'; }
+	else { $lv = (strtoupper(substr($lvRaw,0,1)) === 'L') ? strtoupper($lvRaw) : 'L'.$lvRaw; }
+	$eqKey = ($problemType === '') ? 'Unspecified' : $problemType;
+	if(!isset($sevGrid[$eqKey])) $sevGrid[$eqKey]=array();
+	if(!isset($sevGrid[$eqKey][$lv])) $sevGrid[$eqKey][$lv]=0;
+	$sevGrid[$eqKey][$lv]++;
+	$sevLevels[$lv]=true;
 	?>
     <tr>
         <td><?php echo $row['index_no']; ?></td>
@@ -185,6 +202,24 @@ foreach($allRows as $row){
 </div>
 
 <?php
+// Severity columns in ascending order, with any unlevelled rows last.
+$sevOrder = array_keys($sevLevels);
+sort($sevOrder);
+if(in_array('None',$sevOrder)){
+	$sevOrder = array_diff($sevOrder, array('None'));
+	$sevOrder[] = 'None';
+	$sevOrder = array_values($sevOrder);
+}
+
+// Heatmap rows: equipment ranked by total, "Unspecified" always last.
+$sevRowTotals=array();
+foreach($sevGrid as $eq=>$byLv){ $sevRowTotals[$eq]=array_sum($byLv); }
+arsort($sevRowTotals);
+$sevRows=array();
+foreach($sevRowTotals as $eq=>$t){ if($eq!=='Unspecified') $sevRows[]=$eq; }
+if(isset($sevRowTotals['Unspecified'])) $sevRows[]='Unspecified';
+$sevRows = array_slice($sevRows, 0, 8);
+
 // Rank recurring terms among the rows the classifier could NOT place; keep
 // the top 8 that turn up in 2+ of them.
 arsort($blankTerms);
@@ -202,6 +237,7 @@ foreach($blankTerms as $t=>$c){
 <div id="ccs-print-charts" style="display:none;">
 	<canvas id="ccsChartMonthly" width="340" height="230"></canvas>
 	<canvas id="ccsChartPareto"  width="340" height="200"></canvas>
+	<canvas id="ccsSeverity"     width="340" height="220"></canvas>
 	<canvas id="ccsBlankTerms"   width="340" height="200"></canvas>
 </div>
 
@@ -211,6 +247,9 @@ var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts); ?>;
 var ccsProblemCounts = <?php echo json_encode($problemCounts); ?>;
 var ccsSuggested     = <?php echo json_encode($suggestedCounts, JSON_FORCE_OBJECT); ?>;
 var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
+var ccsSevGrid       = <?php echo json_encode($sevGrid, JSON_FORCE_OBJECT); ?>;
+var ccsSevRows       = <?php echo json_encode($sevRows); ?>;
+var ccsSevCols       = <?php echo json_encode(array_values($sevOrder)); ?>;
 var ccsBlankTerms    = <?php echo json_encode($topBlankTerms); ?>;
 var ccsBlankTotal    = <?php echo (int)$blankTotal; ?>;
 </script>
@@ -432,6 +471,78 @@ $(function(){
 		}]
 	});
 
+	// ---- Chart 3: equipment x severity. Hand-drawn on a raw canvas (not
+	// Chart.js) so it flattens to an image for the TableTools print handoff
+	// like the others. Cell shading runs on a severity ramp — green through
+	// amber to red across the level columns — so a hot L4 cell reads as a
+	// priority at a glance, which a count-only ranking cannot show.
+	(function drawSeverity(){
+		var cv = document.getElementById('ccsSeverity');
+		var ctx = cv.getContext('2d');
+		var W = cv.width, H = cv.height;
+		ctx.clearRect(0,0,W,H);
+		ctx.textBaseline = 'middle';
+
+		ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = textInk; ctx.textAlign = 'left';
+		ctx.fillText('Equipment \u00d7 severity', 0, 9);
+
+		if(!ccsSevRows.length || !ccsSevCols.length){
+			ctx.font = '10px Arial, sans-serif'; ctx.fillStyle = mutedInk;
+			ctx.fillText('No severity data to chart.', 0, 34);
+			return;
+		}
+
+		// Severity ramp by column position; unlevelled rows get neutral grey.
+		var ramp = ['27,175,122','237,161,0','227,73,72','163,45,45'];
+		function baseFor(col, idx){
+			if(col === 'None') return '156,154,146';
+			return ramp[Math.min(idx, ramp.length-1)];
+		}
+
+		var padL = 118, padT = 34, padR = 8, padB = 16;
+		var gridW = W - padL - padR, gridH = H - padT - padB;
+		var cellW = gridW / ccsSevCols.length, cellH = gridH / ccsSevRows.length;
+
+		var maxV = 0;
+		ccsSevRows.forEach(function(r){
+			ccsSevCols.forEach(function(c){
+				var v = (ccsSevGrid[r] && ccsSevGrid[r][c]) || 0;
+				if(v > maxV) maxV = v;
+			});
+		});
+		if(maxV === 0) maxV = 1;
+
+		// column headers
+		ctx.font = '10px Arial, sans-serif'; ctx.fillStyle = mutedInk; ctx.textAlign = 'center';
+		ccsSevCols.forEach(function(c,ci){ ctx.fillText(c, padL + ci*cellW + cellW/2, padT - 10); });
+
+		ccsSevRows.forEach(function(rowName,ri){
+			var y = padT + ri*cellH;
+			ctx.font = '10px Arial, sans-serif';
+			ctx.fillStyle = (rowName === 'Unspecified') ? mutedInk : textInk;
+			ctx.textAlign = 'right';
+			var label = rowName.length > 17 ? rowName.slice(0,16)+'\u2026' : rowName;
+			ctx.fillText(label, padL - 6, y + cellH/2);
+
+			ccsSevCols.forEach(function(col,ci){
+				var v = (ccsSevGrid[rowName] && ccsSevGrid[rowName][col]) || 0;
+				var x = padL + ci*cellW;
+				var base = baseFor(col, ci);
+				var t = v === 0 ? 0.05 : 0.15 + (v/maxV)*0.80;
+				ctx.fillStyle = 'rgba('+base+','+t.toFixed(3)+')';
+				ctx.fillRect(x+1, y+1, cellW-2, cellH-2);
+				if(v > 0){
+					ctx.fillStyle = (v/maxV > 0.55) ? '#fff' : mutedInk;
+					ctx.font = '10px Arial, sans-serif'; ctx.textAlign = 'center';
+					ctx.fillText(String(v), x + cellW/2, y + cellH/2);
+				}
+			});
+		});
+
+		ctx.font = '9px Arial, sans-serif'; ctx.fillStyle = mutedInk; ctx.textAlign = 'left';
+		ctx.fillText('Colour = severity, depth = count', padL, H - 5);
+	})();
+
 	// ---- Chart 3: what is left after the classifier has done its work.
 	// These are rows with no recorded equipment that the classifier ABSTAINED
 	// on — too little evidence, or two categories too close to call. Their
@@ -549,6 +660,7 @@ $(function(){
 	function ccsPrintWithCharts(){
 		var chartMonthlyImg = document.getElementById('ccsChartMonthly').toDataURL('image/png');
 		var chartParetoImg  = document.getElementById('ccsChartPareto').toDataURL('image/png');
+		var severityImg     = document.getElementById('ccsSeverity').toDataURL('image/png');
 		var blankTermsImg   = document.getElementById('ccsBlankTerms').toDataURL('image/png');
 		var captured  = ccsFullTableHtml();
 		var tableHtml = captured.html;
@@ -610,8 +722,9 @@ $(function(){
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + chartMonthlyImg + '">' + '<div class="cap">Figure 1 &mdash; Incidents by month, by equipment</div></div>' +
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Leading equipment by incident count</div></div>' +
-				'<div class="chart"><img src="' + blankTermsImg + '">' + '<div class="cap">Figure 3 &mdash; Recurring words among incidents left unplaced</div></div>' +
-				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified; Figure 3 counts words appearing in those descriptions and assigns no category.</p>' +
+				'<div class="chart"><img src="' + severityImg + '">' + '<div class="cap">Figure 3 &mdash; Equipment by severity level</div></div>' +
+				'<div class="chart"><img src="' + blankTermsImg + '">' + '<div class="cap">Figure 4 &mdash; Recurring words among incidents left unplaced</div></div>' +
+				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified; Figure 4 counts words appearing in those descriptions and assigns no category. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
@@ -664,7 +777,7 @@ function getEquipmentType($db,$type){
 // to the database, and the model retrains on every page load.
 //
 // Rows the classifier ABSTAINS on stay unplaced, and ccsTokenize is reused to
-// mine THEIR descriptions for recurring words (Figure 3) — so the residue is
+// mine THEIR descriptions for recurring words (Figure 4) — so the residue is
 // described rather than guessed at.
 // ============================================================
 
