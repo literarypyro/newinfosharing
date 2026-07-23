@@ -891,6 +891,31 @@ if($defectsNM>0){
 		}
 	}
 }
+$defectsSQL="select * from incident_equipt where incident_id='".$row['incident_id']."'";
+
+$defectsRS=$db2->query($defectsSQL);
+$defectsNM=$defectsRS->num_rows;
+if($defectsNM>0){
+	for($n=0;$n<$defectsNM;$n++){
+		$defectsRow=$defectsRS->fetch_assoc();
+
+		$equiptSQL="select * from equipment where id='".$defectsRow['equipt_id']."' limit 1";
+		$equiptRS=$db->query($equiptSQL);
+		$equiptRow=$equiptRS->fetch_assoc();
+		
+		$eq_name=$equiptRow['equipment_name'];
+		
+		
+		
+		if($n==0){
+			echo $eq_name;
+		}
+		else {
+			echo ", ".$eq_name;
+		
+		}
+	}
+}
 ?>
 </td>
 <td valign=center align=center><a href='#' class="LDel" onclick='deleteIncident("<?php echo $row['incident_id']; ?>")'>X</a></td>
