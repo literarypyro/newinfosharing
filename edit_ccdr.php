@@ -2379,10 +2379,16 @@ else {
 				     so the modal never opens -- exactly the "Index/Car edit
 				     doesn't work" symptom. Keeping the id on this element (now
 				     the sole authoritative source) fixes it with no JS changes. -->
+					 <?PHP
+					 /**
+					 
+					 
 				<tr><th width=20%>Incident</th><td>
 					<span style="font-weight:600;color:var(--cc-blue);"><?php echo $incident_no; ?></span>
 					<span style="color:var(--cc-muted);font-size:11px;margin-left:6px;">(ID <?php echo $incident_report; ?>)</span>
-				</td></tr> 
+				</td></tr>
+
+*/ ?>				
 				</table>
 				<br>
 				<input type="hidden" name='fieldType' id='fieldType' />
