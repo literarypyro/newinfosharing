@@ -274,11 +274,8 @@ if(isset($_POST['type'])){
 		echo "<script language='javascript'>window.open('service interruption.php?incident=".$incident_code."');</script>";
 	}
 
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
-	$update="insert into incident_defects(incident_id,equipt_id,sub_item_id) (select '".$incident_code."',equipt_id,sub_item_id from temp_multiple)";
-	$updateRS=$db2->query($update);
-	$update="delete from temp_multiple";
-	$updateRS=$db2->query($update);
+	/* Legacy 'Additional Defects' removed: the temp_multiple ->
+	   incident_defects copy and its is_external connection are gone. */
 }
 ?>
 
@@ -514,12 +511,6 @@ body { background: #EAEEF3; font-family: var(--ir-sans); color: var(--ir-dark); 
 
 /* ── Level condition span (injected by JS getLevel) ── */
 #condition select { margin-left: 10px; }
-
-/* ── Multiple defects table (injected by JS activateMultiple) ── */
-#multi_list { width: 100%; border-collapse: collapse; margin-top: 6px; }
-#multi_list th { background: var(--ir-blue); color: #fff; font-size: 11px; font-weight: 600; padding: 5px 10px; border: 1px solid var(--ir-border); }
-#multi_list td { background: var(--ir-row-odd); font-size: 12px; padding: 5px 10px; border: 1px solid var(--ir-border); }
-#multi_list tr:nth-child(odd) td { background: var(--ir-white); }
 
 /* ── Dropdown menu (Bootstrap autocomplete — kept as-is visually) ── */
 .dropdown-menu { position:absolute; top:100%; left:0; z-index:1000; display:none; float:left; min-width:160px; padding:5px 0; margin:2px 0 0; list-style:none; background-color:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:6px; box-shadow:0 5px 10px rgba(0,0,0,0.12); }
@@ -774,36 +765,6 @@ function addCoordinate(){
 	else if(coordinate=="reinitialize"){ additional="Re-initialized, ok."; }
 	else if(coordinate=="recorded"){ additional="Recorded."; }
 	document.getElementById('dotc').value=remarksValue+" "+additional;	
-}
-
-function activateMultiple(){
-	var multipleSignal=document.getElementById('multipleFlag');
-	if(multipleSignal.checked){
-		var multipleTable="<table name='multi_list' id='multi_list' width=80%></table>";
-		multipleTable+="<a href='#' onclick=\"window.open('multiple_defects.php?problemType=RS')\">Update</a>";	
-		document.getElementById('multiple_space').innerHTML=multipleTable;
-	}
-	else {
-		document.getElementById('multiple_space').innerHTML="";
-	}
-}
-
-function retrieveDefects(){
-	makeajax("processing.php?retrieveAdditional=Y","getAdditional");	
-}
-
-function getAdditional(ajaxHTML){
-	var subHTML="";
-	if(ajaxHTML!="No data available"){
-		var subItemTerms=ajaxHTML.split(";");
-		var count=(subItemTerms.length)*1-1;
-		subHTML="<tr><th>Equipment</th><th>Sub-item</th></tr>";
-		for(var n=0;n<count;n++){
-			var parts=subItemTerms[n].split(",");
-			subHTML+="<tr><td>"+parts[0]+"</td><td>"+parts[1]+"</td></tr>";
-		}
-	}
-	document.getElementById('multi_list').innerHTML=subHTML;
 }
 
 function checkIncidentNo(element){
@@ -1427,7 +1388,7 @@ document.addEventListener('keydown',function(e){
 
 	<!-- Equipment Involved — multi-select with per-item sub-items (now primary) -->
 	<tr>
-		<td class="ir-label ir-label--top" style="padding-top:11px">Equipment Involved</td>
+		<td class="ir-label ir-label--top" style="padding-top:11px;text-wrap:wrap;">Equipment(s) Involved (including Additional Defects)</td>
 		<td class="ir-field" style="padding-top:9px">
 
 			<!-- Multi-equipment picker — Option A: Inline search panel,
@@ -1470,18 +1431,6 @@ document.addEventListener('keydown',function(e){
 		<td class="ir-field">
 			<span name='equipment_space' id='equipment_space'></span>
 			<span id='unit_space' name='unit_space'></span>
-		</td>
-	</tr>
-
-	<!-- Additional Defects (legacy mechanism — unchanged, kept for parity) -->
-	<tr>
-		<td class="ir-label">Additional Defects <span class="ir-subtle-note" style="display:block;font-weight:400">(legacy)</span></td>
-		<td class="ir-field">
-			<label class="ir-check-row">
-				<input type="checkbox" name='multipleFlag' id='multipleFlag' onclick='activateMultiple()' />
-				Multiple defects (opens separate popup)
-			</label>
-			<span id='multiple_space' name='multiple_space'></span>
 		</td>
 	</tr>
 

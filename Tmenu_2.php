@@ -258,8 +258,14 @@ body { height: 100%; overflow: hidden; }
   <li><a href="#">Incident Report</a>
   
   	<ul>
+		<!-- Trial balloon: Incident reporting assumed to be dependent on Train Availability, and Edit CCDR 
+		from other Pages, so disabling their independent pages -->
+	
+		<!--
 		<li><a href='incident report.php' id='dr'>Record Incident</a></li>		
 		<li><a href='edit_ccdr.php' id='dr1' >Edit Incident Details</a></li>
+		-->
+		
 		<li><a href='incident summary.php' id='dr3'>Daily Incident Summary</a></li>		
 		<li><a href='ccdr_summary.php' id='dr2'>CCDR Summary</a></li>
 		

@@ -857,7 +857,7 @@ $id=$row['incident_id'];
 ?>
 
 <a href='#' class="two2" onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo $id; ?>&embed=1","Incident - <?php echo htmlspecialchars($no); ?>")'><?php echo $row['incident_no']; ?></a></td><td align=center><?php echo $hourStamp; ?></td>
-<td align=center>&nbsp;</td>
+<td align=center><?php if(isset($row['resolution_date'])){ echo date("Y-m-d H:iA",strtotime($row['resolution_date'])); } ?></td>
 
 <td><?php echo $row['duration']; ?></td>
 <td><?php echo $description; ?></td>

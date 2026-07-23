@@ -95,6 +95,57 @@ function addCoordinate(){
 
 }
 
+/* --------------------------------------------------------------------
+   Edit-field modal: shown/hidden directly, without Bootstrap's plugin.
+
+   This used to be $('#addModal').modal('show'), which depends on two
+   things that are not reliable inside the embed=1 slide-panel iframe:
+   bootstrap.min.js having registered $.fn.modal, and a transitionend
+   firing on the injected backdrop before the plugin calls .show() on
+   the modal (see the modal shim note in the stylesheet below). When
+   either link in that chain breaks, fillEdit() still runs to completion
+   -- the fields are built into #edit_table -- but nothing appears, so
+   the Edit click looks dead.
+
+   The equipment and link editors on this page never had that problem
+   because they just toggle a class. These helpers do the same for
+   #addModal: no plugin, no transition timing. Closing is handled here
+   too, since the Close controls relied on data-dismiss, which is also
+   plugin-driven and would otherwise stop working.
+   -------------------------------------------------------------------- */
+function ccEditBackdrop(show){
+	var b=document.getElementById('cc-edit-backdrop');
+	if(show){
+		if(!b){
+			b=document.createElement('div');
+			b.id='cc-edit-backdrop';
+			b.className='modal-backdrop fade in';
+			b.onclick=function(){ ccEditModalHide(); };
+			document.body.appendChild(b);
+		}
+		b.style.display='block';
+	}
+	else if(b){ b.style.display='none'; }
+}
+
+function ccEditModalShow(){
+	var m=document.getElementById('addModal');
+	if(!m){ return; }
+	ccEditBackdrop(true);
+	m.classList.remove('hide');   /* .hide { display:none } from the shim */
+	m.classList.add('in');        /* .fade.in -> opacity 1, #addModal.in -> top */
+	m.style.display='block';      /* inline, beats #addModal { display:none } */
+}
+
+function ccEditModalHide(){
+	var m=document.getElementById('addModal');
+	if(m){
+		m.classList.remove('in');
+		m.style.display='none';
+	}
+	ccEditBackdrop(false);
+}
+
 function fillEdit(elementName){
 	var elementContents="";
 	
@@ -441,7 +492,7 @@ function fillEdit(elementName){
 	}
 	
 	
-	$('#addModal').modal('show');
+	ccEditModalShow();
 }
 
 function okayDefects(ajaxHTML){
@@ -636,7 +687,7 @@ function fillEquipt(problemType,equiptId){
 			makeajax("processing.php?scrollRolling="+problemType,"fillOnboard");		
 		}
 	}
-	$('#addModal').modal('show');
+	ccEditModalShow();
 
 }
 
@@ -2301,7 +2352,7 @@ else {
 <!-- Mjun@ -->
 		<div class="modal hide fade" id="addModal">
 			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+				<button type="button" class="close" data-dismiss="modal" onclick="ccEditModalHide();" aria-label="Close">&times;</button>
 				<h3>Edit CCDR Field</h3>
 			</div>
 <form id='edit_form' name='edit_form' action='edit_ccdr.php?ir=<?php echo $incident_report; if($IR_EMBED){ echo "&embed=1"; } ?>'  method='post'>
@@ -2342,7 +2393,7 @@ else {
 			</div>
 						
 			<div class="modal-footer">
-				<a href="#" class="btn" data-dismiss="modal">Close</a>
+				<a href="#" class="btn" data-dismiss="modal" onclick="ccEditModalHide();return false;">Close</a>
 				<button type='submit' class="btn btn-primary" id='Suc' value='Submit'>Edit </button>
 			</div>
 			  </form>

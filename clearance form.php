@@ -979,7 +979,7 @@ $SRemove4 = "LEdit";
 <?php
 //if((isset($_POST['day']))||(isset($_SESSION['day']))){
 
-if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
+if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))||(isset($datenow))){
 	if(isset($_POST['search_date'])){
 		
 		$ava_date=date("Y-m-d",strtotime($_POST['search_date']));
@@ -990,6 +990,15 @@ if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 	
 	else if(isset($_SESSION['search_date'])){
 		$ava_date=date("Y-m-d",strtotime($_SESSION['search_date']));
+
+		//$year=$_SESSION['year'];
+		//$month=$_SESSION['month'];
+		//$day=$_SESSION['day'];
+	
+	
+	}
+		else if(isset($datenow)){
+		$ava_date=date("Y-m-d",strtotime($datenow));
 
 		//$year=$_SESSION['year'];
 		//$month=$_SESSION['month'];
