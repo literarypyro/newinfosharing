@@ -25,6 +25,36 @@ $coverageNote = ccsCoverageNote($coverage);
 $car_id=$_GET['car_id'];
 ?>
 <?php include("history_theme.php"); ?>
+<style type="text/css">
+/* ---------------------------------------------------------------------------
+   Column proportions for the incident log.
+   Without any width rule the browser lays the table out automatically, which
+   hands the Description column whatever is left over — usually far too much or
+   far too little depending on how long the first few descriptions happen to be.
+   Fixed layout plus explicit percentages makes the split predictable instead.
+
+   !important is needed, not decorative: DataTables writes inline pixel widths
+   onto the header cells when it initialises, and an inline style beats a plain
+   stylesheet rule. This is the only way to hold these proportions without
+   editing the shared init in additional.js, which every other page uses too.
+   --------------------------------------------------------------------------- */
+#add_form { table-layout: fixed; width: 100% !important; }
+
+#add_form th, #add_form td {
+	white-space: normal !important;   /* the template sets nowrap on some cells */
+	overflow-wrap: break-word;
+	word-wrap: break-word;            /* older WebKit */
+	word-break: break-word;           /* long unbroken tokens, e.g. part codes */
+	vertical-align: top;
+}
+
+#add_form th:nth-child(1), #add_form td:nth-child(1) { width:  7% !important; }  /* Index No */
+#add_form th:nth-child(2), #add_form td:nth-child(2) { width: 11% !important; }  /* Incident Date */
+#add_form th:nth-child(3), #add_form td:nth-child(3) { width: 14% !important; }  /* Problem Type */
+#add_form th:nth-child(4), #add_form td:nth-child(4) { width: 11% !important; }  /* Cause/Issue */
+#add_form th:nth-child(5), #add_form td:nth-child(5) { width: 7% !important; }  /* Incident Number */
+#add_form th:nth-child(6), #add_form td:nth-child(6) { width: 50% !important; }  /* Description */
+</style>
 <body>
 <div class="ccs-page">
 
@@ -587,7 +617,16 @@ $(function(){
 				'.tbl-head{ margin-bottom:6px; }' +
 				'.tbl-head h3{ font-size:13px; font-weight:600; margin:0; display:inline-block; }' +
 				'.tbl-head .count{ font-size:9.5px; color:#6b7280; margin-left:8px; }' +
-				'table{ width:100%; border-collapse:collapse; font-size:9.5px; }' +
+				'table{ width:100%; border-collapse:collapse; font-size:9.5px; table-layout:fixed; }' +
+				// Same proportions as the screen, so the printed log does not
+				// re-flow into a different shape from the one just reviewed.
+				'th,td{ overflow-wrap:break-word; word-wrap:break-word; word-break:break-word; vertical-align:top; }' +
+				'th:nth-child(1),td:nth-child(1){ width:7%; }' +
+				'th:nth-child(2),td:nth-child(2){ width:11%; }' +
+				'th:nth-child(3),td:nth-child(3){ width:14%; }' +
+				'th:nth-child(4),td:nth-child(4){ width:16%; }' +
+				'th:nth-child(5),td:nth-child(5){ width:12%; }' +
+				'th:nth-child(6),td:nth-child(6){ width:40%; }' +
 				'thead{ display:table-header-group; }' +
 				'th{ background:#1f4e79; color:#fff; text-align:left; padding:6px 7px;' +
 					' font-size:9px; font-weight:600; text-transform:uppercase;' +
