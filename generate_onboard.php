@@ -1,14 +1,15 @@
 <?php
+ob_start();
+
 session_start();
+?>
+<?php
+ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
 <?php
 require_once("phpexcel/Classes/PHPExcel.php");
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
-require("excel functions.php");
-
-?>
-<?php
-ini_set("date.timezone","Asia/Kuala_Lumpur");
+require("excel_functions.php");
 ?>
 <?php
 function getEquiptCount($equipt,$onboard_date){
@@ -50,15 +51,11 @@ function getRemarks($equipt,$onboard_date){
 
 
 }
-?>
-<?php
 	if(isset($_GET['onboard_date'])){
-
 		$onboard_date=$_GET['onboard_date'];
 	
 
-		$db=new mysqli("localhost","root","","transport");
-		
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");		
 
 		$sqlEquipt="select * from equipment where category='OB' order by equipment_name";
 		$rs=$db->query($sqlEquipt);
@@ -111,8 +108,6 @@ function getRemarks($equipt,$onboard_date){
 
 
 //		}
-		
-
 		$filename="OnBoardEquipt.xls";
 
 		$oldfilename="forms/".$filename;
@@ -124,7 +119,6 @@ function getRemarks($equipt,$onboard_date){
 		$excel=loadExistingWorkbook($workbookname);
 		
 		$ExWs=createWorksheet($excel,$workSheetName,"openActive");
-
 		addContent(setRange("R9","S9"),$excel,date("F d, Y",strtotime($onboard_date)),"true",$ExWs);
 
 		addContent(setRange("R10","S10"),$excel,date("l",strtotime($onboard_date)),"true",$ExWs);	
@@ -206,8 +200,7 @@ function getRemarks($equipt,$onboard_date){
 
 
 		$personnel_date=$onboard_date;
-
-	$db2=new mysqli("localhost","root","","user_transport");
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
 	$psql="select * from duty_personnel where personnel_date like '".$personnel_date."%%' and shift='3'";
 	//echo $psql;
 	$prs=$db2->query($psql);
@@ -269,16 +262,15 @@ function getRemarks($equipt,$onboard_date){
 		
 	
 	}	
-	
 
 
 		
 		save($ExWb,$excel,$newFilename); 	
+		
 		echo "Onboard Equipment has been generated!  Press right click and Save As: <a href='".$newFilename."'>Here</a>";
 
 
 	}
-	
 	
 	
 	
@@ -322,4 +314,5 @@ function getTrainDriver($db,$td_id){
 
 }
 	
+	ob_end_flush();
 ?>

@@ -2,65 +2,131 @@
 session_start();
 ?>
 <?php
-require("excel_functions.php");
-
 require_once("phpexcel/Classes/PHPExcel.php");
-
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
+/* excel_functions.php no longer needed -- this version talks to PHPExcel directly */
+?>
+<?php
+require_once("db_config.php"); /* centralized credentials -- see db_config.php.
+   The old file carried a hardcoded mysqli username/password in source, which is
+   exactly what db_config.php was created to eliminate. */
+?>
+<?php
+ini_set("date.timezone","Asia/Manila"); /* was Asia/Kuala_Lumpur -- same fix as generate_nis.php */
+?>
+<?php
+/* ============================================================================
+   generate_tar.php -- Train Availability Report printout (2026-07 rewrite)
 
-?>
-<?php
-ini_set("date.timezone","Asia/Kuala_Lumpur");
-?>
-<?php
+   WHAT CHANGED STRUCTURALLY
+   The old TAR.xls contained SIX pre-drawn ledger blocks (7 trains each, 43
+   rows per block) and the code filled them positionally; anything beyond the
+   pre-drawn blocks simply could not be printed, and the blocks had drifted
+   from hand-copying (block 4's letterhead still said "...AND COMMUNICATIONS").
+   The new forms/TAR_template.xlsx contains exactly ONE canonical ledger block
+   (rows 1-43: header rows 1-13, seven 4-row train slots at rows 14-41, two
+   spacer rows) plus the footer (rows 44-54: notes, signature block). This
+   script CLONES the block as many times as the day's data needs:
+
+     pages = ceil(trains / 7)
+     1. insert 43*(pages-1) rows before the footer
+     2. copy block rows 1-43 into each new page: values, styles (by xf index),
+        row heights, and merges (collected once, re-applied at an offset)
+     3. fill the header of EVERY page (Day/Date/Code + signatories -- the old
+        code only ever filled page 1's header, so printed pages 2+ showed the
+        stale names baked into the template)
+     4. fill train slots; a slot is 4 rows, all merges pre-exist in the template
+     5. trim the unused slots of the last page and let the footer follow the
+        data directly (same look as the old removeRow slide-up, but computed
+        from known geometry instead of merge-then-unmerge guesswork)
+     6. one explicit page break after every full block, so a block IS a page
+        regardless of printer-driver rounding (the old file relied on natural
+        pagination at 100% scale, which is exactly what drifts)
+
+   Geometry constants below mirror the template. If you edit the template's
+   layout, update them together.
+
+   DELIBERATE FIXES from the old file (2026-07-24), beyond the structure:
+   a. $personnel_date was assigned from $ccdr_date, a variable that does not
+      exist in this file (copy-paste from generate_nis), so the signatory
+      date comparison always failed and the TOP header always printed the
+      OLDEST signatories row. Now uses the report date, so the GM / Director
+      names match what was in effect on that date.
+   b. $availability_date (used to decide whether an insert/remove time from a
+      different day gets its date printed above it) was also undefined, so the
+      date prefix NEVER appeared. Now the report date.
+   c. Stale-value leak: $inserted_to (and friends) were only reset inside some
+      branches, so a train with no insert time could print the PREVIOUS
+      train's "Quezon Ave." prefix. All per-train variables reset every loop.
+   d. The removed-from check compared an undefined variable ($removed_from)
+      instead of the DB column, and used an HTML "<br/>" inside an Excel cell.
+      Now reads $row2['removed_from'] (guarded -- stays blank if the column
+      does not exist) and uses a real newline, mirroring the insert side.
+   e. GET date validated + escaped before entering SQL; helper lookups guarded
+      against missing rows instead of fataling.
+   f. Timezone Asia/Kuala_Lumpur -> Asia/Manila (same offset, correct zone).
+
+   2026-07-24 (g): first live run came back with a 0 in every blank cell, data
+   running to row 355, and all three pages crushed onto one sheet. Three
+   independent causes, all now fixed at the template source AND guarded here:
+   (1) the LibreOffice conversion typed 677 empty cells t="n" with no value, and
+   PHPExcel writes those as <v>0</v>; (2) openpyxl's delete_rows left 207
+   phantom <row> definitions behind (it reports max_row by CELLS, which hid
+   them, but PHPExcel reads them as real rows); (3) fitToWidth/fitToHeight of 1
+   made PHPExcel set fitToPage=true, overriding every page break.
+
+   PRESERVED ON PURPOSE
+   - getLevel() live-ordinal computation and its full explanatory comment.
+   - The 4-switch cap and its 2026-07 review comment (with a short addendum:
+     the template confirms columns B-E are the only switch columns).
+   - Query shapes, name formatting, CANCELLED banner rules, ordinal clauses.
+   ============================================================================ */
+
+/* ---- geometry of forms/TAR_template.xlsx ---- */
+define("TAR_BLOCK_ROWS", 43);        /* rows per ledger block / printed page  */
+define("TAR_SLOTS_PER_PAGE", 7);     /* train slots per block                 */
+define("TAR_SLOT_ROWS", 4);          /* rows per train slot                   */
+define("TAR_DATA_TOP", 14);          /* first slot's top row within a block   */
+define("TAR_FOOTER_FIRST", 44);      /* footer's first row in the template    */
+define("TAR_FOOTER_NAMES_OFFSET", 9);/* names row = footer first + this       */
+
+/* Trim the unused slots of the last page so the footer follows the data
+   (the old behaviour). Set false to keep full blank ruled slots instead. */
+define("TAR_TRIM_LAST_PAGE", true);
+
+/* Set true to print layout numbers (pages, rows, footer position). */
+define("TAR_DEBUG", false);
+
 function getTrainDriver($id,$dbase){
-
-//$db=new mysqli("localhost","root","","transport");
-	$sql="select * from train_driver where id='".$id."'";
+	$sql="select * from train_driver where id='".$dbase->real_escape_string($id)."'";
 	$rs=$dbase->query($sql);
+	if(!$rs || $rs->num_rows==0){ return ""; }
 	$row=$rs->fetch_assoc();
-	
 	$name=$row['position']." ".substr($row['firstName'],0,1).". ".$row['lastName'];
 	return $name;
-
-
 }
 
 function getTrainDriver2($db,$td_id){
-	$sql="select * from train_driver where id='".$td_id."' limit 1";
+	$sql="select * from train_driver where id='".$db->real_escape_string($td_id)."' limit 1";
 	$rs=$db->query($sql);
+	if(!$rs || $rs->num_rows==0){ return ""; }
 	$row=$rs->fetch_assoc();
-	
 	$name=$row['firstName']." ".substr($row['midName'],0,1).". ".$row['lastName'];
 	return $name;
-
 }
 
-
 function getPHTrainDriver($id,$dbase){
-
-//$db=new mysqli("localhost","root","","transport");
-	$sql="select firstName,lastName from ph_trams where id='".$id."' limit 1";
-	
-	
+	$sql="select firstName,lastName from ph_trams where id='".$dbase->real_escape_string($id)."' limit 1";
 	$rs=$dbase->query($sql);
-	$nm=$rs->num_rows;
-	if($nm>0){
+	if($rs && $rs->num_rows>0){
 		$row=$rs->fetch_assoc();
-	
 		$name=substr($row['firstName'],0,1).". ".$row['lastName'];
 	}
 	else {
-	
 		$name=$id;
 	}
 	return $name;
-
-
 }
-
-
-
 
 function getLevel($id,$dbase){
 	/* === FIX APPLIED 2026-07 (same fix as item #16 in train_availability.php and
@@ -97,628 +163,478 @@ function getLevel($id,$dbase){
 	$stmt->execute();
 	$row=$stmt->get_result()->fetch_assoc();
 	return $row['rnk'];
-
 }
 
 function getOrdinal($number){
-$ends = array('th','st','nd','rd','th','th','th','th','th','th');
-if (($number %100) >= 11 && ($number%100) <= 13)
-   $abbreviation = $number. 'th';
-else
-   $abbreviation = $number. $ends[$number % 10];
-
-   
- return $abbreviation;  
-
+	$ends = array('th','st','nd','rd','th','th','th','th','th','th');
+	if (($number %100) >= 11 && ($number%100) <= 13)
+	   $abbreviation = $number. 'th';
+	else
+	   $abbreviation = $number. $ends[$number % 10];
+	return $abbreviation;
 }
+
+function tarCellText($v){
+	/* PHPExcel returns a PHPExcel_RichText object for inline-string cells --
+	   see the {{DATA}} postmortem in generate_nis.php. Flatten everything. */
+	if($v===null){ return ""; }
+	if(is_object($v)){
+		if(method_exists($v,'getPlainText')){ return $v->getPlainText(); }
+		return (string)$v;
+	}
+	return (string)$v;
+}
+
+function tarSetCell($sheet,$coord,$v){
+	/* Plain digit runs (train index, car numbers) are written numeric so Excel
+	   does not flag them "number stored as text"; anything else (times with
+	   colons, names, multi-line remarks) is explicit text. */
+	$v=(string)$v;
+	if($v===""){ return; }
+	if(ctype_digit($v) && strlen($v)<15 && (strlen($v)==1 || $v[0]!=="0")){
+		$sheet->setCellValue($coord,(int)$v);
+	}
+	else {
+		$sheet->setCellValueExplicit($coord,$v,PHPExcel_Cell_DataType::TYPE_STRING);
+	}
+}
+
+function tarParseRange($range){
+	/* "L14:O17" -> array("L",14,"O",17); avoids PHPExcel's mixed 0-based /
+	   1-based column-index helpers entirely. */
+	if(preg_match('/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/',$range,$m)){
+		return array($m[1],(int)$m[2],$m[3],(int)$m[4]);
+	}
+	if(preg_match('/^([A-Z]+)(\d+)$/',$range,$m)){
+		return array($m[1],(int)$m[2],$m[1],(int)$m[2]);
+	}
+	return null;
+}
+
 if(isset($_GET['tar'])){
 	$tar_date=$_GET['tar'];
 
-	$filename="TAR.xls";
+	if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$tar_date)){
+		die("Invalid date.");
+	}
 
-	$oldfilename="forms/".$filename;
+	$templateFile="forms/TAR_template.xlsx";
+	if(!file_exists($templateFile)){
+		die("Template not found: ".htmlspecialchars($templateFile).". Upload TAR_template.xlsx into forms/.");
+	}
+	if(!class_exists('ZipArchive')){
+		die("PHP's zip extension is not enabled, which PHPExcel needs for .xlsx.");
+	}
+
 	$dateSlip=date("Y-m-d His");
-	$newFilename="printout/TAR_".$dateSlip.".xls";
-	copy($oldfilename,$newFilename);
+	$newFilename="printout/TAR_".$dateSlip.".xlsx";
+	if(!@copy($templateFile,$newFilename)){
+		die("Could not write into printout/ -- check that the folder exists and is writable.");
+	}
 
-	$workSheetName="TAR";	
-	$workbookname=$newFilename;
-	$excel=loadExistingWorkbook($workbookname);
+	$reader=PHPExcel_IOFactory::createReader('Excel2007');
+	$excel=$reader->load($newFilename);
+	$sheet=$excel->getSheetByName("TAR");
+	if($sheet===null){ $sheet=$excel->getActiveSheet(); }
+	$excel->setActiveSheetIndex($excel->getIndex($sheet));
 
-  	$ExWs=createWorksheet($excel,$workSheetName,"openActive");
+	$cols=array('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U');
 
+	/* ---- guard 1: keep PHPExcel from squashing the report onto one page ----
+	   A template carrying fitToWidth/fitToHeight = 1 makes PHPExcel set
+	   fitToPage=true on save, which scales the entire sheet down to a single
+	   page and silently overrides every page break we set below. The template
+	   now ships with these at 0; this repeats it so an older or re-saved
+	   template cannot bring the behaviour back. */
+	$sheet->getPageSetup()->setFitToPage(false);
+	$sheet->getPageSetup()->setFitToWidth(0);
+	$sheet->getPageSetup()->setFitToHeight(0);
 
-	
-	
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+	/* ---- guard 2: stop blank cells from printing as 0 ----
+	   LibreOffice's xls->xlsx conversion writes every styled-but-empty cell as
+	   <c s=".." t="n"></c>: explicitly typed NUMERIC with no value. PHPExcel
+	   reads the type, finds no value, and its writer emits <v>0</v> -- so every
+	   blank cell in the form prints a literal 0. The template is now cleaned at
+	   build time; this sweep re-marks any that slip through as genuinely empty.
+	   Runs over the single block + footer only (before cloning), so it is ~1100
+	   cells regardless of how many pages the day needs. */
+	for($r=1;$r<=TAR_FOOTER_FIRST+20;$r++){
+		foreach($cols as $c){
+			if(!$sheet->cellExists($c.$r)){ continue; }
+			$cell=$sheet->getCell($c.$r);
+			$v=$cell->getValue();
+			if($v===null || $v===""){
+				$cell->setValueExplicit(null, PHPExcel_Cell_DataType::TYPE_NULL);
+			}
+		}
+	}
 
-	
-	
-	$personnel_date=$ccdr_date;
+	$db=iss_db('transport');
+	$db2=iss_db('user_transport');
+	$tar_esc=$db->real_escape_string($tar_date);
 
-	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_user_transport");
-	$psql="select * from duty_personnel where personnel_date like '".$tar_date."%%' and shift='3'";
-	//echo $psql;
-	$prs=$db2->query($psql);
-	$pnm=$prs->num_rows;
+	/* fixes (a) and (b): both of these were undefined in the old file */
+	$personnel_date=$tar_date;
+	$availability_date=$tar_date;
 
-	if($pnm>0){
+	/* ---- day / date / timetable code ---- */
+	$header_day=date("l",strtotime($tar_date));
+	$header_date=date("F d, Y",strtotime($tar_date));
+	$header_code="";
+	$timeTableRS=$db->query("select *,timetable_day.id as timeId from timetable_day inner join timetable_code on timetable_day.timetable_code=timetable_code.id where train_date like '".$tar_esc."%%'");
+	if($timeTableRS && $timeTableRS->num_rows>0){
+		$timeTableRow=$timeTableRS->fetch_assoc();
+		$header_code=$timeTableRow['code'];
+	}
+
+	/* ---- signatories in effect on the report date (fix (a) makes this work) ---- */
+	$gm=""; $gm_office=""; $director=""; $chief="";
+	$signatoryRS=$db2->query("select * from signatories order by signatory_date DESC");
+	if($signatoryRS && $signatoryRS->num_rows>0){
+		$signatoryRow=$signatoryRS->fetch_assoc();
+		if(strtotime($personnel_date)>=strtotime($signatoryRow['signatory_date'])){
+			$gm=$signatoryRow['general_manager'];
+			$gm_office=$signatoryRow['gm_office'];
+			$director=$signatoryRow['director_ops'];
+			$chief=$signatoryRow['chief_transport'];
+		}
+		else {
+			$sigRS=$db2->query("select * from signatories where signatory_date>'".$db2->real_escape_string($personnel_date)."' order by signatory_date asc");
+			if($sigRS && $sigRS->num_rows>0){
+				$sigRow=$sigRS->fetch_assoc();
+				$gm=$sigRow['general_manager'];
+				$gm_office=$sigRow['gm_office'];
+				$director=$sigRow['director_ops'];
+				$chief=$sigRow['chief_transport'];
+			}
+		}
+	}
+
+	/* ---- shift-3 duty personnel for the footer ---- */
+	$recording=""; $clerk=""; $duty_manager="";
+	$prs=$db2->query("select * from duty_personnel where personnel_date like '".$db2->real_escape_string($personnel_date)."%%' and shift='3'");
+	if($prs && $prs->num_rows>0){
 		$prow=$prs->fetch_assoc();
 		$recording=getTrainDriver2($db,$prow['recording']);
 		$clerk=getTrainDriver2($db,$prow['clerk']);
 		$duty_manager=getTrainDriver2($db,$prow['duty_manager']);
-				
-		addContent(setRange("G268","I268"),$excel,$recording,"true",$ExWs);
-		addContent(setRange("B268","E268"),$excel,$clerk,"true",$ExWs);
-		addContent(setRange("K268","M268"),$excel,$duty_manager,"true",$ExWs);
+	}
 
-				
-				
-			
-	}	
+	/* ---- the day's trains, buffered so the page count is known up front ---- */
+	$trains=array();
+	$rs=$db->query("select * from train_availability where date like '".$tar_esc."%%' order by date");
+	if(!$rs){ die("Train availability query failed."); }
+	while($r=$rs->fetch_assoc()){ $trains[]=$r; }
+	$nm=count($trains);
 
+	$pages=max(1,(int)ceil($nm/TAR_SLOTS_PER_PAGE));
 
-	$signatorySQL="select * from signatories order by signatory_date DESC";
-	$signatoryRS=$db2->query($signatorySQL);
-	$signatoryNM=$signatoryRS->num_rows;
+	/* ================= 1-3. grow the workbook to the page count ================= */
 
-	if($signatoryNM>0){
-		$signatoryRow=$signatoryRS->fetch_assoc();
-		if(strtotime($personnel_date)>=strtotime($signatoryRow['signatory_date'])){
-			$chief=$signatoryRow['chief_transport'];	
-			$gm=$signatoryRow['general_manager'];
-			$gm_office=$signatoryRow['gm_office'];
-			$director=$signatoryRow['director_ops'];
-			
-		//	addContent(setRange("J190","M190"),$excel,$chief,"false",$ExWs);
-			addContent(setRange("C8","C8"),$excel,$gm,"false",$ExWs);
-			addContent(setRange("C9","C9"),$excel,$gm_office,"false",$ExWs);
-			addContent(setRange("J8","J8"),$excel,$director,"false",$ExWs);
+	/* collect the block's merges once, as column-letter offsets */
+	$blockMerges=array();
+	foreach($sheet->getMergeCells() as $range=>$xx){
+		$p=tarParseRange($range);
+		if($p!==null && $p[3]<=TAR_BLOCK_ROWS){ $blockMerges[]=$p; }
+	}
 
+	if($pages>1){
+		$sheet->insertNewRowBefore(TAR_FOOTER_FIRST, TAR_BLOCK_ROWS*($pages-1));
+
+		for($p=1;$p<$pages;$p++){
+			$base=TAR_BLOCK_ROWS*$p;
+			for($r=1;$r<=TAR_BLOCK_ROWS;$r++){
+				$h=$sheet->getRowDimension($r)->getRowHeight();
+				if($h!=-1){ $sheet->getRowDimension($base+$r)->setRowHeight($h); }
+				foreach($cols as $c){
+					$src=$c.$r; $dst=$c.($base+$r);
+					if(!$sheet->cellExists($src)){ continue; }
+					$srcCell=$sheet->getCell($src);
+					$sheet->getCell($dst)->setXfIndex($srcCell->getXfIndex());
+					$v=$srcCell->getValue();
+					/* a stray 0 from a mistyped blank cell must not propagate
+					   into every cloned page -- see guard 2 above */
+					if($v!==null && $v!=="" && !($v===0 || $v==="0")){
+						$t=tarCellText($v);
+						if(is_numeric($v) && !is_string($v)){
+							$sheet->setCellValue($dst,$v);
+						}
+						else {
+							$sheet->setCellValueExplicit($dst,$t,PHPExcel_Cell_DataType::TYPE_STRING);
+						}
+					}
+				}
+			}
+			foreach($blockMerges as $m){
+				$sheet->mergeCells($m[0].($m[1]+$base).":".$m[2].($m[3]+$base));
+			}
 		}
-		else {
-			$sig2="select * from signatories where signatory_date>'".$personnel_date."' order by signatory_date asc";
+	}
 
-			$sigRS=$db2->query($sig2);
-			$sigRow=$sigRS->fetch_assoc();
-			
-			$chief=$sigRow['chief_transport'];	
-			$gm=$sigRow['general_manager'];
-			$gm_office=$sigRow['gm_office'];
-			$director=$sigRow['director_ops'];
+	$footerFirst=TAR_FOOTER_FIRST + TAR_BLOCK_ROWS*($pages-1);
 
-		//	addContent(setRange("J190","M190"),$excel,$chief,"false",$ExWs);
-			addContent(setRange("C8","C8"),$excel,$gm,"false",$ExWs);
-			addContent(setRange("C9","C9"),$excel,$gm_office,"false",$ExWs);
-			addContent(setRange("J8","J8"),$excel,$director,"false",$ExWs);
-			
-		
-		
-		
-		
-		}
-		
-	
-	}		
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	addContent(setRange("O9","Q9"),$excel,date("F d, Y",strtotime($tar_date)),"true",$ExWs);
+	/* ================= 4. header of every page ================= */
+	for($p=0;$p<$pages;$p++){
+		$base=TAR_BLOCK_ROWS*$p;
+		$sheet->setCellValueExplicit("O".($base+8),$header_day,PHPExcel_Cell_DataType::TYPE_STRING);
+		$sheet->setCellValueExplicit("O".($base+9),$header_date,PHPExcel_Cell_DataType::TYPE_STRING);
+		$sheet->setCellValueExplicit("O".($base+10),$header_code,PHPExcel_Cell_DataType::TYPE_STRING);
+		if($gm!=""){ $sheet->setCellValueExplicit("C".($base+8),$gm,PHPExcel_Cell_DataType::TYPE_STRING); }
+		if($gm_office!=""){ $sheet->setCellValueExplicit("C".($base+9),$gm_office,PHPExcel_Cell_DataType::TYPE_STRING); }
+		if($director!=""){ $sheet->setCellValueExplicit("J".($base+8),$director,PHPExcel_Cell_DataType::TYPE_STRING); }
+	}
 
-	addContent(setRange("O8","Q8"),$excel,date("l",strtotime($tar_date)),"true",$ExWs);
-
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-	$timeTableSQL="select *,timetable_day.id as timeId from timetable_day inner join timetable_code on timetable_day.timetable_code=timetable_code.id where train_date like '".$tar_date."%%'";
-
-	$timeTableRS=$db->query($timeTableSQL);
-	$timeTableNM=$timeTableRS->num_rows;
-	if($timeTableNM>0){
-		$timeTableRow=$timeTableRS->fetch_assoc();
-		addContent(setRange("O10","Q10"),$excel,$timeTableRow['code'],"true",$ExWs);
-		
-		
-	}	
-	
-	
-	$sql="select * from train_availability where date like '".$tar_date."%%' order by date";
-	$rs=$db->query($sql);
-	$nm=$rs->num_rows;
-
-	$rowCount=0;
-	$page_counter=1;
-	
-	$rowCount+=14;
-	
+	/* ================= 5. fill the train slots ================= */
 	for($i=0;$i<$nm;$i++){
-		$row=$rs->fetch_assoc();
-		$train_index=$row['index_no'];	
+		$row=$trains[$i];
 
-		$start=$rowCount;	
-		$end=$start*1+3;
-			
-		addContent(setRange("A".$start,"A".$end),$excel,$train_index,"true",$ExWs);
+		$page=(int)floor($i/TAR_SLOTS_PER_PAGE);
+		$slot=$i%TAR_SLOTS_PER_PAGE;
+		$start=TAR_BLOCK_ROWS*$page + TAR_DATA_TOP + TAR_SLOT_ROWS*$slot;
+		$end=$start+TAR_SLOT_ROWS-1;
 
+		/* fix (c): reset EVERYTHING per train -- the old loop leaked
+		   $inserted_to (and could leak dates/drivers) between trains */
+		$boundary_time=""; $insert_time=""; $insert_driver=""; $inserted_to="";
+		$remove_time=""; $remove_driver=""; $removed_from=""; $remove_remarks="";
+		$insert_date=""; $remove_date="";
 
-		
+		$train_index=$row['index_no'];
+		tarSetCell($sheet,"A".$start,$train_index);
 
-		$sql3="select * from train_switch where train_ava_id='".$row['id']."' order by date_change";
-		$rs3=$db->query($sql3);
-		$nm3=$rs3->num_rows;
+		$rs3=$db->query("select * from train_switch where train_ava_id='".$db->real_escape_string($row['id'])."' order by date_change");
+		$nm3=$rs3?$rs3->num_rows:0;
 
 		/* === REVIEWED 2026-07 -- NOT changed, and here's precisely why ===
 		   The screen (train_availability.php) allows up to 7 switches; this print
 		   loop caps at 4. Raising this to 7 to match is NOT safe to do blindly:
 		   the loop below writes one switch per column starting at chr(66)='B' and
 		   incrementing (B, C, D, E for n=0..3). The very next column, F, is where
-		   car_a is unconditionally written a few lines down (line ~243 in this
-		   file), G is boundary_time, H is insert data -- ALL written after this
-		   loop runs, so they'd immediately overwrite whatever a 5th+ switch wrote
-		   there. Raising the cap wouldn't actually surface switches 5-7 on the
-		   printed page; it would silently make them vanish (overwritten a few
-		   lines later) instead of the current honest, deliberate cap. B-through-E
-		   is exactly the 4-column gap between index_no (A) and cars (F) -- this
-		   was very likely sized to the template on purpose, not a bug.
-		   Fixing this properly needs one of: (a) the actual TAR.xls template, to
-		   see whether columns exist elsewhere for switches 5-7, or (b) a redesign
-		   of this section of the form. Given switches were described as maxing
-		   out around 3-4 in practice, this is likely dormant today -- but if a
-		   train ever does switch a 5th time in one day, only its first 4 switches
-		   would appear on the printed TAR. === END REVIEW === */
+		   car_a is unconditionally written a few lines down, G is boundary_time,
+		   H is insert data -- ALL written after this loop runs, so they'd
+		   immediately overwrite whatever a 5th+ switch wrote there. Raising the
+		   cap wouldn't actually surface switches 5-7 on the printed page; it
+		   would silently make them vanish (overwritten a few lines later)
+		   instead of the current honest, deliberate cap. B-through-E is exactly
+		   the 4-column gap between index_no (A) and cars (F) -- this was very
+		   likely sized to the template on purpose, not a bug.
+		   ADDENDUM 2026-07-24: template in hand -- TAR.xls's data slots have
+		   switch sub-cells in columns B-E only (two stacked 2-row merges per
+		   column), so the 4-column cap matches the physical form exactly and
+		   stands. === END REVIEW === */
 		if($nm3>4){
 			$nm3=4;
 		}
-		
+
 		$col=66;
 		for($n=0;$n<$nm3;$n++){
 			$row3=$rs3->fetch_assoc();
-			
-
-			addContent(setRange(chr($col).$start,chr($col).($start+1)),$excel,date("H:i",strtotime($row3['date_change'])),"true",$ExWs);
-			addContent(setRange(chr($col).($end-1),chr($col).$end),$excel,$row3['new_index'],"true",$ExWs);
-
+			tarSetCell($sheet,chr($col).$start,date("H:i",strtotime($row3['date_change'])));
+			tarSetCell($sheet,chr($col).($end-1),$row3['new_index']);
 			$col++;
-			
-		}	
-			
-		addContent(setRange("F".$start,"F".$start),$excel,$row['car_a'],"true",$ExWs);
-		addContent(setRange("F".($start+1),"F".($start+2)),$excel,$row['car_b'],"true",$ExWs);
-		addContent(setRange("F".($end),"F".$end),$excel,$row['car_c'],"true",$ExWs);
-			
-		$sql2="select * from train_ava_time where train_ava_id='".$row['id']."'";
-		$rs2=$db->query($sql2);
-		$row2=$rs2->fetch_assoc();
-
-		if($row2['boundary_time']==""){
-			$boundary_time="";
 		}
-		else {
+
+		tarSetCell($sheet,"F".$start,$row['car_a']);
+		tarSetCell($sheet,"F".($start+1),$row['car_b']);
+		tarSetCell($sheet,"F".$end,$row['car_c']);
+
+		$rs2=$db->query("select * from train_ava_time where train_ava_id='".$db->real_escape_string($row['id'])."'");
+		$row2=($rs2 && $rs2->num_rows>0)?$rs2->fetch_assoc():array();
+
+		if(isset($row2['boundary_time']) && $row2['boundary_time']!=""){
 			$boundary_time=date("H:i",strtotime($row2['boundary_time']));
-		}	
-		
-		if($row2['insert_time']==""){
-			$insert_time="";
-			$insert_driver="";
 		}
-		else {
 
+		if(isset($row2['insert_time']) && $row2['insert_time']!=""){
 			if($row2['insert_time']=="0000-00-00 00:00:00"){
 				$insert_date="";
 				$insert_time="";
 			}
-			else {		
+			else {
 				$insert_time=date("H:i",strtotime($row2['insert_time']));
 				$insert_date=date("Y-m-d",strtotime($row2['insert_time']));
-
-				$insert_time=date("H:i",strtotime($row2['insert_time']));
-				$insert_date=date("Y-m-d",strtotime($row2['insert_time']));
+				/* fix (b): with $availability_date defined, a carried-over
+				   insert from a previous day now shows its date again */
 				if(strtotime($availability_date)>strtotime($insert_date)){
-
 					$insert_time=$insert_date."\n".$insert_time;
 				}
 			}
-			
-			
-			
-			$inserted_to=$row2['inserted_to'];
-			
+
+			$inserted_to=isset($row2['inserted_to'])?$row2['inserted_to']:"";
+
 			if($row['type']=="unimog"){
 				$insert_driver=getPHTrainDriver($row2['insert_driver'],$db)."\nMAINTENANCE PROVIDER";
 			}
-
 			else if($row['type']=="test"){
 				$insert_driver=getPHTrainDriver($row2['insert_driver'],$db)."\nMAINTENANCE PROVIDER";
 			}
 			else if($row['type']=="reserve"){
 				$insert_driver=$row2['insert_driver'];
 			}
-
 			else {
 				$insert_driver=getTrainDriver($row2['insert_driver'],$db);
-			
-			
 			}
-			if($inserted_to=="quezon"){ $inserted_to="Quezon Ave.\n"; }			
-			else { $inserted_to=""; }			
-			
-			
-		}		
-
-		if($row2['remove_time']==""){
-			$remove_time="";
-			$remove_driver="";
-			$remove_remarks="";
-
+			if($inserted_to=="quezon"){ $inserted_to="Quezon Ave.\n"; }
+			else { $inserted_to=""; }
 		}
-		else {
+
+		if(isset($row2['remove_time']) && $row2['remove_time']!=""){
 			if($row2['remove_time']=="0000-00-00 00:00:00"){
 				$remove_time="";
 				$remove_date="";
-			}			
-			else {		
-			
+			}
+			else {
 				$remove_date=date("Y-m-d",strtotime($row2['remove_time']));
-
 				$remove_time=date("H:i",strtotime($row2['remove_time']));
 				if(strtotime($availability_date)>strtotime($remove_date)){
 					$remove_time=$remove_date."\n".$remove_time;
 				}
-
-			
 			}
 			if($row['type']=="unimog"){
 				$remove_driver=getPHTrainDriver($row2['remove_driver'],$db)."\nMAINTENANCE PROVIDER";
 			}
-
 			else if($row['type']=="test"){
 				$remove_driver=getPHTrainDriver($row2['remove_driver'],$db)."\nMAINTENANCE PROVIDER";
 			}
 			else if($row['type']=="reserve"){
 				$remove_driver=$row2['remove_driver'];
 			}
-
 			else {
 				$remove_driver=getTrainDriver($row2['remove_driver'],$db);
 			}
-			if($removed_from=="quezon"){ $removed_from="Quezon Ave.<br/>"; }			
+			/* fix (d): compare the DB column (guarded), not an undefined
+			   variable, and prefix with a newline, not HTML */
+			$removed_from=isset($row2['removed_from'])?$row2['removed_from']:"";
+			if($removed_from=="quezon"){ $removed_from="Quezon Ave.\n"; }
 			else { $removed_from=""; }
-			$remove_remarks=$row2['removal_remarks'];
-
-			
-			
-			
-			
-			
-			
+			$remove_remarks=isset($row2['removal_remarks'])?$row2['removal_remarks']:"";
 		}
 
-
-
-
-		if($boundary_time==""){
-		}
-		else {
-		addContent(setRange("G".$start,"G".$end),$excel,$boundary_time,"true",$ExWs);
+		if($boundary_time!=""){
+			tarSetCell($sheet,"G".$start,$boundary_time);
 		}
 
-		$cancelSQL="select * from train_incident_view where train_ava_id='".$row['id']."'";
-		
-		
-		$cancelRS=$db->query($cancelSQL);
-		$incidentClause="";	
-
-		$level2Clause="";	
+		/* incident references + L2/L3 ordinal clauses */
+		$incidentClause="";
+		$level2Clause="";
 		$level3Clause="";
-			
 		$l2Count=0;
 		$l3Count=0;
-		
-		$cancelNM=$cancelRS->num_rows;
-		if($cancelNM>0){
-			for($m=0;$m<$cancelNM;$m++){
-			$cancelRow=$cancelRS->fetch_assoc();		
-			$level=$cancelRow['level'];			
+		$cancelRS=$db->query("select * from train_incident_view where train_ava_id='".$db->real_escape_string($row['id'])."'");
+		$cancelNM=$cancelRS?$cancelRS->num_rows:0;
+		for($m=0;$m<$cancelNM;$m++){
+			$cancelRow=$cancelRS->fetch_assoc();
+			$level=$cancelRow['level'];
 			$order=getLevel($cancelRow['incident_id'],$db);
-				if($level==1){
-				}
-				else {
-					
-				
-				}
-				
-				if($m==0){
-					$incidentClause.="SEE IN ".$cancelRow['incident_no'];
-				}
-				else {
-					$incidentClause.=",\n";
-					$incidentClause.="IN ".$cancelRow['incident_no'];
-				}
-				
-				
-				if($level==2){
-					if($l2Count==0){
-						$level2Clause.=getOrdinal($order);
-					}
-					else {
-						$level2Clause.=",\n";
-						$level2Clause.=getOrdinal($order);
-						
-					}
-					$l2Count++;
 
-				}
-				else if($level==3){
-					if($l3Count==0){
-						$level3Clause.=getOrdinal($order);
-					}
-					else {
-						$level3Clause.=",\n";
-						$level3Clause.=getOrdinal($order);
-						
-					}
-					$l3Count++;
-
-				}
-
-			}
-			
-		}
-		
-		
-		
-		
-		$excel->getActiveSheet()->getStyle("L".$start.":O".$end)->getAlignment()->setWrapText(true);
-		$excel->getActiveSheet()->getStyle("I".$start.":I".$end)->getAlignment()->setWrapText(true);
-		$excel->getActiveSheet()->getStyle("K".$start.":K".$end)->getAlignment()->setWrapText(true);
-
-		
-		if($row['status']=="active"){
-			addContent(setRange("H".$start,"H".$end),$excel,$inserted_to.$insert_time,"true",$ExWs);
-			addContent(setRange("I".$start,"I".$end),$excel,$insert_driver,"true",$ExWs);
-			addContent(setRange("J".$start,"J".$end),$excel,$removed_from.$remove_time,"true",$ExWs);
-			addContent(setRange("K".$start,"K".$end),$excel,$remove_driver,"true",$ExWs);
-			
-			
-			
-			
-			
-		
-		}
-		else {
-			if($boundary_time==""){
-			addContent(setRange("G".$start,"K".$end),$excel,"CANCELLED","true",$ExWs);
-
+			if($m==0){
+				$incidentClause.="SEE IN ".$cancelRow['incident_no'];
 			}
 			else {
-			addContent(setRange("H".$start,"K".$end),$excel,"CANCELLED","true",$ExWs);
+				$incidentClause.=",\n";
+				$incidentClause.="IN ".$cancelRow['incident_no'];
 			}
 
-
+			if($level==2){
+				if($l2Count==0){ $level2Clause.=getOrdinal($order); }
+				else { $level2Clause.=",\n".getOrdinal($order); }
+				$l2Count++;
+			}
+			else if($level==3){
+				if($l3Count==0){ $level3Clause.=getOrdinal($order); }
+				else { $level3Clause.=",\n".getOrdinal($order); }
+				$l3Count++;
+			}
 		}
 
-		addContent(setRange("L".$start,"O".$end),$excel,$remove_remarks."\n".$incidentClause,"true",$ExWs);
-
-		addContent(setRange("P".$start,"P".$end),$excel,$level2Clause,"true",$ExWs);
-		addContent(setRange("Q".$start,"Q".$end),$excel,$level3Clause,"true",$ExWs);
-
-		
-//		addContent(setRange("I".$start,"I".$end),$excel,"First Line\nSecond Line\nFirst Line\nSecond Line","true",$ExWs);
-
-//		$excel->getActiveSheet()->getStyle("I".$start.":I".$end)->getAlignment()->setWrapText(true);
-			
-	
-		if($page_counter==7){	
-			$page_counter=1;	
-			
-			$rowCount+=2;
-			$rowCount+=17;
-			
-		
+		if($row['status']=="active"){
+			tarSetCell($sheet,"H".$start,$inserted_to.$insert_time);
+			tarSetCell($sheet,"I".$start,$insert_driver);
+			tarSetCell($sheet,"J".$start,$removed_from.$remove_time);
+			tarSetCell($sheet,"K".$start,$remove_driver);
 		}
 		else {
-			$page_counter++;
-			$rowCount+=4;	
+			/* CANCELLED banner spans the time/driver columns. The slots are
+			   pre-merged per column in the template, so widen deliberately:
+			   unmerge the involved columns, then merge the span. */
+			$spanCols=($boundary_time=="")?array("G","H","I","J","K"):array("H","I","J","K");
+			foreach($spanCols as $sc){
+				$rng=$sc.$start.":".$sc.$end;
+				$merged=$sheet->getMergeCells();
+				if(isset($merged[$rng])){ $sheet->unmergeCells($rng); }
+			}
+			$firstCol=$spanCols[0];
+			$sheet->mergeCells($firstCol.$start.":K".$end);
+			tarSetCell($sheet,$firstCol.$start,"CANCELLED");
 		}
-		if($i==($nm-1)){
 
+		$remarksOut=$remove_remarks;
+		if($incidentClause!=""){
+			$remarksOut=($remarksOut!="")?$remarksOut."\n".$incidentClause:$incidentClause;
 		}
+		tarSetCell($sheet,"L".$start,$remarksOut);
+		tarSetCell($sheet,"P".$start,$level2Clause);
+		tarSetCell($sheet,"Q".$start,$level3Clause);
 	}
-			$rowstart=$rowCount+4;
-		
-			$row_delete=257-$rowCount;
-//			$excel->getActiveSheet()->removeRow(20,1000);	
-			$excel->getActiveSheet()->mergeCells("A".$rowCount.":A".($rowstart-1));
 
-			$excel->getActiveSheet()->mergeCells("G".($rowstart).":G".($rowstart+3));
-			$excel->getActiveSheet()->mergeCells("H".($rowstart).":H".($rowstart+3));
-			$excel->getActiveSheet()->mergeCells("I".($rowstart).":I".($rowstart+3));
-			$excel->getActiveSheet()->mergeCells("J".($rowstart).":J".($rowstart+3));
-			$excel->getActiveSheet()->mergeCells("K".($rowstart).":K".($rowstart+3));
-			$excel->getActiveSheet()->mergeCells("L".($rowstart).":O".($rowstart+3));
+	/* ================= 6. trim the last page's unused slots ================= */
+	$usedLast=$nm - TAR_SLOTS_PER_PAGE*($pages-1);
+	$unused=TAR_SLOTS_PER_PAGE-$usedLast;
+	if(TAR_TRIM_LAST_PAGE && $unused>0){
+		$base=TAR_BLOCK_ROWS*($pages-1);
+		$firstDead=$base + TAR_DATA_TOP + TAR_SLOT_ROWS*$usedLast;
+		$lastDead=$base + TAR_DATA_TOP + TAR_SLOT_ROWS*TAR_SLOTS_PER_PAGE - 1;
 
-
-			$excel->getActiveSheet()->mergeCells("G".($rowstart+4).":G".($rowstart+7));
-			$excel->getActiveSheet()->mergeCells("H".($rowstart+4).":H".($rowstart+7));
-			$excel->getActiveSheet()->mergeCells("I".($rowstart+4).":I".($rowstart+7));
-			$excel->getActiveSheet()->mergeCells("J".($rowstart+4).":J".($rowstart+7));
-			$excel->getActiveSheet()->mergeCells("K".($rowstart+4).":K".($rowstart+7));
-			$excel->getActiveSheet()->mergeCells("L".($rowstart+4).":O".($rowstart+7));
-			
-
-
-
-			$excel->getActiveSheet()->mergeCells("G".($rowstart+8).":G".($rowstart+11));
-			$excel->getActiveSheet()->mergeCells("H".($rowstart+8).":H".($rowstart+11));
-			$excel->getActiveSheet()->mergeCells("I".($rowstart+8).":I".($rowstart+11));
-			$excel->getActiveSheet()->mergeCells("J".($rowstart+8).":J".($rowstart+11));
-			$excel->getActiveSheet()->mergeCells("K".($rowstart+8).":K".($rowstart+11));
-			$excel->getActiveSheet()->mergeCells("L".($rowstart+8).":O".($rowstart+11));
-
-
-
-
-
-
-			
-			
-			$excel->getActiveSheet()->mergeCells("B".$rowCount.":B".($rowCount+1));
-			$excel->getActiveSheet()->mergeCells("C".$rowCount.":C".($rowCount+1));
-			$excel->getActiveSheet()->mergeCells("D".$rowCount.":D".($rowCount+1));
-			$excel->getActiveSheet()->mergeCells("E".$rowCount.":E".($rowCount+1));
-
-			$excel->getActiveSheet()->mergeCells("B".($rowCount+2).":B".($rowCount+3));
-			$excel->getActiveSheet()->mergeCells("C".($rowCount+2).":C".($rowCount+3));
-			$excel->getActiveSheet()->mergeCells("D".($rowCount+2).":D".($rowCount+3));
-			$excel->getActiveSheet()->mergeCells("E".($rowCount+2).":E".($rowCount+3));
-
-			$excel->getActiveSheet()->mergeCells("B".($rowCount+4).":B".($rowCount+5));
-			$excel->getActiveSheet()->mergeCells("C".($rowCount+4).":C".($rowCount+5));
-			$excel->getActiveSheet()->mergeCells("D".($rowCount+4).":D".($rowCount+5));
-			$excel->getActiveSheet()->mergeCells("E".($rowCount+4).":E".($rowCount+5));
-
-			$excel->getActiveSheet()->mergeCells("B".($rowCount+8).":B".($rowCount+9));
-			$excel->getActiveSheet()->mergeCells("C".($rowCount+8).":C".($rowCount+9));
-			$excel->getActiveSheet()->mergeCells("D".($rowCount+8).":D".($rowCount+9));
-			$excel->getActiveSheet()->mergeCells("E".($rowCount+8).":E".($rowCount+9));
-
-			$excel->getActiveSheet()->mergeCells("B".($rowCount+10).":B".($rowCount+11));
-			$excel->getActiveSheet()->mergeCells("C".($rowCount+10).":C".($rowCount+11));
-			$excel->getActiveSheet()->mergeCells("D".($rowCount+10).":D".($rowCount+11));
-			$excel->getActiveSheet()->mergeCells("E".($rowCount+10).":E".($rowCount+11));
-
-			$excel->getActiveSheet()->mergeCells("B".($rowCount+12).":B".($rowCount+13));
-			$excel->getActiveSheet()->mergeCells("C".($rowCount+12).":C".($rowCount+13));
-			$excel->getActiveSheet()->mergeCells("D".($rowCount+12).":D".($rowCount+13));
-			$excel->getActiveSheet()->mergeCells("E".($rowCount+12).":E".($rowCount+13));
-
-
-			
-			$excel->getActiveSheet()->mergeCells("B".($rowCount+6).":B".($rowCount+7));
-			$excel->getActiveSheet()->mergeCells("C".($rowCount+6).":C".($rowCount+7));
-			$excel->getActiveSheet()->mergeCells("D".($rowCount+6).":D".($rowCount+7));
-			$excel->getActiveSheet()->mergeCells("E".($rowCount+6).":E".($rowCount+7));
-
-			$excel->getActiveSheet()->unmergeCells("A".$rowCount.":A".($rowstart-1));
-
-			$excel->getActiveSheet()->unmergeCells("B".$rowCount.":B".($rowCount+1));
-			$excel->getActiveSheet()->unmergeCells("C".$rowCount.":C".($rowCount+1));
-			$excel->getActiveSheet()->unmergeCells("D".$rowCount.":D".($rowCount+1));
-			$excel->getActiveSheet()->unmergeCells("E".$rowCount.":E".($rowCount+1));
-
-
-			$excel->getActiveSheet()->unmergeCells("B".($rowCount+2).":B".($rowCount+3));
-			$excel->getActiveSheet()->unmergeCells("C".($rowCount+2).":C".($rowCount+3));
-			$excel->getActiveSheet()->unmergeCells("D".($rowCount+2).":D".($rowCount+3));
-			$excel->getActiveSheet()->unmergeCells("E".($rowCount+2).":E".($rowCount+3));
-
-			$excel->getActiveSheet()->unmergeCells("B".($rowCount+4).":B".($rowCount+5));
-			$excel->getActiveSheet()->unmergeCells("C".($rowCount+4).":C".($rowCount+5));
-			$excel->getActiveSheet()->unmergeCells("D".($rowCount+4).":D".($rowCount+5));
-			$excel->getActiveSheet()->unmergeCells("E".($rowCount+4).":E".($rowCount+5));
-
-			$excel->getActiveSheet()->unmergeCells("B".($rowCount+6).":B".($rowCount+7));
-			$excel->getActiveSheet()->unmergeCells("C".($rowCount+6).":C".($rowCount+7));
-			$excel->getActiveSheet()->unmergeCells("D".($rowCount+6).":D".($rowCount+7));
-			$excel->getActiveSheet()->unmergeCells("E".($rowCount+6).":E".($rowCount+7));
-
-
-
-			$excel->getActiveSheet()->unmergeCells("B".($rowCount+8).":B".($rowCount+9));
-			$excel->getActiveSheet()->unmergeCells("C".($rowCount+8).":C".($rowCount+9));
-			$excel->getActiveSheet()->unmergeCells("D".($rowCount+8).":D".($rowCount+9));
-			$excel->getActiveSheet()->unmergeCells("E".($rowCount+8).":E".($rowCount+9));
-
-			$excel->getActiveSheet()->unmergeCells("B".($rowCount+10).":B".($rowCount+11));
-			$excel->getActiveSheet()->unmergeCells("C".($rowCount+10).":C".($rowCount+11));
-			$excel->getActiveSheet()->unmergeCells("D".($rowCount+10).":D".($rowCount+11));
-			$excel->getActiveSheet()->unmergeCells("E".($rowCount+10).":E".($rowCount+11));
-
-			$excel->getActiveSheet()->unmergeCells("B".($rowCount+12).":B".($rowCount+13));
-			$excel->getActiveSheet()->unmergeCells("C".($rowCount+12).":C".($rowCount+13));
-			$excel->getActiveSheet()->unmergeCells("D".($rowCount+12).":D".($rowCount+13));
-			$excel->getActiveSheet()->unmergeCells("E".($rowCount+12).":E".($rowCount+13));
-
-			$excel->getActiveSheet()->unmergeCells("G".($rowstart).":G".($rowstart+3));
-			$excel->getActiveSheet()->unmergeCells("H".($rowstart).":H".($rowstart+3));
-			$excel->getActiveSheet()->unmergeCells("I".($rowstart).":I".($rowstart+3));
-			$excel->getActiveSheet()->unmergeCells("J".($rowstart).":J".($rowstart+3));
-			$excel->getActiveSheet()->unmergeCells("K".($rowstart).":K".($rowstart+3));
-			$excel->getActiveSheet()->unmergeCells("L".($rowstart).":O".($rowstart+3));
-
-
-			$excel->getActiveSheet()->unmergeCells("G".($rowstart+4).":G".($rowstart+7));
-			$excel->getActiveSheet()->unmergeCells("H".($rowstart+4).":H".($rowstart+7));
-			$excel->getActiveSheet()->unmergeCells("I".($rowstart+4).":I".($rowstart+7));
-			$excel->getActiveSheet()->unmergeCells("J".($rowstart+4).":J".($rowstart+7));
-			$excel->getActiveSheet()->unmergeCells("K".($rowstart+4).":K".($rowstart+7));
-			$excel->getActiveSheet()->unmergeCells("L".($rowstart+4).":O".($rowstart+7));
-
-
-			$excel->getActiveSheet()->unmergeCells("G".($rowstart+8).":G".($rowstart+11));
-			$excel->getActiveSheet()->unmergeCells("H".($rowstart+8).":H".($rowstart+11));
-			$excel->getActiveSheet()->unmergeCells("I".($rowstart+8).":I".($rowstart+11));
-			$excel->getActiveSheet()->unmergeCells("J".($rowstart+8).":J".($rowstart+11));
-			$excel->getActiveSheet()->unmergeCells("K".($rowstart+8).":K".($rowstart+11));
-			$excel->getActiveSheet()->unmergeCells("L".($rowstart+8).":O".($rowstart+11));
-
-			$rowMain=$rowstart+4;
-			
-			$excel->getActiveSheet()->removeRow(($rowCount),$row_delete);
-			$excel->getActiveSheet()->mergeCells("N".($rowMain).":P".($rowMain+3));
-			$excel->getActiveSheet()->unmergeCells("N".($rowMain).":P".($rowMain+3));
-//			addContent(setRange("N".($rowMain),"P".($rowMain+3)),$excel,"","false",$ExWs);
-
-			
-			
-	$signatorySQL="select * from signatories order by signatory_date DESC";
-	$signatoryRS=$db2->query($signatorySQL);
-	$signatoryNM=$signatoryRS->num_rows;
-
-	if($signatoryNM>0){
-		$signatoryRow=$signatoryRS->fetch_assoc();
-		if(strtotime($tar_date)>=strtotime($signatoryRow['signatory_date'])){
-			$chief=$signatoryRow['chief_transport'];	
-
-			addContent(setRange("N".($rowMain+3),"P".($rowMain+3)),$excel,$chief,"false",$ExWs);
-
+		foreach(array_keys($sheet->getMergeCells()) as $range){
+			$p=tarParseRange($range);
+			if($p!==null && $p[1]>=$firstDead && $p[3]<=$lastDead){
+				$sheet->unmergeCells($range);
+			}
 		}
-		else {
-			$sig2="select * from signatories where signatory_date>'".$tar_date."' order by signatory_date asc";
+		$sheet->removeRow($firstDead, $lastDead-$firstDead+1);
+		$footerFirst -= ($lastDead-$firstDead+1);
+	}
 
-			$sigRS=$db2->query($sig2);
-			$sigRow=$sigRS->fetch_assoc();
-			
-			$chief=$sigRow['chief_transport'];	
+	/* ================= 7. one block = one printed page ================= */
+	/* The template ships with its own break after row 43. removeRow() above
+	   SHIFTS inherited breaks, so after trimming (and especially on a one-page
+	   day) that break would land mid-footer and split it across pages. Clear
+	   everything and set the block breaks fresh on final coordinates. */
+	foreach(array_keys($sheet->getBreaks()) as $brkCell){
+		$sheet->setBreak($brkCell, PHPExcel_Worksheet::BREAK_NONE);
+	}
+	for($p=1;$p<$pages;$p++){
+		$sheet->setBreak("A".(TAR_BLOCK_ROWS*$p), PHPExcel_Worksheet::BREAK_ROW);
+	}
 
-			addContent(setRange("N".($rowMain+3),"P".($rowMain+3)),$excel,$chief,"false",$ExWs);
-			
-		
-		
-		}
-		
-	
-	}			
-			
-			
-			
-//			addContent(setRange("N".($rowMain+3),"P".($rowMain+3)),$excel,"JOSE RIC M. INOTORIO","false",$ExWs);
+	/* ================= 8. footer signature names ================= */
+	$namesRow=$footerFirst + TAR_FOOTER_NAMES_OFFSET;
+	if($clerk!=""){ $sheet->setCellValueExplicit("B".$namesRow,$clerk,PHPExcel_Cell_DataType::TYPE_STRING); }
+	if($recording!=""){ $sheet->setCellValueExplicit("G".$namesRow,$recording,PHPExcel_Cell_DataType::TYPE_STRING); }
+	if($duty_manager!=""){ $sheet->setCellValueExplicit("K".$namesRow,$duty_manager,PHPExcel_Cell_DataType::TYPE_STRING); }
+	if($chief!=""){ $sheet->setCellValueExplicit("N".$namesRow,$chief,PHPExcel_Cell_DataType::TYPE_STRING); }
 
-			
-//			$row_delete=186-$rowCount;
-//			$excel->getActiveSheet()->removeRow(($rowCount),1000);		
+	/* ---- print area: bound the COLUMNS, never the rows ----
+	   Columns R..U carry leftover formatting from the original workbook. With
+	   no print area they can be pulled into the printed range as extra blank
+	   pages (LibreOffice and Excel disagree on this), so bound A..Q -- the
+	   actual width of the form -- and let the rows follow the data. */
+	$sheet->getPageSetup()->setPrintArea("A1:Q".$sheet->getHighestRow());
 
-			
-	save($ExWb,$excel,$newFilename); 	
-	echo "Train Availability Report has been generated!  Press right click and Save As: <a href='".$newFilename."'>Here</a>";
+	/* ---- black-fill guard: see the fill postmortem in generate_nis.php ---- */
+	$sheet->getStyle("A1:U".$sheet->getHighestRow())
+	      ->getFill()->setFillType(PHPExcel_Style_Fill::FILL_NONE);
 
+	if(TAR_DEBUG){
+		echo "<pre>trains=".$nm." pages=".$pages." usedLast=".$usedLast
+			." footerFirst=".$footerFirst." namesRow=".$namesRow
+			." highestRow=".$sheet->getHighestRow()."</pre>";
+	}
 
+	/* ---- save ---- */
+	$writer=PHPExcel_IOFactory::createWriter($excel,'Excel2007');
+	$writer->save($newFilename);
 
-
+	echo "Train Availability Report has been generated (".$nm." train".($nm==1?"":"s").", ".$pages." page".($pages==1?"":"s")."). Press right click and Save As: <a href='".htmlspecialchars($newFilename)."'>Here</a>";
 }
 ?>
