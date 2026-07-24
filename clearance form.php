@@ -173,9 +173,22 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
    link reads as noisy and cluttered next to the actual data. a.LEdit is
    fully invisible (opacity 0) until the row is hovered, at which point it
    appears as a small pill -- a light outline at rest, filling solid blue
-   only when the pill itself is hovered/targeted. a.Llink (Add New Entry /
-   Generate Printout, outside the table) keeps the older plain-text
-   treatment since it isn't a per-row repeated affordance.
+   only when the pill itself is hovered/targeted.
+
+   a.Llink was written for that same muted, hover-reveal, plain-text
+   language -- meant for a per-row repeated affordance, not the toolbar.
+   But $SRemove (the Add New Entry / Generate Printout permission gate)
+   also emits class="Llink" onto those buttons, which ALSO carry
+   class="cf-tbtn" for the solid pill treatment defined further up. Both
+   rules use !important at equal-or-lower specificity than a.Llink's
+   (element+class beats a bare class), so a.Llink wins regardless of
+   source order: the toolbar buttons rendered as near-invisible muted
+   text (color:var(--cf-muted) at opacity:.55) instead of the intended
+   white-on-blue / gold-filled pills -- indistinguishable from "disabled"
+   even when $ULev correctly grants access. :not(.cf-tbtn) below excludes
+   the toolbar pills from this rule so .cf-tbtn/.cf-tbtn--primary (further
+   up this file) are the only thing styling them; a.Llink still applies
+   to any future plain-text link that isn't also a .cf-tbtn pill.
 
    !important is used throughout this block deliberately: this page loads
    css/style.min.css and css/bootstrap.min.css BEFORE this stylesheet, and
@@ -187,7 +200,7 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
    the signature of that kind of generic rule winning, not a row-specific
    bug. !important forces these specific rules to apply regardless of
    what either external stylesheet contains. */
-.ta-grid.ta-console a.Llink {
+.ta-grid.ta-console a.Llink:not(.cf-tbtn) {
 	display: inline-block !important;
 	font-size: 10px !important;
 	font-weight: 600 !important;
@@ -201,7 +214,7 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 	opacity: .55 !important;
 	transition: opacity .12s, background .12s, border-color .12s, color .12s;
 }
-.ta-grid.ta-console a.Llink:hover {
+.ta-grid.ta-console a.Llink:not(.cf-tbtn):hover {
 	opacity: 1 !important;
 	color: var(--cf-blue) !important;
 	background: var(--cf-row-odd) !important;

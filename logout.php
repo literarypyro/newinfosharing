@@ -5,6 +5,6 @@ session_start();
 session_destroy();
 ?>
 <?php
-header("Location: ../index.php");
+header("Location: ../index2.php");
 ?>
 
