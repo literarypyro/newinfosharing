@@ -145,7 +145,16 @@ for($i=0;$i<$nm;$i++){
 	<tr>
 		<td><?php echo $row['index_no']; ?></td>
 		<td><?php echo date("Y-m-d H:iA",strtotime($row['incident_date']));  ?></td>
-		        <td>&nbsp;</td>
+		        <td><?php 
+		if(date("Y-m-d",strtotime($row['resolution_date']))!=="1970-01-01"){		
+		echo date("Y-m-d H:iA", strtotime($row['resolution_date'])); 
+		}
+		else {
+			echo "&nbsp;";
+
+		}			
+		
+		?></td>
         <td><?php echo $row['duration']; ?></td>
 
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>

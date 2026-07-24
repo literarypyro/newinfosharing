@@ -119,8 +119,17 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 			<td><?php echo $row['index_no']; ?></td>
 			<td><?php echo getProblemType($db,$row['incident_type']); ?></td>
 			<td><?php echo "<span>".date("Y-m-d H:ia",strtotime($row['incident_date']))."</span>"; ?></td>
-			<td>&nbsp;</td>	
-			<td>&nbsp;</td>	
+			<td><?php 
+		if(date("Y-m-d",strtotime($row['resolution_date']))!=="1970-01-01"){		
+		echo date("Y-m-d H:iA", strtotime($row['resolution_date'])); 
+		}
+		else {
+			echo "&nbsp;";
+
+		}			
+		
+		?></td>	
+			<td><?php echo $row['duration']; ?></td>	
 
 		<td><a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
 			<td><?php echo $row['description']; ?></td>

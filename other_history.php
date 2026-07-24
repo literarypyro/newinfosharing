@@ -42,9 +42,13 @@ $car_id=$_GET['car_id'];
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id='add_form' name='add_form' >
 	<thead>
 	<tr>
+	<!--
 	<th>Index No</th>
+	-->
 	<th>Incident Date</th>
+	<!--
 	<th>Problem Type</th>
+	-->
 	<th>Cause/Issue</th>
 	<th>Incident Number</th>
 	<th>Description</th>
@@ -107,9 +111,20 @@ foreach($allRows as $row){
 	$problemCounts[$cause]++;
 ?>	
 	<tr data-mo="<?php echo $monthKey; ?>">
+		<?php
+		/**
 		<td><?php echo $row['index_no']; ?></td>
+		*/
+		?>
+		
 		<td><?php echo "<span>".date("Y-m-d",strtotime($row['incident_date']))."</span>"; ?></td>
+		
+		<?php
+		/**
 		<td><?php echo  getProblemType($db,$row['incident_type']); ?></td>
+		
+		*/
+		?>
 		<td><?php
 			// Confirmed causes render plain; auto-suggested ones are
 			// visibly marked so nobody mistakes inference for data.
