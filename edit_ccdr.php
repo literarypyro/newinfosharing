@@ -1230,7 +1230,60 @@ if(isset($_POST['fieldType'])){
 			$resolution_date=$year."-".$month."-".$day." ".$hour.":".$minute;
 			//date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
 	//		echo $incident_date;
-			$sql.="set resolution_date='".$resolution_date."' ";
+	
+	
+			$incidentSQL="select * from incident_report where id='".$incident_report."'";
+			$incidentRS=$db->query($incidentSQL);
+			$incidentRow=$incidentRS->fetch_assoc();
+			$incident_date=strtotime($incidentRow['incident_date']);
+			
+			$res_date=strtotime($resolution_date);
+			
+			$dur=abs($res_date-$incident_date)/60;
+
+			if($dur>60){
+					$hr=ceil($dur/60);
+					$min=$dur%60;
+					$dur=$hr." hour(s)";
+					if(abs($min)>0){
+					$dur.="and ".$min." minutes";
+					}
+								if($hr>=24){
+				$dd=ceil($hr/24);
+
+				$hr=abs($hr%24);
+				
+				if($hr>0){
+					$hrStamp=" and ".$hr." hour(s)";
+				}
+				else {
+					$hrStamp="";
+				}
+				
+				if(abs($min)>0){
+				$dur=$dd." day(s)".$hrStamp." and ".$min." minutes";
+
+
+				}				
+				else {
+				$dur=$dd." day(s)".$hrStamp;
+				
+				}
+				
+			}
+					
+					
+					
+					
+					
+			}
+	
+	
+			$duration=$dur; 
+	
+	
+	
+			$sql.="set resolution_date='".$resolution_date."', duration='".$duration."'";
 			break;
 		}
 	$sql.=" where id='".$incident_report."'";
@@ -2294,7 +2347,7 @@ else {
 
 <tr><th>Incident Date/Time</th><td><?php echo $incident_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
 <tr><th>Time Resolved</th><td><?php echo $resolution_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("resolution_date")'>Edit</a></td></tr>
-<tr><th>Incident Duration</th><td><?php echo $duration; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("duration")'>Edit</a></td></tr>
+<tr><th>Incident Duration</th><td><?php echo $duration; ?></td><td align="center">&nbsp;</td></tr>
 
 <tr><th>Location/Direction</th><td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
 

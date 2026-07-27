@@ -17,6 +17,7 @@ $ULev=$_SESSION['Ulevel'];
 
 <style type='text/css'>
 
+
 .box h2 {
 text-align:left;
 line-height:80px;

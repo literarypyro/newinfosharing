@@ -36,7 +36,6 @@ if(isset($_POST['type'])){
 	
 	$maintenance_taken=$_POST['maintenance'];
 	$level=$_POST['level'];
-	$duration=$_POST['duration'];
 	
 	$incident_day=date("Y-m-d",strtotime($_POST['incident_date']));
 	
@@ -45,7 +44,7 @@ if(isset($_POST['type'])){
 	$amorpm=$_POST['amorpm'];
 
 
-	$resolution_day=date("Y-m-d H:i",strtotime($_POST['resolution_date']));
+	$resolution_day=date("Y-m-d",strtotime($_POST['resolution_date']));
 
 	$hour2=$_POST['hour2'];
 	$minute2=$_POST['minute2'];
@@ -79,7 +78,50 @@ if(isset($_POST['type'])){
 
 	$resolution_date=date("Y-m-d H:i",strtotime($resolution_day." ".$hour2.":".$minute2));
 
+//	$duration=$_POST['duration'];
 
+	$dur=abs(strtotime($resolution_date)-strtotime($incident_date))/60;
+
+	if($dur>60){
+			$hr=ceil($dur/60);
+			$min=$dur%60;
+			$dur=$hr." hour(s)";
+			if(abs($min)>0){
+			$dur.="and ".$min." minutes";
+			}
+			
+			if($hr>=24){
+				$dd=ceil($hr/24);
+
+				$hr=abs($hr%24);
+				
+				if($hr>0){
+					$hrStamp=" and ".$hr." hour(s)";
+				}
+				else {
+					$hrStamp="";
+				}
+				
+				if(abs($min)>0){
+				$dur=$dd." day(s)".$hrStamp." and ".$min." minutes";
+
+
+				}				
+				else {
+				$dur=$dd." day(s)".$hrStamp;
+				
+				}
+				
+			}
+
+			
+	}
+	
+	
+	if($duration==""){ $duration=$dur; }
+	
+	
+	
 
 	$incidentYear=$year;
 	
@@ -1625,10 +1667,16 @@ document.addEventListener('keydown',function(e){
 		<td class="ir-label">Date / Time Resolved</td>
 		<td class="ir-field ir-inline">
 			<?php
+						if(isset($daynow)){
+				$incident_date_label=date("m/d/Y",strtotime($daynow));
+				
+			}
+			else {
 			if(isset($_SESSION['month'])){
 				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
 			} else {
 				$incident_date_label=date("m/d/Y");
+			}
 			}
 			?>
 			<input type='text' name='resolution_date' id='resolution_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
@@ -1659,13 +1707,15 @@ document.addEventListener('keydown',function(e){
 	</tr>
 
 	<!-- Incident Duration -->
+	<!--
+	
 	<tr>
 		<td class="ir-label">Incident Duration</td>
 		<td class="ir-field">
 			<input type='text' name='duration' class="ir-input--md" placeholder="e.g. 00:15" />
 		</td>
 	</tr>
-
+-->
 	<!-- Details -->
 	<tr>
 		<td class="ir-label ir-label--top">Details</td>
