@@ -76,20 +76,20 @@ if(isset($_GET['searchIncidents'])){
 	$q     = $db->real_escape_string($_GET['searchIncidents']);
 	$scope = isset($_GET['scope']) ? $_GET['scope'] : 'today';
  
+ $dClause="";
+	if($scope=="today"){ $dClause=" and incident_date like '".date("Y-m-d",strtotime($_GET['dClause']))."%%'"; }
 	$sql = "select incident_report.id, incident_no, incident_type, level,
 	               incident_date, level_condition
 	        from incident_report
-	        where 1=1 ";
+	        where 1=1";
  
-	if($scope == 'today'){
-		$sql .= "and date(incident_date) = curdate() ";
-	}
+		$sql .= $dClause;
  
 	if($q != ''){
-		$sql .= "and (incident_no like '%".$q."%' or incident_type like '%".$q."%') ";
+		$sql .= "and (incident_no like '%".$q."%' or incident_type like '%".$q."%')";
 	}
  
-	$sql .= "order by incident_date desc";
+	$sql .= " order by incident_date desc";
  
 	/* Safety cap: only applies to the unfiltered "today" default view.
 	   Lifted as soon as a search term narrows the result set, and never
@@ -97,7 +97,6 @@ if(isset($_GET['searchIncidents'])){
 	if($scope != 'all' && $q == ''){
 		$sql .= " limit 100";
 	}
- 
 	$rs  = $db->query($sql);
 	$out = "";
  
@@ -105,6 +104,8 @@ if(isset($_GET['searchIncidents'])){
 		/* Index No. lives in incident_description, joined per-row here
 		   rather than via SQL JOIN to keep the base query simple and
 		   match the lookup pattern already used elsewhere in this file. */
+
+
 		$idxSQL = "select index_no from incident_description where incident_id='".$row['id']."'";
 		$idxRS  = $db->query($idxSQL);
 		$idxRow = $idxRS->fetch_assoc();
@@ -118,7 +119,6 @@ if(isset($_GET['searchIncidents'])){
 		      . $index_no
 		      . "==>";
 	}
- 
 	echo ($out == "") ? "No data available" : $out;
 }
 

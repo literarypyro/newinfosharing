@@ -3,7 +3,7 @@ session_start();
 ?>
 <?php
 if(!isset($_SESSION['username'])){ 
-header("Location: ../index.php"); 
+header("Location: ../index2.php"); 
 } ?>
 <?php
 /* Tmenu.php retired as a standalone file -- its nav markup was a

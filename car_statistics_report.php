@@ -357,7 +357,7 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 		<div style="font-size:11px;color:#5A6275;">of <?php echo $CAR_MAX; ?> in the fleet</div>
 	</div>
 	<div style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
-		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Worst car</div>
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Most Fault-Prone Car</div>
 		<div style="font-size:22px;font-weight:600;color:#7A1F1F;"><?php echo $peakCar>0 ? $peakCar : '&mdash;'; ?></div>
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failures</div>
 	</div>

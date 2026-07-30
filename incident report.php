@@ -829,7 +829,7 @@ function irLvlBadge(l){ return '<span class="ir-lvl ir-lvl-'+l+'">L'+l+'</span>'
 
 var irSearchCallback=null;
 
-function irSearchIncidents(q,cb){
+function irSearchIncidents(q=null,cb,dated){
 	irSearchCallback=cb;
 	/* Calls processing.php?searchIncidents=  — add this case to processing.php:
 	     if(isset($_GET['searchIncidents'])){
@@ -873,8 +873,14 @@ function irSearchIncidents(q,cb){
 	   tab — today, rolling, power, l3 — is a same-day view, so all of them
 	   send scope=today and stay within the date(incident_date)=curdate()
 	   safety boundary on the server. */
+	   
 	var scope = (cTabFilter==='all') ? 'all' : 'today';
-	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope,"irSearchResponse");
+	var dateClause="";
+	if(dated!=null){ dateClause="&dClause="+dated; }
+	
+	
+	
+	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope+dateClause,"irSearchResponse");
 }
 
 function irSearchResponse(ajaxHTML){
@@ -1302,7 +1308,7 @@ function eqSyncHidden(){
 var cSelected={};
 var cTabFilter='today'; /* default scope — server only returns today's incidents until widened */
 
-function cOpenModal(){
+function cOpenModal(dd=null){
 	document.getElementById('c-modal').classList.add('open');
 	/* Reset to the safe default each time the modal opens, regardless of
 	   what scope was active last time it was closed. */
@@ -1310,21 +1316,21 @@ function cOpenModal(){
 	document.querySelectorAll('#c-modal .ir-filter-tab').forEach(function(t){t.classList.remove('active');});
 	document.querySelector('#c-modal .ir-filter-tab').classList.add('active');
 	document.getElementById('c-search-input').value='';
-	cFilterSearch('');
+	cFilterSearch('',dd);
 }
 
 function cCloseModal(){
 	document.getElementById('c-modal').classList.remove('open');
 }
 
-function cSetTab(btn,key){
+function cSetTab(btn,key,dd=null){
 	document.querySelectorAll('#c-modal .ir-filter-tab').forEach(function(t){t.classList.remove('active');});
 	btn.classList.add('active');
 	cTabFilter=key;
-	cFilterSearch(document.getElementById('c-search-input').value);
+	cFilterSearch(document.getElementById('c-search-input').value,dd);
 }
 
-function cFilterSearch(q){
+function cFilterSearch(q,dd){
 	/* scope=today vs scope=all is resolved server-side in irSearchIncidents.
 	   Only the "All" tab requests scope=all (full history, date descending).
 	   Today, Rolling Stock, Power, and Level 3+ all request scope=today —
@@ -1337,7 +1343,7 @@ function cFilterSearch(q){
 			return r.type.toLowerCase().indexOf(cTabFilter)>=0;
 		});
 		cRenderResults(filtered);
-	});
+	},dd);
 }
 
 function cRenderResults(data){
@@ -1480,10 +1486,22 @@ document.addEventListener('keydown',function(e){
 	<tr>
 		<td class="ir-label ir-label--top" style="padding-top:11px">Link Other Incident Report(s)</td>
 		<td class="ir-field" style="padding-top:9px">
-
+			<?php
+			if(isset($daynow)){
+				$incident_date_label=date("m/d/Y",strtotime($daynow));
+				
+			}
+			else {
+			if(isset($_SESSION['month'])){
+				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
+			} else {
+				$incident_date_label=date("m/d/Y");
+			}
+			}
+			?>
 			<!-- Trigger row -->
 			<div style="display:flex;gap:7px;align-items:center;margin-bottom:6px;">
-				<input type='button' value='Link incidents…' onclick='cOpenModal()'
+				<input type='button' value='Link incidents…' onclick="cOpenModal('<?php echo $incident_date_label; ?>')"
 					style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
 			</div>
 
@@ -1894,18 +1912,36 @@ $(function(){
 		</div>
 		<div class="ir-modal-body">
 			<!-- Search + tabs -->
+									<?php
+						if(isset($daynow)){
+				$incident_date_label=date("m/d/Y",strtotime($daynow));
+				
+			}
+			else {
+			if(isset($_SESSION['month'])){
+				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
+			} else {
+				$incident_date_label=date("m/d/Y");
+			}
+			}
+			?>
+			
+			
 			<div style="display:flex;gap:7px;margin-bottom:8px;">
 				<input type='text' id='c-search-input' class="ir-input--lg"
 					placeholder="Search by incident no., type, description…"
 					oninput='cFilterSearch(this.value)' autocomplete="off" />
-				<input type='button' value='Clear' onclick='document.getElementById("c-search-input").value="";cFilterSearch("")' />
+				<input type='button' value='Clear' onclick='document.getElementById("c-search-input").value="";cFilterSearch("","<?php echo $incident_date_label; ?>")' />
 			</div>
 			<div class="ir-filter-tabs" id="c-tabs">
-				<button class="ir-filter-tab active" type="button" onclick="cSetTab(this,'today')">Today</button>
+
+			
+			
+				<button class="ir-filter-tab active" type="button" onclick="cSetTab(this,'today','<?php echo $incident_date_label; ?>')">Today</button>
 				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'all')">All (date descending)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'rolling')">Rolling Stock (today)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'power')">Power (today)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'l3')">Level 3+ (today)</button>
+				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'rolling','<?php echo $incident_date_label; ?>')">Rolling Stock (today)</button>
+				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'power','<?php echo $incident_date_label; ?>')">Power (today)</button>
+				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'l3','<?php echo $incident_date_label; ?>')">Level 3+ (today)</button>
 			</div>
 			<!-- Results -->
 			<div class="ir-result-scroll">
