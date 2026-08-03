@@ -1,4 +1,7 @@
 <?php
+session_start();
+?>
+<?php
 $IR_EMBED = isset($_GET['embed']);
 if($IR_EMBED){ ob_start(); }
 require("Tmenu.php");
@@ -886,6 +889,7 @@ function getAdditional(ajaxHTML){
 
 
 }
+
 
 
 function fillOnboard(ajaxHTML){
@@ -1937,6 +1941,9 @@ if($IR_EMBED){ ob_end_clean(); }
 		
 		
 		$date=date("Y-m-d",strtotime($row['incident_date']));
+		
+		$_SESSION['incident_day']=$date;
+		
 		$time=date("H:ia",strtotime($row['incident_date']));
 		
 		$incident_time=date("Y-m-d H:ia",strtotime($row['incident_date']));
@@ -2294,7 +2301,7 @@ if($linked_rows_display!==""){
 }
 ?>
 </td>
-<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccLinkOpenEditor()'>Edit</a>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick="ccLinkOpenEditor('<?php echo $_SESSION['incident_day']; ?>' )">Edit</a>
 	<span id="cc-link-badge" class="cc-picker-badge cc-picker-badge-empty">none yet</span></td>
 </tr>
 <tr>
@@ -2527,11 +2534,11 @@ else {
 				<input type='button' value='Clear' onclick='document.getElementById("cc-link-search-input").value="";ccLinkFilterSearch("")' />
 			</div>
 			<div class="cc-filter-tabs" id="cc-link-tabs">
-				<button class="cc-filter-tab active" type="button" onclick="ccLinkSetTab(this,'today')">Today</button>
+				<button class="cc-filter-tab active" type="button" onclick="ccLinkSetTab(this,'today','<?php echo $_SESSION['incident_day']; ?>')">Today</button>
 				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'all')">All (date desc)</button>
-				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'rolling')">Rolling Stock</button>
-				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'power')">Power</button>
-				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'l3')">Level 3+</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'rolling','<?php echo $_SESSION['incident_day']; ?>')">Rolling Stock</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'power','<?php echo $_SESSION['incident_day']; ?>')">Power</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'l3','<?php echo $_SESSION['incident_day']; ?>')">Level 3+</button>
 			</div>
 			<div class="cc-result-scroll">
 				<table class="cc-link-results">
@@ -2874,7 +2881,7 @@ var ccLinkTabFilter='today';
 var ccLinkSearchCallback=null;
 var ccLinkSeeded=false;
 
-function ccLinkOpenEditor(){
+function ccLinkOpenEditor(dd=null){
 	document.getElementById('cc-link-modal').classList.add('open');
 	ccLinkTabFilter='today';
 	document.querySelectorAll('#cc-link-modal .cc-filter-tab').forEach(function(t){t.classList.remove('active');});
@@ -2884,7 +2891,7 @@ function ccLinkOpenEditor(){
 		ccLinkSeedExisting();
 		ccLinkSeeded=true;
 	}
-	ccLinkFilterSearch('');
+	ccLinkFilterSearch('',dd);
 }
 function ccLinkCloseEditor(){
 	document.getElementById('cc-link-modal').classList.remove('open');
@@ -2901,10 +2908,12 @@ function ccLinkSeedExisting(){
 		ccLinkAddChip(id,label);
 	});
 }
-function ccLinkSearchIncidents(q,cb){
+function ccLinkSearchIncidents(q,cb,dated){
 	ccLinkSearchCallback=cb;
 	var scope=(ccLinkTabFilter==='all')?'all':'today';
-	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope,"ccLinkSearchResponse");
+		var dateClause="";
+	if(dated!=null){ dateClause="&dClause="+dated; }
+	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope+dateClause,"ccLinkSearchResponse");
 }
 function ccLinkSearchResponse(ajaxHTML){
 	var results=[];
@@ -2919,13 +2928,13 @@ function ccLinkSearchResponse(ajaxHTML){
 	}
 	if(ccLinkSearchCallback) ccLinkSearchCallback(results);
 }
-function ccLinkSetTab(btn,key){
+function ccLinkSetTab(btn,key,dd=null){
 	document.querySelectorAll('#cc-link-modal .cc-filter-tab').forEach(function(t){t.classList.remove('active');});
 	btn.classList.add('active');
 	ccLinkTabFilter=key;
-	ccLinkFilterSearch(document.getElementById('cc-link-search-input').value);
+	ccLinkFilterSearch(document.getElementById('cc-link-search-input').value,dd);
 }
-function ccLinkFilterSearch(q){
+function ccLinkFilterSearch(q,dd){
 	ccLinkSearchIncidents(q,function(data){
 		var filtered=data.filter(function(r){
 			if(ccLinkTabFilter==='today'||ccLinkTabFilter==='all') return true;
@@ -2933,7 +2942,7 @@ function ccLinkFilterSearch(q){
 			return r.type.toLowerCase().indexOf(ccLinkTabFilter)>=0;
 		});
 		ccLinkRenderResults(filtered);
-	});
+	},dd);
 }
 function ccLinkLvlBadge(l){ return '<span class="cc-lvl cc-lvl-'+l+'">L'+l+'</span>'; }
 function ccLinkRenderResults(data){
