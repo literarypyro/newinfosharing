@@ -68,20 +68,37 @@ else {
 	$period      = "Full year ".$year;
 }
 
-// Equipment ids this page reports on. Was an inline IN() list with every id
-// after the first fourteen repeated a second time — harmless to SQL, but it
-// hid what the list actually contained. Deduplicated and sorted; same set.
-//
-// NOTE: this is a filter. Any incident whose equipment sits outside this list
-// is excluded from both the tiles and the table, so the Total here is a total
-// for these 27 equipment types, not for the car.
-$EQUIPT_IDS = array(2,11,64,67,81,89,102,103,104,105,108,109,110,111,112,113,
-                    114,115,116,117,118,119,120,121,122,123,124);
+// ---- Full incident history link ------------------------------------------
+// @historylink -- SET THE URL HERE. This is the only line to edit; the button
+// below reads it. Pre-filled with the parameter names car_statistics_report.php
+// already uses for its own car_history links (car_id / y / m), so it is a
+// working guess rather than a blank -- change it if yours differ.
+$carHistoryUrl = "car_history.php?car_id=".$car."&y=".$year.($month ? "&m=".$month : "");
 
-$equiptIn = implode(",", array_map('intval', $EQUIPT_IDS));
-$where = "car_no='".$car."'
-          and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
-          and incident_report.equipt in (".$equiptIn.")";
+// Inside the slide panel this page is an iframe, so a plain link would load
+// car_history INSIDE the 820px panel. _top breaks it out into the full window.
+// Change to "_blank" for a new tab, or "_self" to keep it in the panel.
+$carHistoryTarget = $IR_EMBED ? "_top" : "_self";
+
+// @tally -- Why this page's Total did not match the "Most Fault-Prone Car"
+// tile on car_statistics_report.php. Two separate causes, both here:
+//
+// 1. The equipment IN() list. It restricted this page to 27 equipt ids while
+//    the tile counts every incident_cars row for the car, so anything with a
+//    blank, zero or out-of-list equipt was in the tile and absent here. The
+//    filter is removed: the table now accounts for every failure the tile
+//    counts, and rows with no equipment recorded are shown as such rather
+//    than silently dropped. If the 27-id restriction was deliberate, the list
+//    is preserved below -- re-add it as a WHERE clause and the two figures
+//    will diverge again by design, so say so on the page if you do.
+//      2,11,64,67,81,89,102,103,104,105,108,109,110,111,112,113,114,115,116,
+//      117,118,119,120,121,122,123,124
+//
+// 2. car_no='5' is a string comparison; the tile groups by car_no*1. Any row
+//    stored as '05', ' 5' or '5 ' fell into the tile's bucket for car 5 and
+//    was missed here. Both sides coerce numerically now.
+$where = "incident_cars.car_no*1 = ".$car."
+          and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
 
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
@@ -100,21 +117,45 @@ if($rs){
 }
 
 // ---- Equipment breakdown -------------------------------------------------
+// @tally -- name resolved in the query via LEFT JOIN rather than a getEquipt()
+// call per row, which was one extra query per equipment type and per tile.
+// LEFT so that a blank or unknown equipt still yields its row.
 $rows = array();
-$equipt_count = 0;
-$sql = "select incident_report.equipt as equipt, count(1) as equipt_count
+$equipt_count   = 0;
+$unrecordedFail = 0;   /* failures whose incident has no equipment recorded */
+$sql = "select incident_report.equipt as equipt,
+               equipment.equipment_name as equipment_name,
+               count(1) as equipt_count
           from incident_report
           inner join incident_cars on incident_report.id=incident_cars.incident_id
+          left  join equipment on equipment.id = incident_report.equipt
          where ".$where."
-         group by incident_report.equipt
+         group by incident_report.equipt, equipment.equipment_name
          order by equipt_count desc";
 $rs = $db->query($sql);
 if($rs){
 	while($row = $rs->fetch_assoc()){
-		$rows[] = array('id'=>$row['equipt'], 'count'=>(int)$row['equipt_count']);
+		$id    = $row['equipt'];
+		$blank = ($id === null || trim((string)$id) === '' || (int)$id === 0);
+		if($blank){
+			$label = 'Not recorded';
+			$unrecordedFail += (int)$row['equipt_count'];
+		}
+		elseif($row['equipment_name'] !== null && $row['equipment_name'] !== ''){
+			$label = $row['equipment_name'];
+		}
+		else {
+			/* id present but no matching equipment row — surfaced, not hidden */
+			$label = 'Equipment #'.(int)$id.' (not in equipment table)';
+		}
+		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['equipt_count']);
 		$equipt_count += (int)$row['equipt_count'];
 	}
 }
+// Denominator for the "types affected" tile, now that there is no fixed list.
+$equiptTracked = 0;
+$tq = $db->query("select count(*) as c from equipment");
+if($tq && ($tr = $tq->fetch_assoc())){ $equiptTracked = (int)$tr['c']; }
 $peakTotal     = count($rows) ? $rows[0]['count'] : 0;
 $flagThreshold = $peakTotal * 0.60;
 
@@ -139,13 +180,6 @@ foreach($levelCounts as $lv => $c){
 $coverageNote = ccsCoverageNote($coverage);
 $gapMonths    = ccsUncoveredMonths($coverage, $start_date1, $end_date1);
 
-function getEquipt($equipt_id,$db){
-	$sql="select equipment_name from equipment where id='".(int)$equipt_id."'";
-	$rs=$db->query($sql);
-	if(!$rs){ return $equipt_id; }
-	$row=$rs->fetch_assoc();
-	return ($row && $row['equipment_name']!=='') ? $row['equipment_name'] : $equipt_id;
-}
 ?>
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
@@ -173,6 +207,20 @@ h2 { color:#1A2238; font-size:20px; }
 	color:#FFFFFF; font-size:13px; font-weight:600;
 }
 .stat-scope .muted { color:rgba(255,255,255,.75); font-weight:400; margin-left:8px; }
+/* @historylink -- the bar is now flex so the action sits hard right. Gold on
+   blue, the same pairing the toolbars on the other stats pages use for their
+   submit button; a blue button would disappear into this bar. */
+.stat-scope { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.stat-scope .scope-left { min-width:0; }
+.scope-btn {
+	display:inline-block; flex:none;
+	background:#FDB813; color:#3A2D00 !important;
+	font-size:12px; font-weight:700; line-height:1;
+	padding:8px 14px; border-radius:4px; border:none;
+	text-decoration:none !important; cursor:pointer; white-space:nowrap;
+}
+.scope-btn:hover, .scope-btn:focus { background:#E5A50F; color:#3A2D00 !important; text-decoration:none !important; }
+.scope-btn:focus-visible { outline:2px solid #FFFFFF; outline-offset:2px; }
 
 .rowHeading {background:#00529B; color:#FFFFFF; font-size:15px; font-weight:600;}
 .rowClass {background-color: #F5F2E8;}
@@ -217,8 +265,13 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <div class="ccs-panel">
 <div class="ccs-panel-head">
 <div class="stat-scope">
-	Car <?php echo $car > 0 ? $car : '&mdash;'; ?>
-	<span class="muted"><?php echo date("d M Y", strtotime($start_date1)); ?> &ndash; <?php echo date("d M Y", strtotime($end_date1)); ?></span>
+	<div class="scope-left">
+		Car <?php echo $car > 0 ? $car : '&mdash;'; ?>
+		<span class="muted"><?php echo date("d M Y", strtotime($start_date1)); ?> &ndash; <?php echo date("d M Y", strtotime($end_date1)); ?></span>
+	</div>
+<?php if($car > 0){ /* @historylink -- no car, no action to offer */ ?>
+	<a class="scope-btn" href="<?php echo htmlspecialchars($carHistoryUrl); ?>" target="<?php echo $carHistoryTarget; ?>">Full incident history &rarr;</a>
+<?php } ?>
 </div>
 <div class="stat-legend">
 	<span><span class="swatch" style="background:#00529B;"></span>Counts are car-level failures for this car</span>
@@ -236,11 +289,11 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	<div class="kpi-tile">
 		<div class="k-label">Equipment types affected</div>
 		<div class="k-value"><?php echo count($rows); ?></div>
-		<div class="k-sub">of <?php echo count($EQUIPT_IDS); ?> tracked</div>
+		<div class="k-sub"><?php echo $equiptTracked ? 'of '.$equiptTracked.' in the equipment table' : 'distinct types'; ?></div>
 	</div>
 	<div class="kpi-tile">
 		<div class="k-label">Equipment with the highest number of faults</div>
-		<div class="k-value k-value--name"><?php echo count($rows) ? htmlspecialchars(getEquipt($rows[0]['id'],$db)) : '&mdash;'; ?></div>
+		<div class="k-value k-value--name"><?php echo count($rows) ? htmlspecialchars($rows[0]['label']) : '&mdash;'; ?></div>
 		<div class="k-sub"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
 	</div>
 </div>
@@ -277,7 +330,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	$isFlagged = ($peakTotal > 0 && $r['count'] >= $flagThreshold);
 ?>
 <tr<?php if($isFlagged){ echo " style='background-color:#F9D6D6; color:#7A1F1F;'"; } ?>>
-	<th style="text-align:left;font-weight:600;"><?php echo htmlspecialchars(getEquipt($r['id'],$db)); ?></th>
+	<th style="text-align:left;font-weight:600;"><?php echo htmlspecialchars($r['label']); ?></th>
 	<td align=center><?php echo $r['count']; ?></td>
 	<td align=center><?php echo $equipt_count ? round($r['count']/$equipt_count*100).'%' : '&mdash;'; ?></td>
 </tr>
@@ -304,6 +357,15 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	<?php if(count($gapMonths)){ ?>
 	<div style="margin-top:6px;color:#7A1F1F;">This period includes months with no records (<?php echo htmlspecialchars(implode(', ', $gapMonths)); ?>) &mdash; the totals above are not zero failures for those months, they are absent data.</div>
 	<?php } ?>
+<?php if($unrecordedFail > 0){ ?>
+	<div style="margin-top:6px;color:#7A1F1F;">
+		<?php echo $unrecordedFail; ?> of these <?php echo $equipt_count; ?> failures have no equipment recorded on the incident
+		(<?php echo round($unrecordedFail/$equipt_count*100); ?>%). They are listed as &ldquo;Not recorded&rdquo; rather than dropped, so this
+		page&rsquo;s Total matches the Most Fault-Prone Car figure on the summary report. Incidents whose equipment was
+		captured through the <code>incident_equipt</code> junction rather than the legacy <code>incident_report.equipt</code>
+		column will land here until this page is moved onto the shared resolver.
+	</div>
+<?php } ?>
 	<div style="margin-top:6px;">
 		Figures count <b>car-level failures</b> for this car: an incident affecting three cars counts once against each, so
 		<?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?>

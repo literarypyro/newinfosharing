@@ -140,11 +140,19 @@ a.two { color:#00529B; font-weight:600; text-decoration:none; }
 a.two:visited {color:#00529B;}
 a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
+
+
 .stat_hover:hover {
 	background-color:#FFF1CC;
 	text-decoration:underline;
 	font-weight:bold;
 }
+
+.stat_hover.car {
+	cursor:pointer;
+	
+}
+
 /* --- Slide-panel base ------------------------------------------- @slidepanel
    train_operations.php carries these rules in its OWN <style> block, not in
    slide_panel.php. Requiring slide_panel.php here therefore brought in the
@@ -446,7 +454,12 @@ else {
 
 
 ?>>
+<th class='stat_hover car' onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $i; ?>','Statistics Report','<?php echo $month; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><?php echo $i; ?></th>
+<?php
+/**
 <th class='stat_hover'><a href='#' style='text-decoration:none; color:#00529B; font-weight:600;'  onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>",target="_self")' ><?php echo $i; ?></a></th>
+*/
+?>
 <?php
 
 // @dayview -- $t was reused further down as a scratch int inside the
@@ -457,7 +470,10 @@ for($k=1;$k<=$bucketCount;$k++){
 	$mon = $isDayView ? $monthSel : $k;   /* the drill-down link wants a MONTH */
 	$stat=$stats["Car_".$i][$bucketKey.$k];
 ?>			
-	<td class='stat_hover' align=center><a href='#' style='text-decoration:none; color:<?php echo $stat>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $mon; ?>",target="_self")' ><?php echo $stat; ?></a></td>
+
+
+
+	<td class='stat_hover' role="button" align=center><a href='#' style='text-decoration:none; color:<?php echo $stat>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $mon; ?>",target="_self")' ><?php echo $stat; ?></a></td>
 <?php
 }
 ?>
@@ -601,7 +617,7 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 	// 0, and a tile showing an em dash must not look or behave like a button.
 	$peakClickable = ($peakCar > 0);
 ?>
-	<div class="kpi-tile<?php echo $peakClickable ? ' kpi-tile--link' : ''; ?>" style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the equipment failure breakdown for car <?php echo $peakCar; ?>" onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $peakCar; ?>','Statistics Report','')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
+	<div class="kpi-tile<?php echo $peakClickable ? ' kpi-tile--link' : ''; ?>" style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the equipment failure breakdown for car <?php echo $peakCar; ?>" onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $peakCar; ?>','Statistics Report','<?php echo $month; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Most Fault-Prone Car</div>
 		<div class="kpi-figure" style="font-size:22px;font-weight:600;color:#7A1F1F;"><?php echo $peakCar>0 ? $peakCar : '&mdash;'; ?></div>
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
@@ -705,7 +721,6 @@ function openEditIncidentPanel(year,car,title,month){
 	   Values are encoded: the title carries a colon and spaces. */
 	month = (month===undefined || month===null) ? '' : month;
 	title = title || "Car with Most Failures";
-
 	var q = "year="       + encodeURIComponent(year)
 	      + "&car_id="    + encodeURIComponent(car)
 	      + "&month="     + encodeURIComponent(month)
