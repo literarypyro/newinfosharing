@@ -130,6 +130,10 @@ $blankTerms=array();      // [ token => number of UNPLACED incidents mentioning 
 $blankTotal=0;
 $sevGrid=array();         // [ equipment => [ level => count ] ]
 $sevLevels=array();       // set of distinct severity levels present
+$sevLevels["L1"]=0;
+$sevLevels["L2"]=0;
+$sevLevels["L3"]=0;
+$sevLevels["L4"]=0;
 
 foreach($allRows as $row){
 
@@ -174,7 +178,19 @@ foreach($allRows as $row){
 	// understate the serious faults. The print note says so.
 	$lvRaw = isset($row['level']) ? trim($row['level']) : '';
 	if($lvRaw === ''){ $lv = 'None'; }
-	else { $lv = (strtoupper(substr($lvRaw,0,1)) === 'L') ? strtoupper($lvRaw) : 'L'.$lvRaw; }
+	else { 
+		if($lvRaw=="0"){
+		   $lv = 'None';
+		}
+		else {
+	$lv = (strtoupper(substr($lvRaw,0,1)) === 'L') ? strtoupper($lvRaw) : 'L'.$lvRaw; }
+			
+			
+		}
+	
+	
+	
+	
 	$eqKey = ($problemType === '') ? 'Unspecified' : $problemType;
 	if(!isset($sevGrid[$eqKey])) $sevGrid[$eqKey]=array();
 	if(!isset($sevGrid[$eqKey][$lv])) $sevGrid[$eqKey][$lv]=0;
