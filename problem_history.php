@@ -40,9 +40,7 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 <div class="ccs-header">
 	<h1>Incident History &mdash; By Category</h1>
 	<div class="sub">Filtered by: <?php echo htmlspecialchars($problem ? getProblemType($db,$problem) : '—'); ?> &mdash; Line 3</div>
-<?php if($coverageNote !== ''){ ?>
-	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
-<?php } ?>
+
 </div>
 
 <div class="ccs-panel">
@@ -66,13 +64,24 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id='add_form' name='add_form' >
 	<thead>
 	<tr>
-	<th>Index No</th>
-	<th>Problem Category</th>
+	<?php
+	if($problem=="rolling"){
+	echo "<th>Index No</th>";
+
+	}
+	?>
 	<th>Incident Date/Time</th>
 	<th>Time Resolved</th>
 	<th>Duration</th>
 	<th>Incident Number</th>
-	<th>Description</th>
+	<?php 
+	if($problem=="c_loops"){
+		echo "<th>Cancelled Loops</th>";
+	}
+	else {
+		echo "<th>Description</th>";
+	}
+	?>
 	</tr>
 	</thead>
 	<tbody>
@@ -116,8 +125,14 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 		}
 	?>	
 		<tr data-mo="<?php echo $mo; ?>">
+			<?php 
+			if($problem=="rolling"){
+				?>
+			
 			<td><?php echo $row['index_no']; ?></td>
-			<td><?php echo getProblemType($db,$row['incident_type']); ?></td>
+			<?php
+			}
+			?>
 			<td><?php echo "<span>".date("Y-m-d H:ia",strtotime($row['incident_date']))."</span>"; ?></td>
 			<td><?php 
 		if(date("Y-m-d",strtotime($row['resolution_date']))!=="1970-01-01"){		
@@ -132,7 +147,17 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 			<td><?php echo $row['duration']; ?></td>	
 
 		<td><a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
+
+		<?PHP
+			if($problem=="c_loops"){
+		?>
+			<td><?php echo $row['cancel']; ?></td>
+			<?php
+			}
+			else {
+				?>
 			<td><?php echo $row['description']; ?></td>
+			<?php } ?>
 		</tr>
 	<?php
 	}

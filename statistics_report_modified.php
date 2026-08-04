@@ -213,7 +213,7 @@ $start_date=date("Y-m-d",(date("Y")."-01-01"));
 $end_date=date("Y-m-d",strtotime("last day of this month"));
 	$period=date("F d", strtotime($start_date))." - ".date("F d Y", strtotime($end_date));
 
-	$level=2;
+//	$level=2;
 }
 
 
@@ -223,14 +223,22 @@ if(isset($_POST['level'])){
 }
 else {
 //	$year=date("Y");
-	$level="2";
+//	$level="2";
 }
 ?>
 <!-- <form action='statistics_report.php' method='post'> -->
 <div class="ccs-header">
 
 <h1>Equipment Failures Per Year</h1>
-<div class='sub'><?php echo $period; echo " / ";echo " Level ".$level;?></div>
+<div class='sub'><?php echo $period; 
+
+if($level!=""){
+echo " / ";echo " Level ".$level;
+}
+
+?>
+
+</div>
 </div>
 <div class="ccs-panel">
 <div class="ccs-panel-head">
@@ -247,9 +255,12 @@ else {
 <tr><th>Level</th>
 <td>
 <select name='level'>
+<option></option>
 <option <?php if($_POST['level']==1){ echo "selected"; } ?> value='1'>1</option>
 <option <?php if($_POST['level']==2){ echo "selected"; } ?> value='2'>2</option>
 <option <?php if($_POST['level']==3){ echo "selected"; } ?> value='3'>3</option>
+<option <?php if($_POST['level']==4){ echo "selected"; } ?> value='4'>4</option>
+
 </select>
 </td>
 
@@ -654,9 +665,13 @@ for($i=0;$i<=$difference;$i++){
 	
 	if(isset($_POST['level'])){
 		$level=$_POST['level'];
+
+		$levelClause="level='".$level."' and ";
+
 	}
 	else {
-		$level=2;
+		$level="";
+		$levelClause="";
 	}
 	
 	
@@ -669,7 +684,7 @@ for($i=0;$i<=$difference;$i++){
 	$sql="select incident_report.equipt as equipt, count(1) as equipt_count
 	       from incident_report
 	       inner join incident_cars on incident_report.id=incident_cars.incident_id
-	       where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
+		   where ".$levelClause." incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
 	         and incident_report.equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
 	       group by incident_report.equipt";
 	if($i==1){
