@@ -132,7 +132,7 @@ foreach($allRows as $row){
 		}
 	}
 
-	$monthKey=date("Y-m", strtotime($row['incident_date']));
+	$monthKey=date("F Y", strtotime($row['incident_date']));
 	if(!isset($monthlyCounts[$monthKey])) $monthlyCounts[$monthKey]=array();
 	if(!isset($monthlyCounts[$monthKey][$cause])) $monthlyCounts[$monthKey][$cause]=0;
 	$monthlyCounts[$monthKey][$cause]++;

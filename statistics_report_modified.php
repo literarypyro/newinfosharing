@@ -208,7 +208,11 @@ $dates=explode(" - ",$_POST['search_date2']);
 else {
 //$start_date=date("Y-m-d",strtotime("first day of this month"));
 
-$start_date=date("Y-m-d",(date("Y")."-01-01"));
+// @buckets -- date()'s 2nd argument is a timestamp, and this passed the STRING
+// "2026-01-01". PHP 7 coerced it to 0 and silently returned 1970-01-01; PHP 8
+// raises a TypeError, so a cold load with no search dates was a fatal. The
+// value wanted here is already in Y-m-d form.
+$start_date=date("Y")."-01-01";
 
 $end_date=date("Y-m-d",strtotime("last day of this month"));
 	$period=date("F d", strtotime($start_date))." - ".date("F d Y", strtotime($end_date));
@@ -217,14 +221,19 @@ $end_date=date("Y-m-d",strtotime("last day of this month"));
 }
 
 
+// @buckets -- $level was being resolved in three places with three different
+// answers, and the <select> has a blank first <option>: submitting it posted
+// level="" while every branch tested isset(), which built "level='' and" and
+// returned an empty report for the whole page. Resolved once, here.
+// No POST at all keeps the previous default of level 2; an explicit blank
+// choice now means ALL levels rather than none.
 if(isset($_POST['level'])){
-//	$year=$_POST['year'];
-	$level=$_POST['level'];
+	$level = ($_POST['level'] !== '') ? $_POST['level'] : '';
 }
 else {
-//	$year=date("Y");
-//	$level="2";
+	$level = "2";
 }
+$levelClause = ($level !== '') ? "level='".$level."' and " : "";
 ?>
 <!-- <form action='statistics_report.php' method='post'> -->
 <div class="ccs-header">
@@ -254,12 +263,14 @@ echo " / ";echo " Level ".$level;
 <table>
 <tr><th>Level</th>
 <td>
+<?php /* @buckets -- read $level, not $_POST directly: this warned on a cold
+        load and did not reflect the resolved default. */ ?>
 <select name='level'>
 <option></option>
-<option <?php if($_POST['level']==1){ echo "selected"; } ?> value='1'>1</option>
-<option <?php if($_POST['level']==2){ echo "selected"; } ?> value='2'>2</option>
-<option <?php if($_POST['level']==3){ echo "selected"; } ?> value='3'>3</option>
-<option <?php if($_POST['level']==4){ echo "selected"; } ?> value='4'>4</option>
+<option <?php if($level==1){ echo "selected"; } ?> value='1'>1</option>
+<option <?php if($level==2){ echo "selected"; } ?> value='2'>2</option>
+<option <?php if($level==3){ echo "selected"; } ?> value='3'>3</option>
+<option <?php if($level==4){ echo "selected"; } ?> value='4'>4</option>
 
 </select>
 </td>
@@ -432,14 +443,76 @@ $end_date=date("Y-m-d",strtotime($dates[1]));
 
 
 
+// ---- Column model --------------------------------------------------------
+// @buckets -- One list of columns, built once, read by the header, the
+// aggregation loop, the cells, the totals row, the charts and the tiles.
+//
+// It replaces this, which was the whole reason a range spanning two years
+// only ever drew a handful of columns:
+//
+//   $difference = date("m", strtotime(...end...) - strtotime(...start...)) - 1;
+//
+// That subtracts two timestamps, giving a DURATION in seconds, and then reads
+// it as if it were a date. For Jan 2025 -> Aug 2026 the gap is about 52 000 000
+// seconds; the epoch plus that lands in August 1971, so date("m") returned 08
+// and the report drew 8 columns for a 20-month range. Inside a single year the
+// arithmetic happens to land close enough that nobody noticed.
+//
+// Day view is the same rule car_statistics_report.php uses, mapped onto this
+// page's inputs: there is no month dropdown here, so the trigger is a From-To
+// range that begins and ends inside one calendar month.
+$mStart = new DateTime(date("Y-m-01", strtotime($start_date)));
+$mEnd   = new DateTime(date("Y-m-01", strtotime($end_date)));
+// A To earlier than From used to yield a negative span and an empty table.
+// Swap rather than clamp, so the report still answers the question asked.
+if(strtotime($end_date) < strtotime($start_date)){
+	$swap = $start_date; $start_date = $end_date; $end_date = $swap;
+	$mStart = new DateTime(date("Y-m-01", strtotime($start_date)));
+	$mEnd   = new DateTime(date("Y-m-01", strtotime($end_date)));
+}
+$monthSpan = ($mEnd->format('Y') - $mStart->format('Y')) * 12
+           + ($mEnd->format('n') - $mStart->format('n'));
+
+$isDayView    = ($monthSpan === 0);
+$crossesYears = ($mStart->format('Y') !== $mEnd->format('Y'));
+$bucketWord   = $isDayView ? 'day' : 'month';
+
+$buckets = array();
+if($isDayView){
+	$d = new DateTime(date("Y-m-d", strtotime($start_date)));
+	$e = new DateTime(date("Y-m-d", strtotime($end_date)));
+	while($d <= $e){
+		$buckets[] = array('key'=>(int)$d->format('Ymd'), 'label'=>$d->format('j'),
+		                   'head'=>$d->format('j'), 'ym'=>$d->format('Y-m'),
+		                   'from'=>$d->format('Y-m-d'), 'to'=>$d->format('Y-m-d'),
+		                   'y'=>$d->format('Y'), 'm'=>$d->format('m'));
+		$d->modify('+1 day');
+	}
+}
+else {
+	for($k=0;$k<=$monthSpan;$k++){
+		// Stepping from the 1st: "+1 month" off a 31st lands in the following
+		// month, which would drop February from any range containing it.
+		$b = new DateTime($mStart->format('Y-m-01'));
+		$b->modify("+".$k." months");
+		$buckets[] = array('key'=>(int)$b->format('Ym'),
+		                   'label'=>$crossesYears ? $b->format("M y") : $b->format("F"),
+		                   'head' =>$crossesYears ? $b->format("M")."<br>".$b->format("y") : $b->format("F"),
+		                   'ym'=>$b->format('Y-m'),
+		                   'from'=>$b->format('Y-m-01'), 'to'=>$b->format('Y-m-t'),
+		                   'y'=>$b->format('Y'), 'm'=>$b->format('m'));
+	}
+}
+// Past this many columns the table needs to compress to stay on the page.
+$isDense = (count($buckets) > 13);
+
 for($i=0;$i<$nm;$i++){
 	$row=$rs->fetch_assoc();
 
 	$equipt[$i]['id']=$row['id'];
 	$equipt[$i]['equipment']=$row['equipment_name'];
-	for ($k=$start;$k<=$end;$k++){
-		$equipt_count["Equipt_".$row['id']]["Month_".$k]=0;
-		
+	foreach($buckets as $b){
+		$equipt_count["Equipt_".$row['id']]["Month_".$b['key']]=0;
 	}
 	$equipt_count["Equipt_".$row['id']]["total"]=0;
 
@@ -447,118 +520,38 @@ for($i=0;$i<$nm;$i++){
 
 
 
-if(isset($_POST['level'])){
-//	$year=$_POST['year'];
-	$level=$_POST['level'];
-}
-else {
-//	$year=date("Y");
-	$level="2";
-}
-
 ?>
+<style>
+/* @buckets -- a two-year range is 24 columns plus label and total. Rather than
+   cap the range, the table compresses: smaller type, tighter cells, and the
+   equipment column pinned so the names stay readable while the counts narrow. */
+.stat-dense { font-size:11px; }
+.stat-dense th, .stat-dense td { padding:2px 3px !important; }
+.stat-dense thead th { font-size:10px; line-height:1.15; }
+.stat-dense tbody th, .stat-dense tfoot th { font-size:11.5px; white-space:nowrap; }
+.stat-dense td a { font-size:11px; }
+.stat-wrap { overflow-x:auto; }
+</style>
 <div class='ccs-panel-body'>
 <?php
 // The summary figures are only known once the aggregation loop inside the
 // table has run, so buffer the table and emit the summary above it.
 ob_start();
 ?>
-<table class="table table-striped table-bordered bootstrap-datatable datatable2" border=1px style='border-collapse:collapse;' width=100%>
+<div class="stat-wrap">
+<table class="table table-striped table-bordered bootstrap-datatable datatable2<?php echo $isDense ? ' stat-dense' : ''; ?>" border=1px style='border-collapse:collapse;' width=100%>
 <thead>
 <tr >
 <th>Equipment</th>
 <?php
 
 
-if(isset($_POST['search_date2'])){
-
-	
-	//Convert to seconds, then convert to months
-	
-	
-	$difference=date("m",strtotime(date("Y-m-t",strtotime($end_date)))-strtotime(date("Y-m-01",strtotime($start_date))))-1;
-
-//	$difference2=strtotime(date("Y-m-t",strtotime($end_date)))-strtotime(date("Y-m-01",strtotime($start_date)));
-//	$day=((($difference2/60*1)/60*1)/24*1)
-
-	/* change from months to days */	
-
-	$start=date("Ym",strtotime($start_date));
-	$end=date("Ym",strtotime($end_date));
-	
-	
-	if($_POST['range']=="yearly"){
-	//	$end=12;
-	}
-	
-//	echo date("F d, Y",strtotime($start_date."+".$day." days"));
-	
+// @buckets -- header columns come straight off the bucket list now. The
+// $difference / $tag_date / $limit arithmetic that used to live here is gone;
+// see the column model above for why it could not survive a year boundary.
+foreach($buckets as $b){
+	echo "\t<th>".$b['head']."</th>\n";
 }
-else {
-	
-$difference=0;	
-
-$start_date=date("Y-01-01");
-	
-$start=date("Ym",strtotime($start_date));
-$end=date("Ym",strtotime($end_date));
-
-
-$startM=date("m",strtotime($start_date));
-$endM=date("m",strtotime($end_date));
-
-$difference=$endM-$startM;
-
-//	$start=1;
-//	$end=12;
-}
-	$tag_date=date("Y-m-01",strtotime($start_date));
-
-
-
-$limit=date("t",strtotime($tag_date));
-	
-	
-	
-
-
-for($k=0;$k<=$difference;$k++){
-
-	
-	
-//	$mon=substr($k,4,2);
-//	$yy=substr($k,0,4);
-
-	
-?>	
-	<th>
-	<?php 
-	if($k==0){
-		echo date("F",strtotime($start_date));
-	}
-	else {
-	echo date("F",strtotime($tag_date."+".$k." months"));
-
-
-	}
-	
-	?>
-	</th>
-	
-<?php
-}
-
-$ss=$start;
-$ee=$end;
-
-
-
-//$sql="select *,count(1) as equipt_count from incident_report where level='".$level."' and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59' and equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') group by equipt";
-//$rs=$db->query($sql);
-
-//$nm=$rs->num_rows;
-
-
 ?>
 <th>Total
 </th>
@@ -586,96 +579,14 @@ else {
 
 
 
-for($i=0;$i<=$difference;$i++){
+// @buckets -- one pass per column, with the window taken from the bucket
+// instead of rebuilt from $tag_date + N months on every iteration.
+foreach($buckets as $b){
 
+	$start_date1 = $b['from'];
+	$end_date1   = $b['to'];
+	$label       = $b['key'];
 
-
-
-
-
-
-/*	if($i==($ee-1)){
-		$year=date("Y",strtotime($end_date));
-			
-	}
-	else {
-		$year=date("Y",strtotime($start_date));
-	}
-	*/
-	
-
-	if($i==0){
-	$month_heading=date("F",strtotime($start_date));
-	}
-	else {
-	
-	$month_heading=date("F",strtotime($tag_date."+".$i." months"));
-	}
-
-
-	if($i==0){
-	$date_limit=date("t",strtotime($end_date));
-	}
-	else {
-	
-
-	
-	$date_limit=date("t",strtotime($tag_date."+".$i." months"));
-
-	}
-
-
-
-
-
-	if($i==0){
-		
-
-	$yy=date("Y");
-
-	$mon=date("m",strtotime($start_date));
-	
-	$yy2=date("Y",strtotime($start_date));
-
-	$mon2=date("m",strtotime($start_date));
-	
-		
-	}
-	else {
-	$yy=date("Y",strtotime($tag_date."+".$i." months"));
-
-	$mon=date("m",strtotime($tag_date."+".$i." months"));
-	
-
-	$yy2=date("Y",strtotime($tag_date."+".$i." months"));
-
-	$mon2=date("m",strtotime($tag_date."+".$i." months"));
-
-	$fn=date("F",strtotime($tag_date."+".$i." months"));
-	
-	
-	}
-	$label=$yy.$mon;
-
-
-
-	$start_date1=date("Y-m-d",strtotime($yy."-".$mon."-01"));
-	$end_date1=date("Y-m-d",strtotime($yy2."-".$mon2."-".$date_limit));
-	
-	
-	if(isset($_POST['level'])){
-		$level=$_POST['level'];
-
-		$levelClause="level='".$level."' and ";
-
-	}
-	else {
-		$level="";
-		$levelClause="";
-	}
-	
-	
-	
 	// Counts INCIDENT-CAR PAIRS, not incidents: the incident_cars join means an
 	// incident affecting three cars contributes three. This is what makes the
 	// figures here reconcile with equipment_cars_stats.php, which has always
@@ -685,50 +596,37 @@ for($i=0;$i<=$difference;$i++){
 	       from incident_report
 	       inner join incident_cars on incident_report.id=incident_cars.incident_id
 		   where ".$levelClause." incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
-	         and incident_report.equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
+	         and incident_report.equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
 	       group by incident_report.equipt";
-	if($i==1){
-	}
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
-	
+
 	for($k=0;$k<$nm;$k++){
-		
 		$row=$rs->fetch_assoc();
-		
-		$equipt_count["Equipt_".$row['equipt']]["Month_".($label*1)]+=$row['equipt_count'];
+		$equipt_count["Equipt_".$row['equipt']]["Month_".$label]+=$row['equipt_count'];
 		$equipt_count["Equipt_".$row['equipt']]["total"]+=$row['equipt_count'];
-		
-		
 	}
 
-
 	// Same pair-counting rule for the external defect rows.
+	// @buckets -- this used a bare level='$level' while the query above used
+	// $levelClause, so with no level chosen the first query counted every level
+	// and this one counted none. Both use the clause now.
 	$sql="select is_external.incident_defects.equipt_id as equipt_id, count(1) as equipt_count
 	       from incident_report
 	       inner join is_external.incident_defects on incident_report.id=is_external.incident_defects.incident_id
 	       inner join incident_cars on incident_report.id=incident_cars.incident_id
-	       where level='".$level."' and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
-	         and is_external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
-	       group by is_external.incident_defects.equipt_id"; 
+	       where ".$levelClause." incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
+	         and is_external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
+	       group by is_external.incident_defects.equipt_id";
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
-	if($i==1){
-//		echo $sql;
-//		echo "<br>";
-	}	
 	for($k=0;$k<$nm;$k++){
 		$row=$rs->fetch_assoc();
-		$equipt_count["Equipt_".$row['equipt_id']]["Month_".($label*1)]+=$row['equipt_count'];
+		$equipt_count["Equipt_".$row['equipt_id']]["Month_".$label]+=$row['equipt_count'];
 		$equipt_count["Equipt_".$row['equipt_id']]["total"]+=$row['equipt_count'];
-
 	}
-
-
-
-	
-}	
-?>	
+}
+?>
 <?php
 // ---- Totals, peak equipment, and the highlight threshold -----------------
 // The old pairwise sortCar() walk left $highestCar without a 'total' whenever
@@ -737,12 +635,9 @@ for($i=0;$i<=$difference;$i++){
 //
 // Month labels are the YYYYMM keys the aggregation loop above wrote, rebuilt
 // here in the same order the columns are rendered.
-$monthKeys = array();
+$monthKeys  = array();
 $monthNames = array();
-for($k=0;$k<=$difference;$k++){
-	$monthKeys[]  = (int)date("Ym", strtotime($tag_date." +".$k." months"));
-	$monthNames[] = date("M y", strtotime($tag_date." +".$k." months"));
-}
+foreach($buckets as $b){ $monthKeys[] = $b['key']; $monthNames[] = $b['label']; }
 
 $grandTotal = 0;
 $peakTotal  = 0;
@@ -763,7 +658,42 @@ foreach($equipt as $idx => $e){
 }
 
 $flagThreshold = $peakTotal * 0.60;
-$avgPerActive  = $activeEquipt ? round($grandTotal / $activeEquipt, 1) : 0;
+
+// ---- Highest month (or day) ----------------------------------------------
+// @buckets -- replaces "Avg per affected type", matching the tile on
+// car_statistics_report.php. Columns the coverage table marks as missing are
+// not candidates: they read 0 for want of records, not for want of failures.
+// Ties are shown rather than silently resolved.
+$peakBucketTotal = 0;
+$peakBucketIdx   = array();
+$coveredBuckets  = 0;
+foreach($buckets as $bi => $b){
+	if(ccsMonthStatus($coverage, $b['ym']) === 'missing') continue;
+	$coveredBuckets++;
+	$bt = (int)$monthTotals[$bi];
+	if($bt > $peakBucketTotal){ $peakBucketTotal=$bt; $peakBucketIdx=array($bi); }
+	elseif($bt > 0 && $bt === $peakBucketTotal){ $peakBucketIdx[]=$bi; }
+}
+
+if(!count($peakBucketIdx)){
+	$peakBucketLabel = '&mdash;';
+	$peakBucketSub   = $coveredBuckets ? 'no failures recorded' : 'no '.$bucketWord.'s with data';
+}
+elseif(count($peakBucketIdx) === 1){
+	$b0 = $buckets[$peakBucketIdx[0]];
+	$peakBucketLabel = $isDayView ? date("j F", strtotime($b0['from']))
+	                              : date("F Y", strtotime($b0['from']));
+	$peakBucketSub   = $peakBucketTotal.' failure'.($peakBucketTotal==1?'':'s');
+}
+else {
+	$abbr = array();
+	foreach($peakBucketIdx as $bi){ $abbr[] = $buckets[$bi]['label']; }
+	$peakBucketLabel = count($abbr) > 3 ? count($abbr).'-way tie' : implode(' &amp; ', $abbr);
+	$peakBucketSub   = $peakBucketTotal.' failures each';
+}
+if($coveredBuckets > 0 && $coveredBuckets < count($buckets)){
+	$peakBucketSub .= ' &middot; of '.$coveredBuckets.' '.$bucketWord.($coveredBuckets==1?'':'s').' with data';
+}
 
 $equiptTotals = array();
 foreach($equipt as $e){ if($e['total'] > 0) $equiptTotals[] = array($e['equipment'], (int)$e['total']); }
@@ -789,8 +719,7 @@ $distinctIncidents = 0;
 $dq = $db->query("select count(distinct incident_report.id) as c
                   from incident_report
                   inner join incident_cars on incident_report.id=incident_cars.incident_id
-                  where level='".$level."'
-                    and incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'");
+                  where ".$levelClause." incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'");
 if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 
 // ---- Rows -----------------------------------------------------------------
@@ -861,6 +790,7 @@ if(!count($equipt)){
 
 
 </table>
+</div>
 <?php
 $tableHtml = ob_get_clean();
 ?>
@@ -882,9 +812,9 @@ $tableHtml = ob_get_clean();
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failures</div>
 	</div>
 	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
-		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Avg per affected type</div>
-		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $avgPerActive; ?></div>
-		<div style="font-size:11px;color:#5A6275;">excludes types with none</div>
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;"><?php echo $isDayView ? 'Day' : 'Month'; ?> with the Most Failures</div>
+		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $peakBucketLabel; ?></div>
+		<div style="font-size:11px;color:#5A6275;"><?php echo $peakBucketSub; ?></div>
 	</div>
 </div>
 
@@ -920,6 +850,7 @@ var srmActive       = <?php echo (int)$activeEquipt; ?>;
 var srmPeakName     = <?php echo json_encode($peakName); ?>;
 var srmUncovered    = <?php echo json_encode($uncoveredMonths); ?>;
 var srmCoverageNote = <?php echo json_encode($coverageNote); ?>;
+var srmBucketWord   = <?php echo json_encode($bucketWord); ?>;   /* @buckets */
 </script>
 </div>
 <br>
@@ -992,7 +923,7 @@ var srmCoverageNote = <?php echo json_encode($coverageNote); ?>;
 		data:{ labels: srmMonthSeries.map(function(r){ return r[0]; }),
 		       datasets:[{ data: srmMonthSeries.map(function(r){ return r[1]; }), backgroundColor:'#00529B', borderRadius:3 }] },
 		options:{ responsive:false, animation:false,
-			plugins:{ title:{ display:true, text:'Car-level failures by month, all equipment', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
+			plugins:{ title:{ display:true, text:'Car-level failures by '+srmBucketWord+', all equipment', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
 			scales:{ x:{ ticks:{ color:muted, font:{size:9}, maxRotation:45 }, grid:{ display:false } },
 			         y:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } } }
 		}
@@ -1060,7 +991,7 @@ var srmCoverageNote = <?php echo json_encode($coverageNote); ?>;
 			'<h2 class="sec">Summary</h2>' +
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgEq+'"><div class="cap">Figure 1 &mdash; Car-level failures by equipment</div></div>' +
-				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by month, all equipment</div></div>' +
+				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by '+srmBucketWord+', all equipment</div></div>' +
 				(srmCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+esc(srmCoverageNote)+'</p>' : '') +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+srmIncidents+' incidents produce '+srmGrandTotal+' car-level failures. This matches the per-car reports; the incident history logs count one row per incident and show the smaller figure. Shaded rows are equipment at or above 60% of the highest total.</p>' +
 			'</div>' +

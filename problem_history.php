@@ -117,7 +117,7 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 		$row=$rs->fetch_assoc();
 
 		$ts=strtotime($row['incident_date']);
-		$mo=date("Y-m",$ts);
+		$mo=date("F Y",$ts);
 		if(!isset($monthlyVolume[$mo])) $monthlyVolume[$mo]=0;
 		$monthlyVolume[$mo]++;
 

@@ -158,7 +158,7 @@ foreach($allRows as $row){
 		}
 	}
 
-	$monthKey=date("Y-m", strtotime($row['incident_date']));
+	$monthKey=date("Ym", strtotime($row['incident_date']));
 	if(!isset($monthlyCounts[$monthKey])) $monthlyCounts[$monthKey]=array();
 	if(!isset($monthlyCounts[$monthKey][$problemType])) $monthlyCounts[$monthKey][$problemType]=0;
 	$monthlyCounts[$monthKey][$problemType]++;
@@ -750,7 +750,13 @@ $(function(){
 				'<p class="rpt-subject">Car #<?php echo htmlspecialchars($car_id); ?></p>' +
 			'</div>' +
 			'<div class="rpt-meta">' +
-				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
+			'<span><b>Report period:</b> <?php
+  if(!isset($_GET["y"])){ echo "All records"; }
+  else if(isset($_GET["m"]) && $_GET["m"] !== ""){
+    echo htmlspecialchars(date("F Y", strtotime((int)$_GET["y"]."-".(int)$_GET["m"]."-01")));
+  }
+  else { echo htmlspecialchars((int)$_GET["y"]); }
+?></span>' +
 				'<span><b>Records:</b> ' + rowCount + '</span>' +
 				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 			'</div>' +
