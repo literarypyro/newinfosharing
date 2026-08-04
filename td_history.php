@@ -67,9 +67,6 @@ if($hasSearch){
 <div class="ccs-header">
 	<h1>Incident History &mdash; By Personnel</h1>
 	<div class="sub">Search incidents by reporting personnel &mdash; Line 3</div>
-<?php if($coverageNote !== ''){ ?>
-	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
-<?php } ?>
 </div>
 
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
@@ -726,7 +723,6 @@ $(function(){
 					'<div class="cap">Figure 3 &mdash; When reported incidents occur</div></div>' +
 				'<div class="chart"><img src="' + imgTerms + '">' +
 					'<div class="cap">Figure 4 &mdash; Recurring words in descriptions</div></div>' +
-				(tdCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+tdCoverageNote+'</p>' : '') +
 				'<p class="note">Counts reflect incidents this person filed. They describe reporting coverage and shift pattern, not individual performance &mdash; volume depends heavily on roster, assigned area and shift. Figure 2 shows recorded problem types only; Figure 4 counts words appearing in the descriptions themselves and does not assign a category.</p>' +
 			'</div>' +
 

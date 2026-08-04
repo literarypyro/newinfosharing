@@ -68,13 +68,23 @@ else {
 	$period      = "Full year ".$year;
 }
 
+if(!isset($_POST['year'])){
+	$period="All Time";
+}
+
 // ---- Full incident history link ------------------------------------------
 // @historylink -- SET THE URL HERE. This is the only line to edit; the button
 // below reads it. Pre-filled with the parameter names car_statistics_report.php
 // already uses for its own car_history links (car_id / y / m), so it is a
 // working guess rather than a blank -- change it if yours differ.
-$carHistoryUrl = "car_history.php?car_id=".$car."&y=".$year.($month ? "&m=".$month : "");
 
+if(isset($year)){ 
+$carHistoryUrl = "car_history.php?car_id=".$car;
+
+}
+else {
+$carHistoryUrl = "car_history.php?car_id=".$car."&y=".$year.($month ? "&m=".$month : "");
+}
 // Inside the slide panel this page is an iframe, so a plain link would load
 // car_history INSIDE the 820px panel. _top breaks it out into the full window.
 // Change to "_blank" for a new tab, or "_self" to keep it in the panel.
@@ -97,9 +107,11 @@ $carHistoryTarget = $IR_EMBED ? "_top" : "_self";
 // 2. car_no='5' is a string comparison; the tile groups by car_no*1. Any row
 //    stored as '05', ' 5' or '5 ' fell into the tile's bucket for car 5 and
 //    was missed here. Both sides coerce numerically now.
-$where = "incident_cars.car_no*1 = ".$car."
-          and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
+$where = "incident_cars.car_no*1 = ".$car;
 
+if(isset($_GET['year'])){
+			$where.="and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
+}
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
 // never set and every tile read from one undefined key.
@@ -267,7 +279,13 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <div class="stat-scope">
 	<div class="scope-left">
 		Car <?php echo $car > 0 ? $car : '&mdash;'; ?>
+		<?php 
+		if(isset($_POST['year'])){
+			?>
 		<span class="muted"><?php echo date("d M Y", strtotime($start_date1)); ?> &ndash; <?php echo date("d M Y", strtotime($end_date1)); ?></span>
+		<?php
+		}
+		?>
 	</div>
 <?php if($car > 0){ /* @historylink -- no car, no action to offer */ ?>
 	<a class="scope-btn" href="<?php echo htmlspecialchars($carHistoryUrl); ?>" target="<?php echo $carHistoryTarget; ?>">Full incident history &rarr;</a>
@@ -351,12 +369,6 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	<span style="display:inline-block;width:11px;height:11px;background:#F9D6D6;border:1px solid #7A1F1F;vertical-align:-1px;"></span>
 	Shaded rows are equipment at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
-	<?php if($coverageNote !== ''){ ?>
-	<div style="margin-top:6px;color:#7A1F1F;"><?php echo htmlspecialchars($coverageNote); ?></div>
-	<?php } ?>
-	<?php if(count($gapMonths)){ ?>
-	<div style="margin-top:6px;color:#7A1F1F;">This period includes months with no records (<?php echo htmlspecialchars(implode(', ', $gapMonths)); ?>) &mdash; the totals above are not zero failures for those months, they are absent data.</div>
-	<?php } ?>
 <?php if($unrecordedFail > 0){ ?>
 	<div style="margin-top:6px;color:#7A1F1F;">
 		<?php echo $unrecordedFail; ?> of these <?php echo $equipt_count; ?> failures have no equipment recorded on the incident

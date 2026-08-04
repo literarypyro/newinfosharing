@@ -61,9 +61,6 @@ else {
 <div class="ccs-header">
 	<h1>Car #<?php echo htmlspecialchars($car_id); ?> &mdash; Incident History</h1>
 	<div class="sub">Combined current &amp; legacy incident records &mdash; Line 3</div>
-<?php if($coverageNote !== ''){ ?>
-	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
-<?php } ?>
 </div>
 
 <div class="ccs-panel">
@@ -195,7 +192,9 @@ foreach($allRows as $row){
 	if(!isset($sevGrid[$eqKey])) $sevGrid[$eqKey]=array();
 	if(!isset($sevGrid[$eqKey][$lv])) $sevGrid[$eqKey][$lv]=0;
 	$sevGrid[$eqKey][$lv]++;
+	if($lv>0){
 	$sevLevels[$lv]=true;
+	}
 	?>
     <tr>
         <td><?php echo $row['index_no']; ?></td>
@@ -783,7 +782,6 @@ $(function(){
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Leading equipment by incident count</div></div>' +
 				'<div class="chart"><img src="' + severityImg + '">' + '<div class="cap">Figure 3 &mdash; Equipment by severity level</div></div>' +
 				'<div class="chart"><img src="' + blankTermsImg + '">' + '<div class="cap">Figure 4 &mdash; Recurring words among incidents left unplaced</div></div>' +
-				(ccsCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+ccsCoverageNote+'</p>' : '') +
 				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified; Figure 4 counts words appearing in those descriptions and assigns no category. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
 			'</div>' +
 

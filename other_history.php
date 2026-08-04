@@ -61,9 +61,6 @@ $car_id=$_GET['car_id'];
 <div class="ccs-header">
 	<h1>Incident History &mdash; Others</h1>
 	<div class="sub">Incidents categorized as "Others" &mdash; Line 3</div>
-<?php if($coverageNote !== ''){ ?>
-	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
-<?php } ?>
 </div>
 
 <div class="ccs-panel">
@@ -653,7 +650,6 @@ $(function(){
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + heatmapImg + '">' + '<div class="cap">Figure 1 &mdash; Cause / issue by month</div></div>' +
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Cause / issue by total incidents</div></div>' +
-			(ccsCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+ccsCoverageNote+'</p>' : '') +
 			(ccsSuggestedTotal ? '<p class="note">Italicised categories in the log are auto-suggested from description text (' + ccsSuggestedTotal + ' record' + (ccsSuggestedTotal===1?'':'s') + ') and are not recorded values.</p>' : '') +
 			'</div>' +
 

@@ -757,7 +757,36 @@ function fillCar(position,car){
 	else { makeajax("processing.php?checkCar="+car+"&car="+field,"confirmCar"); }
 	/* was: $('#addModal').modal('show'); -- the panel stays open, no re-show needed */
 }
+function openCarPanel(year,car,title,month){
+	/* @slidepanel
+	   car_stats.php reads $_GET['car_id'] — this sent &car=, so the iframe
+	   loaded with no car at all and rendered an empty report. That is why the
+	   panel looked broken even once it was sliding correctly.
+	   Values are encoded: the title carries a colon and spaces. */
+	month = (month===undefined || month===null) ? '' : month;
+	title = title || "Car with Most Failures";
+	//var q = "year="       + encodeURIComponent(year)
+	var q=  "&car_id="    + encodeURIComponent(car);
+	      //+ "&month="     + encodeURIComponent(month)
+	      //+ "&title="     + encodeURIComponent(title);
 
+	document.getElementById('ir-panel-title').textContent=title;
+	document.getElementById('irFallbackLink').href="car_stats.php?"+q; /* no embed=1: full standalone page */
+	var frame=document.getElementById('irFrame');
+	frame.classList.remove('ready');
+	document.getElementById('irLoading').classList.remove('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	clearTimeout(irLoadTimer);   /* was commented out: reopening left the previous
+	                                timer running, which could flash the timeout
+	                                fallback over an already-loaded frame */
+	irExpectingLoad=true;
+	frame.src="car_stats.php?"+q+"&embed=1";
+	document.getElementById('irPanel').classList.add('active');
+	document.getElementById('irOverlay').classList.add('active');
+	irLoadTimer=setTimeout(function(){
+		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
+	},6000);
+}
 function confirmCar(ajaxHTML){
 	if(ajaxHTML!="No car"){ alert("Car already in Compo of another Train!"); document.getElementById(ajaxHTML).value=""; }
 }
@@ -1256,7 +1285,12 @@ for($i=0; $i<$nm; $i++){
 	$carCells = array();
 	for($r=0; $r<$spanN; $r++){
 		if(isset($carsArr[$r])){
-			$carCells[$r] = '<td class="tc-car-cell"><a href=\'car_history.php?car_id='.$carsArr[$r].'\' target=\'_blank\' class="tc-car">'.$carsArr[$r].'</a></td>';
+
+
+			$carCells[$r] = "<td class='tc-car-cell'><a href=\"#\" class='tc-car' onclick=\"openCarPanel('','".$carsArr[$r]."','Statistics Report','')\" onkeydown=\"if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}\" >".$carsArr[$r]."</a></td>";
+
+
+//			$carCells[$r] = '<td class="tc-car-cell"><a href=\'car_history.php?car_id='.$carsArr[$r].'\' target=\'_blank\' class="tc-car">'.$carsArr[$r].'</a></td>';
 		} else {
 			$carCells[$r] = '<td class="tc-car-cell"><span class="tc-none">&mdash;</span></td>';
 		}

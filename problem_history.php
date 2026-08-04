@@ -117,7 +117,13 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 		$row=$rs->fetch_assoc();
 
 		$ts=strtotime($row['incident_date']);
-		$mo=date("F Y",$ts);
+		// @months -- was $mo=$ts, the raw Unix timestamp, despite the comment
+		// above declaring "YYYY-MM" keys. Every incident therefore got its own
+		// per-SECOND bucket, so chart 1 drew one bar per incident and labelled
+		// it with a chopped timestamp ("72345678" after the .slice(2) below).
+		// data-mo on each row fed the same value into the print window filter,
+		// where it was string-compared against a real "YYYY-MM".
+		$mo=date("Y-m",$ts);
 		if(!isset($monthlyVolume[$mo])) $monthlyVolume[$mo]=0;
 		$monthlyVolume[$mo]++;
 
@@ -176,6 +182,27 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 
 	// Rank recurring terms; keep the top 8 that appear in 2+ incidents.
 	arsort($termCounts);
+	// @months -- A month with no incidents has no key at all, so the axis used
+	// to close the gap and print two non-adjacent months side by side. Fill the
+	// span so the x-axis is continuous. Months the coverage table marks missing
+	// get null rather than 0: no records because none were kept is not the same
+	// claim as no incidents, and Chart.js draws nothing for null.
+	if(count($monthlyVolume)){
+		$mk=array_keys($monthlyVolume);
+		sort($mk);
+		$cur=new DateTime($mk[0]."-01");
+		$lst=new DateTime($mk[count($mk)-1]."-01");
+		$filled=array();
+		while($cur <= $lst){
+			$ym=$cur->format("Y-m");
+			if(isset($monthlyVolume[$ym]))                          $filled[$ym]=$monthlyVolume[$ym];
+			else if(ccsMonthStatus($coverage,$ym) === 'missing')    $filled[$ym]=null;
+			else                                                    $filled[$ym]=0;
+			$cur->modify("+1 month");
+		}
+		$monthlyVolume=$filled;
+	}
+
 	$topTerms=array();
 	foreach($termCounts as $t=>$c){
 		if($c < 2) break;                  // sorted desc — everything after is rarer
@@ -328,6 +355,18 @@ $(function(){
 	var pvTrimmed    = pvAllMonths.length > pvWindow.length;
 
 	// ============ Chart 1: monthly volume ============
+	// @months -- labels were m.slice(2), which chopped the first two characters
+	// off the key. Even once the key is a real "YYYY-MM" that yields "26-03";
+	// on the raw timestamps it yielded a fragment of a number. Split into two
+	// lines instead, which Chart.js stacks, so the year is carried on every
+	// label without needing rotation or extra width.
+	var PV_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+	function pvMonthLabel(m){
+		var p = String(m).split('-');
+		var i = parseInt(p[1], 10) - 1;
+		if(!(i >= 0 && i < 12)) return String(m);
+		return [PV_MON[i], p[0]];
+	}
 	var months = pvAllMonths;
 	var volMonths = pvWindow;
 	var volTitle = pvProblemName + ' \u2014 monthly volume' + (months.length > 24 ? ' (last 24 months)' : '');
@@ -335,7 +374,7 @@ $(function(){
 	new Chart(document.getElementById('pvVolume'), {
 		type: 'bar',
 		data: {
-			labels: volMonths.map(function(m){ return m.slice(2); }),
+			labels: volMonths.map(pvMonthLabel),
 			datasets: [{ data: volMonths.map(function(m){ return pvMonthly[m]; }), backgroundColor: mainColor, borderRadius: 3 }]
 		},
 		options: {
@@ -345,7 +384,9 @@ $(function(){
 				legend: { display: false }
 			},
 			scales: {
-				x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 45 }, grid: { display: false } },
+				// Two-line labels do not need rotating; autoSkip still thins them
+				// if 24 of them will not fit the 340px canvas.
+				x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 0, autoSkipPadding: 4 }, grid: { display: false } },
 				y: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } }
 			}
 		}
