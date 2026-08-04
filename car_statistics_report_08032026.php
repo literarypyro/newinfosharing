@@ -10,50 +10,6 @@
 //--- "clickable" at rest instead of only on hover, added a caption
 //--- explaining the red highlight and the two click targets. No query
 //--- logic touched -- purely presentation.
-//---------------------------------------------------
-//--- Summary tile pass (08042026):
-//--- Marker: @peakmonth
-//--- The 4th KPI tile was already LABELLED "Month with the Most
-//--- Failures" but still echoed $avgPerActiveCar under the old
-//--- "excludes cars with none" caption, so it claimed one figure and
-//--- showed another. Now computes the real peak month. Months the
-//--- coverage table marks missing are excluded as candidates -- they
-//--- read 0 for want of records, not for want of failures -- and when
-//--- the year is only partly covered the caption names the base it
-//--- was read from. Ties are shown, not silently resolved.
-//--- $avgPerActiveCar dropped; nothing else read it. $monthTotals and
-//--- $grandTotal were accumulated onto undefined indexes -- both now
-//--- initialised up front, same class as the "total" fix above.
-//--- KNOWN LIMIT: for the current year this is a part-year peak, with
-//--- no marker distinguishing it from a settled one.
-//---------------------------------------------------
-//--- Slide-panel + clickable tile pass (08042026):
-//--- Marker: @slidepanel
-//--- The panel would not slide. train_operations.php holds the base
-//--- .ta-panel / .ta-overlay geometry in its OWN <style> block, NOT in
-//--- slide_panel.php, so requiring slide_panel.php here brought the
-//--- behaviour without position:fixed or the off-screen start --
-//--- .active had nothing to animate and #irPanel rendered as a plain
-//--- block at the foot of the page. Base rules copied in verbatim,
-//--- with literal fallbacks for the ta- custom properties that live in
-//--- train_operations.php's :root and do not reach this page.
-//--- Second, separate cause: the iframe URL sent &car=, but
-//--- car_stats.php reads $_GET['car_id'] -- so even once sliding it
-//--- would have loaded an empty report. Params are encoded now; the
-//--- title carries a colon and spaces.
-//--- Also: $selfPage was echoed into self.location but never defined;
-//--- clearTimeout() in the opener was commented out, so reopening left
-//--- the old timer running and could flash the timeout fallback over a
-//--- loaded frame; backdrop restored as its OWN #irOverlay rather than
-//--- reaching for taOverlay, which belongs to a panel this page has
-//--- not got. Escape and backdrop-click both close.
-//--- The "Most Fault-Prone Car" tile is now a whole-tile click target
-//--- (a 22px digit is too small a hit area) with the affordance at
-//--- rest, keyboard-reachable, and inert when $peakCar is 0.
-//--- OPEN: slide_panel.php has not been reviewed. If it also declares
-//--- .ta-panel the duplicate rules are identical and harmless, and the
-//--- width below is on an id selector so it wins either way -- but if
-//--- it also emits an #irPanel there is a duplicate id.
 //--------------------------------------------------->
 <?php
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
@@ -77,11 +33,6 @@ if(!function_exists('ccsLoadCoverage')){
 	function ccsUncoveredMonths($coverage,$f,$t){ return array(); }
 }
 $coverage = ccsLoadCoverage($db);
-
-// @slidepanel -- closeIncidentPanel() echoes this into a self.location; it was
-// never defined,
-// so the reload target rendered as an empty string.
-$selfPage = basename(__FILE__);   /* reload target — rename-safe */
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -145,56 +96,6 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	text-decoration:underline;
 	font-weight:bold;
 }
-/* --- Slide-panel base ------------------------------------------- @slidepanel
-   train_operations.php carries these rules in its OWN <style> block, not in
-   slide_panel.php. Requiring slide_panel.php here therefore brought in the
-   behaviour without the geometry: #irPanel had no position:fixed and no
-   off-screen start, so adding .active had nothing to slide and the panel
-   rendered as a plain block at the foot of the page. Values match
-   train_operations.php exactly.
-
-   var() fallbacks because the ta- custom properties are defined in
-   train_operations.php's :root and may not reach this page. If slide_panel.php
-   also declares these rules they are identical, and the width below is on an
-   id selector so it wins regardless of source order. */
-.ta-overlay       { position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(10,25,50,.45); opacity:0; visibility:hidden; transition:opacity .2s; z-index:99998; }
-.ta-overlay.active{ opacity:1; visibility:visible; }
-.ta-panel         { position:fixed; top:0; right:-900px; width:480px; max-width:96vw; height:100vh; background:var(--paper,#F7F9FC); box-shadow:-6px 0 24px rgba(0,30,80,.25); transition:right .25s ease; z-index:99999; display:flex; flex-direction:column; font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
-.ta-panel.active  { right:0; }
-.ta-panel-head    { background:var(--rail,#00529B); border-bottom:3px solid var(--gold,#FDB813); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex:none; }
-.ta-panel-head h3 { margin:0; color:#fff; font-size:13px; font-weight:600; letter-spacing:.3px; }
-.ta-panel-close   { background:none; border:none; color:rgba(255,255,255,.7); font-size:19px; line-height:1; cursor:pointer; padding:0 2px; }
-.ta-panel-close:hover { color:var(--gold,#FDB813); }
-.ta-panel-body    { flex:1; overflow-y:auto; padding:16px 18px; }
-
-/* --- Clickable KPI tile ----------------------------------------- @slidepanel
-   Affordance is present at rest, not only on hover — same call already made
-   for the table's links on this page. */
-.kpi-tile--link { cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s; }
-.kpi-tile--link:hover { background:#F3F7FC !important; border-color:#00529B !important; box-shadow:0 1px 5px rgba(0,40,90,.13); }
-.kpi-tile--link:hover .kpi-figure { text-decoration:underline; }
-.kpi-tile--link:focus-visible { outline:2px solid #00529B; outline-offset:2px; }
-.kpi-hint { font-size:11px; font-weight:600; color:#00529B; margin-top:4px; }
-.kpi-tile--link:hover .kpi-hint { text-decoration:underline; }
-
-/* Incident panel: wider variant hosting incident report.php in an iframe.
-   #irPanel.ta-panel--ir (id+class) so this can't lose a specificity tie
-   against the base .ta-panel width rule regardless of source order. */
-#irPanel.ta-panel--ir { width:820px; }
-.ta-panel-body--ir { padding:0; overflow:hidden; position:relative; }
-#irFrame           { display:block; width:100%; height:100%; border:0; background:#fff; opacity:0; transition:opacity .15s; }
-#irFrame.ready     { opacity:1; }
-/* @slidepanel -- var() fallbacks added below: --paper/--rail/--mut/--ink are
-   declared in train_operations.php's :root and are not defined on this page. */
-.ir-loading, .ir-fallback { position:absolute; top:0; right:0; bottom:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:var(--paper,#F7F9FC); text-align:center; padding:0 30px; }
-.ir-loading.hidden, .ir-fallback.hidden { display:none; }
-.ir-spinner { width:26px; height:26px; border:3px solid #C9D6E5; border-top-color:var(--rail,#00529B); border-radius:50%; animation:ir-spin .7s linear infinite; }
-@keyframes ir-spin { to { transform:rotate(360deg); } }
-.ir-loading span, .ir-fallback p { font-size:12px; color:var(--mut,#5A6678); }
-.ir-fallback strong { color:var(--ink,#16243B); font-size:13px; }
-.ir-fallback a { color:var(--rail,#00529B); font-weight:600; text-decoration:none; }
-.ir-fallback a:hover { text-decoration:underline; }
-
 </style>
 <?php include("history_theme.php"); ?>
 
@@ -213,19 +114,7 @@ else {
 
 }
 
-// @dayview -- The month <select> has a blank first <option>, so submitting
-// "no month" posts month="" and isset() is TRUE for it. Every branch in this
-// file tested isset(), so the blank choice fell into day mode and built its
-// day count from strtotime("2026--01"). Resolve the mode ONCE, here, and let
-// every branch below read $isDayView instead of re-testing $_POST.
-$monthSel = (isset($_POST['month']) && $_POST['month'] !== '') ? (int)$_POST['month'] : 0;
-if($monthSel < 1 || $monthSel > 12){ $monthSel = 0; }
-$month      = $monthSel;                 /* the toolbar's "selected" test reads this */
-$isDayView  = ($monthSel > 0);
-$viewYm     = $isDayView ? sprintf("%04d-%02d", $year, $monthSel) : '';
-$bucketCount= $isDayView ? (int)date("t", strtotime($viewYm."-01")) : 12;
-$bucketKey  = $isDayView ? "Day_" : "Month_";
-$bucketWord = $isDayView ? "day" : "month";
+
 
 ?>
 
@@ -259,23 +148,6 @@ for($k=$startYear;$k<=$endYear;$k++){
 }
 ?>
 </select>
-<label for='monthSelect'>Month</label>
-<select name='month' id='monthSelect'>
-<option></option>
-<?php
-for($k=1;$k<=12;$k++){
-
-$monthLabel=date("F",strtotime($year."-".$k."-01"));
-
-?>
-<option value="<?php echo $k; ?>"<?php if($k==$month) echo " selected"; ?>><?php echo $monthLabel; ?></option>
-<?php
-}
-?>
-</select>
-
-
-
 <input type=submit value='Submit' />
 </form>
 <div class="stat-legend">
@@ -292,21 +164,8 @@ ob_start();
 ?>
 <table class='table table-striped table-bordered bootstrap-datatable datatable2' border=1 style='border-collapse:collapse;' width=100%>
 <thead>
-
-
-
 <tr>	
-
 	<th>Car #</th>
-
-<?php
-// @dayview
-if($isDayView){
-	for($m=1;$m<=$bucketCount;$m++){ echo "<th>".$m."</th>"; }
-}
-else {
-	?>
-
 	<th>January</th>
 	<th>February</th>
 	<th>March</th>
@@ -319,22 +178,15 @@ else {
 	<th>October</th>
 	<th>November</th>
 	<th>December</th>
-<?php } ?>
-	<?php /* @dayview -- Total lived inside the else, so day view emitted N day
-	         headers and no Total header while every body row still wrote a
-	         Total cell. That column-count mismatch is what makes DataTables
-	         alert on load. */ ?>
 	<th>Total</th>
 </tr>
 </thead>
 <tbody>
 <?php
-
 $CAR_MAX = 73;
 for($i=1;$i<=$CAR_MAX;$i++){
-
-	for($k=1;$k<=$bucketCount;$k++){
-		$stats["Car_".$i][$bucketKey.$k]=0;
+	for($k=1;$k<=12;$k++){
+		$stats["Car_".$i]["Month_".$k]=0;
 	}
 	// "total" was never initialised — the += below was accumulating onto an
 	// undefined index on the first hit for every car.
@@ -342,21 +194,8 @@ for($i=1;$i<=$CAR_MAX;$i++){
 }
 $highestCount=0;   // was only defined inside if($nm>0), but used unconditionally below
 
-// @peakmonth -- both were accumulated onto undefined indexes further down.
-// @dayview -- sized to the view: a 31-day month overran a 12-slot array.
-$monthTotals=array_fill(1,$bucketCount,0);
-$grandTotal=0;
-
-// @dayview -- was interpolating $month, which at this point was still unset
-// (it is only assigned inside the row loop below), and unpadded besides: a
-// LIKE of '2026-3%' never matches '2026-03-...'. $viewYm is already padded.
-if($isDayView){
-$sql="SELECT car_no,day(incident_date) as day,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$viewYm."-%' group by incident_cars.car_no*1,day(incident_date)";
-
-}
-else {
 $sql="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$year."-%%' group by incident_cars.car_no*1,month(incident_date)";
-}
+
 // The is_transport_old half is GONE, and deliberately so.
 //
 // When is_transport was corrupted, is_transport_old's rows were restored INTO
@@ -386,36 +225,14 @@ if($nm>0){
 	for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
 		$car_id=$row['car_no']*1;
+		$month=$row['mo']*1;
 		
 		// Was "=" not "+=": a car appearing in BOTH the current and legacy
 		// databases for the same month had one of the two figures overwritten,
 		// while the total below accumulated both — so the month cells and the
 		// total disagreed.
 		if($car_id < 1 || $car_id > $CAR_MAX) continue;   // outside the fleet range
-
-
-		if($isDayView){
-			$day=$row['day']*1;
-		/* @dayview -- same shape as the car range guard above. The LIKE clause
-		   should keep $day inside the month, but an out-of-range bucket would
-		   otherwise create a 32nd column's worth of data that no cell reads. */
-		if($day < 1 || $day > $bucketCount) continue;
-		$stats["Car_".$car_id][$bucketKey.$day]+=$row['count'];
-		
-		}
-		else {
-			/* @dayview -- was assigning to $month, overwriting the SELECTED
-			   month on every row fetched. Renamed to a loop-local. */
-			$mo=$row['mo']*1;
-		$stats["Car_".$car_id]["Month_".$mo]+=$row['count'];
-
-
-		}
-
-		
-
-
-
+		$stats["Car_".$car_id]["Month_".$month]+=$row['count'];
 		$stats["Car_".$car_id]["total"]+=$row['count'];
 		
 		$highestCount=sortCar($highestCount,$stats["Car_".$car_id]["total"]);
@@ -448,16 +265,13 @@ else {
 ?>>
 <th class='stat_hover'><a href='#' style='text-decoration:none; color:#00529B; font-weight:600;'  onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>",target="_self")' ><?php echo $i; ?></a></th>
 <?php
+for($k=1;$k<=12;$k++){
+	$monthTotals[$k]+=$stats["Car_".$i]["Month_".$k];
 
-// @dayview -- $t was reused further down as a scratch int inside the
-// peak-month loop. Renamed here so the two cannot collide.
-for($k=1;$k<=$bucketCount;$k++){
 
-	$monthTotals[$k]+=$stats["Car_".$i][$bucketKey.$k];
-	$mon = $isDayView ? $monthSel : $k;   /* the drill-down link wants a MONTH */
-	$stat=$stats["Car_".$i][$bucketKey.$k];
+
 ?>			
-	<td class='stat_hover' align=center><a href='#' style='text-decoration:none; color:<?php echo $stat>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $mon; ?>",target="_self")' ><?php echo $stat; ?></a></td>
+	<td class='stat_hover' align=center><a href='#' style='text-decoration:none; color:<?php echo $stats["Car_".$i]["Month_".$k]>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $k; ?>",target="_self")' ><?php echo $stats["Car_".$i]["Month_".$k]; ?></a></td>
 <?php
 }
 ?>
@@ -469,12 +283,9 @@ for($k=1;$k<=$bucketCount;$k++){
 ?>
 <tr style="background:#F1EEE3;font-weight:700;">
 	<th>All cars</th>
-<?php for($k=1;$k<=$bucketCount;$k++){
+<?php for($k=1;$k<=12;$k++){
 		$grandTotal+=$monthTotals[$k];
-		/* @dayview -- in day view $k is a DAY, so "%04d-%02d" was turning day 7
-		   into 2026-07 and asking the coverage table about July. Every column
-		   in day view belongs to the one selected month. */
-		$ym = $isDayView ? $viewYm : sprintf("%04d-%02d", $year, $k);
+		$ym = sprintf("%04d-%02d", $year, $k);
 		if(ccsMonthStatus($coverage, $ym) === 'missing'){ echo ccsCoverageCell('missing'); continue; }
 ?>
 	<td align=center><?php echo $monthTotals[$k]; ?></td>
@@ -503,6 +314,7 @@ for($i=1;$i<=$CAR_MAX;$i++){
 	}
 }
 usort($carTotals, function($a,$b){ return $b[1]-$a[1]; });
+$avgPerActiveCar = $carsWithFailures ? round($grandTotal / $carsWithFailures, 1) : 0;
 
 $peak=reset($carTotals);
 $peakTotal=$peak[1];
@@ -511,67 +323,16 @@ $peakCar=$peak[0];
 $monthSeries = array();
 $mn = array(1=>'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
 $uncoveredMonths = array();
-// @dayview -- labels are day numbers in day view; the coverage question is
-// asked once about the selected month rather than per column.
-for($k=1;$k<=$bucketCount;$k++){
-	$label = $isDayView ? (string)$k : $mn[$k];
-	$ym    = $isDayView ? $viewYm    : sprintf("%04d-%02d", $year, $k);
+for($k=1;$k<=12;$k++){
+	$ym = sprintf("%04d-%02d", $year, $k);
 	if(ccsMonthStatus($coverage, $ym) === 'missing'){
 		// null, not 0 — Chart.js draws nothing, and a footnote names the gap.
-		$monthSeries[] = array($label, null);
-		$uncoveredMonths[] = $isDayView ? date("F Y", strtotime($viewYm."-01")) : $mn[$k];
+		$monthSeries[] = array($mn[$k], null);
+		$uncoveredMonths[] = $mn[$k];
 	}
-	else { $monthSeries[] = array($label, (int)$monthTotals[$k]); }
+	else { $monthSeries[] = array($mn[$k], (int)$monthTotals[$k]); }
 }
-$uncoveredMonths = array_values(array_unique($uncoveredMonths));
-// @dayview -- this was commented out but still read three times below
-// ($coverageNote !== '', htmlspecialchars(), json_encode()).
 $coverageNote = ccsCoverageNote($coverage);
-
-// ---- Month with the most car-level failures ---------------- @peakmonth ---
-// Months the coverage table marks as missing are NOT candidates. They read 0
-// here because no records survive for them, not because nothing failed, so
-// ranking one against a recorded month compares a gap to a count.
-//
-// Ties are kept rather than resolved: with a fleet this size two months
-// landing on the same figure is common, and silently showing whichever came
-// first would make the tile look more decisive than the data is.
-$mnFull = array(1=>'January','February','March','April','May','June','July','August','September','October','November','December');
-$peakMonthTotal = 0;
-$peakMonthKeys  = array();
-$coveredMonths  = 0;
-for($k=1;$k<=$bucketCount;$k++){
-	$ym = $isDayView ? $viewYm : sprintf("%04d-%02d", $year, $k);
-	if(ccsMonthStatus($coverage, $ym) === 'missing') continue;
-	$coveredMonths++;
-	$bt = (int)$monthTotals[$k];   /* @dayview -- was $t, the column count */
-	if($bt > $peakMonthTotal){ $peakMonthTotal=$bt; $peakMonthKeys=array($k); }
-	elseif($bt > 0 && $bt === $peakMonthTotal){ $peakMonthKeys[]=$k; }
-}
-
-if(!count($peakMonthKeys)){
-	$peakMonthLabel = '&mdash;';
-	$peakMonthSub   = $coveredMonths ? 'no failures recorded' : 'no '.$bucketWord.'s with data';
-}
-elseif(count($peakMonthKeys) === 1){
-	/* @dayview -- $mnFull is a MONTH table; indexing it with a day number gave
-	   "March" for day 3 and an undefined index past day 12. */
-	$peakMonthLabel = $isDayView ? date("j F", strtotime($viewYm."-".sprintf("%02d",$peakMonthKeys[0])))
-	                             : $mnFull[$peakMonthKeys[0]];
-	$peakMonthSub   = $peakMonthTotal.' failure'.($peakMonthTotal==1?'':'s');
-}
-else {
-	$abbr=array();
-	foreach($peakMonthKeys as $k){ $abbr[] = $isDayView ? (string)$k : $mn[$k]; }
-	// Beyond three the names stop fitting the tile, so state the shape instead.
-	$peakMonthLabel = count($abbr)>3 ? count($abbr).'-way tie' : implode(' &amp; ', $abbr);
-	$peakMonthSub   = $peakMonthTotal.' failures each';
-}
-// A peak read off a part-year should say what it was read from.
-// ($coveredMonths of 0 already says it in the line above.)
-if(count($uncoveredMonths) && $coveredMonths > 0){
-	$peakMonthSub .= ' &middot; of '.$coveredMonths.' '.$bucketWord.($coveredMonths==1?'':'s').' with data';
-}
 
 // Distinct incidents behind those car-level failures, across both databases.
 // The source tag keeps ids from the two schemas from colliding.
@@ -595,25 +356,15 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $carsWithFailures; ?></div>
 		<div style="font-size:11px;color:#5A6275;">of <?php echo $CAR_MAX; ?> in the fleet</div>
 	</div>
-<?php
-	// @slidepanel -- whole tile is the click target now, not just the digit.
-	// Only a real car opens the panel. With no failures in the year $peakCar is
-	// 0, and a tile showing an em dash must not look or behave like a button.
-	$peakClickable = ($peakCar > 0);
-?>
-	<div class="kpi-tile<?php echo $peakClickable ? ' kpi-tile--link' : ''; ?>" style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the equipment failure breakdown for car <?php echo $peakCar; ?>" onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $peakCar; ?>','Statistics Report','')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
-		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Most Fault-Prone Car</div>
-		<div class="kpi-figure" style="font-size:22px;font-weight:600;color:#7A1F1F;"><?php echo $peakCar>0 ? $peakCar : '&mdash;'; ?></div>
-		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
-<?php if($peakClickable){ ?>
-		<div class="kpi-hint">View equipment breakdown &rarr;</div>
-<?php } ?>
-	</div>
-	<!-- @peakmonth -- was echoing $avgPerActiveCar under this label -->
 	<div style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
-		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;"><?php echo $isDayView ? 'Day' : 'Month'; ?> with the Most Failures</div>
-		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $peakMonthLabel; ?></div>
-		<div style="font-size:11px;color:#5A6275;"><?php echo $peakMonthSub; ?></div>
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Most Fault-Prone Car</div>
+		<div style="font-size:22px;font-weight:600;color:#7A1F1F;"><?php echo $peakCar>0 ? $peakCar : '&mdash;'; ?></div>
+		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failures</div>
+	</div>
+	<div style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Month with the Most Failures</div>
+		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $avgPerActiveCar; ?></div>
+		<div style="font-size:11px;color:#5A6275;">excludes cars with none</div>
 	</div>
 </div>
 
@@ -646,7 +397,6 @@ var csrCarsAffected= <?php echo (int)$carsWithFailures; ?>;
 var csrPeakCar     = <?php echo (int)$peakCar; ?>;
 var csrUncovered   = <?php echo json_encode($uncoveredMonths); ?>;
 var csrCoverageNote= <?php echo json_encode($coverageNote); ?>;
-var csrBucketWord  = <?php echo json_encode($bucketWord); ?>;   /* @dayview */
 </script>
 <?php
 
@@ -669,93 +419,8 @@ function sortCar($count_a,$count_b){
 </div>
 </div>
 </div>
-<?php require("slide_panel.php"); ?>
 
-<script language='javascript'>
-var irLoadTimer=null, irExpectingLoad=false, irNeedsReload=false;
-
-function closeIncidentPanel(){
-	var p=document.getElementById('irPanel');
-	if(!p) return;
-	p.classList.remove('active');
-	clearTimeout(irLoadTimer);
-	irExpectingLoad=false;
-	document.getElementById('irFrame').src="about:blank"; /* release the framed page */
-	/* @slidepanel -- overlay teardown; the taOverlay lines that were here are
-	   commented out in the original because taPanel does not exist on this page. */
-	var ov=document.getElementById('irOverlay');
-	if(ov) ov.classList.remove('active');
-	if(irNeedsReload){ irNeedsReload=false; self.location="<?php echo $selfPage; ?>"; } /* pick up field edits saved inside the panel */
-}
-
-function irFrameLoaded(){
-	if(!irExpectingLoad) return; /* ignore the about:blank resets from closeIncidentPanel/initial markup */
-	irExpectingLoad=false;
-	clearTimeout(irLoadTimer);
-	document.getElementById('irLoading').classList.add('hidden');
-	document.getElementById('irFallback').classList.add('hidden');
-	document.getElementById('irFrame').classList.add('ready');
-}
-
-function openEditIncidentPanel(year,car,title,month){
-	/* @slidepanel
-	   car_stats.php reads $_GET['car_id'] — this sent &car=, so the iframe
-	   loaded with no car at all and rendered an empty report. That is why the
-	   panel looked broken even once it was sliding correctly.
-	   Values are encoded: the title carries a colon and spaces. */
-	month = (month===undefined || month===null) ? '' : month;
-	title = title || "Car with Most Failures";
-
-	var q = "year="       + encodeURIComponent(year)
-	      + "&car_id="    + encodeURIComponent(car)
-	      + "&month="     + encodeURIComponent(month)
-	      + "&title="     + encodeURIComponent(title);
-
-	document.getElementById('ir-panel-title').textContent=title;
-	document.getElementById('irFallbackLink').href="car_stats.php?"+q; /* no embed=1: full standalone page */
-	var frame=document.getElementById('irFrame');
-	frame.classList.remove('ready');
-	document.getElementById('irLoading').classList.remove('hidden');
-	document.getElementById('irFallback').classList.add('hidden');
-	clearTimeout(irLoadTimer);   /* was commented out: reopening left the previous
-	                                timer running, which could flash the timeout
-	                                fallback over an already-loaded frame */
-	irExpectingLoad=true;
-	frame.src="car_stats.php?"+q+"&embed=1";
-	document.getElementById('irPanel').classList.add('active');
-	document.getElementById('irOverlay').classList.add('active');
-	irLoadTimer=setTimeout(function(){
-		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
-	},6000);
-}
-
-/* @slidepanel -- Escape and a backdrop click both close, as in train_operations. */
-document.addEventListener('keydown',function(e){
-	if(e.key==='Escape') closeIncidentPanel();
-});
-</script>
-<!-- @slidepanel -- own backdrop; taOverlay belongs to train_operations.php -->
-<div class="ta-overlay" id="irOverlay" onclick="closeIncidentPanel()"></div>
-<div class="ta-panel ta-panel--ir" id="irPanel" role="dialog" aria-modal="true" aria-labelledby="ir-panel-title">
-	<div class="ta-panel-head">
-		<h3 id="ir-panel-title">Car Most Prone to Failure</h3>
-		<button type="button" class="ta-panel-close" onclick="closeIncidentPanel()" aria-label="Close">&times;</button>
-	</div>
-	<div class="ta-panel-body ta-panel-body--ir">
-		<iframe id="irFrame" src="about:blank" title="Incident Report" onload="irFrameLoaded()"></iframe>
-		<div class="ir-loading" id="irLoading">
-			<div class="ir-spinner"></div>
-			<span>Loading failure table&hellip;</span>
-		</div>
-		<div class="ir-fallback hidden" id="irFallback">
-			<strong>This is taking longer than expected.</strong>
-			<p>The form may be blocked from loading inside this panel.<br>You can open it directly instead:</p>
-			<a href="#" id="irFallbackLink" target="_blank" rel="noopener">Open Incident Report in a new tab &rarr;</a>
-		</div>
-	</div>
-</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-
 <script>
 (function(){
 	var ink='#1A2238', muted='#5A6275', grid='rgba(137,135,129,0.20)';
@@ -838,7 +503,7 @@ document.addEventListener('keydown',function(e){
 		       datasets:[{ data: csrMonthSeries.map(function(r){ return r[1]; }), backgroundColor:'#00529B', borderRadius:3 }] },
 		options:{ responsive:false, animation:false,
 			layout:{ padding:{ bottom: csrUncovered.length ? 16 : 2 } },
-			plugins:{ title:{ display:true, text:'Car-level failures by '+csrBucketWord+', whole fleet', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
+			plugins:{ title:{ display:true, text:'Car-level failures by month, whole fleet', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
 			scales:{ x:{ ticks:{ color:muted, font:{size:10} }, grid:{ display:false } },
 			         y:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } } }
 		},
@@ -905,7 +570,7 @@ document.addEventListener('keydown',function(e){
 			'<h2 class="sec">Summary</h2>' +
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgCar+'"><div class="cap">Figure 1 &mdash; Car-level failures by car</div></div>' +
-				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by '+csrBucketWord+', whole fleet</div></div>' +
+				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by month, whole fleet</div></div>' +
 				(csrCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+esc(csrCoverageNote)+'</p>' : '') +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+csrIncidents+' incidents produce '+csrGrandTotal+' car-level failures. This matches the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure. Covers all severity levels. Shaded rows are cars at or above 60% of the worst car total.</p>' +
 			'</div>' +
@@ -920,6 +585,5 @@ document.addEventListener('keydown',function(e){
 	};
 })();
 </script>
-
 </body>
 </html>

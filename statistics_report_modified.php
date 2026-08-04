@@ -862,7 +862,7 @@ $tableHtml = ob_get_clean();
 		<div style="font-size:11px;color:#5A6275;">of <?php echo count($equipt); ?> tracked</div>
 	</div>
 	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
-		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Highest equipment</div>
+		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Equipment with the highest number of faults</div>
 		<div style="font-size:15px;font-weight:600;color:#7A1F1F;line-height:1.3;margin-top:3px;"><?php echo $peakName!=='' ? htmlspecialchars($peakName) : '&mdash;'; ?></div>
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failures</div>
 	</div>

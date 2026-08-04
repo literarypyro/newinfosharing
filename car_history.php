@@ -77,8 +77,9 @@ else {
         <th>Time Resolved</th>
         <th>Duration</th>
         <th>Problem Type</th>
+<!--
         <th>Equipment</th>
-
+-->
         <th>Incident Number</th>
         <th>Description</th>
     </tr>
@@ -207,7 +208,15 @@ foreach($allRows as $row){
 				echo htmlspecialchars($problemType);
 			}
 		?></td>
+		
+		<?php 
+		
+		/**
+		
         <td><?php echo isset($causeMap[$row['equipt']]) ? htmlspecialchars($causeMap[$row['equipt']]) : "&nbsp;"; ?></td>
+	
+		*/ 
+		?>
 	<td>
 <a href='#' class='two' onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo  $row['id']; ?>&embed=1","Incident - <?php echo htmlspecialchars($row['incident_no']); ?>")'><?php echo $row['incident_no']; ?></a></td>
 </td>
