@@ -60,6 +60,18 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
       ?>
     </select>
   </div>
+  <h2>
+<?PHP
+	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='".$problem."' order by incident_date desc limit 1";
+	$rs2=$db->query($sql);
+	$displayRow=$rs2->fetch_assoc();
+
+	echo "Latest Entry Recorded: ".date("F d, Y",strtotime($displayRow['incident_date']));
+?>
+
+  
+  </h2>
+  
 </div><div class="ccs-panel-body">
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id='add_form' name='add_form' >
 	<thead>
@@ -86,8 +98,8 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 	</thead>
 	<tbody>
 	<?php
-
 	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='".$problem."' order by incident_date desc";
+
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
 
