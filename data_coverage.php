@@ -87,7 +87,7 @@ function ccsMonthIsMissing($coverage, $ym){ return ccsMonthStatus($coverage, $ym
 function ccsCoverageCell($status, $note = ''){
 	if($status === 'missing'){
 		$t = $note !== '' ? $note : 'No data recorded for this period';
-		return "<td align=center class='ccs-nodata' title=\"".htmlspecialchars($t, ENT_QUOTES)."\">&mdash;</td>";
+		return "<td align=center class='stat_hover'		title=\"".htmlspecialchars($t, ENT_QUOTES)."\">&mdash;</td>";
 	}
 	return '';   // caller renders the normal cell
 }
