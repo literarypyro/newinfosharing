@@ -135,10 +135,16 @@ if($rs){
 $rows = array();
 $equipt_count   = 0;
 $unrecordedFail = 0;   /* failures whose incident has no equipment recorded */
+// @period -- month(incident_date) and day(incident_date) were selected here
+// but NOT in the GROUP BY. MySQL (without ONLY_FULL_GROUP_BY) answers that by
+// picking an arbitrary row from each equipment group, so every equipment type
+// got ONE month and ONE day chosen at random while count(1) counted the whole
+// group. Doors with 5 failures across January, March and July were all
+// attributed to whichever month the server happened to hand back. That is the
+// inaccuracy. The period breakdown now comes from its own grouped query below.
 $sql = "select incident_report.equipt as equipt,
                equipment.equipment_name as equipment_name,
-               count(1) as equipt_count,
-			   month(incident_date) as month
+               count(1) as equipt_count
           from incident_report
           inner join incident_cars on incident_report.id=incident_cars.incident_id
           left  join equipment on equipment.id = incident_report.equipt
@@ -161,10 +167,69 @@ if($rs){
 			/* id present but no matching equipment row — surfaced, not hidden */
 			$label = 'Equipment #'.(int)$id.' (not in equipment table)';
 		}
-		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['equipt_count'],'month'=>$row['month']);
+		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['equipt_count']);
 		$equipt_count += (int)$row['equipt_count'];
 	}
 }
+// ---- Period breakdown ----------------------------------------------------
+// @period -- One row per (month, day) actually present, so both breakdowns are
+// derived from real grouped counts instead of a stray column. At most 366 rows
+// for a full year.
+//
+// Which table is shown is decided by the FILTER ($monthSel), not by how many
+// distinct months came back: a year that happens to hold failures in only one
+// month is still a year, and should not silently become a day breakdown.
+$periodMonths = array();   // 1-12  => count
+$periodDays   = array();   // 1-31  => count
+$pq = $db->query("select month(incident_date) as mo, day(incident_date) as dy, count(1) as c
+                    from incident_report
+                    inner join incident_cars on incident_report.id=incident_cars.incident_id
+                   where ".$where."
+                   group by month(incident_date), day(incident_date)");
+if($pq){
+	while($pr = $pq->fetch_assoc()){
+		$mo=(int)$pr['mo']; $dy=(int)$pr['dy']; $c=(int)$pr['c'];
+		if(!isset($periodMonths[$mo])) $periodMonths[$mo]=0;
+		$periodMonths[$mo]+=$c;
+		if(!isset($periodDays[$dy]))   $periodDays[$dy]=0;
+		$periodDays[$dy]+=$c;
+	}
+}
+
+// @period -- Periods with no failures are omitted, restoring the behaviour of
+// the original hand-written aggregation and extending it to days. The grouped
+// query only returns periods that HAVE rows, so this is really about not
+// re-adding the empty ones. Zero rows are dropped defensively as well, in case
+// a future WHERE clause ever produces a genuine 0.
+//
+// The "fill the gaps" rule the charts follow does not carry over here: on an
+// axis a missing column silently closes up and makes March look adjacent to
+// July, but every row in these tables is labelled, so a reader sees the jump.
+// A month of blank rows is just noise in a table.
+//
+// $periodsOmitted feeds the caption under each table, so the fact that periods
+// are missing is still stated once rather than left to be inferred.
+$periodsOmitted = 0;
+if($month){
+	$periodDays = array_filter($periodDays, function($c){ return $c > 0; });
+	ksort($periodDays);
+	$periodsOmitted = (int)date("t", strtotime($start_date1)) - count($periodDays);
+	$periodMonths   = array();   // a single month has nothing to break down by month
+}
+else {
+	$periodMonths = array_filter($periodMonths, function($c){ return $c > 0; });
+	ksort($periodMonths);
+	$periodsOmitted = 12 - count($periodMonths);
+	$periodDays     = array();   // meaningless across a whole year
+}
+
+// Each table needs its own threshold. Reusing the equipment peak would flag
+// months against an equipment figure, which is not a comparison.
+$peakMonthCount = count($periodMonths) ? max($periodMonths) : 0;
+$peakDayCount   = count($periodDays)   ? max($periodDays)   : 0;
+$monthThreshold = $peakMonthCount * 0.60;
+$dayThreshold   = $peakDayCount   * 0.60;
+
 // Denominator for the "types affected" tile, now that there is no fixed list.
 $equiptTracked = 0;
 $tq = $db->query("select count(*) as c from equipment");
@@ -300,6 +365,12 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 .eq-flag th, .eq-flag td { font-weight:700; }
 .eq-flag th a { color:#7A1F1F !important; }
 
+/* @period -- the breakdown tables need headings, or three stacked tables read
+   as one long list with no indication of what the middle one counts. */
+.brk-note { font-size:11px; color:#5A6275; margin:5px 0 0; font-style:italic; }
+.brk-head { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:#00529B;
+	border-bottom:1px solid #E5DECC; padding-bottom:5px; margin:22px 0 8px; font-weight:600; }
+
 /* KPI tiles — same geometry as statistics_report_modified.php's strip. */
 .kpi-strip { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
 .kpi-tile {
@@ -378,6 +449,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <?php } ?>
 </div>
 
+<h3 class="brk-head">By equipment</h3>
 <table id='equipt_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
 <colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
 <thead>
@@ -388,17 +460,15 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </tr>
 </thead>
 <tbody>
-<?php 
-$month=array();
+<?php
+// @period -- the month/day totals used to be accumulated here, from the stray
+// per-equipment column. They come from the grouped query now, so this loop
+// only draws equipment rows. The aggregation array was also called $month,
+// which overwrote the $month INPUT set at the top of the file — anything below
+// this point that read $month got an array of buckets instead of the selected
+// month number.
 foreach($rows as $r){
 	$isFlagged = ($peakTotal > 0 && $r['count'] >= $flagThreshold);
-	if($month["M_".$r['month']]['count']==0){ 
-		$month["M_".$r['month']]['label']=date("F",strtotime(date("Y")."-".$r['month']."-01"));
-	}
-	$month["M_".$r['month']]['count']+=$r['count'];
-	
-	
-	
 ?>
 <tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
 	<th><?php echo htmlspecialchars($r['label']); ?></th>
@@ -419,7 +489,14 @@ foreach($rows as $r){
 </tfoot>
 </table>
 
+<?php
+/* @period -- driven by the filter, not by how many months returned rows. */
 
+
+
+if(!$month){
+?>
+<h3 class="brk-head">By month &mdash; <?php echo $year; ?></h3>
 <table id='month_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
 <colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
 <thead>
@@ -431,20 +508,22 @@ foreach($rows as $r){
 </thead>
 <tbody>
 
-<?php 
-uasort($month, function($a, $b) {
+<?php
+uasort($periodMonths, function($a, $b) {
     return $b['count'] <=> $a['count'];
 });
-foreach($month as $m){
-	$isFlagged = ($peakTotal > 0 && $m['count'] >= $flagThreshold);
+// Chronological, not sorted by count: a month table read top-to-bottom is a
+// timeline, and the red rows already carry "which was worst".
+foreach($periodMonths as $mNo => $mCount){
+	$isFlagged = ($peakMonthCount > 0 && $mCount >= $monthThreshold);
 ?>
 <tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
-	<th><?php echo htmlspecialchars($m['label']); ?></th>
-	<td align=center><?php echo $m['count']; ?></td>
-	<td align=center><?php echo $equipt_count ? round($m['count']/$equipt_count*100).'%' : '&mdash;'; ?></td>
+	<th><?php echo date("F", strtotime(sprintf("%04d-%02d-01", $year, $mNo))); ?></th>
+	<td align=center><?php echo $mCount; ?></td>
+	<td align=center><?php echo $equipt_count ? round($mCount/$equipt_count*100).'%' : '&mdash;'; ?></td>
 </tr>
 <?php } ?>
-<?php if(!count($month)){ ?>
+<?php if(!count($periodMonths)){ ?>
 <tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No equipment failures recorded for this car in this period.</td></tr>
 <?php } ?>
 </tbody>
@@ -456,8 +535,74 @@ foreach($month as $m){
 </tr>
 </tfoot>
 </table>
+<?php if($periodsOmitted > 0){ ?>
+<div class="brk-note">
+	<?php echo $periodsOmitted; ?> month<?php echo $periodsOmitted==1?'':'s'; ?> of <?php echo $year; ?>
+	had no recorded failures for this car and <?php echo $periodsOmitted==1?'is':'are'; ?> not listed.
+	<?php if($coverageNote !== ''){ ?><span style="color:#7A1F1F;">Note that some are periods the console holds no records for at all, rather than months without failures.</span><?php } ?>
+</div>
+<?php } ?>
+<?php
+}
+?>
 
+<?php
+/* @period -- shown when a month is actually selected. The old test was
+   count($month)==1, which turned a YEAR whose failures all fell in one month
+   into a day breakdown of that year. */
+if($month){
+?>
+<h3 class="brk-head">By day &mdash; <?php echo date("F Y", strtotime($start_date1)); ?></h3>
+<table id='day_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
+<colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
+<thead>
+<tr>
+	<th>Day</th>
+	<th>Failures</th>
+	<th>Share</th>
+</tr>
+</thead>
+<tbody>
 
+<?php
+uasort($periodMonths, function($a, $b) {
+    return $b['count'] <=> $a['count'];
+});
+// The old label was date("d (l)", strtotime($year."-".$day."-01")) — that puts
+// the DAY where the MONTH goes, so day 5 rendered as "01 (Thursday)" of May.
+// Build the real date instead.
+foreach($periodDays as $dNo => $dCount){
+	$isFlagged = ($peakDayCount > 0 && $dCount >= $dayThreshold);
+	$ts = strtotime(sprintf("%04d-%02d-%02d", $year, $month, $dNo));
+?>
+<tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
+	<th><?php echo date("d (l)", $ts); ?></th>
+	<td align=center><?php echo $dCount; ?></td>
+	<td align=center><?php echo $equipt_count ? round($dCount/$equipt_count*100).'%' : '&mdash;'; ?></td>
+</tr>
+<?php } ?>
+<?php if(!count($periodDays)){ ?>
+<tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No equipment failures recorded for this car in this period.</td></tr>
+<?php } ?>
+</tbody>
+<tfoot>
+<tr style="background:#F1EEE3;font-weight:700;">
+	<th style="text-align:left;">Total</th>
+	<td align=center><?php echo $equipt_count; ?></td>
+	<td align=center><?php echo $equipt_count ? '100%' : '&mdash;'; ?></td>
+</tr>
+</tfoot>
+</table>
+<?php if($periodsOmitted > 0){ ?>
+<div class="brk-note">
+	<?php echo $periodsOmitted; ?> day<?php echo $periodsOmitted==1?'':'s'; ?> of
+	<?php echo date("F Y", strtotime($start_date1)); ?> had no recorded failures for this car and
+	<?php echo $periodsOmitted==1?'is':'are'; ?> not listed.
+</div>
+<?php } ?>
+<?php
+}
+?>
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	<span style="color:#7A1F1F;font-weight:700;">Rows in red</span>
 	are equipment at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
@@ -518,11 +663,22 @@ var csThreshold  = <?php echo json_encode(round($flagThreshold,1)); ?>;
 function csPrintReport(){
 	function esc(x){ return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-	var tbl = document.querySelector('.ccs-panel-body table#equipt_table');
-	var tbl2 = document.querySelector('.ccs-panel-body table#month_table');
-
-	var tableHtml = tbl ? tbl.outerHTML : '<p>No table to print.</p>';
-	var tableHtml2 = tbl2 ? tbl2.outerHTML : '<p>No table to print.</p>';
+	/* @period -- collected generically rather than by id. Only one of
+	   #month_table / #day_table exists on any given render, so naming them
+	   individually meant the printout either missed the day breakdown or
+	   printed a "No table to print" placeholder for whichever was absent.
+	   This walks headings and tables in document order, so the printout keeps
+	   the same sequence as the screen and picks up a fourth table for free if
+	   one is ever added. */
+	var blocks = document.querySelectorAll('.ccs-panel-body h3.brk-head, .ccs-panel-body table.eq-table, .ccs-panel-body div.brk-note');
+	var tableHtml = '';
+	for(var bi=0; bi<blocks.length; bi++){
+		var el = blocks[bi];
+		if(el.tagName === 'H3')      tableHtml += '<h2 class="sec">'+el.innerHTML+'</h2>';
+		else if(el.tagName === 'DIV') tableHtml += '<p class="note">'+el.innerHTML+'</p>';
+		else                          tableHtml += el.outerHTML;
+	}
+	if(!tableHtml){ tableHtml = '<p>No table to print.</p>'; }
 
 	var levelRows = csLevels.map(function(r){
 		var pct = csLevelled ? Math.round(r[1]/csLevelled*100)+'%' : '\u2014';
@@ -616,13 +772,8 @@ function csPrintReport(){
 			levelRows +
 		'</tbody></table>' +
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
-		'<h2 class="sec">Equipment Breakdown</h2>' +
 		tableHtml +
-		'<h2 class="sec">Per Month Breakdown</h2>' +
-
-
-		tableHtml2+
-		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
+		'<p class="note">Rows in red are at or above 60% of the highest total in their own table \u2014 the review threshold.</p>' +
 		'<p class="note">Figures count car-level failures for this car: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
 		'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 		'</body></html>'
