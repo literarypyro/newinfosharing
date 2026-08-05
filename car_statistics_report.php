@@ -78,6 +78,15 @@ if(!function_exists('ccsLoadCoverage')){
 }
 $coverage = ccsLoadCoverage($db);
 
+function getEquipt($id,$dbname){
+	$sql="select * from equipment where id='".$id."'";
+	$rs=$dbname->query($sql);
+	$row=$rs->fetch_assoc();
+	return $row['equipment_name'];
+}
+
+
+
 // @slidepanel -- closeIncidentPanel() echoes this into a self.location; it was
 // never defined,
 // so the reload target rendered as an empty string.
@@ -238,7 +247,7 @@ $bucketWord = $isDayView ? "day" : "month";
 ?>
 
 <h1><?php echo "Car Incidents By Year"; ?></h1>
-<div class='sub'> <?php echo "For the Year ".$year; ?> </div>
+<div class='sub'> <?php echo "For the Year ".$year; ?> <?php if((isset($_POST['equipt_car']))&&($_POST['equipt_car']!="")){ echo " - ".getEquipt($_POST['equipt_car'],$db); } ?> </div>
 </div>
 
 <div class="ccs-panel">
@@ -283,6 +292,26 @@ $monthLabel=date("F",strtotime($year."-".$k."-01"));
 </select>
 
 
+
+<label for='equipmentSelect'>Equipment</label>
+<select name='equipt_car' id='equipmentSelect'>
+	<option></option>
+<?php
+$sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
+$rs=$db->query($sql);
+$nm=$rs->num_rows;
+for($i=0;$i<=$nm;$i++){
+	$row=$rs->fetch_assoc();
+	?>
+	<option value="<?php echo $row['id']; ?>"><?php echo $row['equipment_name']; ?></option>
+	
+	<?php
+
+}
+
+?>
+
+</select>
 
 <input type=submit value='Submit' />
 </form>
@@ -359,7 +388,7 @@ $grandTotal=0;
 // (it is only assigned inside the row loop below), and unpadded besides: a
 // LIKE of '2026-3%' never matches '2026-03-...'. $viewYm is already padded.
 
-if(isset($_POST['equipt_car'])){
+if((isset($_POST['equipt_car']))&&($_POST['equipt_car']!="")){
 	$equiptClause=" and equipt='".$_POST['equipt_car']."' ";
 }
 else {
