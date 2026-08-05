@@ -117,6 +117,76 @@ a.two:visited {color:#00529B;}
 a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
 <?php echo ccsCoverageCss(); ?>
+/* --- Slide-panel base ------------------------------------------- @slidepanel
+   train_operations.php carries these rules in its OWN <style> block, not in
+   slide_panel.php. Requiring slide_panel.php here therefore brought in the
+   behaviour without the geometry: #irPanel had no position:fixed and no
+   off-screen start, so adding .active had nothing to slide and the panel
+   rendered as a plain block at the foot of the page. Values match
+   train_operations.php exactly.
+
+   var() fallbacks because the ta- custom properties are defined in
+   train_operations.php's :root and may not reach this page. If slide_panel.php
+   also declares these rules they are identical, and the width below is on an
+   id selector so it wins regardless of source order. */
+.ta-overlay       { position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(10,25,50,.45); opacity:0; visibility:hidden; transition:opacity .2s; z-index:99998; }
+.ta-overlay.active{ opacity:1; visibility:visible; }
+.ta-panel         { position:fixed; top:0; right:-900px; width:480px; max-width:96vw; height:100vh; background:var(--paper,#F7F9FC); box-shadow:-6px 0 24px rgba(0,30,80,.25); transition:right .25s ease; z-index:99999; display:flex; flex-direction:column; font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+.ta-panel.active  { right:0; }
+.ta-panel-head    { background:var(--rail,#00529B); border-bottom:3px solid var(--gold,#FDB813); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex:none; }
+.ta-panel-head h3 { margin:0; color:#fff; font-size:13px; font-weight:600; letter-spacing:.3px; }
+.ta-panel-close   { background:none; border:none; color:rgba(255,255,255,.7); font-size:19px; line-height:1; cursor:pointer; padding:0 2px; }
+.ta-panel-close:hover { color:var(--gold,#FDB813); }
+.ta-panel-body    { flex:1; overflow-y:auto; padding:16px 18px; }
+
+/* --- Clickable KPI tile ----------------------------------------- @slidepanel
+   Affordance is present at rest, not only on hover — same call already made
+   for the table's links on this page. */
+.kpi-tile--link { cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s; }
+.kpi-tile--link:hover { background:#F3F7FC !important; border-color:#00529B !important; box-shadow:0 1px 5px rgba(0,40,90,.13); }
+.kpi-tile--link:hover .kpi-figure { text-decoration:underline; }
+.kpi-tile--link:focus-visible { outline:2px solid #00529B; outline-offset:2px; }
+.kpi-hint { font-size:11px; font-weight:600; color:#00529B; margin-top:4px; }
+.kpi-tile--link:hover .kpi-hint { text-decoration:underline; }
+
+/* Incident panel: wider variant hosting incident report.php in an iframe.
+   #irPanel.ta-panel--ir (id+class) so this can't lose a specificity tie
+   against the base .ta-panel width rule regardless of source order. */
+#irPanel.ta-panel--ir { width:820px; }
+/* @equiptpanel -- These three were dropped when the panel CSS was lifted across
+   in two slices that met either side of them. Without them the iframe has no
+   width or height rule, so it falls back to the HTML default 300x150 and the
+   framed page renders as a small box in the corner of an 820px panel, and the
+   body keeps its 16px/18px padding instead of letting the frame fill it. */
+.ta-panel-body--ir { padding:0; overflow:hidden; position:relative; }
+#irFrame           { display:block; width:100%; height:100%; border:0; background:#fff; opacity:0; transition:opacity .15s; }
+#irFrame.ready     { opacity:1; }
+/* @equiptpanel -- The loading overlay and its spinner. These were lost the same
+   way: the slice that should have carried them was taken between two markers
+   that appear in the opposite order in the source file, so it came out empty.
+   Without .ir-loading.hidden{display:none} the spinner never goes away, and
+   without the absolute positioning it sits in flow above the frame. */
+/* @slidepanel -- var() fallbacks added below: --paper/--rail/--mut/--ink are
+   declared in train_operations.php's :root and are not defined on this page. */
+.ir-loading, .ir-fallback { position:absolute; top:0; right:0; bottom:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:var(--paper,#F7F9FC); text-align:center; padding:0 30px; }
+.ir-loading.hidden, .ir-fallback.hidden { display:none; }
+.ir-spinner { width:26px; height:26px; border:3px solid #C9D6E5; border-top-color:var(--rail,#00529B); border-radius:50%; animation:ir-spin .7s linear infinite; }
+@keyframes ir-spin { to { transform:rotate(360deg); } }
+.ir-loading span, .ir-fallback p { font-size:12px; color:var(--mut,#5A6678); }
+.ir-fallback strong { color:var(--ink,#16243B); font-size:13px; }
+.ir-fallback a { color:var(--rail,#00529B); font-weight:600; text-decoration:none; }
+.ir-fallback a:hover { text-decoration:underline; }
+
+/* @equiptpanel -- clickable tile + clickable equipment name, affordance at
+   rest rather than only on hover, matching car_statistics_report.php. */
+.kpi-tile--link { cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s; }
+.kpi-tile--link:hover { background:#F3F7FC !important; border-color:#00529B !important; box-shadow:0 1px 5px rgba(0,40,90,.13); }
+.kpi-tile--link:focus-visible { outline:2px solid #00529B; outline-offset:2px; }
+.kpi-hint { font-size:11px; font-weight:600; color:#00529B; margin-top:4px; }
+.kpi-tile--link:hover .kpi-hint { text-decoration:underline; }
+.eq-link { color:#00529B; font-weight:600; text-decoration:none; cursor:pointer; }
+.eq-link:hover, .eq-link:focus { text-decoration:underline; color:#003E76; }
+
 .stat_hover:hover {
 	background-color:#FFF1CC;
 	text-decoration:underline;
@@ -179,6 +249,7 @@ $(function() {
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 $coverage = ccsLoadCoverage($db);
+$selfPage = basename(__FILE__);   /* @equiptpanel -- reload target, rename-safe */
 $sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
 
 //$sql="select * from equipment where type='RS' order by equipment_name";
@@ -644,6 +715,8 @@ foreach($buckets as $b){ $monthKeys[] = $b['key']; $monthNames[] = $b['label']; 
 $grandTotal = 0;
 $peakTotal  = 0;
 $peakName   = '';
+$peakId     = 0;   /* @equiptpanel -- the tile carried only a NAME; the panel
+                      needs an id to query on */
 $activeEquipt = 0;
 $monthTotals = array_fill(0, count($monthKeys), 0);
 
@@ -653,13 +726,28 @@ foreach($equipt as $idx => $e){
 	$equipt[$idx]['total'] = $t;
 	$grandTotal += $t;
 	if($t > 0) $activeEquipt++;
-	if($t > $peakTotal){ $peakTotal = $t; $peakName = $e['equipment']; }
+	if($t > $peakTotal){ $peakTotal = $t; $peakName = $e['equipment']; $peakId = $e['id']; }
 	foreach($monthKeys as $mi => $mk){
 		$monthTotals[$mi] += isset($equipt_count[$key]["Month_".$mk]) ? (int)$equipt_count[$key]["Month_".$mk] : 0;
 	}
 }
 
 $flagThreshold = $peakTotal * 0.60;
+
+// @equiptpanel -- What period the panel opens on. Computed here, above the
+// table, because BOTH entry points read it and the table renders first.
+//
+// This page filters by a From-To range, not by year/month, so the two only line
+// up when the range sits inside one calendar year (or one month). A wider range
+// is handed over as All Time rather than as a year it would misrepresent —
+// equipt_stats.php reads a missing year that way by design.
+// @range -- Hand over the actual From-To range. This used to send a year, and
+// only when the range sat inside one, so a Jan 2025 - Apr 2026 report opened
+// the panel with no year at all and equipt_stats.php rendered All Time.
+// $start_date/$end_date are this page's own resolved window, so the panel shows
+// exactly the period the table above it shows.
+$panelFrom = $start_date;
+$panelTo   = $end_date;
 
 // ---- Highest month (or day) ----------------------------------------------
 // @buckets -- replaces "Avg per affected type", matching the tile on
@@ -745,7 +833,11 @@ foreach($equipt as $i => $e){
 ?>
 <tr class='rowClass'>
 	<th style="text-align:left;">
-		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $e['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $link_sd; ?>&ed=<?php echo $link_ed; ?>")'><?php echo htmlspecialchars($e['equipment']); ?></a>
+		<?php /* @equiptpanel -- was window.open("equipment_cars_stats.php?...").
+		         Opens equipt_stats.php in the slide panel now, the same way
+		         car_statistics_report.php opens car_stats.php. equipment_cars_stats.php
+		         is untouched and still reachable by URL. */ ?>
+		<a href="#" class="eq-link" onclick="openEquiptPanel(<?php echo htmlspecialchars(json_encode($panelFrom), ENT_QUOTES); ?>,<?php echo htmlspecialchars(json_encode($panelTo), ENT_QUOTES); ?>,'<?php echo (int)$e['id']; ?>',<?php echo htmlspecialchars(json_encode($e['equipment']), ENT_QUOTES); ?>); return false;"><?php echo htmlspecialchars($e['equipment']); ?></a>
 		<?php if($flagged){ echo " <span title='At or above 60% of the highest equipment total' style='font-size:11px;'>&#9679;</span>"; } ?>
 	</th>
 <?php
@@ -808,11 +900,13 @@ $tableHtml = ob_get_clean();
 		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $activeEquipt; ?></div>
 		<div style="font-size:11px;color:#5A6275;">of <?php echo count($equipt); ?> tracked</div>
 	</div>
-	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+<?php $peakClickable = ($peakId > 0); /* @equiptpanel -- no peak, no action */ ?>
+	<div class="<?php echo $peakClickable ? 'kpi-tile--link' : ''; ?>" style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the car breakdown for <?php echo htmlspecialchars($peakName); ?>" onclick="openEquiptPanel(<?php echo htmlspecialchars(json_encode($panelFrom), ENT_QUOTES); ?>,<?php echo htmlspecialchars(json_encode($panelTo), ENT_QUOTES); ?>,'<?php echo (int)$peakId; ?>',<?php echo htmlspecialchars(json_encode($peakName), ENT_QUOTES); ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Equipment with the highest number of faults</div>
 		<div style="font-size:15px;font-weight:600;color:#7A1F1F;line-height:1.3;margin-top:3px;"><?php echo $peakName!=='' ? htmlspecialchars($peakName) : '&mdash;'; ?></div>
-		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failures</div>
-	</div>
+		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
+<?php if($peakClickable){ ?>		<div class="kpi-hint">View car breakdown &rarr;</div>
+<?php } ?>	</div>
 	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;"><?php echo $isDayView ? 'Day' : 'Month'; ?> with the Most Failures</div>
 		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $peakBucketLabel; ?></div>
@@ -1005,5 +1099,89 @@ var srmBucketWord   = <?php echo json_encode($bucketWord); ?>;   /* @buckets */
 	};
 })();
 </script>
+<script language='javascript'>
+var irLoadTimer=null, irExpectingLoad=false, irNeedsReload=false;
+
+function closeIncidentPanel(){
+	var p=document.getElementById('irPanel');
+	if(!p) return;
+	p.classList.remove('active');
+	clearTimeout(irLoadTimer);
+	irExpectingLoad=false;
+	document.getElementById('irFrame').src="about:blank"; /* release the framed page */
+	/* @slidepanel -- overlay teardown; the taOverlay lines that were here are
+	   commented out in the original because taPanel does not exist on this page. */
+	var ov=document.getElementById('irOverlay');
+	if(ov) ov.classList.remove('active');
+	if(irNeedsReload){ irNeedsReload=false; self.location="<?php echo $selfPage; ?>"; } /* pick up field edits saved inside the panel */
+}
+
+function irFrameLoaded(){
+	if(!irExpectingLoad) return; /* ignore the about:blank resets from closeIncidentPanel/initial markup */
+	irExpectingLoad=false;
+	clearTimeout(irLoadTimer);
+	document.getElementById('irLoading').classList.add('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	document.getElementById('irFrame').classList.add('ready');
+}
+
+function openEquiptPanel(sd, ed, equipt, title){
+	/* @range -- Sends the From-To range as sd/ed, which equipt_stats.php takes
+	   in preference to year/month. It picks its own grain from the span: inside
+	   one calendar month it breaks down by day, otherwise by month, and month
+	   labels carry the year when the span crosses one.
+
+	   Values are encoded — an equipment name carries spaces and can carry an
+	   apostrophe or ampersand. */
+	title = title || "Equipment Breakdown";
+
+	var q = "equipt=" + encodeURIComponent(equipt)
+	      + "&title="  + encodeURIComponent(title);
+	if(sd && ed){ q += "&sd=" + encodeURIComponent(sd) + "&ed=" + encodeURIComponent(ed); }
+
+	document.getElementById('ir-panel-title').textContent=title;
+	document.getElementById('irFallbackLink').href="equipt_stats.php?"+q; /* no embed=1: full standalone page */
+	var frame=document.getElementById('irFrame');
+	frame.classList.remove('ready');
+	document.getElementById('irLoading').classList.remove('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	clearTimeout(irLoadTimer);   /* was commented out: reopening left the previous
+	                                timer running, which could flash the timeout
+	                                fallback over an already-loaded frame */
+	irExpectingLoad=true;
+	frame.src="equipt_stats.php?"+q+"&embed=1";
+	document.getElementById('irPanel').classList.add('active');
+	document.getElementById('irOverlay').classList.add('active');
+	irLoadTimer=setTimeout(function(){
+		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
+	},6000);
+}
+
+/* @slidepanel -- Escape and a backdrop click both close, as in train_operations. */
+document.addEventListener('keydown',function(e){
+	if(e.key==='Escape') closeIncidentPanel();
+});
+</script>
+<!-- @slidepanel -- own backdrop; taOverlay belongs to train_operations.php -->
+<div class="ta-overlay" id="irOverlay" onclick="closeIncidentPanel()"></div>
+<div class="ta-panel ta-panel--ir" id="irPanel" role="dialog" aria-modal="true" aria-labelledby="ir-panel-title">
+	<div class="ta-panel-head">
+		<h3 id="ir-panel-title">Equipment Breakdown</h3>
+		<button type="button" class="ta-panel-close" onclick="closeIncidentPanel()" aria-label="Close">&times;</button>
+	</div>
+	<div class="ta-panel-body ta-panel-body--ir">
+		<iframe id="irFrame" src="about:blank" title="Incident Report" onload="irFrameLoaded()"></iframe>
+		<div class="ir-loading" id="irLoading">
+			<div class="ir-spinner"></div>
+			<span>Loading car breakdown&hellip;</span>
+		</div>
+		<div class="ir-fallback hidden" id="irFallback">
+			<strong>This is taking longer than expected.</strong>
+			<p>The page may be blocked from loading inside this panel.<br>You can open it directly instead:</p>
+			<a href="#" id="irFallbackLink" target="_blank" rel="noopener">Open the breakdown in a new tab &rarr;</a>
+		</div>
+	</div>
+</div>
+
 </body>
 </html>

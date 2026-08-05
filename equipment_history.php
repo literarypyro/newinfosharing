@@ -105,9 +105,6 @@ $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelCl
 <div class="ccs-header">
 <h1 style='font-size:28px; font-weight:bold;'><?php echo $equipment_name; ?> - Equipment History</h1>
 	<div class="sub">Combined current &amp; legacy incident records &mdash; Line 3</div>
-<?php if($coverageNote !== ''){ ?>
-	<div class="sub" style="margin-top:4px;color:#F6C7C7;"><?php echo htmlspecialchars($coverageNote); ?></div>
-<?php } ?>
 	<div class="sub" style="margin-top:4px;">
 		<b><?php echo $ehIncidents; ?></b> incident<?php echo $ehIncidents==1?'':'s'; ?> listed
 		&nbsp;&middot;&nbsp;
@@ -566,7 +563,6 @@ $(function(){
 					'<div class="cap">Figure 1 &mdash; Car-level failures by car (counts each affected car)</div></div>' +
 				'<div class="chart"><img src="' + imgTrend + '">' +
 					'<div class="cap">Figure 2 &mdash; Severity mix over time</div></div>' +
-				(ccsCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+ccsCoverageNote+'</p>' : '') +
 				'<p class="note">This log lists one row per incident. The summary and per-car reports count incident-car failures &mdash; an incident affecting several cars counts once against each &mdash; which is why their totals are larger. Both figures for this view are given above.</p>' +
 				'<p class="note">Charts cover all of <?php echo ($chartYear !== "") ? htmlspecialchars($chartYear) : "available records"; ?>, a wider window than the filtered table below, so the by-car and severity views carry enough data to read.</p>' +
 			'</div>' +

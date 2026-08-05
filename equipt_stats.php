@@ -3,8 +3,10 @@ session_start();
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 
 /* =========================================================================
-   car_stats.php — equipment breakdown for one car, over a year or a month.
-   Reached from car_history.php / car_statistics_report.php.
+   equipt_stats.php — CAR breakdown for one equipment type, over a year or a
+   month. The mirror image of car_stats.php: that page asks "which equipment
+   failed on this car", this one asks "which cars did this equipment fail on".
+   Reached from statistics_report_modified.php, in its slide panel.
 
    Console theme pass (08032026):
    Brought in line with statistics_report_modified.php — same ccs-page /
@@ -48,70 +50,97 @@ $db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $coverage = ccsLoadCoverage($db);
 
 // ---- Inputs --------------------------------------------------------------
-// $car went straight into the WHERE clause unquoted-by-intent before; casting
-// to int both fixes that and makes a junk car_id read as 0 rather than as SQL.
-$car   = isset($_GET['car_id']) ? (int)$_GET['car_id'] : 0;
-$year  = isset($_GET['year'])   ? (int)$_GET['year']   : (int)date("Y");
-$month = isset($_GET['month']) && $_GET['month'] !== '' ? (int)$_GET['month'] : 0;
-if($month < 1 || $month > 12){ $month = 0; }
+// Cast to int so a junk equipt reads as 0 rather than as SQL.
+$equipt = isset($_GET['equipt']) ? (int)$_GET['equipt'] : 0;
 
-if($month){
+// @range -- statistics_report_modified.php filters by a From-To range, not by
+// year/month. Anything spanning more than one calendar year used to arrive here
+// with no year at all and render as All Time, which is why a Jan 2025 - Apr 2026
+// report opened a panel covering everything ever recorded. The range is now
+// carried through as sd/ed and used directly.
+//
+// Three ways in, in precedence order:
+//     sd + ed        -> that exact range
+//     year [+ month] -> that year, or that month
+//     nothing        -> All Time
+$sd = isset($_GET['sd']) && $_GET['sd'] !== '' ? strtotime($_GET['sd']) : false;
+$ed = isset($_GET['ed']) && $_GET['ed'] !== '' ? strtotime($_GET['ed']) : false;
+$hasRange = ($sd !== false && $ed !== false);
+if($hasRange && $ed < $sd){ $t=$sd; $sd=$ed; $ed=$t; }   // swap, do not clamp
+
+$hasYear = isset($_GET['year'])  && $_GET['year']  !== '';
+$year    = $hasYear ? (int)$_GET['year'] : (int)date("Y");
+$month   = isset($_GET['month']) && $_GET['month'] !== '' ? (int)$_GET['month'] : 0;
+if($month < 1 || $month > 12){ $month = 0; }
+if(!$hasYear){ $month = 0; }   // a month without a year is not a period
+
+if($hasRange){
+	$start_date1 = date("Y-m-d", $sd);
+	$end_date1   = date("Y-m-d", $ed);
+	$period      = date("d M Y", $sd)." to ".date("d M Y", $ed);
+	// Inside one calendar month the useful grain is days; otherwise months.
+	$sameMonth   = (date("Y-m", $sd) === date("Y-m", $ed));
+	$grain       = $sameMonth ? 'day' : 'month';
+	$year        = (int)date("Y", $sd);
+	$month       = $sameMonth ? (int)date("n", $sd) : 0;
+}
+else if(!$hasYear){
+	$start_date1 = '';
+	$end_date1   = '';
+	$period      = "All Time";
+	$grain       = 'year';     // breakdown grain: year / month / day
+}
+else if($month){
 	$start_date1 = sprintf("%04d-%02d-01", $year, $month);
-	// The month branch used to set $end_date1 to the FIRST of the month, so a
-	// month drill-down returned one day. "t" gives the last day of the month.
 	$end_date1   = date("Y-m-t", strtotime($start_date1));
 	$period      = date("F Y", strtotime($start_date1));
+	$grain       = 'day';
 }
 else {
 	$start_date1 = sprintf("%04d-01-01", $year);
 	$end_date1   = sprintf("%04d-12-31", $year);
 	$period      = "Full year ".$year;
+	$grain       = 'month';
 }
+$hasPeriod = ($hasRange || $hasYear);
 
-if(!isset($_GET['year'])){
-	$period="All Time";
+// The subject of the page. LEFT-join semantics by hand: an id with no row in
+// the equipment table still renders, named as such, rather than showing a
+// blank heading that looks like a bug.
+$equiptName = '';
+if($equipt){
+	$nq = $db->query("select equipment_name from equipment where id='".$equipt."'");
+	if($nq && ($nr = $nq->fetch_assoc())){ $equiptName = (string)$nr['equipment_name']; }
+	if($equiptName === ''){ $equiptName = 'Equipment #'.$equipt.' (not in equipment table)'; }
 }
 
 // ---- Full incident history link ------------------------------------------
-// @historylink -- SET THE URL HERE. This is the only line to edit; the button
-// below reads it. Pre-filled with the parameter names car_statistics_report.php
-// already uses for its own car_history links (car_id / y / m), so it is a
-// working guess rather than a blank -- change it if yours differ.
+// @historylink -- SET THE URL HERE. Pre-filled with the parameter names
+// statistics_report_modified.php already uses for its own equipment_history
+// links (equipt / y / m) -- change it if yours differ.
 
-if(isset($year)){ 
-$carHistoryUrl = "car_history.php?car_id=".$car;
+$carHistoryUrl = "equipment_history.php?equipt=".$equipt
+               . ($hasYear ? "&y=".$year.($month ? "&m=".$month : "") : "");
 
-}
-else {
-$carHistoryUrl = "car_history.php?car_id=".$car."&y=".$year.($month ? "&m=".$month : "");
-}
+
 // Inside the slide panel this page is an iframe, so a plain link would load
 // car_history INSIDE the 820px panel. _top breaks it out into the full window.
 // Change to "_blank" for a new tab, or "_self" to keep it in the panel.
 $carHistoryTarget = $IR_EMBED ? "_top" : "_self";
 
-// @tally -- Why this page's Total did not match the "Most Fault-Prone Car"
-// tile on car_statistics_report.php. Two separate causes, both here:
+// @invert -- The axis of the page. car_stats.php filters by car and groups by
+// equipment; this filters by equipment and groups by car. Everything below
+// follows from that one swap.
 //
-// 1. The equipment IN() list. It restricted this page to 27 equipt ids while
-//    the tile counts every incident_cars row for the car, so anything with a
-//    blank, zero or out-of-list equipt was in the tile and absent here. The
-//    filter is removed: the table now accounts for every failure the tile
-//    counts, and rows with no equipment recorded are shown as such rather
-//    than silently dropped. If the 27-id restriction was deliberate, the list
-//    is preserved below -- re-add it as a WHERE clause and the two figures
-//    will diverge again by design, so say so on the page if you do.
-//      2,11,64,67,81,89,102,103,104,105,108,109,110,111,112,113,114,115,116,
-//      117,118,119,120,121,122,123,124
-//
-// 2. car_no='5' is a string comparison; the tile groups by car_no*1. Any row
-//    stored as '05', ' 5' or '5 ' fell into the tile's bucket for car 5 and
-//    was missed here. Both sides coerce numerically now.
-$where = "incident_cars.car_no*1 = ".$car;
-
-if(isset($year)){
-			$where.=" and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
+// No equipment IN() list here, for the same reason it was removed from
+// car_stats.php: this page's Total has to match the "Equipment with the
+// highest number of faults" tile on statistics_report_modified.php, and that
+// tile counts every incident_cars row for the equipment.
+$where = "incident_report.equipt = ".$equipt;
+if($hasPeriod){
+	$where .= " and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
 }
+
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
 // never set and every tile read from one undefined key.
@@ -128,46 +157,123 @@ if($rs){
 	}
 }
 
-// ---- Equipment breakdown -------------------------------------------------
-// @tally -- name resolved in the query via LEFT JOIN rather than a getEquipt()
-// call per row, which was one extra query per equipment type and per tile.
-// LEFT so that a blank or unknown equipt still yields its row.
+// ---- Car breakdown -------------------------------------------------------
+// @invert -- One row per car. car_no is grouped with *1 so '05' and '5' fold
+// together, matching how car_statistics_report.php buckets them; comparing the
+// raw column would split one car across two rows.
 $rows = array();
 $equipt_count   = 0;
-$unrecordedFail = 0;   /* failures whose incident has no equipment recorded */
-$sql = "select incident_report.equipt as equipt,
-               equipment.equipment_name as equipment_name,
-               count(1) as equipt_count
+$unrecordedFail = 0;   /* failures on incidents with no car recorded */
+$sql = "select incident_cars.car_no*1 as car_no, count(1) as car_count
           from incident_report
           inner join incident_cars on incident_report.id=incident_cars.incident_id
-          left  join equipment on equipment.id = incident_report.equipt
          where ".$where."
-         group by incident_report.equipt, equipment.equipment_name
-         order by equipt_count desc";
+         group by incident_cars.car_no*1
+         order by car_count desc";
 $rs = $db->query($sql);
 if($rs){
 	while($row = $rs->fetch_assoc()){
-		$id    = $row['equipt'];
-		$blank = ($id === null || trim((string)$id) === '' || (int)$id === 0);
+		$cn    = (int)$row['car_no'];
+		$blank = ($cn <= 0);
 		if($blank){
 			$label = 'Not recorded';
-			$unrecordedFail += (int)$row['equipt_count'];
+			$unrecordedFail += (int)$row['car_count'];
 		}
-		elseif($row['equipment_name'] !== null && $row['equipment_name'] !== ''){
-			$label = $row['equipment_name'];
-		}
-		else {
-			/* id present but no matching equipment row — surfaced, not hidden */
-			$label = 'Equipment #'.(int)$id.' (not in equipment table)';
-		}
-		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['equipt_count']);
-		$equipt_count += (int)$row['equipt_count'];
+		else { $label = 'Car '.$cn; }
+		$rows[] = array('id'=>$cn, 'label'=>$label, 'count'=>(int)$row['car_count']);
+		$equipt_count += (int)$row['car_count'];
 	}
 }
-// Denominator for the "types affected" tile, now that there is no fixed list.
-$equiptTracked = 0;
-$tq = $db->query("select count(*) as c from equipment");
-if($tq && ($tr = $tq->fetch_assoc())){ $equiptTracked = (int)$tr['c']; }
+
+// ---- Period breakdown ----------------------------------------------------
+// @invert -- Three grains, one query. car_stats.php has two (month/day) because
+// it always has a year; this page can be opened with no year at all, and a page
+// whose only breakdown is "by month" would then have nothing to show. The grain
+// follows the filter:
+//     no year        -> by year
+//     year           -> by month
+//     year + month   -> by day
+$periodBuckets = array();
+$pq = $db->query("select year(incident_date) as yr, month(incident_date) as mo,
+                         day(incident_date) as dy, count(1) as c
+                    from incident_report
+                    inner join incident_cars on incident_report.id=incident_cars.incident_id
+                   where ".$where."
+                   group by year(incident_date), month(incident_date), day(incident_date)");
+if($pq){
+	while($pr = $pq->fetch_assoc()){
+		// @range -- Keys are composite now. A bare month number merged March
+		// 2025 with March 2026 into one row over a multi-year range, and the
+		// merged row then carried whichever year the label happened to assume.
+		// YYYYMM / YYYYMMDD also keep ksort chronological across a year boundary.
+		if($grain === 'year')       $k = (int)$pr['yr'];
+		else if($grain === 'month') $k = (int)$pr['yr']*100   + (int)$pr['mo'];
+		else                        $k = (int)$pr['yr']*10000 + (int)$pr['mo']*100 + (int)$pr['dy'];
+		if(!isset($periodBuckets[$k])) $periodBuckets[$k]=0;
+		$periodBuckets[$k] += (int)$pr['c'];
+	}
+}
+
+// @period -- Periods with no failures are omitted, as on car_stats.php. Every
+// row here is labelled, so a reader sees January jump to March; a month of
+// blank rows is just noise. $periodsOmitted feeds the caption, so the fact that
+// periods are missing is still stated rather than left to be inferred.
+$periodBuckets = array_filter($periodBuckets, function($c){ return $c > 0; });
+ksort($periodBuckets);
+// @range -- Counted against the span actually requested rather than a fixed 12
+// or a whole month, so "10 months had no failures" stays true for a 16-month
+// range as well as for a calendar year.
+$periodsInSpan = 0;
+if($grain === 'day' && $start_date1 !== ''){
+	$periodsInSpan = (int)floor((strtotime($end_date1) - strtotime($start_date1))/86400) + 1;
+}
+else if($grain === 'month' && $start_date1 !== ''){
+	$a = new DateTime(date("Y-m-01", strtotime($start_date1)));
+	$b = new DateTime(date("Y-m-01", strtotime($end_date1)));
+	$periodsInSpan = ($b->format('Y') - $a->format('Y'))*12 + ($b->format('n') - $a->format('n')) + 1;
+}
+$periodsOmitted = $periodsInSpan ? $periodsInSpan - count($periodBuckets) : 0;
+if($periodsOmitted < 0) $periodsOmitted = 0;
+
+// Its own threshold: reusing the car peak would flag months against a car
+// figure, which is not a comparison.
+$peakPeriodCount = count($periodBuckets) ? max($periodBuckets) : 0;
+$periodThreshold = $peakPeriodCount * 0.60;
+
+if($grain === 'year')       $periodHeading = 'By year';
+else if($grain === 'month') $periodHeading = 'By month &mdash; '.($hasRange ? htmlspecialchars($period) : $year);
+else                        $periodHeading = 'By day &mdash; '.($hasRange && $start_date1 !== date("Y-m-01", strtotime($start_date1))
+                                                                ? htmlspecialchars($period)
+                                                                : date("F Y", strtotime($start_date1)));
+
+// @range -- Reads the composite key rather than assuming a single year. Month
+// rows carry the year whenever the span crosses one, because "March" twice in
+// the same table is worse than a slightly longer label.
+function esPeriodLabel($grain, $k, $showYear){
+	if($grain === 'year')  return (string)$k;
+	if($grain === 'month'){
+		$y = (int)floor($k/100); $m = $k % 100;
+		return date($showYear ? "F Y" : "F", strtotime(sprintf("%04d-%02d-01", $y, $m)));
+	}
+	$y = (int)floor($k/10000); $m = (int)floor(($k%10000)/100); $d = $k % 100;
+	return date($showYear ? "d M Y (l)" : "d (l)", strtotime(sprintf("%04d-%02d-%02d", $y, $m, $d)));
+}
+// @range -- Derived from the keys actually present, not just from the requested
+// span. Same answer in the normal case, but it cannot produce two rows both
+// labelled "March": if two years are in the table, every row carries its year.
+$labelWithYear = false;
+if($grain !== 'year'){
+	$div = ($grain === 'month') ? 100 : 10000;
+	$yrs = array();
+	foreach(array_keys($periodBuckets) as $bk){ $yrs[(int)floor($bk/$div)] = true; }
+	$labelWithYear = (count($yrs) > 1);
+}
+
+// Denominator for the "cars affected" tile: the size of the fleet as the data
+// knows it, not a hard-coded 73, so a car added later is counted.
+$carsTracked = 0;
+$tq = $db->query("select count(distinct car_no*1) as c from incident_cars where car_no*1 > 0");
+if($tq && ($tr = $tq->fetch_assoc())){ $carsTracked = (int)$tr['c']; }
 $peakTotal     = count($rows) ? $rows[0]['count'] : 0;
 $flagThreshold = $peakTotal * 0.60;
 
@@ -197,7 +303,7 @@ foreach($levelCounts as $lv => $c){
 }
 
 $coverageNote = ccsCoverageNote($coverage);
-$gapMonths    = ccsUncoveredMonths($coverage, $start_date1, $end_date1);
+$gapMonths    = $hasYear ? ccsUncoveredMonths($coverage, $start_date1, $end_date1) : array();
 
 ?>
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
@@ -299,6 +405,12 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 .eq-flag th, .eq-flag td { font-weight:700; }
 .eq-flag th a { color:#7A1F1F !important; }
 
+/* @period -- the breakdown tables need headings, or three stacked tables read
+   as one long list with no indication of what the middle one counts. */
+.brk-note { font-size:11px; color:#5A6275; margin:5px 0 0; font-style:italic; }
+.brk-head { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:#00529B;
+	border-bottom:1px solid #E5DECC; padding-bottom:5px; margin:22px 0 8px; font-weight:600; }
+
 /* KPI tiles — same geometry as statistics_report_modified.php's strip. */
 .kpi-strip { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
 .kpi-tile {
@@ -316,7 +428,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <div class="ccs-page">
 
 <div class="ccs-header">
-<h1>Equipment Failures for Car <?php echo $car > 0 ? $car : '&mdash;'; ?></h1>
+<h1>Car Failures for <?php echo $equipt > 0 ? htmlspecialchars($equiptName) : '&mdash;'; ?></h1>
 <div class='sub'><?php echo htmlspecialchars($period); ?></div>
 </div>
 
@@ -324,7 +436,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <div class="ccs-panel-head">
 <div class="stat-scope">
 	<div class="scope-left">
-		Car <?php echo $car > 0 ? $car : '&mdash;'; ?>
+		<?php echo $equipt > 0 ? htmlspecialchars($equiptName) : '&mdash;'; ?>
 		<?php 
 		if(isset($_POST['year'])){
 			?>
@@ -333,7 +445,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 		}
 		?>
 	</div>
-<?php if($car > 0){ /* @historylink -- no car, no action to offer */ ?>
+<?php if($equipt > 0){ /* @historylink -- no equipment, no action to offer */ ?>
 	<div class="scope-actions">
 		<button type="button" class="scope-btn scope-btn--ghost" onclick="csPrintReport()">Generate printout</button>
 		<a class="scope-btn" href="<?php echo htmlspecialchars($carHistoryUrl); ?>" target="<?php echo $carHistoryTarget; ?>">Full incident history &rarr;</a>
@@ -341,7 +453,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <?php } ?>
 </div>
 <div class="stat-legend">
-	<span><span class="swatch" style="background:#00529B;"></span>Counts are car-level failures for this car</span>
+	<span><span class="swatch" style="background:#00529B;"></span>Counts are car-level failures for this equipment</span>
 	<span><span class="swatch" style="background:#7A1F1F;"></span>Red row = among the highest counts in this period (&ge;60% of the peak)</span>
 </div>
 </div>
@@ -354,12 +466,12 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 		<div class="k-sub">from <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?></div>
 	</div>
 	<div class="kpi-tile">
-		<div class="k-label">Equipment types affected</div>
+		<div class="k-label">Cars affected</div>
 		<div class="k-value"><?php echo count($rows); ?></div>
-		<div class="k-sub"><?php echo $equiptTracked ? 'of '.$equiptTracked.' in the equipment table' : 'distinct types'; ?></div>
+		<div class="k-sub"><?php echo $carsTracked ? 'of '.$carsTracked.' cars on record' : 'distinct cars'; ?></div>
 	</div>
 	<div class="kpi-tile">
-		<div class="k-label">Equipment with the highest number of faults</div>
+		<div class="k-label">Car with the highest number of faults</div>
 		<div class="k-value k-value--name"><?php echo count($rows) ? htmlspecialchars($rows[0]['label']) : '&mdash;'; ?></div>
 		<div class="k-sub"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
 	</div>
@@ -376,18 +488,31 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	</div>
 <?php } ?>
 </div>
+<?php /* @invert -- car_stats.php guards its equipment table with if(!$equipt),
+        because drilling into one equipment makes an equipment breakdown
+        pointless there. The mirror of that guard on THIS page would be
+        if(!$car) -- and there is no $car here, so the car table is the
+        point of the page and always renders. */ ?>
 
-<table class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
+<h3 class="brk-head">By car</h3>
+<table id='equipt_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
 <colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
 <thead>
 <tr>
-	<th>Equipment</th>
+	<th>Car</th>
 	<th>Failures</th>
 	<th>Share</th>
 </tr>
 </thead>
 <tbody>
-<?php foreach($rows as $r){
+<?php
+// @period -- the month/day totals used to be accumulated here, from the stray
+// per-equipment column. They come from the grouped query now, so this loop
+// only draws equipment rows. The aggregation array was also called $month,
+// which overwrote the $month INPUT set at the top of the file — anything below
+// this point that read $month got an array of buckets instead of the selected
+// month number.
+foreach($rows as $r){
 	$isFlagged = ($peakTotal > 0 && $r['count'] >= $flagThreshold);
 ?>
 <tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
@@ -397,7 +522,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </tr>
 <?php } ?>
 <?php if(!count($rows)){ ?>
-<tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No equipment failures recorded for this car in this period.</td></tr>
+<tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No failures recorded for this equipment in this period.</td></tr>
 <?php } ?>
 </tbody>
 <tfoot>
@@ -409,16 +534,90 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </tfoot>
 </table>
 
+
+
+
+<?php
+/* @invert -- One grain-driven table replaces the separate month and day tables.
+   car_stats.php needs two because it always has a year; this page has three
+   possible grains, and three near-identical copies of the same markup is how
+   they drift apart. */
+if(count($periodBuckets) || $grain !== 'year'){
+?>
+<h3 class="brk-head"><?php echo $periodHeading; ?></h3>
+<table id='period_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
+<colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
+<thead>
+<tr>
+	<th><?php echo $grain === 'year' ? 'Year' : ($grain === 'month' ? 'Month' : 'Day'); ?></th>
+	<th>Failures</th>
+	<th>Share</th>
+</tr>
+</thead>
+<tbody>
+<?php
+// @sort -- Ranked by failures, highest first.
+//
+// Three things were stopping this from running:
+//   1. $b=>$pCount -- "=>" is array-literal syntax and is not valid in an
+//      expression, which is the parse error on this line.
+//   2. <==> -- the spaceship operator is three characters, <=>.
+//   3. $pCount is the foreach variable from BELOW this block, so it does not
+//      exist yet here. It would not help anyway: $periodBuckets is a flat map
+//      of period-key => count, so the two arguments a uasort comparator
+//      receives ARE the counts. There is no field to reach into.
+//
+// uksort rather than uasort so ties can fall back to the key: PHP's sort is
+// only guaranteed stable from 8.0, and without an explicit tie-break two
+// months on the same figure could come out in either order between runs. The
+// keys are already chronological from the ksort where $periodBuckets is built,
+// so equal counts read in date order.
+uksort($periodBuckets, function($x, $y) use ($periodBuckets){
+	$byCount = $periodBuckets[$y] <=> $periodBuckets[$x];   // descending
+	return $byCount !== 0 ? $byCount : ($x <=> $y);         // then chronological
+});
+
+foreach($periodBuckets as $pk => $pCount){
+	$isFlagged = ($peakPeriodCount > 0 && $pCount >= $periodThreshold);
+?>
+<tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
+	<th><?php echo htmlspecialchars(esPeriodLabel($grain, $pk, $labelWithYear)); ?></th>
+	<td align=center><?php echo $pCount; ?></td>
+	<td align=center><?php echo $equipt_count ? round($pCount/$equipt_count*100).'%' : '&mdash;'; ?></td>
+</tr>
+<?php } ?>
+<?php if(!count($periodBuckets)){ ?>
+<tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No failures recorded for this equipment in this period.</td></tr>
+<?php } ?>
+</tbody>
+<tfoot>
+<tr style="background:#F1EEE3;font-weight:700;">
+	<th style="text-align:left;">Total</th>
+	<td align=center><?php echo $equipt_count; ?></td>
+	<td align=center><?php echo $equipt_count ? '100%' : '&mdash;'; ?></td>
+</tr>
+</tfoot>
+</table>
+<?php if($periodsOmitted > 0){ ?>
+<div class="brk-note">
+	<?php /* @range -- names the span requested, not a hard-coded year/month. */ ?>
+	<?php echo $periodsOmitted; ?>
+	<?php echo $grain === 'day' ? 'day' : 'month'; ?><?php echo $periodsOmitted==1?'':'s'; ?>
+	of <?php echo $hasRange ? htmlspecialchars($period) : ($grain === 'day' ? date("F Y", strtotime($start_date1)) : $year); ?>
+	had no recorded failures for this equipment and <?php echo $periodsOmitted==1?'is':'are'; ?> not listed.
+</div>
+<?php } ?>
+<?php
+}
+?>
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	<span style="color:#7A1F1F;font-weight:700;">Rows in red</span>
-	are equipment at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
+	are cars at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
 <?php if($unrecordedFail > 0){ ?>
 	<div style="margin-top:6px;color:#7A1F1F;">
-		<?php echo $unrecordedFail; ?> of these <?php echo $equipt_count; ?> failures have no equipment recorded on the incident
+		<?php echo $unrecordedFail; ?> of these <?php echo $equipt_count; ?> failures have no car recorded on the incident
 		(<?php echo round($unrecordedFail/$equipt_count*100); ?>%). They are listed as &ldquo;Not recorded&rdquo; rather than dropped, so this
-		page&rsquo;s Total matches the Most Fault-Prone Car figure on the summary report. Incidents whose equipment was
-		captured through the <code>incident_equipt</code> junction rather than the legacy <code>incident_report.equipt</code>
-		column will land here until this page is moved onto the shared resolver.
+		page&rsquo;s Total matches the equipment figure on the summary report.
 	</div>
 <?php } ?>
 <?php if($otherLevel > 0){ ?>
@@ -428,7 +627,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	</div>
 <?php } ?>
 	<div style="margin-top:6px;">
-		Figures count <b>car-level failures</b> for this car: an incident affecting three cars counts once against each, so
+		Figures count <b>car-level failures</b> for this equipment: an incident affecting three cars counts once against each, so
 		<?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?>
 		produce <?php echo $equipt_count; ?> car-level failure<?php echo $equipt_count==1?'':'s'; ?>.
 		This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
@@ -446,14 +645,15 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
    being framed, and the result is a real page the browser prints normally.
    No dependency on the host page, so the button also works when car_stats.php
    is opened directly. */
-var csCar        = <?php echo json_encode($car); ?>;
+var csEquipt     = <?php echo json_encode($equipt); ?>;
+var csEquiptName = <?php echo json_encode($equiptName); ?>;
 var csPeriod     = <?php echo json_encode($period); ?>;
 var csFrom       = <?php echo json_encode(date("d M Y", strtotime($start_date1))); ?>;
 var csTo         = <?php echo json_encode(date("d M Y", strtotime($end_date1))); ?>;
 var csTotal      = <?php echo (int)$equipt_count; ?>;
 var csIncidents  = <?php echo (int)$distinctIncidents; ?>;
 var csTypes      = <?php echo (int)count($rows); ?>;
-var csTracked    = <?php echo (int)$equiptTracked; ?>;
+var csTracked    = <?php echo (int)$carsTracked; ?>;
 var csPeakName   = <?php echo json_encode(count($rows) ? $rows[0]['label'] : ''); ?>;
 var csPeakTotal  = <?php echo (int)$peakTotal; ?>;
 var csUnlevelled = <?php echo (int)$otherLevel; ?>;
@@ -469,8 +669,22 @@ var csThreshold  = <?php echo json_encode(round($flagThreshold,1)); ?>;
 function csPrintReport(){
 	function esc(x){ return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-	var tbl = document.querySelector('.ccs-panel-body table');
-	var tableHtml = tbl ? tbl.outerHTML : '<p>No table to print.</p>';
+	/* @period -- collected generically rather than by id. Only one of
+	   #month_table / #day_table exists on any given render, so naming them
+	   individually meant the printout either missed the day breakdown or
+	   printed a "No table to print" placeholder for whichever was absent.
+	   This walks headings and tables in document order, so the printout keeps
+	   the same sequence as the screen and picks up a fourth table for free if
+	   one is ever added. */
+	var blocks = document.querySelectorAll('.ccs-panel-body h3.brk-head, .ccs-panel-body table.eq-table, .ccs-panel-body div.brk-note');
+	var tableHtml = '';
+	for(var bi=0; bi<blocks.length; bi++){
+		var el = blocks[bi];
+		if(el.tagName === 'H3')      tableHtml += '<h2 class="sec">'+el.innerHTML+'</h2>';
+		else if(el.tagName === 'DIV') tableHtml += '<p class="note">'+el.innerHTML+'</p>';
+		else                          tableHtml += el.outerHTML;
+	}
+	if(!tableHtml){ tableHtml = '<p>No table to print.</p>'; }
 
 	var levelRows = csLevels.map(function(r){
 		var pct = csLevelled ? Math.round(r[1]/csLevelled*100)+'%' : '\u2014';
@@ -483,7 +697,7 @@ function csPrintReport(){
 	if(!win){ alert('The printout opens in a new window. Please allow pop-ups for this site and try again.'); return; }
 
 	win.document.write(
-		'<html><head><title>Equipment Failures \u2014 Car '+esc(csCar)+'</title>' +
+		'<html><head><title>Car Failures \u2014 '+esc(csEquiptName)+'</title>' +
 		'<style>' +
 			'@page{ size:A4 portrait; margin:12mm 10mm 13mm; }' +
 			'*{ box-sizing:border-box; }' +
@@ -537,13 +751,13 @@ function csPrintReport(){
 		'</style></head><body>' +
 		'<div class="rpt-head">' +
 			'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
-			'<h1 class="rpt-title">Equipment Failures</h1>' +
-			'<p class="rpt-subject">Car '+esc(csCar)+' &middot; '+esc(csPeriod)+'</p>' +
+			'<h1 class="rpt-title">Car Failures</h1>' +
+			'<p class="rpt-subject">'+esc(csEquiptName)+' &middot; '+esc(csPeriod)+'</p>' +
 		'</div>' +
 		'<div class="rpt-meta">' +
 			/* @printtiles -- failures / incidents / types moved down into the
 			   tiles, so the meta strip no longer states them twice. */
-			'<span><b>Car:</b> '+esc(csCar)+'</span>' +
+			'<span><b>Equipment:</b> '+esc(csEquiptName)+'</span>' +
 			'<span><b>Period:</b> '+esc(csFrom)+' &ndash; '+esc(csTo)+'</span>' +
 			'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 		'</div>' +
@@ -552,10 +766,10 @@ function csPrintReport(){
 			'<td><div class="kpi-l">Car-level failures</div>' +
 				'<div class="kpi-v">'+csTotal+'</div>' +
 				'<div class="kpi-s">from '+csIncidents+' incident'+(csIncidents===1?'':'s')+'</div></td>' +
-			'<td><div class="kpi-l">Equipment types affected</div>' +
+			'<td><div class="kpi-l">Cars affected</div>' +
 				'<div class="kpi-v">'+csTypes+'</div>' +
-				'<div class="kpi-s">'+(csTracked ? 'of '+csTracked+' in the equipment table' : 'distinct types')+'</div></td>' +
-			'<td><div class="kpi-l">Equipment with the highest number of faults</div>' +
+				'<div class="kpi-s">'+(csTracked ? 'of '+csTracked+' cars on record' : 'distinct cars')+'</div></td>' +
+			'<td><div class="kpi-l">Car with the highest number of faults</div>' +
 				'<div class="kpi-v name">'+(csPeakName ? esc(csPeakName) : '\u2014')+'</div>' +
 				'<div class="kpi-s">'+csPeakTotal+' failure'+(csPeakTotal===1?'':'s')+'</div></td>' +
 		'</tr></table>' +
@@ -564,11 +778,9 @@ function csPrintReport(){
 			levelRows +
 		'</tbody></table>' +
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
-		'<h2 class="sec">Equipment Breakdown</h2>' +
 		tableHtml +
-		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
-		(csCoverage ? '<p class="note" style="color:#7A1F1F;">'+esc(csCoverage)+'</p>' : '') +
-		'<p class="note">Figures count car-level failures for this car: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
+		'<p class="note">Rows in red are at or above 60% of the highest total in their own table \u2014 the review threshold.</p>' +
+		'<p class="note">Figures count car-level failures for this equipment: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
 		'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 		'</body></html>'
 	);

@@ -523,11 +523,23 @@ if(!$month){
 <tbody>
 
 <?php
-uasort($periodMonths, function($a, $b) {
-    return $b['count'] <=> $a['count'];
+// @sort -- Ranked by failures, highest first, matching equipt_stats.php.
+//
+// The comparator here was $b['count'] <=> $a['count'], carried over from the
+// original hand-written aggregation where each bucket was array('count'=>N).
+// $periodMonths is a flat monthNo => int map now, so ['count'] on an int
+// evaluates to null under a "Trying to access array offset on int" warning,
+// every comparison returned 0, and the sort was a no-op that only looked like
+// it worked because PHP 8 leaves an all-equal array alone. On PHP 7 the order
+// would have been arbitrary.
+//
+// uksort rather than uasort so ties fall back to the key: PHP's sort is only
+// guaranteed stable from 8.0, and the keys are already chronological from the
+// ksort where $periodMonths is built, so equal counts read in date order.
+uksort($periodMonths, function($x, $y) use ($periodMonths){
+	$byCount = $periodMonths[$y] <=> $periodMonths[$x];   // descending
+	return $byCount !== 0 ? $byCount : ($x <=> $y);       // then chronological
 });
-// Chronological, not sorted by count: a month table read top-to-bottom is a
-// timeline, and the red rows already carry "which was worst".
 foreach($periodMonths as $mNo => $mCount){
 	$isFlagged = ($peakMonthCount > 0 && $mCount >= $monthThreshold);
 ?>
@@ -579,8 +591,12 @@ if($month){
 <tbody>
 
 <?php
-uasort($periodMonths, function($a, $b) {
-    return $b['count'] <=> $a['count'];
+// @sort -- Same ranking for days. This sorted $periodMonths, not $periodDays --
+// the wrong array, and in day view an empty one, since the day branch clears
+// $periodMonths. The loop below has always read $periodDays.
+uksort($periodDays, function($x, $y) use ($periodDays){
+	$byCount = $periodDays[$y] <=> $periodDays[$x];
+	return $byCount !== 0 ? $byCount : ($x <=> $y);
 });
 // The old label was date("d (l)", strtotime($year."-".$day."-01")) — that puts
 // the DAY where the MONTH goes, so day 5 rendered as "01 (Thursday)" of May.

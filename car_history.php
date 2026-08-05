@@ -32,17 +32,29 @@ $coverageNote = ccsCoverageNote($coverage);
 
 $car_id=$_GET['car_id'];
 
-$dateClause="";
+// @months -- Resolved once, so the chart below can tell which months the
+// report is SUPPOSED to cover rather than inferring it from which months
+// happened to return rows.
+//
+// The year-only branch also carried a bug: $dateClause2 still interpolated
+// $_GET['m'], which is unset in that branch. strtotime("2026--01") returns
+// false, date("m", false) reads that as timestamp 0 and yields "01" — so the
+// main table was filtered to the whole year while the transport_old rows were
+// silently filtered to January of it. Both clauses now say the same thing.
+$ccsYear  = isset($_GET['y']) && $_GET['y'] !== '' ? (int)$_GET['y'] : 0;
+$ccsMonth = isset($_GET['m']) && $_GET['m'] !== '' ? (int)$_GET['m'] : 0;
+if($ccsMonth < 1 || $ccsMonth > 12){ $ccsMonth = 0; }
 
-if(isset($_GET['m'])){
-	$dateClause=" and incident_date like '".$_GET['y']."-".date("m",strtotime($_GET['y']."-".$_GET['m']."-01"))."%%' ";
-	$dateClause2=" and transport_old.incident_date like '".$_GET['y']."-".date("m",strtotime($_GET['y']."-".$_GET['m']."-01"))."%%' ";
+$dateClause  = "";
+$dateClause2 = "";
+if($ccsYear && $ccsMonth){
+	$ym = sprintf("%04d-%02d", $ccsYear, $ccsMonth);
+	$dateClause  = " and incident_date like '".$ym."-%%' ";
+	$dateClause2 = " and transport_old.incident_date like '".$ym."-%%' ";
 }
-else {
-	if(isset($_GET['y'])){
-		$dateClause=" and incident_date like '".$_GET['y']."-%%' ";
-		$dateClause2=" and transport_old.incident_date like '".$_GET['y']."-".date("m",strtotime($_GET['y']."-".$_GET['m']."-01"))."%%' ";
-	}
+else if($ccsYear){
+	$dateClause  = " and incident_date like '".$ccsYear."-%%' ";
+	$dateClause2 = " and transport_old.incident_date like '".$ccsYear."-%%' ";
 }
 
 ?>
@@ -295,7 +307,49 @@ foreach($blankTerms as $t=>$c){
 <script>
 var ccsCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
 // Raw aggregates from the same query/filter as the table above.
-var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts); ?>;
+<?php
+// @months -- Chart 1 took its x-axis from whichever months returned rows, so a
+// quiet month vanished and its neighbours closed up: February next to June read
+// as consecutive. Fill the span the report actually covers.
+//
+// Unlike the tables on car_stats.php, an axis has no row labels to make the
+// jump visible, which is exactly why filling belongs here and not there.
+//
+// A filled month is an empty type map, so every stacked category sums to 0 and
+// the bar simply has no height.
+$mk = array_keys($monthlyCounts);
+sort($mk);
+if($ccsYear && $ccsMonth){
+	$fillFrom = sprintf("%04d%02d", $ccsYear, $ccsMonth);   // one month; nothing to sequence
+	$fillTo   = $fillFrom;
+}
+else if($ccsYear){
+	$fillFrom = sprintf("%04d01", $ccsYear);                // the whole filtered year
+	$fillTo   = sprintf("%04d12", $ccsYear);
+}
+else if(count($mk)){
+	$fillFrom = (string)$mk[0];                             // unfiltered: earliest to latest
+	$fillTo   = (string)$mk[count($mk)-1];
+}
+else { $fillFrom = $fillTo = ''; }
+
+if($fillFrom !== ''){
+	$cur = new DateTime(substr($fillFrom,0,4)."-".substr($fillFrom,4,2)."-01");
+	$end = new DateTime(substr($fillTo,0,4)."-".substr($fillTo,4,2)."-01");
+	$seq = array();
+	while($cur <= $end){
+		$k = $cur->format("Ym");
+		$seq[$k] = isset($monthlyCounts[$k]) ? $monthlyCounts[$k] : array();
+		$cur->modify("+1 month");
+	}
+	// Any month outside the filtered span that still holds rows is kept rather
+	// than dropped — losing data to a display rule would be the worse bug.
+	foreach($monthlyCounts as $k=>$v){ if(!isset($seq[$k])) $seq[$k]=$v; }
+	ksort($seq);
+	$monthlyCounts = $seq;
+}
+?>
+var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts, JSON_FORCE_OBJECT); ?>;
 var ccsProblemCounts = <?php echo json_encode($problemCounts); ?>;
 var ccsSuggested     = <?php echo json_encode($suggestedCounts, JSON_FORCE_OBJECT); ?>;
 var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
@@ -376,6 +430,20 @@ $(function(){
 	var gridInk = 'rgba(137,135,129,0.20)';
 
 	var months = Object.keys(ccsMonthlyCounts).sort();
+
+	/* @months -- The keys are "YYYYMM" because that string sorts correctly and
+	   is safe as an object key; they were never meant to reach the axis, but
+	   they were being used as the labels verbatim. Keep the keys for lookups
+	   and render a separate label array. Two lines rather than "Aug 2026" on
+	   one, so twelve of them fit a 340px canvas without rotating. */
+	var CCS_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+	function ccsMonthLabel(k){
+		var t = String(k);
+		if(!/^\d{6}$/.test(t)) return t;        /* never silently mangle a bad key */
+		var mi = parseInt(t.slice(4,6), 10) - 1;
+		if(!(mi >= 0 && mi < 12)) return t;
+		return [CCS_MON[mi], t.slice(0,4)];
+	}
 	var blankCount = ccsProblemCounts[BLANK_KEY] || 0;
 
 	var rankedTypes = Object.keys(ccsProblemCounts)
@@ -413,7 +481,7 @@ $(function(){
 
 	new Chart(document.getElementById('ccsChartMonthly'), {
 		type: 'bar',
-		data: { labels: months, datasets: monthlyDatasets },
+		data: { labels: months.map(ccsMonthLabel), datasets: monthlyDatasets },
 		options: {
 			responsive: false,
 			animation: false,
@@ -422,7 +490,7 @@ $(function(){
 				legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, color: mutedInk } }
 			},
 			scales: {
-				x: { stacked: true, ticks: { color: mutedInk, font: { size: 10 } }, grid: { display: false } },
+				x: { stacked: true, ticks: { color: mutedInk, font: { size: 10 }, maxRotation: 0, autoSkipPadding: 3 }, grid: { display: false } },
 				y: { stacked: true, ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } }
 			}
 		}
