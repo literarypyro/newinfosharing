@@ -1659,8 +1659,16 @@ document.addEventListener('keydown',function(e){
 				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
 			} else {
 				$incident_date_label=date("m/d/Y");
+				
+			
 			}
 			}
+			
+			$hh=date("H");
+			if($hh>12){ $hh-=12; }
+			$min=date("i");
+			$aa=date("a");
+			
 			?>
 			<input type='text' name='incident_date' id='incident_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
 			
