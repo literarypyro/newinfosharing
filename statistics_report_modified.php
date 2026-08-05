@@ -743,7 +743,7 @@ foreach($equipt as $i => $e){
 		$link_ed = $end_date1;
 	}
 ?>
-<tr <?php echo $flagged ? "style='background-color:#F9D6D6; color:#7A1F1F;'" : ($i%2>0 ? "class='rowClass'" : ""); ?>>
+<tr class='rowClass'>
 	<th style="text-align:left;">
 		<a href='#' style='text-decoration:none; color:#00529B; font-weight:600;' onclick='window.open("equipment_cars_stats.php?eq=<?php echo $e['id']; ?>&level=<?php echo $level; ?>&range=custom&sd=<?php echo $link_sd; ?>&ed=<?php echo $link_ed; ?>")'><?php echo htmlspecialchars($e['equipment']); ?></a>
 		<?php if($flagged){ echo " <span title='At or above 60% of the highest equipment total' style='font-size:11px;'>&#9679;</span>"; } ?>
@@ -834,9 +834,7 @@ $tableHtml = ob_get_clean();
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	<span style="display:inline-block;width:11px;height:11px;background:#F9D6D6;border:1px solid #7A1F1F;vertical-align:-1px;"></span>
 	Shaded rows are equipment at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
-	<?php if($coverageNote !== ''){ ?>
-	<div style="margin-bottom:6px;color:#7A1F1F;"><?php echo htmlspecialchars($coverageNote); ?></div>
-	<?php } ?>
+	
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
 	Click an equipment name for its per-car breakdown, or a monthly figure for that month's incident log.
 </div>
@@ -994,7 +992,6 @@ var srmBucketWord   = <?php echo json_encode($bucketWord); ?>;   /* @buckets */
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgEq+'"><div class="cap">Figure 1 &mdash; Car-level failures by equipment</div></div>' +
 				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by '+srmBucketWord+', all equipment</div></div>' +
-				(srmCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+esc(srmCoverageNote)+'</p>' : '') +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+srmIncidents+' incidents produce '+srmGrandTotal+' car-level failures. This matches the per-car reports; the incident history logs count one row per incident and show the smaller figure. Shaded rows are equipment at or above 60% of the highest total.</p>' +
 			'</div>' +
 			'<h2 class="sec">Monthly Breakdown by Equipment</h2>' +

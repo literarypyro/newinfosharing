@@ -358,12 +358,21 @@ $grandTotal=0;
 // @dayview -- was interpolating $month, which at this point was still unset
 // (it is only assigned inside the row loop below), and unpadded besides: a
 // LIKE of '2026-3%' never matches '2026-03-...'. $viewYm is already padded.
+
+if(isset($_POST['equipt_car'])){
+	$equiptClause=" and equipt='".$_POST['equipt_car']."' ";
+}
+else {
+	$equiptClause="";
+	
+}
+
 if($isDayView){
-$sql="SELECT car_no,day(incident_date) as day,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$viewYm."-%' group by incident_cars.car_no*1,day(incident_date)";
+$sql="SELECT car_no,day(incident_date) as day,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$viewYm."-%' ".$equiptClause." group by incident_cars.car_no*1,day(incident_date)";
 
 }
 else {
-$sql="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$year."-%%' group by incident_cars.car_no*1,month(incident_date)";
+$sql="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$year."-%%' ".$equiptClause." group by incident_cars.car_no*1,month(incident_date)";
 }
 // The is_transport_old half is GONE, and deliberately so.
 //

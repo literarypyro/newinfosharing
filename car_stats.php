@@ -137,7 +137,8 @@ $equipt_count   = 0;
 $unrecordedFail = 0;   /* failures whose incident has no equipment recorded */
 $sql = "select incident_report.equipt as equipt,
                equipment.equipment_name as equipment_name,
-               count(1) as equipt_count
+               count(1) as equipt_count,
+			   month(incident_date) as month
           from incident_report
           inner join incident_cars on incident_report.id=incident_cars.incident_id
           left  join equipment on equipment.id = incident_report.equipt
@@ -160,7 +161,7 @@ if($rs){
 			/* id present but no matching equipment row — surfaced, not hidden */
 			$label = 'Equipment #'.(int)$id.' (not in equipment table)';
 		}
-		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['equipt_count']);
+		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['equipt_count'],'month'=>$row['month']);
 		$equipt_count += (int)$row['equipt_count'];
 	}
 }
@@ -377,7 +378,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <?php } ?>
 </div>
 
-<table class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
+<table id='equipt_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
 <colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
 <thead>
 <tr>
@@ -387,8 +388,17 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </tr>
 </thead>
 <tbody>
-<?php foreach($rows as $r){
+<?php 
+$month=array();
+foreach($rows as $r){
 	$isFlagged = ($peakTotal > 0 && $r['count'] >= $flagThreshold);
+	if($month["M_".$r['month']]['count']==0){ 
+		$month["M_".$r['month']]['label']=date("F",strtotime(date("Y")."-".$r['month']."-01"));
+	}
+	$month["M_".$r['month']]['count']+=$r['count'];
+	
+	
+	
 ?>
 <tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
 	<th><?php echo htmlspecialchars($r['label']); ?></th>
@@ -408,6 +418,45 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </tr>
 </tfoot>
 </table>
+
+
+<table id='month_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
+<colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
+<thead>
+<tr>
+	<th>Month</th>
+	<th>Failures</th>
+	<th>Share</th>
+</tr>
+</thead>
+<tbody>
+
+<?php 
+uasort($month, function($a, $b) {
+    return $b['count'] <=> $a['count'];
+});
+foreach($month as $m){
+	$isFlagged = ($peakTotal > 0 && $m['count'] >= $flagThreshold);
+?>
+<tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
+	<th><?php echo htmlspecialchars($m['label']); ?></th>
+	<td align=center><?php echo $m['count']; ?></td>
+	<td align=center><?php echo $equipt_count ? round($m['count']/$equipt_count*100).'%' : '&mdash;'; ?></td>
+</tr>
+<?php } ?>
+<?php if(!count($month)){ ?>
+<tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No equipment failures recorded for this car in this period.</td></tr>
+<?php } ?>
+</tbody>
+<tfoot>
+<tr style="background:#F1EEE3;font-weight:700;">
+	<th style="text-align:left;">Total</th>
+	<td align=center><?php echo $equipt_count; ?></td>
+	<td align=center><?php echo $equipt_count ? '100%' : '&mdash;'; ?></td>
+</tr>
+</tfoot>
+</table>
+
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	<span style="color:#7A1F1F;font-weight:700;">Rows in red</span>
@@ -469,8 +518,11 @@ var csThreshold  = <?php echo json_encode(round($flagThreshold,1)); ?>;
 function csPrintReport(){
 	function esc(x){ return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-	var tbl = document.querySelector('.ccs-panel-body table');
+	var tbl = document.querySelector('.ccs-panel-body table#equipt_table');
+	var tbl2 = document.querySelector('.ccs-panel-body table#month_table');
+
 	var tableHtml = tbl ? tbl.outerHTML : '<p>No table to print.</p>';
+	var tableHtml2 = tbl2 ? tbl2.outerHTML : '<p>No table to print.</p>';
 
 	var levelRows = csLevels.map(function(r){
 		var pct = csLevelled ? Math.round(r[1]/csLevelled*100)+'%' : '\u2014';
@@ -566,8 +618,11 @@ function csPrintReport(){
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
 		'<h2 class="sec">Equipment Breakdown</h2>' +
 		tableHtml +
+		'<h2 class="sec">Per Month Breakdown</h2>' +
+
+
+		tableHtml2+
 		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
-		(csCoverage ? '<p class="note" style="color:#7A1F1F;">'+esc(csCoverage)+'</p>' : '') +
 		'<p class="note">Figures count car-level failures for this car: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
 		'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 		'</body></html>'
