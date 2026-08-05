@@ -443,7 +443,7 @@ for($i=1;$i<=73;$i++){
 <tr 
 <?php 
 if($isFlagged){
-		echo "style='background-color:#F9D6D6; color:#7A1F1F;'";
+//		echo "style='background-color:#F9D6D6; color:#7A1F1F;'";
 
 }
 else {
@@ -647,9 +647,6 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This matches the basis used by the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure.
 	Covers all severity levels &mdash; this page has no level filter.
-	<?php if($coverageNote !== ''){ ?>
-	<div style="margin-top:6px;color:#7A1F1F;"><?php echo htmlspecialchars($coverageNote); ?></div>
-	<?php } ?>
 </div>
 
 <script>
@@ -921,7 +918,6 @@ document.addEventListener('keydown',function(e){
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgCar+'"><div class="cap">Figure 1 &mdash; Car-level failures by car</div></div>' +
 				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by '+csrBucketWord+', whole fleet</div></div>' +
-				(csrCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+esc(csrCoverageNote)+'</p>' : '') +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+csrIncidents+' incidents produce '+csrGrandTotal+' car-level failures. This matches the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure. Covers all severity levels. Shaded rows are cars at or above 60% of the worst car total.</p>' +
 			'</div>' +
 			'<h2 class="sec">Monthly Breakdown by Car</h2>' +

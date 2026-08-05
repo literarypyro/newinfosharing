@@ -187,11 +187,11 @@ $rs=$db->query($sql);
 
 $nm=$rs->num_rows;
 
-if(isset($_POST['search_date2'])){
+if((isset($_POST['search_date2']))&&($_POST['search_date2']!="")){
 //$year=date("Y",strtotime($_POST['search_date2']));
 
 //$start_date=date("Y-m-d",strtotime($_POST['search_date2']));
-
+	
 
 
 $start_date=date("Y-m-d",strtotime($_POST['search_date2']));
@@ -229,11 +229,13 @@ $end_date=date("Y-m-d",strtotime("last day of this month"));
 // choice now means ALL levels rather than none.
 if(isset($_POST['level'])){
 	$level = ($_POST['level'] !== '') ? $_POST['level'] : '';
+$levelClause = ($level !== '') ? "level='".$level."' and " : "";
+
 }
 else {
-	$level = "2";
+//	$level = "2";
+$levelClause="";
 }
-$levelClause = ($level !== '') ? "level='".$level."' and " : "";
 ?>
 <!-- <form action='statistics_report.php' method='post'> -->
 <div class="ccs-header">
