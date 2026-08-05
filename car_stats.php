@@ -50,6 +50,9 @@ $coverage = ccsLoadCoverage($db);
 // ---- Inputs --------------------------------------------------------------
 // $car went straight into the WHERE clause unquoted-by-intent before; casting
 // to int both fixes that and makes a junk car_id read as 0 rather than as SQL.
+//$equipt
+$equipt   = isset($_GET['equipt']) ? (int)$_GET['equipt'] : 0;
+
 $car   = isset($_GET['car_id']) ? (int)$_GET['car_id'] : 0;
 $year  = isset($_GET['year'])   ? (int)$_GET['year']   : (int)date("Y");
 $month = isset($_GET['month']) && $_GET['month'] !== '' ? (int)$_GET['month'] : 0;
@@ -85,6 +88,8 @@ $carHistoryUrl = "car_history.php?car_id=".$car;
 else {
 $carHistoryUrl = "car_history.php?car_id=".$car."&y=".$year.($month ? "&m=".$month : "");
 }
+
+
 // Inside the slide panel this page is an iframe, so a plain link would load
 // car_history INSIDE the 820px panel. _top breaks it out into the full window.
 // Change to "_blank" for a new tab, or "_self" to keep it in the panel.
@@ -112,6 +117,12 @@ $where = "incident_cars.car_no*1 = ".$car;
 if(isset($year)){
 			$where.=" and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
 }
+
+if($equipt){
+	
+		$where.=" and equipt='".$equipt."' ";
+}
+
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
 // never set and every tile read from one undefined key.
@@ -186,6 +197,7 @@ $pq = $db->query("select month(incident_date) as mo, day(incident_date) as dy, c
                     inner join incident_cars on incident_report.id=incident_cars.incident_id
                    where ".$where."
                    group by month(incident_date), day(incident_date)");
+				   
 if($pq){
 	while($pr = $pq->fetch_assoc()){
 		$mo=(int)$pr['mo']; $dy=(int)$pr['dy']; $c=(int)$pr['c'];
@@ -448,7 +460,8 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	</div>
 <?php } ?>
 </div>
-
+<?php if(!$equipt){
+?>
 <h3 class="brk-head">By equipment</h3>
 <table id='equipt_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
 <colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
@@ -490,6 +503,7 @@ foreach($rows as $r){
 </table>
 
 <?php
+}
 /* @period -- driven by the filter, not by how many months returned rows. */
 
 

@@ -230,6 +230,11 @@ else {
 
 }
 
+if(isset($_POST['equipt_car'])){
+$equipment=$_POST['equipt_car'];
+}
+
+
 // @dayview -- The month <select> has a blank first <option>, so submitting
 // "no month" posts month="" and isset() is TRUE for it. Every branch in this
 // file tested isset(), so the blank choice fell into day mode and built its
@@ -247,7 +252,7 @@ $bucketWord = $isDayView ? "day" : "month";
 ?>
 
 <h1><?php echo "Car Incidents By Year"; ?></h1>
-<div class='sub'> <?php echo "For the Year ".$year; ?> <?php if((isset($_POST['equipt_car']))&&($_POST['equipt_car']!="")){ echo " - ".getEquipt($_POST['equipt_car'],$db); } ?> </div>
+<div class='sub'> <?php echo "For the Year ".$year; ?> <?php if((isset($_POST['equipt_car']))&&($_POST['equipt_car']!="")){  echo " - ".getEquipt($_POST['equipt_car'],$db); } ?> </div>
 </div>
 
 <div class="ccs-panel">
@@ -492,7 +497,7 @@ else {
 
 
 ?>>
-<th class='stat_hover car' onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $i; ?>','Statistics Report','<?php echo $month; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><?php echo $i; ?></th>
+<th class='stat_hover car' onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $i; ?>','Statistics Report','<?php echo $month; ?>','<?php echo $equipment; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><?php echo $i; ?></th>
 <?php
 /**
 <th class='stat_hover'><a href='#' style='text-decoration:none; color:#00529B; font-weight:600;'  onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>",target="_self")' ><?php echo $i; ?></a></th>
@@ -655,7 +660,7 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 	// 0, and a tile showing an em dash must not look or behave like a button.
 	$peakClickable = ($peakCar > 0);
 ?>
-	<div class="kpi-tile<?php echo $peakClickable ? ' kpi-tile--link' : ''; ?>" style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the equipment failure breakdown for car <?php echo $peakCar; ?>" onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $peakCar; ?>','Statistics Report','<?php echo $month; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
+	<div class="kpi-tile<?php echo $peakClickable ? ' kpi-tile--link' : ''; ?>" style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the equipment failure breakdown for car <?php echo $peakCar; ?>" onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $peakCar; ?>','Statistics Report','<?php echo $month; ?>','<?php echo $equipment; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Most Fault-Prone Car</div>
 		<div class="kpi-figure" style="font-size:22px;font-weight:600;color:#7A1F1F;"><?php echo $peakCar>0 ? $peakCar : '&mdash;'; ?></div>
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
@@ -748,18 +753,21 @@ function irFrameLoaded(){
 	document.getElementById('irFrame').classList.add('ready');
 }
 
-function openEditIncidentPanel(year,car,title,month){
+function openEditIncidentPanel(year,car,title,month,equipt=null){
 	/* @slidepanel
 	   car_stats.php reads $_GET['car_id'] — this sent &car=, so the iframe
 	   loaded with no car at all and rendered an empty report. That is why the
 	   panel looked broken even once it was sliding correctly.
 	   Values are encoded: the title carries a colon and spaces. */
 	month = (month===undefined || month===null) ? '' : month;
+	equipt = (equipt===undefined || equipt===null) ? '' : equipt;
+
 	title = title || "Car with Most Failures";
 	var q = "year="       + encodeURIComponent(year)
 	      + "&car_id="    + encodeURIComponent(car)
 	      + "&month="     + encodeURIComponent(month)
-	      + "&title="     + encodeURIComponent(title);
+	      + "&title="     + encodeURIComponent(title)
+	      + "&equipt="     + encodeURIComponent(equipt);
 
 	document.getElementById('ir-panel-title').textContent=title;
 	document.getElementById('irFallbackLink').href="car_stats.php?"+q; /* no embed=1: full standalone page */

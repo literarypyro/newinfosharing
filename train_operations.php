@@ -757,16 +757,20 @@ function fillCar(position,car){
 	else { makeajax("processing.php?checkCar="+car+"&car="+field,"confirmCar"); }
 	/* was: $('#addModal').modal('show'); -- the panel stays open, no re-show needed */
 }
-function openCarPanel(year,car,title,month){
+function openCarPanel(year,car,title,month,equipt=null){
 	/* @slidepanel
 	   car_stats.php reads $_GET['car_id'] — this sent &car=, so the iframe
 	   loaded with no car at all and rendered an empty report. That is why the
 	   panel looked broken even once it was sliding correctly.
 	   Values are encoded: the title carries a colon and spaces. */
+	equipt = (equipt===undefined || equipt===null||equipt=='') ? '' : equipt;
+
 	month = (month===undefined || month===null) ? '' : month;
 	title = title || "Car with Most Failures";
 	//var q = "year="       + encodeURIComponent(year)
-	var q=  "&car_id="    + encodeURIComponent(car);
+	var q=  "&car_id="    + encodeURIComponent(car); 
+	     // + "&equipt="     + encodeURIComponent(equipt);
+
 	      //+ "&month="     + encodeURIComponent(month)
 	      //+ "&title="     + encodeURIComponent(title);
 
@@ -1179,7 +1183,7 @@ for($i=0; $i<$nm; $i++){
 				$cancelRow = $cancelRS->fetch_assoc();
 				$level     = $cancelRow['level'];
 				$order     = getLevel($cancelRow['incident_id'],$db);
-				$incLink   = "<a href='#' class='$SRemove' onclick='openEditIncidentPanel(\"".$cancelRow['incident_id']."\",\"Incident Details &mdash; Index ".$row['index_no']."\")'>IN ".$cancelRow['incident_no']."</a>";
+				$incLink   = "<a href='#' class='$SRemove' onclick='openEditIncidentPanel(\"".$cancelRow['incident_id']."\",\"Incident Details &mdash; Index ".$row['index_no']."\",\"\")'>IN ".$cancelRow['incident_no']."</a>";
 				$incidentClause .= ($m==0) ? $incLink : ",<br>".$incLink;
 				if($level==2){ $level2Clause.=($l2Count>0?",<br>":"").getOrdinal($order); $l2Count++; }
 				elseif($level==3){ $level3Clause.=($l3Count>0?",<br>":"").getOrdinal($order); $l3Count++; }
