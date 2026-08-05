@@ -136,45 +136,20 @@ $carHistoryTarget = $IR_EMBED ? "_top" : "_self";
 // car_stats.php: this page's Total has to match the "Equipment with the
 // highest number of faults" tile on statistics_report_modified.php, and that
 // tile counts every incident_cars row for the equipment.
-// @sources -- statistics_report_modified.php counts an equipment's failures
-// from TWO places: incident_report.equipt, and is_external.incident_defects
-// .equipt_id for externally-raised defects. This page only ever read the first,
-// so any equipment whose failures are largely external showed 0 here while the
-// report showed a real figure. Both are counted now, and combined the same way
-// the report combines them -- it adds the two queries together, so an incident
-// carrying the equipment on both sides counts twice on both pages. Matching
-// that is what makes the two reconcile.
-$dateClause = $hasPeriod
-	? " and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'"
-	: "";
-
-$whereOwn = "incident_report.equipt = ".$equipt.$dateClause;
-$whereExt = "is_external.incident_defects.equipt_id = ".$equipt.$dateClause;
-
-$joinOwn = "from incident_report
-            inner join incident_cars on incident_report.id=incident_cars.incident_id";
-$joinExt = "from incident_report
-            inner join is_external.incident_defects on incident_report.id=is_external.incident_defects.incident_id
-            inner join incident_cars on incident_report.id=incident_cars.incident_id";
-
-// Kept for the coverage helpers and anything below still expecting one clause.
-$where = $whereOwn;
+$where = "incident_report.equipt = ".$equipt;
+if($hasPeriod){
+	$where .= " and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
+}
 
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
 // never set and every tile read from one undefined key.
 $levelCounts = array();
-$sql = "select level, sum(c) as c from (
-          select incident_report.level as level, count(1) as c
-            ".$joinOwn."
-           where ".$whereOwn."
-           group by incident_report.level
-          union all
-          select incident_report.level as level, count(1) as c
-            ".$joinExt."
-           where ".$whereExt."
-           group by incident_report.level
-        ) u group by level";
+$sql = "select incident_report.level as level, count(1) as c
+          from incident_report
+          inner join incident_cars on incident_report.id=incident_cars.incident_id
+         where ".$where."
+         group by incident_report.level";
 $rs = $db->query($sql);
 if($rs){
 	while($row = $rs->fetch_assoc()){
@@ -189,17 +164,12 @@ if($rs){
 $rows = array();
 $equipt_count   = 0;
 $unrecordedFail = 0;   /* failures on incidents with no car recorded */
-$sql = "select car_no, sum(c) as car_count from (
-          select incident_cars.car_no*1 as car_no, count(1) as c
-            ".$joinOwn."
-           where ".$whereOwn."
-           group by incident_cars.car_no*1
-          union all
-          select incident_cars.car_no*1 as car_no, count(1) as c
-            ".$joinExt."
-           where ".$whereExt."
-           group by incident_cars.car_no*1
-        ) u group by car_no order by car_count desc";
+$sql = "select incident_cars.car_no*1 as car_no, count(1) as car_count
+          from incident_report
+          inner join incident_cars on incident_report.id=incident_cars.incident_id
+         where ".$where."
+         group by incident_cars.car_no*1
+         order by car_count desc";
 $rs = $db->query($sql);
 if($rs){
 	while($row = $rs->fetch_assoc()){
@@ -224,19 +194,12 @@ if($rs){
 //     year           -> by month
 //     year + month   -> by day
 $periodBuckets = array();
-$pq = $db->query("select yr, mo, dy, sum(c) as c from (
-                    select year(incident_date) as yr, month(incident_date) as mo,
-                           day(incident_date) as dy, count(1) as c
-                      ".$joinOwn."
-                     where ".$whereOwn."
-                     group by year(incident_date), month(incident_date), day(incident_date)
-                    union all
-                    select year(incident_date) as yr, month(incident_date) as mo,
-                           day(incident_date) as dy, count(1) as c
-                      ".$joinExt."
-                     where ".$whereExt."
-                     group by year(incident_date), month(incident_date), day(incident_date)
-                  ) u group by yr, mo, dy");
+$pq = $db->query("select year(incident_date) as yr, month(incident_date) as mo,
+                         day(incident_date) as dy, count(1) as c
+                    from incident_report
+                    inner join incident_cars on incident_report.id=incident_cars.incident_id
+                   where ".$where."
+                   group by year(incident_date), month(incident_date), day(incident_date)");
 if($pq){
 	while($pr = $pq->fetch_assoc()){
 		// @range -- Keys are composite now. A bare month number merged March
@@ -295,34 +258,15 @@ function esPeriodLabel($grain, $k, $showYear){
 	$y = (int)floor($k/10000); $m = (int)floor(($k%10000)/100); $d = $k % 100;
 	return date($showYear ? "d M Y (l)" : "d (l)", strtotime(sprintf("%04d-%02d-%02d", $y, $m, $d)));
 }
-// @range -- Two independent reasons to put the year on a row label, and it
-// needs EITHER, not just the second:
-//
-//   1. The requested SPAN crosses a year boundary. This is the one that
-//      matters even when the data does not: over 01 Jan 2025 - 30 Apr 2026, a
-//      row reading plain "March" is unanswerable, because both March 2025 and
-//      March 2026 are inside the period the heading names. Deriving only from
-//      the data got this wrong whenever every entry happened to land in one
-//      year — the label went bare while the question stayed open.
-//
-//   2. The KEYS PRESENT cross a year boundary. Redundant given (1) in normal
-//      use, but it guarantees the table can never show two rows both labelled
-//      "March" whatever the span says.
-//
-// When neither holds, the year is already established by the heading — "Full
-// year 2025", or a range that opens and closes in the same year — so repeating
-// it on all twelve rows is noise.
+// @range -- Derived from the keys actually present, not just from the requested
+// span. Same answer in the normal case, but it cannot produce two rows both
+// labelled "March": if two years are in the table, every row carries its year.
 $labelWithYear = false;
 if($grain !== 'year'){
-	$spanCrossesYear = ($start_date1 !== ''
-	                    && date("Y", strtotime($start_date1)) !== date("Y", strtotime($end_date1)));
-
 	$div = ($grain === 'month') ? 100 : 10000;
 	$yrs = array();
 	foreach(array_keys($periodBuckets) as $bk){ $yrs[(int)floor($bk/$div)] = true; }
-	$dataCrossesYear = (count($yrs) > 1);
-
-	$labelWithYear = ($spanCrossesYear || $dataCrossesYear);
+	$labelWithYear = (count($yrs) > 1);
 }
 
 // Denominator for the "cars affected" tile: the size of the fleet as the data
@@ -336,11 +280,10 @@ $flagThreshold = $peakTotal * 0.60;
 // Distinct incidents behind those car-level failures — the same reconciliation
 // figure the other stats pages carry.
 $distinctIncidents = 0;
-$dq = $db->query("select count(distinct id) as c from (
-                    select incident_report.id as id ".$joinOwn." where ".$whereOwn."
-                    union all
-                    select incident_report.id as id ".$joinExt." where ".$whereExt."
-                  ) u");
+$dq = $db->query("select count(distinct incident_report.id) as c
+                    from incident_report
+                    inner join incident_cars on incident_report.id=incident_cars.incident_id
+                   where ".$where);
 if($dq && ($dr = $dq->fetch_assoc())){ $distinctIncidents = (int)$dr['c']; }
 
 // @nolevel -- The Unlevelled tile is gone at request: level is often not
