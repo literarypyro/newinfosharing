@@ -18,6 +18,15 @@ $coverageNote = ccsCoverageNote($coverage);
 // here as a minimum; a prepared statement is the proper fix when this page
 // gets moved onto db_config.php.
 $reportedBy    = isset($_POST['reported_by']) ? trim($_POST['reported_by']) : '';
+
+// @period -- read from POST, not GET: this page's personnel search is already
+// a POST form and the period controls live inside it, so both travel together.
+// Resolved against THIS file's directory. A bare relative require resolves
+// against the process working directory, which under some SAPI setups is not
+// the script's folder -- that fails, and a failed require is a fatal, which
+// is a bare 500 with nothing on the page.
+require_once(dirname(__FILE__)."/period_filter.php");
+$ph = phResolvePeriod($_POST);
 $hasSearch     = ($reportedBy !== '');
 $reportedByEsc = $db->real_escape_string($reportedBy);
 $tdVariants=array();
@@ -60,25 +69,33 @@ if($hasSearch){
 		: "reported_by like '%".$reportedByEsc."%'";   // fallback: behave as before
 }
 ?>
+<style type='text/css'>
+<?php phFilterCss(); ?>
+</style>
 <?php include("history_theme.php"); ?>
 <body>
 <div class="ccs-page">
 
 <div class="ccs-header">
 	<h1>Incident History &mdash; By Personnel</h1>
-	<div class="sub">Search incidents by reporting personnel &mdash; Line 3</div>
+	<div class="sub">Search incidents by reporting personnel &mdash; <?php echo htmlspecialchars($ph['label']); ?> &mdash; Line 3</div>
 </div>
 
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
 	<td style="padding:8px 14px;vertical-align:middle;border:none">
-<form action='td_history.php' method='post' style="display:flex;align-items:center;gap:10px;">
-<label for="reported_by">Find by Personnel</label>
+<form action='td_history.php' method='post' class="ph-filters">
+<div class="ph-field">
+<label for="reported_by">Find by personnel</label>
 <div style='position:relative;width:220px;'>
-	<input type="text" autocomplete='off' name='reported_by' id='reported_by' style='width:220px;' />
-	<div id='reported_by_suggestions' style='display:none;position:absolute;top:30px;left:0;width:100%;background:#FFFFFF;border:1px solid #D8D2C2;border-radius:5px;max-height:180px;overflow-y:auto;z-index:10;color:#1A2238;'></div>
+	<?php /* @period -- value re-emitted so the name survives an Apply; the field
+	         used to come back blank on every submit and the heading then said
+	         one thing while the box said another. */ ?>
+	<input type="text" autocomplete='off' name='reported_by' id='reported_by' style='width:220px;height:30px;box-sizing:border-box;' value="<?php echo htmlspecialchars($reportedBy); ?>" />
+	<div id='reported_by_suggestions' style='display:none;position:absolute;top:32px;left:0;width:100%;background:#FFFFFF;border:1px solid #D8D2C2;border-radius:5px;max-height:180px;overflow-y:auto;z-index:10;color:#1A2238;'></div>
 </div>
-<input type=submit value='Retrieve' />
+</div>
+<?php phFilterFields($ph, $db, "td_history.php", 'reset', 'Retrieve'); ?>
 </form>
 	</td>
 </tr>
@@ -188,7 +205,7 @@ $termCounts=array();  // [token] => number of incidents it appears in
 // empty state — a report printed from a blank search is worse than no report.
 if($hasSearch){
 
-	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where ".$whereNames." order by incident_date desc";
+	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where ".$whereNames." ".$ph['clause']." order by incident_date desc";
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
 
@@ -746,6 +763,7 @@ $(function(){
 });
 </script>
 <?php require("slide_panel.php"); ?>
+<?php phDatepickerJs(); ?>
 </body>
 <?php
 function getProblemType($db,$type){

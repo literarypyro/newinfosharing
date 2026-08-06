@@ -168,7 +168,10 @@ function phFilterCss(){ ?>
    plain link to the page URL would also throw away the other POST fields (the
    personnel name on td_history.php), so there Clear blanks the period inputs
    and resubmits instead. */
-function phFilterFields($ph, $db, $clearUrl, $clearMode = 'link'){ ?>
+/* $submitLabel: the page's own verb. td_history.php's button has always said
+   "Retrieve" -- it submits the personnel search as well as the period, and
+   renaming it to "Apply" changed what the page looked like it did. */
+function phFilterFields($ph, $db, $clearUrl, $clearMode = 'link', $submitLabel = 'Apply'){ ?>
 	<div class="ph-field">
 	<label for="phMode">Filter by</label>
 	<select name="mode" id="phMode" onchange="phSetMode(this.value)">
@@ -210,7 +213,7 @@ function phFilterFields($ph, $db, $clearUrl, $clearMode = 'link'){ ?>
 	</div>
 	</div>
 
-	<button type="submit">Apply</button>
+	<button type="submit"><?php echo htmlspecialchars($submitLabel); ?></button>
 	<?php if($ph['active']){
 		if($clearMode === 'reset'){ ?>
 		<a href="#" class="ph-clear" onclick="phClearPeriod(this.form); return false;">Clear</a>

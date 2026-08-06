@@ -22,8 +22,19 @@ if(!function_exists('ccsLoadCoverage')){
 }
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
-$car_id=$_GET['car_id'];
+// @period -- $car_id was read here and then never used anywhere in the file,
+// while being an unguarded $_GET: every load without it raised an "Undefined
+// array key" warning. Removed rather than guarded; nothing here filters on it.
+// Resolved against THIS file's directory. A bare relative require resolves
+// against the process working directory, which under some SAPI setups is not
+// the script's folder -- that fails, and a failed require is a fatal, which
+// is a bare 500 with nothing on the page.
+require_once(dirname(__FILE__)."/period_filter.php");
+$ph = phResolvePeriod($_GET);
 ?>
+<style type='text/css'>
+<?php phFilterCss(); ?>
+</style>
 <?php include("history_theme.php"); ?>
 <style type="text/css">
 /* ---------------------------------------------------------------------------
@@ -60,11 +71,17 @@ $car_id=$_GET['car_id'];
 
 <div class="ccs-header">
 	<h1>Incident History &mdash; Others</h1>
-	<div class="sub">Incidents categorized as "Others" &mdash; Line 3</div>
+	<div class="sub">Incidents categorized as "Others" &mdash; <?php echo htmlspecialchars($ph['label']); ?> &mdash; Line 3</div>
 </div>
 
 <div class="ccs-panel">
-<div class="ccs-panel-head"><h3>Incident History</h3></div>
+<div class="ccs-panel-head"><h3>Incident History</h3>
+  <div class="ccs-panel-actions">
+    <form method="get" action="other_history.php" class="ph-filters">
+    <?php phFilterFields($ph, $db, "other_history.php"); ?>
+    </form>
+  </div>
+</div>
 <div class="ccs-panel-body">
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id='add_form' name='add_form' >
 	<thead>
@@ -84,7 +101,7 @@ $car_id=$_GET['car_id'];
 	<tbody>
 <?php
 
-$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='others' order by incident_date desc";
+$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='others' ".$ph['clause']." order by incident_date desc";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
 
@@ -306,6 +323,7 @@ function getProblemType($db,$type){
 	return $problem;
 }
 ?>
+<?php phDatepickerJs(); ?>
 </body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
