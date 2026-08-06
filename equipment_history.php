@@ -6,7 +6,7 @@
 // below change anything about the page; all query/business logic is
 // untouched. Also dropped an unused $car_id read from $_GET['car_id']
 // that was never referenced anywhere in the file (this page keys off
-// $_GET['equipt'], not car_id -- leftover from wherever this was
+// $ehEquipt, not car_id -- leftover from wherever this was
 // originally copied from).
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
@@ -41,32 +41,84 @@ $coverageNote = ccsCoverageNote($coverage);
 	
 <?php
 
-$initialClause=" where equipt='".$_GET['equipt']."' ";
-$dateClause="";
-if(isset($_GET['m'])){
+/* @carryfilter -- Every request variable on this page was read straight out of
+   $_GET unguarded, which warns on PHP 8 for any that is absent, and tested with
+   isset(), which is TRUE for a blank "m=" or "level=" and then built
+   "level=''" or strtotime("2025--01"). Resolved once, guarded, and cast.
 
-	$dateClause.=" and incident_date like '".$_GET['y']."-".date("m",strtotime($_GET['y']."-".$_GET['m']."-01"))."%%' ";
-}
-else {
-	if(isset($_GET['y'])){
-	
+   Three of these are new, and are the reason the filter did not survive the
+   jump from equipt_stats.php:
+     car_id  -- equipt_stats can be narrowed to one car and was already
+                sending it; nothing here read it.
+     sd/ed   -- equipt_stats works on a date RANGE when it is opened from
+                statistics_report_modified, and a range has no y/m to send.
+     m       -- was read for the table but NOT for the charts (see
+                $chartDateClause below), so a month filter left the table
+                showing March and every graph showing the whole year. */
+/* @equipt -- This line read $_GET['equipt'] until a blanket rename of every
+   raw $_GET['equipt'] in the file rewrote its own right-hand side, leaving
+   "$ehEquipt = isset($ehEquipt) ? (int)$ehEquipt : 0;" -- self-referential, so
+   it evaluated to 0 on every request. Every query then asked for equipt='0'
+   and the page rendered empty regardless of which equipment or period was
+   chosen. Accepts either spelling: equipt= is what equipt_stats.php and
+   statistics_report_modified.php send, eq= is used by other links here. */
+$ehEquipt = 0;
+if(isset($_GET['equipt']) && $_GET['equipt'] !== '')   $ehEquipt = (int)$_GET['equipt'];
+else if(isset($_GET['eq']) && $_GET['eq'] !== '')      $ehEquipt = (int)$_GET['eq'];
 
-		$dateClause.=" and incident_date like '".$_GET['y']."-%%' ";
-
-
+/* @ambiguous -- A rejected query rendered as an empty table, indistinguishable
+   from "nothing matched". ?sqldebug=1 prints MySQL's own message instead. */
+$EH_DEBUG = isset($_GET['sqldebug']);
+function ehQuery($db,$sql){
+	global $EH_DEBUG;
+	$rs = $db->query($sql);
+	if(!$rs && $EH_DEBUG){
+		echo "<pre style='background:#FBE3E3;color:#7A1F1F;padding:8px;font-size:11px;white-space:pre-wrap'>"
+		   . htmlspecialchars($db->error) . "\n\n" . htmlspecialchars($sql) . "</pre>";
 	}
+	return $rs;
 }
-$levelClause="";
-if(isset($_GET['level'])){
+$ehCar    = isset($_GET['car_id']) && $_GET['car_id'] !== '' ? (int)$_GET['car_id'] : 0;
+$ehLevel  = isset($_GET['level'])  && $_GET['level']  !== '' ? (int)$_GET['level']  : 0;
+$ehYear   = isset($_GET['y'])      && $_GET['y']      !== '' ? (int)$_GET['y']      : 0;
+$ehMonth  = isset($_GET['m'])      && $_GET['m']      !== '' ? (int)$_GET['m']      : 0;
+if($ehMonth < 1 || $ehMonth > 12) $ehMonth = 0;
+if(!$ehYear) $ehMonth = 0;   /* a month without a year is not a period */
 
-	$levelClause=" and level='".$_GET['level']."' ";
+$ehSd = isset($_GET['sd']) && $_GET['sd'] !== '' ? strtotime($_GET['sd']) : false;
+$ehEd = isset($_GET['ed']) && $_GET['ed'] !== '' ? strtotime($_GET['ed']) : false;
+$ehRange = ($ehSd !== false && $ehEd !== false);
+if($ehRange && $ehEd < $ehSd){ $t=$ehSd; $ehSd=$ehEd; $ehEd=$t; }   // swap, don't clamp
+if($ehRange){ $ehYear = 0; $ehMonth = 0; }                          // one period at a time
 
+$dateClause = "";
+$ehPeriodLabel = "All time";
+if($ehRange){
+	$dateClause    = " and incident_date between '".date("Y-m-d",$ehSd)." 00:00:00' and '".date("Y-m-d",$ehEd)." 23:59:59' ";
+	$ehPeriodLabel = date("d M Y",$ehSd)." to ".date("d M Y",$ehEd);
 }
+else if($ehYear && $ehMonth){
+	$dateClause    = " and incident_date like '".sprintf("%04d-%02d",$ehYear,$ehMonth)."-%' ";
+	$ehPeriodLabel = date("F Y", strtotime(sprintf("%04d-%02d-01",$ehYear,$ehMonth)));
+}
+else if($ehYear){
+	$dateClause    = " and incident_date like '".$ehYear."-%' ";
+	$ehPeriodLabel = "Year ".$ehYear;
+}
+
+$levelClause = $ehLevel ? " and level='".$ehLevel."' " : "";
+
+/* Only the queries that join incident_cars can honour a car filter; the two
+   that read incident_union alone have no car column. Kept as a separate
+   variable so it is obvious which queries it is safe to append to. */
+$carClause = $ehCar ? " and incident_cars.car_no*1 = ".$ehCar." " : "";
+
+$initialClause = " where equipt='".$ehEquipt."' ";
 
 ?>
 <?php
 
-$identify_equipment="select * from equipment where id='".$_GET['equipt']."' limit 1";
+$identify_equipment="select * from equipment where id='".$ehEquipt."' limit 1";
 $identify_rs=$db->query($identify_equipment);
 
 $identify_row=$identify_rs->fetch_assoc();
@@ -90,7 +142,7 @@ if($cq && ($cr = $cq->fetch_assoc())) $ehIncidents = (int)$cr['c'];
 $cq = $db->query("select count(*) as c
                   from incident_cars
                   inner join incident_union on incident_cars.incident_id = incident_union.id
-                  where incident_union.equipt = '".$_GET['equipt']."' ".$dateClause." ".$levelClause);
+                  where incident_union.equipt = '".$ehEquipt."' ".$dateClause." ".$levelClause." ".$carClause);
 if($cq && ($cr = $cq->fetch_assoc())) $ehPairs = (int)$cr['c'];
 
 $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelClause." order by incident_date desc";
@@ -104,7 +156,16 @@ $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelCl
 
 <div class="ccs-header">
 <h1 style='font-size:28px; font-weight:bold;'><?php echo $equipment_name; ?> - Equipment History</h1>
-	<div class="sub">Combined current &amp; legacy incident records &mdash; Line 3</div>
+	<div class="sub">Combined current &amp; legacy incident records
+	<?php
+	/* @carryfilter -- inherited filters stated in the heading. Arriving from
+	   equipt_stats at a page showing a fraction of the equipment's history,
+	   with nothing saying why, reads as missing data. */
+	if($ehPeriodLabel !== 'All time'){ echo " &mdash; ".htmlspecialchars($ehPeriodLabel); }
+	if($ehCar){   echo " &mdash; Car ".$ehCar." only"; }
+	if($ehLevel){ echo " &mdash; Level ".$ehLevel; }
+	?>
+	&mdash; Line 3</div>
 	<div class="sub" style="margin-top:4px;">
 		<b><?php echo $ehIncidents; ?></b> incident<?php echo $ehIncidents==1?'':'s'; ?> listed
 		&nbsp;&middot;&nbsp;
@@ -160,7 +221,7 @@ for($i=0;$i<$nm;$i++){
 	</tr>
 <?php
 }
-$initialClause=" where external.incident_defects.equipt_id='".$_GET['equipt']."'";
+$initialClause=" where external.incident_defects.equipt_id='".$ehEquipt."'";
 
 $sql="select * from incident_union inner join external.incident_defects on incident_union.id=external.incident_defects.incident_id ".$initialClause." ".$dateClause." ".$levelClause." order by incident_date desc";
 
@@ -205,8 +266,10 @@ for($i=0;$i<$nm;$i++){
 // records. This is why chart totals won't match the table's row count
 // — the print header says so explicitly.
 // ============================================================
-$chartYear = isset($_GET['y']) ? $_GET['y'] : '';
-$chartDateClause = ($chartYear !== '') ? " and incident_date like '".$chartYear."-%%' " : "";
+/* @carryfilter -- The charts had their own, weaker window: year only. A month
+   or a date range narrowed the table and left every graph on the whole year,
+   so the page showed two different answers at once. They share one clause now. */
+$chartDateClause = $dateClause;
 
 // ---- Severity mix over time: [YYYY-MM][level] => count, across BOTH
 // sources (internal incidents + external defects), year-scoped. ----
@@ -228,20 +291,54 @@ function ehGroupSeverity(&$monthlyByLevel,&$levelSet,$rs){
 //." ".$levelClause
 
 
+/* @charts -- Filled after both sources are grouped; see below. */
 $sevInternalSql = "select date_format(incident_date,'%Y-%m') as mo, level as lvl, count(*) as cnt
                    from incident_union
-                   where equipt='".$_GET['equipt']."' ".$chartDateClause."
+                   where equipt='".$ehEquipt."' ".$chartDateClause."
                    group by mo, lvl";
 ehGroupSeverity($monthlyByLevel,$levelSet,$db->query($sevInternalSql));
 
 $sevExternalSql = "select date_format(incident_date,'%Y-%m') as mo, level as lvl, count(*) as cnt
                    from incident_union
                    inner join external.incident_defects on incident_union.id=external.incident_defects.incident_id
-                   where external.incident_defects.equipt_id='".$_GET['equipt']."' ".$chartDateClause."
+                   where external.incident_defects.equipt_id='".$ehEquipt."' ".$chartDateClause."
                    group by mo, lvl";
 ehGroupSeverity($monthlyByLevel,$levelSet,$db->query($sevExternalSql));
 
 ksort($levelSet);
+/* @charts -- A month with no incidents had no key, so the axis closed the gap
+   and drew February next to June as though they were consecutive. Unlike the
+   tables elsewhere, an axis has no row labels to make the jump visible, which
+   is why filling belongs here. A filled month is an empty level map, so every
+   stacked bar sums to zero and simply has no height.
+
+   The span follows the filter, not just the data: a year filter fills all
+   twelve months even if only three had incidents. */
+if(count($monthlyByLevel) || $ehYear || $ehRange){
+	$mk = array_keys($monthlyByLevel); sort($mk);
+	if($ehRange){        $ffrom = date("Y-m",$ehSd);              $fto = date("Y-m",$ehEd); }
+	else if($ehYear && $ehMonth){ $ffrom = $fto = sprintf("%04d-%02d",$ehYear,$ehMonth); }
+	else if($ehYear){    $ffrom = sprintf("%04d-01",$ehYear);     $fto = sprintf("%04d-12",$ehYear); }
+	else if(count($mk)){ $ffrom = $mk[0];                          $fto = $mk[count($mk)-1]; }
+	else {               $ffrom = $fto = ''; }
+
+	if($ffrom !== ''){
+		$cur = new DateTime($ffrom."-01");
+		$end = new DateTime($fto."-01");
+		$seq = array();
+		while($cur <= $end){
+			$k = $cur->format("Y-m");
+			$seq[$k] = isset($monthlyByLevel[$k]) ? $monthlyByLevel[$k] : array();
+			$cur->modify("+1 month");
+		}
+		// Anything outside the filtered span that still holds rows is kept:
+		// losing data to a display rule would be the worse bug.
+		foreach($monthlyByLevel as $k=>$v){ if(!isset($seq[$k])) $seq[$k]=$v; }
+		ksort($seq);
+		$monthlyByLevel = $seq;
+	}
+}
+
 $ehLevels = array_keys($levelSet);
 
 // ---- Incidents by car: [car_no] => count, year-scoped. Needs the
@@ -252,7 +349,7 @@ $carRows = array();
 $carSql = "select incident_cars.car_no as car_no, count(*) as cnt
            from incident_cars
            inner join incident_union on incident_cars.incident_id = incident_union.id
-           where incident_union.equipt = '".$_GET['equipt']."' ".$chartDateClause."
+           where incident_union.equipt = '".$ehEquipt."' ".$chartDateClause." ".$carClause."
            group by incident_cars.car_no
            order by cnt desc";
 $carRs = $db->query($carSql);
@@ -400,6 +497,19 @@ $(function(){
 	})();
 
 	// ============ Chart: severity mix over time (stacked) ============
+	/* @charts -- The keys are "YYYY-MM" because that string sorts correctly;
+	   they were never meant to reach the axis, but they were being used as the
+	   labels verbatim. Two lines rather than "Mar 2025" on one, so twelve fit
+	   a 440px canvas without rotating. */
+	var EH_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+	function ehMonthLabel(k){
+		var t = String(k);
+		if(!/^\d{4}-\d{2}$/.test(t)) return t;
+		var mi = parseInt(t.slice(5,7), 10) - 1;
+		if(!(mi >= 0 && mi < 12)) return t;
+		return [EH_MON[mi], t.slice(0,4)];
+	}
+
 	(function drawTrend(){
 		var months = Object.keys(ehMonthlyLevel).sort();
 		var datasets = ehLevels.map(function(lv, idx){
@@ -412,7 +522,7 @@ $(function(){
 
 		new Chart(document.getElementById('ehTrend'), {
 			type: 'bar',
-			data: { labels: months, datasets: datasets },
+			data: { labels: months.map(ehMonthLabel), datasets: datasets },
 			options: {
 				responsive: false, animation: false,
 				plugins: {
@@ -529,7 +639,14 @@ $(function(){
 				'.tbl-head{ margin-bottom:6px; }' +
 				'.tbl-head h3{ font-size:13px; font-weight:600; margin:0; display:inline-block; }' +
 				'.tbl-head .count{ font-size:9.5px; color:#6b7280; margin-left:8px; }' +
-				'table{ width:100%; border-collapse:collapse; font-size:9.5px; }' +
+				/* @print -- The crop. With auto layout the widest cell decides the
+				   column, and Description holds free text with no guaranteed
+				   break points: one long entry pushed the table past the page
+				   box and everything right of it was clipped, because print has
+				   no horizontal scroll to fall back on. */
+				'table{ width:100%; max-width:100%; table-layout:fixed;' +
+					' border-collapse:collapse; font-size:9.5px; }' +
+				'th, td{ overflow-wrap:anywhere; word-break:break-word; }' +
 				'thead{ display:table-header-group; }' +   // repeat header on every page
 				'th{ background:#1f4e79; color:#fff; text-align:left; padding:6px 7px;' +
 					' font-size:9px; font-weight:600; text-transform:uppercase;' +
@@ -564,7 +681,12 @@ $(function(){
 				'<div class="chart"><img src="' + imgTrend + '">' +
 					'<div class="cap">Figure 2 &mdash; Severity mix over time</div></div>' +
 				'<p class="note">This log lists one row per incident. The summary and per-car reports count incident-car failures &mdash; an incident affecting several cars counts once against each &mdash; which is why their totals are larger. Both figures for this view are given above.</p>' +
-				'<p class="note">Charts cover all of <?php echo ($chartYear !== "") ? htmlspecialchars($chartYear) : "available records"; ?>, a wider window than the filtered table below, so the by-car and severity views carry enough data to read.</p>' +
+				/* @carryfilter -- This read $chartYear, which no longer exists: an
+				   undefined variable raises a PHP warning, and with display_errors
+				   on that warning HTML lands INSIDE this JS string and breaks the
+				   whole block. The claim was also out of date -- the charts used
+				   to run on a wider window than the table, and now share one. */
+				'<p class="note">Charts and table cover the same window: <?php echo htmlspecialchars($ehPeriodLabel); ?><?php echo $ehCar ? ", car ".$ehCar." only" : ""; ?><?php echo $ehLevel ? ", level ".$ehLevel : ""; ?>.</p>' +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +

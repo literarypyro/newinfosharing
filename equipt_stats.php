@@ -125,9 +125,18 @@ if($equipt){
 // statistics_report_modified.php already uses for its own equipment_history
 // links (equipt / y / m) -- change it if yours differ.
 
+// @carryfilter -- This sent y/m only, so a panel opened on a DATE RANGE from
+// statistics_report_modified handed equipment_history nothing at all and the
+// history widened back to all time. Ranges travel as sd/ed now, which
+// equipment_history reads.
 $carHistoryUrl = "equipment_history.php?equipt=".$equipt
-               . ($carFilter ? "&car_id=".$carFilter : "")
-               . ($hasYear ? "&y=".$year.($month ? "&m=".$month : "") : "");
+               . ($carFilter ? "&car_id=".$carFilter : "");
+if($hasRange){
+	$carHistoryUrl .= "&sd=".urlencode(date("Y-m-d",$sd))."&ed=".urlencode(date("Y-m-d",$ed));
+}
+else if($hasYear){
+	$carHistoryUrl .= "&y=".$year.($month ? "&m=".$month : "");
+}
 
 
 // Inside the slide panel this page is an iframe, so a plain link would load

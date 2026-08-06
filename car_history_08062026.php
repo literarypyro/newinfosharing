@@ -41,12 +41,6 @@ $car_id=$_GET['car_id'];
 // false, date("m", false) reads that as timestamp 0 and yields "01" — so the
 // main table was filtered to the whole year while the transport_old rows were
 // silently filtered to January of it. Both clauses now say the same thing.
-// @carryfilter -- car_stats.php can be narrowed to one equipment type, and its
-// "Full incident history" button now passes that through as eq. Without a
-// matching filter here the jump silently widened back to every equipment on
-// the car, so the two pages disagreed about what was being looked at.
-$ccsEquipt = isset($_GET['eq']) && $_GET['eq'] !== '' ? (int)$_GET['eq'] : 0;
-
 $ccsYear  = isset($_GET['y']) && $_GET['y'] !== '' ? (int)$_GET['y'] : 0;
 $ccsMonth = isset($_GET['m']) && $_GET['m'] !== '' ? (int)$_GET['m'] : 0;
 if($ccsMonth < 1 || $ccsMonth > 12){ $ccsMonth = 0; }
@@ -78,22 +72,7 @@ else if($ccsYear){
 
 <div class="ccs-header">
 	<h1>Car #<?php echo htmlspecialchars($car_id); ?> &mdash; Incident History</h1>
-	<div class="sub">Combined current &amp; legacy incident records
-		<?php
-		/* @carryfilter -- an inherited filter has to be visible, or a page
-		   showing a fraction of the car's history looks like missing data.
-		   The equipment name is resolved from $causeMap, which is loaded
-		   further down, so this reads it after the fact via a small query
-		   rather than moving the map's load point. */
-		if($ccsYear){ echo " &mdash; ".($ccsMonth ? date("F Y", strtotime(sprintf("%04d-%02d-01",$ccsYear,$ccsMonth))) : "Year ".$ccsYear); }
-		if($ccsEquipt){
-			$enm = '';
-			$eqRs = $db->query("select equipment_name from equipment where id='".$ccsEquipt."'");
-			if($eqRs && ($eqRow=$eqRs->fetch_assoc())){ $enm = (string)$eqRow['equipment_name']; }
-			echo " &mdash; ".htmlspecialchars($enm !== '' ? $enm : 'Equipment #'.$ccsEquipt)." only";
-		}
-		?>
-		&mdash; Line 3</div>
+	<div class="sub">Combined current &amp; legacy incident records &mdash; Line 3</div>
 </div>
 
 <div class="ccs-panel">
@@ -126,10 +105,7 @@ else if($ccsYear){
 // is present in is_transport.incident_union, with nothing held only in the old
 // database. If a pre-2019 incident is ever found missing, restore it into
 // is_transport rather than re-adding a query half here.
-// @carryfilter -- equipment clause alongside the date clause, so the table AND
-// every chart below (they all read this one result set) narrow together.
-$equiptClause = $ccsEquipt ? " and incident_union.equipt = ".$ccsEquipt." " : "";
-$sql="select * from incident_cars inner join incident_union on incident_cars.incident_id=incident_union.id where incident_cars.car_no*1='".$car_id."' ".$dateClause." ".$equiptClause." order by incident_date desc";
+$sql="select * from incident_cars inner join incident_union on incident_cars.incident_id=incident_union.id where incident_cars.car_no*1='".$car_id."' ".$dateClause." order by incident_date desc";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
 

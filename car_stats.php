@@ -81,13 +81,19 @@ if(!isset($_GET['year'])){
 // already uses for its own car_history links (car_id / y / m), so it is a
 // working guess rather than a blank -- change it if yours differ.
 
-if(isset($year)){ 
+// @carryfilter -- This is why the filter did not survive the jump. $year is
+// assigned unconditionally above, so isset($year) was ALWAYS true and the
+// first branch always won: the bare URL, with no y/m on it. The branches were
+// inverted too -- the bare URL belongs to the All Time case, the filtered one
+// should carry the period. Gate on the REQUEST, as everywhere else.
+//
+// eq is new: car_stats can be narrowed to one equipment type, and that was
+// being dropped silently. car_history reads it now.
 $carHistoryUrl = "car_history.php?car_id=".$car;
-
+if(isset($_GET['year']) && $_GET['year'] !== ''){
+	$carHistoryUrl .= "&y=".$year.($month ? "&m=".$month : "");
 }
-else {
-$carHistoryUrl = "car_history.php?car_id=".$car."&y=".$year.($month ? "&m=".$month : "");
-}
+if($equipt){ $carHistoryUrl .= "&eq=".$equipt; }
 
 
 // Inside the slide panel this page is an iframe, so a plain link would load
