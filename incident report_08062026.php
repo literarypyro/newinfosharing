@@ -568,14 +568,7 @@ body { background: #EAEEF3; font-family: var(--ir-sans); color: var(--ir-dark); 
 .ir-link-chip{display:inline-flex;align-items:center;gap:5px;background:var(--ir-row-odd);border:1px solid var(--ir-border);border-radius:12px;padding:2px 6px 2px 9px;font-size:11px;font-weight:500;color:var(--ir-blue);}
 .ir-link-chip button{background:none;border:none;cursor:pointer;color:var(--ir-muted);padding:0;line-height:1;font-size:14px;display:flex;align-items:center;}
 .ir-link-chip button:hover{color:#E24B4A;}
-/* @unlink -- the x was a bare glyph in muted grey and read as decoration.
-   Same control, given a hit area and a colour change on hover. */
-.ir-link-chip button{border-radius:50%;width:15px;height:15px;justify-content:center;}
-.ir-link-chip button:hover{background:#FBE3E3;}
 .ir-link-empty{font-size:11px;color:var(--ir-muted);padding:4px 2px;}
-/* @unlink */
-.ir-link-clear{display:none;font-size:11px;color:var(--ir-muted);text-decoration:none;margin-top:5px;cursor:pointer;}
-.ir-link-clear:hover{color:#E24B4A;text-decoration:underline;}
 .ir-link-label{font-size:11px;font-weight:600;color:var(--ir-mid);margin-bottom:5px;margin-top:8px;}
 .ir-link-search-row{display:flex;gap:7px;margin-bottom:8px;}
 .ir-link-search-row input{flex:1;}
@@ -919,21 +912,6 @@ function irAddChip(id,label){
 	chip.innerHTML=label+"<button type=\"button\" onclick=\"irRemoveChip('"+id+"')\" title=\"Remove\">&times;</button>";
 	chips.appendChild(chip);
 	irSyncHidden();
-	irUpdateClearAll();
-}
-
-/* Only offer "Clear all" when there is more than one to clear -- with a single
-   chip its own x is right there and a second control is just noise. */
-function irUpdateClearAll(){
-	var btn=document.getElementById('ir-clear-links');
-	if(!btn) return;
-	btn.style.display = (Object.keys(irLinked).length > 1) ? 'inline' : 'none';
-}
-
-/* @unlink -- Drops every link at once. The per-chip x is still the usual way;
-   this is for starting over without clicking through eight of them. */
-function irClearChips(){
-	Object.keys(irLinked).forEach(function(id){ irRemoveChip(id); });
 }
 
 function irRemoveChip(id){
@@ -944,7 +922,6 @@ function irRemoveChip(id){
 	if(!chips.querySelector('.ir-link-chip'))
 		chips.innerHTML='<span class="ir-link-empty">No incidents linked yet</span>';
 	irSyncHidden();
-	irUpdateClearAll();
 }
 
 function irSyncHidden(){
@@ -1333,18 +1310,6 @@ var cTabFilter='today'; /* default scope — server only returns today's inciden
 
 function cOpenModal(dd=null){
 	document.getElementById('c-modal').classList.add('open');
-
-	/* @unlink -- Seed the tick state from what is ALREADY linked. Without this
-	   cSelected started empty every time, so a previously linked incident came
-	   back unticked: there was no way to tell from the modal that it was
-	   linked, and no way to un-link it here -- unticking an unticked box does
-	   nothing, and re-ticking it hit irAddChip's duplicate guard and silently
-	   did nothing either. Now the modal shows the true state and a tick can be
-	   taken away as well as added. */
-	cSelected={};
-	Object.keys(irLinked).forEach(function(id){ cSelected[id]=irLinked[id]; });
-	cUpdateCount();
-
 	/* Reset to the safe default each time the modal opens, regardless of
 	   what scope was active last time it was closed. */
 	cTabFilter='today';
@@ -1412,15 +1377,6 @@ function cUpdateCount(){
 }
 
 function cConfirm(){
-	/* @unlink -- Reconciles in both directions now: anything ticked is linked,
-	   anything that WAS linked and is no longer ticked is removed. It only ever
-	   added before, which is why a link could not be taken back from here.
-	   Safe against the tab filters: cSelected holds every current link from the
-	   moment the modal opened, not just the rows on screen, so confirming while
-	   a narrow tab is active cannot drop links you never saw. */
-	Object.keys(irLinked).forEach(function(id){
-		if(!cSelected[id]) irRemoveChip(id);
-	});
 	Object.keys(cSelected).forEach(function(id){ irAddChip(id,cSelected[id]); });
 	cCloseModal();
 	cSelected={};
@@ -1554,9 +1510,6 @@ document.addEventListener('keydown',function(e){
 			<div class="ir-link-chips" id="ir-chips">
 				<span class="ir-link-empty">No incidents linked yet</span>
 			</div>
-			<?php /* @unlink -- hidden until there is more than one link; see irUpdateClearAll() */ ?>
-			<a href="#" id="ir-clear-links" class="ir-link-clear" style="display:none"
-			   onclick="irClearChips(); return false;">Remove all links</a>
 
 			<!-- Hidden fields -->
 			<div id="ir-links-container"></div>
