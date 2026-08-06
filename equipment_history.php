@@ -629,9 +629,21 @@ $(function(){
 					' margin:20px 0 10px; font-weight:600; }' +
 
 				// --- charts -----------------------------------------------
-				'.charts{ page-break-inside:avoid; }' +
-				'.chart{ display:inline-block; vertical-align:top; margin:0 14px 12px 0; }' +
-				'.chart img{ display:block; border:1px solid #e5e7eb; }' +
+				/* @printcharts -- Two faults, one cause.
+				   The images had no width rule, so each printed at its natural 440px
+				   and the two inline-blocks could not sit side by side: they wrapped
+				   to two rows and the pair grew taller than the space left on the
+				   page. page-break-inside:avoid was on the CONTAINER, so the whole
+				   block was then pushed to a fresh page -- that is the blank gap --
+				   and once there it was taller than one page, so the second chart
+				   was clipped with no page to overflow into.
+				   Fixed by sizing them to the page and moving the break rule down to
+				   the individual chart, which is small enough to always honour it. */
+				'.charts{ font-size:0; }' +
+				'.chart{ display:inline-block; vertical-align:top; width:48%; margin:0 2% 12px 0;' +
+					' page-break-inside:avoid; break-inside:avoid; font-size:9px; }' +
+				'.chart img{ display:block; width:100%; height:auto; max-height:70mm;' +
+					' object-fit:contain; border:1px solid #e5e7eb; }' +
 				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
 

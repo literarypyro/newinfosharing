@@ -901,7 +901,6 @@ $(function(){
 				'<div class="chart"><img src="' + imgVolume + '">' + '<div class="cap">Figure 1 &mdash; Monthly volume</div></div>' +
 				'<div class="chart"><img src="' + imgTiming + '">' + '<div class="cap">Figure 2 &mdash; When incidents occur</div></div>' +
 				'<div class="chart"><img src="' + imgTerms + '">' + '<div class="cap">Figure 3 &mdash; Recurring words in descriptions</div></div>' +
-				(pvCoverageNote ? '<p class="note" style="color:#7A1F1F;">'+pvCoverageNote+'</p>' : '') +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
