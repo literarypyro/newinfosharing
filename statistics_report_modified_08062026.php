@@ -302,19 +302,6 @@ if(isset($_POST['level'])){
 	$level = ($_POST['level'] !== '') ? $_POST['level'] : '';
 $levelClause = ($level !== '') ? "level='".$level."' and " : "";
 
-// @carfilter -- Mirrors the equipment filter on car_statistics_report.php, one
-// axis over: that page reports one car and can narrow to one equipment, this
-// one reports all equipment and can narrow to one car.
-//
-// Resolved once here for the same reason $level is: the <select> carries a
-// blank first <option>, so "no car" posts car_no="" and an isset() test would
-// read that as a request for car 0.
-//
-// car_no*1 rather than the raw column, so '05' and '5' fold together — the same
-// coercion the per-car reports use to bucket them.
-$carFilter = (isset($_POST['stat_car']) && $_POST['stat_car'] !== '') ? (int)$_POST['stat_car'] : 0;
-$carClause = $carFilter ? " and incident_cars.car_no*1 = ".$carFilter." " : "";
-
 }
 else {
 //	$level = "2";
@@ -330,9 +317,7 @@ $levelClause="";
 if($level!=""){
 echo " / ";echo " Level ".$level;
 }
-/* @carfilter -- an active filter has to be visible in the heading, or a report
-   showing a fraction of the fleet's failures looks like missing data. */
-if($carFilter){ echo " / Car ".$carFilter; }
+
 ?>
 
 </div>
@@ -360,25 +345,6 @@ if($carFilter){ echo " / Car ".$carFilter; }
 <option <?php if($level==3){ echo "selected"; } ?> value='3'>3</option>
 <option <?php if($level==4){ echo "selected"; } ?> value='4'>4</option>
 
-</select>
-</td>
-
-<?php /* @carfilter -- populated from the cars that actually appear in
-        incident_cars rather than a hard-coded 1..73, so a car added later shows
-        up and a retired one does not linger. car_no*1 folds '05' and '5'. */ ?>
-<th>Car</th>
-<td>
-<select name='stat_car' id='carSelect'>
-<option value=''>All cars</option>
-<?php
-$carRS=$db->query("select distinct car_no*1 as cn from incident_cars where car_no*1 > 0 order by cn");
-if($carRS){
-	while($carRow=$carRS->fetch_assoc()){
-		$cn=(int)$carRow['cn'];
-		echo "<option value='".$cn."'".($carFilter==$cn ? " selected" : "").">".$cn."</option>";
-	}
-}
-?>
 </select>
 </td>
 
@@ -704,7 +670,6 @@ foreach($buckets as $b){
 	       inner join incident_cars on incident_report.id=incident_cars.incident_id
 		   where ".$levelClause." incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
 	         and incident_report.equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
-	         ".$carClause."
 	       group by incident_report.equipt";
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
@@ -725,7 +690,6 @@ foreach($buckets as $b){
 	       inner join incident_cars on incident_report.id=incident_cars.incident_id
 	       where ".$levelClause." incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
 	         and is_external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
-	         ".$carClause."
 	       group by is_external.incident_defects.equipt_id";
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
@@ -784,10 +748,6 @@ $flagThreshold = $peakTotal * 0.60;
 // exactly the period the table above it shows.
 $panelFrom = $start_date;
 $panelTo   = $end_date;
-// @carfilter -- handed to equipt_stats.php so the panel shows the same slice
-// the table does. Opening a panel that silently widens back to the whole fleet
-// would make the two disagree on the same screen.
-$panelCar  = $carFilter;
 
 // ---- Highest month (or day) ----------------------------------------------
 // @buckets -- replaces "Avg per affected type", matching the tile on
@@ -849,8 +809,7 @@ $distinctIncidents = 0;
 $dq = $db->query("select count(distinct incident_report.id) as c
                   from incident_report
                   inner join incident_cars on incident_report.id=incident_cars.incident_id
-                  where ".$levelClause." incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'
-                  ".$carClause);
+                  where ".$levelClause." incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'");
 if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 
 // ---- Rows -----------------------------------------------------------------
@@ -878,7 +837,7 @@ foreach($equipt as $i => $e){
 		         Opens equipt_stats.php in the slide panel now, the same way
 		         car_statistics_report.php opens car_stats.php. equipment_cars_stats.php
 		         is untouched and still reachable by URL. */ ?>
-		<a href="#" class="eq-link" onclick="openEquiptPanel(<?php echo htmlspecialchars(json_encode($panelFrom), ENT_QUOTES); ?>,<?php echo htmlspecialchars(json_encode($panelTo), ENT_QUOTES); ?>,'<?php echo (int)$e['id']; ?>',<?php echo htmlspecialchars(json_encode($e['equipment']), ENT_QUOTES); ?>,'<?php echo (int)$panelCar; ?>'); return false;"><?php echo htmlspecialchars($e['equipment']); ?></a>
+		<a href="#" class="eq-link" onclick="openEquiptPanel(<?php echo htmlspecialchars(json_encode($panelFrom), ENT_QUOTES); ?>,<?php echo htmlspecialchars(json_encode($panelTo), ENT_QUOTES); ?>,'<?php echo (int)$e['id']; ?>',<?php echo htmlspecialchars(json_encode($e['equipment']), ENT_QUOTES); ?>); return false;"><?php echo htmlspecialchars($e['equipment']); ?></a>
 		<?php if($flagged){ echo " <span title='At or above 60% of the highest equipment total' style='font-size:11px;'>&#9679;</span>"; } ?>
 	</th>
 <?php
@@ -942,7 +901,7 @@ $tableHtml = ob_get_clean();
 		<div style="font-size:11px;color:#5A6275;">of <?php echo count($equipt); ?> tracked</div>
 	</div>
 <?php $peakClickable = ($peakId > 0); /* @equiptpanel -- no peak, no action */ ?>
-	<div class="<?php echo $peakClickable ? 'kpi-tile--link' : ''; ?>" style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the car breakdown for <?php echo htmlspecialchars($peakName); ?>" onclick="openEquiptPanel(<?php echo htmlspecialchars(json_encode($panelFrom), ENT_QUOTES); ?>,<?php echo htmlspecialchars(json_encode($panelTo), ENT_QUOTES); ?>,'<?php echo (int)$peakId; ?>',<?php echo htmlspecialchars(json_encode($peakName), ENT_QUOTES); ?>,'<?php echo (int)$panelCar; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
+	<div class="<?php echo $peakClickable ? 'kpi-tile--link' : ''; ?>" style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the car breakdown for <?php echo htmlspecialchars($peakName); ?>" onclick="openEquiptPanel(<?php echo htmlspecialchars(json_encode($panelFrom), ENT_QUOTES); ?>,<?php echo htmlspecialchars(json_encode($panelTo), ENT_QUOTES); ?>,'<?php echo (int)$peakId; ?>',<?php echo htmlspecialchars(json_encode($peakName), ENT_QUOTES); ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Equipment with the highest number of faults</div>
 		<div style="font-size:15px;font-weight:600;color:#7A1F1F;line-height:1.3;margin-top:3px;"><?php echo $peakName!=='' ? htmlspecialchars($peakName) : '&mdash;'; ?></div>
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
@@ -1166,7 +1125,7 @@ function irFrameLoaded(){
 	document.getElementById('irFrame').classList.add('ready');
 }
 
-function openEquiptPanel(sd, ed, equipt, title, car){
+function openEquiptPanel(sd, ed, equipt, title){
 	/* @range -- Sends the From-To range as sd/ed, which equipt_stats.php takes
 	   in preference to year/month. It picks its own grain from the span: inside
 	   one calendar month it breaks down by day, otherwise by month, and month
@@ -1179,7 +1138,6 @@ function openEquiptPanel(sd, ed, equipt, title, car){
 	var q = "equipt=" + encodeURIComponent(equipt)
 	      + "&title="  + encodeURIComponent(title);
 	if(sd && ed){ q += "&sd=" + encodeURIComponent(sd) + "&ed=" + encodeURIComponent(ed); }
-	if(car){ q += "&car=" + encodeURIComponent(car); }   /* @carfilter */
 
 	document.getElementById('ir-panel-title').textContent=title;
 	document.getElementById('irFallbackLink').href="equipt_stats.php?"+q; /* no embed=1: full standalone page */

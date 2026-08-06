@@ -13,81 +13,8 @@
 require_once("data_coverage.php");
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
-// @period -- Existing request variables on this page were 'problem' (sticky,
-// via session) and 'car_id'. car_id was read into $car_id and then never used
-// anywhere in the file, while being an unguarded $_GET — so every load without
-// it raised an "Undefined array key" warning. Removed rather than guarded:
-// there is nothing here for it to filter.
+$car_id=$_GET['car_id'];
 
-/* ---- Period filter ------------------------------------------------------
-   Four ways to narrow, in precedence order:
-
-     sd + ed   -> exact date range
-     y + m     -> one month of one year
-     y         -> one whole year
-     m         -> that month across EVERY year (all Marches, say — the one
-                  that answers "is this seasonal?")
-     none      -> all time
-
-   Kept in the URL rather than the session, unlike 'problem'. A period is the
-   kind of thing you want to link someone to, and a sticky one that survives
-   into an unrelated later visit is a good way to misread a report.          */
-/* @mode -- The four modes used to be inferred from which parameters happened
-   to be present, with sd/ed quietly winning over y/m. That is fine for a link
-   but confusing as a form: both sets of controls sat there, and filling one
-   silently disabled the other with nothing on screen saying so. The mode is now
-   chosen explicitly and only its own controls are shown.
-   Links without &mode= still work: the mode is inferred from what arrived. */
-$phMode = isset($_GET['mode']) ? $_GET['mode'] : '';
-if($phMode !== 'period' && $phMode !== 'range'){
-	$phMode = (isset($_GET['sd']) && $_GET['sd'] !== '') ? 'range' : 'period';
-}
-
-$phYear  = isset($_GET['y'])  && $_GET['y']  !== '' ? (int)$_GET['y']  : 0;
-$phMonth = isset($_GET['m'])  && $_GET['m']  !== '' ? (int)$_GET['m']  : 0;
-if($phMonth < 1 || $phMonth > 12) $phMonth = 0;
-
-$phSd = isset($_GET['sd']) && $_GET['sd'] !== '' ? strtotime($_GET['sd']) : false;
-$phEd = isset($_GET['ed']) && $_GET['ed'] !== '' ? strtotime($_GET['ed']) : false;
-$phRange = ($phMode === 'range' && $phSd !== false && $phEd !== false);
-if($phMode === 'range'){ $phYear = 0; $phMonth = 0; }   /* one mode at a time */
-if($phRange && $phEd < $phSd){ $t=$phSd; $phSd=$phEd; $phEd=$t; }   // swap, don't clamp
-
-$phClause    = "";
-$phLabel     = "All time";
-$phMonthOnly = false;
-
-if($phRange){
-	$phClause = " and incident_date between '".date("Y-m-d",$phSd)." 00:00:00' and '".date("Y-m-d",$phEd)." 23:59:59' ";
-	$phLabel  = date("d M Y",$phSd)." to ".date("d M Y",$phEd);
-}
-else if($phYear && $phMonth){
-	$phClause = " and incident_date like '".sprintf("%04d-%02d",$phYear,$phMonth)."-%' ";
-	$phLabel  = date("F Y", strtotime(sprintf("%04d-%02d-01",$phYear,$phMonth)));
-}
-else if($phYear){
-	$phClause = " and incident_date like '".$phYear."-%' ";
-	$phLabel  = "Year ".$phYear;
-}
-else if($phMonth){
-	// Every year's copy of one month. month() rather than LIKE because the
-	// year varies — this is the only one of the four that is not a contiguous
-	// window, which matters for the chart below.
-	$phClause    = " and month(incident_date) = ".$phMonth." ";
-	$phLabel     = date("F", strtotime(sprintf("2000-%02d-01",$phMonth)))." (all years)";
-	$phMonthOnly = true;
-}
-
-/* Carried on the problem dropdown's links so changing category keeps the
-   period, instead of silently resetting it to all time. */
-$phQS = "&mode=".$phMode;
-if($phRange){
-	$phQS .= "&sd=".urlencode(date("Y-m-d",$phSd))."&ed=".urlencode(date("Y-m-d",$phEd));
-}
-else {
-	if($phYear)  $phQS .= "&y=".$phYear;
-	if($phMonth) $phQS .= "&m=".$phMonth;
-}
 
 if(isset($_GET['problem'])){
 	$_SESSION['problem_chart']=$_GET['problem'];
@@ -106,106 +33,13 @@ if($problem===''){
 
 $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 ?>
-<style>
-/* @period -- filter row; the theme styles selects already, this just lines
-   them up and keeps the Clear link from looking like a table cell. */
-/* @filterui -- The controls were a flat row of mismatched heights with no
-   labels, so nothing said which select was which. Grouped into labelled
-   fields on a common baseline instead. */
-.ph-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;}
-.ph-field{display:flex;flex-direction:column;gap:3px;}
-.ph-field > label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#5A6275;font-weight:600;}
-.ph-inline{display:flex;align-items:center;gap:6px;}
-.ph-sep{font-size:11px;color:#5A6275;}
-
-/* One height for every control in the row. Selects and inputs pick up
-   different default paddings otherwise, which is what made the row look
-   ragged. */
-.ph-filters select,
-.ph-filters input[type=text]{
-	height:30px;box-sizing:border-box;
-	padding:4px 8px;border:1px solid #D8D2C2;border-radius:4px;
-	font-size:12px;font-family:inherit;
-	background:#FFFFFF;color:#1A2238;
-}
-
-/* @filterui -- readonly is what turned these grey: browsers give readonly
-   inputs their disabled styling, and against the theme's light text that left
-   the value barely legible. The field is still not typeable -- the picker owns
-   it -- but it should not look switched off. */
-.ph-filters input[readonly]{
-	background:#FFFFFF;color:#1A2238;cursor:pointer;
-	opacity:1;-webkit-text-fill-color:#1A2238;
-}
-.ph-filters input[readonly]:hover{border-color:#00529B;}
-.ph-filters input[readonly]:focus{outline:2px solid #00529B;outline-offset:-1px;}
-.ph-filters input::placeholder{color:#8A93A6;opacity:1;}
-
-.ph-filters button{
-	height:30px;background:#FDB813;color:#3A2D00;border:none;border-radius:4px;
-	padding:0 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
-}
-.ph-filters button:hover{background:#E5A50F;}
-.ph-clear{font-size:11px;color:#5A6275;text-decoration:none;align-self:center;padding-bottom:7px;}
-.ph-clear:hover{color:#7A1F1F;text-decoration:underline;}
-
-/* @filterui -- The calendar was drawing UNDER the table: jQuery UI ships
-   z-index 1 on .ui-datepicker and the console theme puts the table header
-   above that. It is appended to <body>, so it needs to beat everything on the
-   page, not just its neighbours. The rest re-skins the widget to the console
-   palette -- the stock smoothness theme is grey-on-grey and does not belong
-   next to this table. */
-.ui-datepicker{
-	z-index:10000 !important;
-	font-family:"Segoe UI",system-ui,Arial,sans-serif;font-size:12px;
-	background:#FFFFFF;border:1px solid #C9CFDA;border-radius:6px;
-	box-shadow:0 6px 20px rgba(0,30,80,.18);padding:6px;
-}
-.ui-datepicker .ui-datepicker-header{
-	background:#00529B;border:none;border-radius:4px;color:#FFFFFF;padding:5px 4px;
-}
-.ui-datepicker .ui-datepicker-title{color:#FFFFFF;font-weight:600;}
-.ui-datepicker .ui-datepicker-title select{
-	background:#FFFFFF;color:#1A2238;border:1px solid #00529B;border-radius:3px;
-	font-size:12px;padding:1px 3px;margin:0 2px;
-}
-.ui-datepicker .ui-datepicker-prev,
-.ui-datepicker .ui-datepicker-next{background:none;border:none;cursor:pointer;top:6px;}
-.ui-datepicker .ui-datepicker-prev span,
-.ui-datepicker .ui-datepicker-next span{filter:brightness(0) invert(1);}
-.ui-datepicker th{background:none;color:#5A6275;font-size:10px;text-transform:uppercase;font-weight:600;border:none;padding:4px 0;}
-.ui-datepicker td{border:none;padding:1px;}
-.ui-datepicker td a,
-.ui-datepicker td span{
-	display:block;text-align:center;padding:5px 0;border:none;border-radius:3px;
-	background:none;color:#1A2238;text-decoration:none;
-}
-.ui-datepicker td a:hover{background:#E8F0F9;color:#00529B;}
-.ui-datepicker td .ui-state-active{background:#00529B !important;color:#FFFFFF !important;}
-.ui-datepicker td .ui-state-highlight{background:#FFF1CC;color:#3A2D00;}
-.ui-datepicker td.ui-datepicker-unselectable span{color:#B8BEC9;}
-</style>
-<script>
-/* @mode -- show one set of controls or the other. Declared here rather than in
-   the jQuery block so the inline onchange can reach it regardless of load
-   order. */
-function phSetMode(v){
-	var p=document.getElementById('phPeriodFields');
-	var r=document.getElementById('phRangeFields');
-	/* @filterui -- '' restores the stylesheet's display (flex column), rather
-	   than forcing inline-block as a hard-coded value would. */
-	if(p) p.style.display = (v==='range') ? 'none' : '';
-	if(r) r.style.display = (v==='range') ? '' : 'none';
-}
-</script>
 <?php include("history_theme.php"); ?>
 <body>
 <div class="ccs-page">
 
 <div class="ccs-header">
 	<h1>Incident History &mdash; By Category</h1>
-	<div class="sub">Filtered by: <?php echo htmlspecialchars($problem ? getProblemType($db,$problem) : '—'); ?>
-		&mdash; <?php echo htmlspecialchars($phLabel); ?> &mdash; Line 3</div>
+	<div class="sub">Filtered by: <?php echo htmlspecialchars($problem ? getProblemType($db,$problem) : '—'); ?> &mdash; Line 3</div>
 
 </div>
 
@@ -213,16 +47,8 @@ function phSetMode(v){
 <div class="ccs-panel-head">
   <h3>Incident History</h3>
   <div class="ccs-panel-actions">
-    <?php /* @period -- one GET form, so category and period travel together.
-             Category still submits on change; the period controls wait for
-             Apply, because picking a year and then a month is two actions and
-             reloading between them would be maddening. */ ?>
-    <form method="get" action="problem_history.php" class="ph-filters">
-    <?php /* @filterui -- every control gets a visible label; the row had none,
-             so two bare selects sat side by side meaning different things. */ ?>
-    <div class="ph-field">
-    <label for="problemFilter">Problem type</label>
-    <select id="problemFilter" name="problem" onchange="this.form.submit()">
+    <label for="problemFilter" class="sr-only">Problem Type</label>
+    <select id="problemFilter" onchange="location.href='problem_history.php?problem='+this.value">
       <?php
       $sql = "select * from equipment_type order by equipment_name";
       $rs = $db->query($sql);
@@ -233,70 +59,14 @@ function phSetMode(v){
       }
       ?>
     </select>
-    </div>
-
-    <div class="ph-field">
-    <label for="phMode">Filter by</label>
-    <?php /* @mode -- switches which set of controls is shown; onchange only
-             toggles visibility, it does not submit, so a half-set filter is
-             never sent. */ ?>
-    <select name="mode" id="phMode" onchange="phSetMode(this.value)" title="Filter by">
-      <option value="period"<?php echo $phMode==='period'?' selected':''; ?>>Year / Month</option>
-      <option value="range"<?php echo $phMode==='range'?' selected':''; ?>>Date range</option>
-    </select>
-    </div>
-
-    <div class="ph-field" id="phPeriodFields"<?php echo $phMode==='range'?' style="display:none"':''; ?>>
-    <label>Year / month</label>
-    <div class="ph-inline">
-    <select name="y" title="Year">
-      <option value="">All years</option>
-      <?php
-      /* Years that actually hold records, so the list cannot offer an empty one. */
-      $yrRS=$db->query("select distinct year(incident_date) as y from incident_report where incident_date is not null order by y desc");
-      if($yrRS){ while($yr=$yrRS->fetch_assoc()){
-          $yv=(int)$yr['y']; if($yv<=0) continue;
-          echo "<option value='".$yv."'".($phYear==$yv?" selected":"").">".$yv."</option>";
-      } }
-      ?>
-    </select>
-
-    <select name="m" title="Month">
-      <option value="">All months</option>
-      <?php for($mi=1;$mi<=12;$mi++){
-          echo "<option value='".$mi."'".($phMonth==$mi?" selected":"").">"
-             . date("F", strtotime(sprintf("2000-%02d-01",$mi)))."</option>";
-      } ?>
-    </select>
-    </div>
-    </div>
-
-    <div class="ph-field" id="phRangeFields"<?php echo $phMode==='range'?'':' style="display:none"'; ?>>
-    <label for="ph_sd">Date range</label>
-    <div class="ph-inline">
-    <input type="text" name="sd" id="ph_sd" value="<?php echo $phRange ? date("Y-m-d",$phSd) : ''; ?>" placeholder="From" size="10" readonly>
-    <span class="ph-sep">&rarr;</span>
-    <input type="text" name="ed" id="ph_ed" value="<?php echo $phRange ? date("Y-m-d",$phEd) : ''; ?>" placeholder="To" size="10" readonly>
-    </div>
-    </div>
-
-    <button type="submit">Apply</button>
-    <?php if($phClause!==""){ ?><a href="problem_history.php?problem=<?php echo urlencode($problem); ?>" class="ph-clear">Clear</a><?php } ?>
-    </form>
   </div>
   <h2>
 <?PHP
-	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='".$problem."' ".$phClause." order by incident_date desc limit 1";
+	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='".$problem."' order by incident_date desc limit 1";
 	$rs2=$db->query($sql);
-	$displayRow=$rs2 ? $rs2->fetch_assoc() : null;
+	$displayRow=$rs2->fetch_assoc();
 
-	// @period -- with no rows this fell through to strtotime(null) and printed
-	// "January 01, 1970" as though that were a real entry.
-	if($displayRow && !empty($displayRow['incident_date'])){
-		echo "Latest Entry Recorded: ".date("F d, Y",strtotime($displayRow['incident_date']));
-	} else {
-		echo "No entries in this period";
-	}
+	echo "Latest Entry Recorded: ".date("F d, Y",strtotime($displayRow['incident_date']));
 ?>
 
   
@@ -328,7 +98,7 @@ function phSetMode(v){
 	</thead>
 	<tbody>
 	<?php
-	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='".$problem."' ".$phClause." order by incident_date desc";
+	$sql="select * from incident_description inner join incident_report on incident_report.id=incident_description.incident_id where incident_type='".$problem."' order by incident_date desc";
 
 	$rs=$db->query($sql);
 	$nm=$rs->num_rows;
@@ -417,16 +187,7 @@ function phSetMode(v){
 	// span so the x-axis is continuous. Months the coverage table marks missing
 	// get null rather than 0: no records because none were kept is not the same
 	// claim as no incidents, and Chart.js draws nothing for null.
-	// @period -- The month-only filter returns one month per year, so the span
-	// between the first and last key is mostly months the filter EXCLUDED.
-	// Filling it would draw a run of zero bars that say "no incidents" when
-	// they mean "not asked for". Contiguous filters fill; this one does not.
-	if($phMonthOnly){
-		// Not filled, but still ordered: the query returns newest-first, which
-		// would draw the chart right-to-left.
-		ksort($monthlyVolume);
-	}
-	if(count($monthlyVolume) && !$phMonthOnly){
+	if(count($monthlyVolume)){
 		$mk=array_keys($monthlyVolume);
 		sort($mk);
 		$cur=new DateTime($mk[0]."-01");
@@ -467,7 +228,6 @@ function phSetMode(v){
 
 <script>
 var pvCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
-var pvFilterLabel  = <?php echo json_encode($phLabel); ?>;   /* @period */
 // Aggregates from the same query/filter as the table above.
 var pvProblemName = <?php echo json_encode($problemName); ?>;
 var pvMonthly = <?php echo json_encode($monthlyVolume, JSON_FORCE_OBJECT); ?>;
@@ -575,24 +335,6 @@ var pvTerms = <?php echo json_encode($topTerms); ?>;
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 $(function(){
-	/* @datepicker -- the sd/ed inputs had no binding at all, so they were plain
-	   text boxes. jQuery UI is already loaded by the template above; this is
-	   just the missing .datepicker() call. dateFormat has to be yy-mm-dd
-	   because the PHP side parses with strtotime and stores Y-m-d.
-	   readonly on the inputs keeps typing out of a field that has a picker. */
-	if($.fn.datepicker){
-		var dpOpts = { dateFormat:'yy-mm-dd', changeMonth:true, changeYear:true, yearRange:'c-10:c+1' };
-		var $sd = $('#ph_sd'), $ed = $('#ph_ed');
-		$sd.datepicker($.extend({}, dpOpts, {
-			onSelect: function(d){ $ed.datepicker('option','minDate', d); }
-		}));
-		$ed.datepicker($.extend({}, dpOpts, {
-			onSelect: function(d){ $sd.datepicker('option','maxDate', d); }
-		}));
-		if($sd.val()) $ed.datepicker('option','minDate',$sd.val());
-		if($ed.val()) $sd.datepicker('option','maxDate',$ed.val());
-	}
-
 
 	var textInk  = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#111';
 	var mutedInk = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#555';
@@ -817,14 +559,9 @@ $(function(){
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
 		var omitted   = captured.omitted;
-		/* @period -- name the filter that produced the rows, not just the span
-		   the chart happens to cover. With a filter active the two differ, and
-		   the printout was reporting the second as though it were the first. */
-		var periodTxt = (typeof pvFilterLabel !== 'undefined' && pvFilterLabel && pvFilterLabel !== 'All time')
-			? pvFilterLabel
-			: (pvWindowFrom
-				? (pvWindowFrom + ' to ' + pvWindow[pvWindow.length-1] + (pvTrimmed ? ' (last 24 months)' : ''))
-				: 'All recorded dates');
+		var periodTxt = pvWindowFrom
+			? (pvWindowFrom + ' to ' + pvWindow[pvWindow.length-1] + (pvTrimmed ? ' (last 24 months)' : ''))
+			: 'All recorded dates';
 
 		var win = window.open('', '_blank');
 		win.document.write(
@@ -855,29 +592,12 @@ $(function(){
 				'.tbl-head{ margin-bottom:6px; }' +
 				'.tbl-head h3{ font-size:13px; font-weight:600; margin:0; display:inline-block; }' +
 				'.tbl-head .count{ font-size:9.5px; color:#6b7280; margin-left:8px; }' +
-				/* @print -- The crop. With auto layout the widest cell decides the
-				   column, and Description holds free text with no guaranteed
-				   break points: one long entry pushed the table past the page
-				   box and everything to the right of it was clipped, because a
-				   print context has no horizontal scroll to fall back on.
-				   Fixed layout plus break-anywhere keeps every column inside
-				   the margin and wraps the text instead. */
-				'table{ width:100%; max-width:100%; table-layout:fixed;' +
-					' border-collapse:collapse; font-size:9.5px; }' +
-				'th, td{ overflow-wrap:anywhere; word-break:break-word; }' +
-				/* Dates and reference numbers are short and fixed-length; giving
-				   them a ceiling leaves the remainder to the description rather
-				   than letting fixed layout split everything evenly. */
-				'th:first-child, td:first-child{ width:9%; }' +
-				'th:nth-child(2), td:nth-child(2){ width:14%; }' +
-				'th:nth-child(3), td:nth-child(3){ width:13%; }' +
-				'th:nth-child(4), td:nth-child(4){ width:9%; }' +
-				'th:nth-child(5), td:nth-child(5){ width:13%; }' +
+				'table{ width:100%; border-collapse:collapse; font-size:9.5px; }' +
 				'thead{ display:table-header-group; }' +
 				'th{ background:#1f4e79; color:#fff; text-align:left; padding:6px 7px;' +
 					' font-size:9px; font-weight:600; text-transform:uppercase;' +
 					' letter-spacing:.04em; border:1px solid #1f4e79; }' +
-				'td{ padding:5px 6px; border:1px solid #e5e7eb; vertical-align:top; }' +
+				'td{ padding:5px 7px; border:1px solid #e5e7eb; vertical-align:top; }' +
 				'tbody tr:nth-child(even) td{ background:#f6f8fa; }' +
 				'tr{ page-break-inside:avoid; }' +
 				'a{ color:inherit; text-decoration:none; pointer-events:none; }' +

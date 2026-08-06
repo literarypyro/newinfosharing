@@ -53,12 +53,6 @@ $coverage = ccsLoadCoverage($db);
 // Cast to int so a junk equipt reads as 0 rather than as SQL.
 $equipt = isset($_GET['equipt']) ? (int)$_GET['equipt'] : 0;
 
-// @carfilter -- Passed by statistics_report_modified.php when its car filter is
-// active, so the panel shows the same slice the table behind it does. Opening a
-// panel that silently widened back to the whole fleet would put two different
-// answers to the same question on one screen.
-$carFilter = isset($_GET['car']) && $_GET['car'] !== '' ? (int)$_GET['car'] : 0;
-
 // @range -- statistics_report_modified.php filters by a From-To range, not by
 // year/month. Anything spanning more than one calendar year used to arrive here
 // with no year at all and render as All Time, which is why a Jan 2025 - Apr 2026
@@ -126,7 +120,6 @@ if($equipt){
 // links (equipt / y / m) -- change it if yours differ.
 
 $carHistoryUrl = "equipment_history.php?equipt=".$equipt
-               . ($carFilter ? "&car_id=".$carFilter : "")
                . ($hasYear ? "&y=".$year.($month ? "&m=".$month : "") : "");
 
 
@@ -155,11 +148,8 @@ $dateClause = $hasPeriod
 	? " and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'"
 	: "";
 
-// car_no*1 matches how the report buckets cars, so '05' and '5' fold together.
-$carClause = $carFilter ? " and incident_cars.car_no*1 = ".$carFilter." " : "";
-
-$whereOwn = "incident_report.equipt = ".$equipt.$dateClause.$carClause;
-$whereExt = "is_external.incident_defects.equipt_id = ".$equipt.$dateClause.$carClause;
+$whereOwn = "incident_report.equipt = ".$equipt.$dateClause;
+$whereExt = "is_external.incident_defects.equipt_id = ".$equipt.$dateClause;
 
 $joinOwn = "from incident_report
             inner join incident_cars on incident_report.id=incident_cars.incident_id";
@@ -496,9 +486,6 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
 <div class="ccs-header">
 <h1>Car Failures for <?php echo $equipt > 0 ? htmlspecialchars($equiptName) : '&mdash;'; ?></h1>
-<?php if($carFilter){ /* @carfilter -- stated, or a one-row table looks like a bug */ ?>
-<div class='sub' style="color:#FDB813;">Filtered to Car <?php echo $carFilter; ?> only</div>
-<?php } ?>
 <div class='sub'><?php echo htmlspecialchars($period); ?></div>
 </div>
 
@@ -562,11 +549,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
         because drilling into one equipment makes an equipment breakdown
         pointless there. The mirror of that guard on THIS page would be
         if(!$car) -- and there is no $car here, so the car table is the
-        point of the page and always renders. */ 
-
-if(!$carFilter){
-		
-		?>
+        point of the page and always renders. */ ?>
 
 <h3 class="brk-head">By car</h3>
 <table id='equipt_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
@@ -612,7 +595,6 @@ foreach($rows as $r){
 
 
 <?php
-}
 /* @invert -- One grain-driven table replaces the separate month and day tables.
    car_stats.php needs two because it always has a year; this page has three
    possible grains, and three near-identical copies of the same markup is how
@@ -723,7 +705,6 @@ foreach($periodBuckets as $pk => $pCount){
 var csEquipt     = <?php echo json_encode($equipt); ?>;
 var csEquiptName = <?php echo json_encode($equiptName); ?>;
 var csPeriod     = <?php echo json_encode($period); ?>;
-var csCarFilter  = <?php echo (int)$carFilter; ?>;   /* @carfilter */
 var csFrom       = <?php echo json_encode(date("d M Y", strtotime($start_date1))); ?>;
 var csTo         = <?php echo json_encode(date("d M Y", strtotime($end_date1))); ?>;
 var csTotal      = <?php echo (int)$equipt_count; ?>;
@@ -834,7 +815,6 @@ function csPrintReport(){
 			/* @printtiles -- failures / incidents / types moved down into the
 			   tiles, so the meta strip no longer states them twice. */
 			'<span><b>Equipment:</b> '+esc(csEquiptName)+'</span>' +
-			(csCarFilter ? '<span><b>Car:</b> '+csCarFilter+' only</span>' : '') +
 			'<span><b>Period:</b> '+esc(csFrom)+' &ndash; '+esc(csTo)+'</span>' +
 			'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 		'</div>' +
