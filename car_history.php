@@ -157,9 +157,10 @@ $nbModel = ccsTrainClassifier($allRows,$causeMap);
 // describes exactly the residue nothing else could account for.
 $monthlyCounts=array();   // [ "YYYY-MM" => [ equipment => count ] ]
 $problemCounts=array();   // [ equipment => count ]
+$repeatDates=array();     // [ equipment => [unix ts, ...] ] — @repeat
+$repeatExcluded=0;        // suggested or unplaced rows, not eligible for a repeat claim
 $suggestedCounts=array(); // [ equipment => how many were auto-suggested ]
 $suggestedTotal=0;
-$blankTerms=array();      // [ token => number of UNPLACED incidents mentioning it ]
 $blankTotal=0;
 $sevGrid=array();         // [ equipment => [ level => count ] ]
 $sevLevels=array();       // set of distinct severity levels present
@@ -186,12 +187,6 @@ foreach($allRows as $row){
 		else{
 			$problemType='';   // the blank bucket the charts already handle
 			$blankTotal++;
-			// Document frequency, counted once per incident, over the rows
-			// the classifier could not place — that is this chart's whole point.
-			foreach(array_unique(ccsTokenize($row['description'])) as $t){
-				if(!isset($blankTerms[$t])) $blankTerms[$t]=0;
-				$blankTerms[$t]++;
-			}
 		}
 	}
 
@@ -202,6 +197,19 @@ foreach($allRows as $row){
 
 	if(!isset($problemCounts[$problemType])) $problemCounts[$problemType]=0;
 	$problemCounts[$problemType]++;
+
+	/* @repeat -- Dates per equipment, for the repeat chart. RECORDED types
+	   only: a repeat is a claim about the same component failing twice, and a
+	   classifier guess is not strong enough to carry that. Suggested and blank
+	   rows are counted separately and reported under the chart. */
+	if(!$isSuggested && $problemType !== ''){
+		$rpTs = strtotime($row['incident_date']);
+		if($rpTs){
+			if(!isset($repeatDates[$problemType])) $repeatDates[$problemType]=array();
+			$repeatDates[$problemType][] = $rpTs;
+		}
+	}
+	else { $repeatExcluded++; }
 
 	// Equipment x severity. The other figures answer "what fails often"; this
 	// answers "what fails BADLY" — an equipment with a modest row total but a
@@ -307,25 +315,41 @@ foreach($sevRowTotals as $eq=>$t){ if($eq!=='Unspecified') $sevRows[]=$eq; }
 if(isset($sevRowTotals['Unspecified'])) $sevRows[]='Unspecified';
 $sevRows = array_slice($sevRows, 0, 8);
 
-// Rank recurring terms among the rows the classifier could NOT place; keep
-// the top 8 that turn up in 2+ of them.
-arsort($blankTerms);
-$topBlankTerms=array();
-foreach($blankTerms as $t=>$c){
-	if($c < 2) break;                  // sorted desc — everything after is rarer
-	$topBlankTerms[]=array($t,(int)$c);
-	if(count($topBlankTerms) >= 8) break;
-}
 ?>
 
 <!-- Print-only chart summary. Hidden on screen (the live table above is
      the on-screen view); rendered to static images and injected into the
      TableTools print window — see the script block near the bottom. -->
+<?php
+/* @repeat -- One entry per equipment that failed 2+ times, with the span the
+   failures cover. The span is what separates the two cases the raw count
+   cannot: five failures over five months is a component wearing out; three in
+   one week is a repair that did not hold. */
+$repeatRows=array();
+foreach($repeatDates as $eq=>$tsList){
+	if(count($tsList) < 2) continue;             // once is not a repeat
+	sort($tsList);
+	$spanDays = (int)round(($tsList[count($tsList)-1] - $tsList[0]) / 86400);
+	$months   = array();
+	foreach($tsList as $t){ $months[date("Y-m",$t)] = true; }
+	$repeatRows[] = array(
+		'equipment' => $eq,
+		'times'     => count($tsList),
+		'spanDays'  => $spanDays,
+		'months'    => count($months)
+	);
+}
+usort($repeatRows, function($a,$b){
+	if($b['times'] !== $a['times']) return $b['times'] - $a['times'];
+	return $a['spanDays'] - $b['spanDays'];      // tighter cluster ranks first
+});
+$repeatRows = array_slice($repeatRows, 0, 6);
+?>
 <div id="ccs-print-charts" style="display:none;">
 	<canvas id="ccsChartMonthly" width="340" height="230"></canvas>
 	<canvas id="ccsChartPareto"  width="340" height="200"></canvas>
 	<canvas id="ccsSeverity"     width="340" height="220"></canvas>
-	<canvas id="ccsBlankTerms"   width="340" height="200"></canvas>
+	<canvas id="ccsRepeat"       width="340" height="200"></canvas>
 </div>
 
 <script>
@@ -380,8 +404,9 @@ var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
 var ccsSevGrid       = <?php echo json_encode($sevGrid, JSON_FORCE_OBJECT); ?>;
 var ccsSevRows       = <?php echo json_encode($sevRows); ?>;
 var ccsSevCols       = <?php echo json_encode(array_values($sevOrder)); ?>;
-var ccsBlankTerms    = <?php echo json_encode($topBlankTerms); ?>;
 var ccsBlankTotal    = <?php echo (int)$blankTotal; ?>;
+var ccsRepeat        = <?php echo json_encode($repeatRows); ?>;          /* @repeat */
+var ccsRepeatSkipped = <?php echo (int)$repeatExcluded; ?>;
 </script>
 
 		<script src="js/jquery-1.10.2.min.js"></script>
@@ -470,36 +495,58 @@ $(function(){
 	}
 	var blankCount = ccsProblemCounts[BLANK_KEY] || 0;
 
+	/* @noothers -- The synthetic "Others" bucket is already gone. What is left
+	   is a REAL equipment row literally named "Others" (or "Other"), which
+	   ranks like any category and, being a catch-all, is frequently large
+	   enough to take one of the three slots. It is still a legitimate record,
+	   so it is not dropped -- it is held out of the ranking and reported under
+	   the chart with the tail, because "the top 3 equipment types" is not a
+	   useful answer when one of the three is "unspecified".
+
+	   Matched case-insensitively on the whole label only, so a genuine type
+	   containing the word (say "Other Auxiliary") is untouched. */
+	function isCatchAll(t){
+		var v = String(t).trim().toLowerCase();
+		return v === 'others' || v === 'other' || v === 'uncategorized' || v === 'unspecified';
+	}
+	var catchAllCount = Object.keys(ccsProblemCounts)
+		.filter(isCatchAll)
+		.reduce(function(s,t){ return s + ccsProblemCounts[t]; }, 0);
+
 	var rankedTypes = Object.keys(ccsProblemCounts)
-		.filter(function(t){ return t !== BLANK_KEY; })
+		.filter(function(t){ return t !== BLANK_KEY && !isCatchAll(t); })
 		.sort(function(a,b){ return ccsProblemCounts[b]-ccsProblemCounts[a]; });
 	var topTypes = rankedTypes.slice(0, TOP_N);
 	var tailTypes = rankedTypes.slice(TOP_N);
 
-	var totalIncidents = rankedTypes.reduce(function(s,t){ return s+ccsProblemCounts[t]; }, 0) + blankCount;
+	var totalIncidents = rankedTypes.reduce(function(s,t){ return s+ccsProblemCounts[t]; }, 0) + blankCount + catchAllCount;
 	var tailTotal = tailTypes.reduce(function(s,t){ return s+ccsProblemCounts[t]; }, 0);
 
-	// ---- Chart 1: monthly stacked trend, top 3 + Others (blank folded
-	// into Others here — the month trend is about volume over time, so a
-	// separate blank series would just add noise). ----
+	// ---- Chart 1: monthly stacked trend, top 3 only ----
+	// @noothers -- "Others" is gone. It was the tail equipment types AND the
+	// unclassified rows folded into one grey band, which on a chart captioned
+	// "top 3" read as a fourth type and was routinely the tallest. Two
+	// unrelated things sharing a colour, competing with the thing the chart is
+	// about. The excluded volume is stated under the chart instead, where it
+	// is a caveat rather than a series.
 	function trendBucket(type){
-		if(type === BLANK_KEY) return 'Others';
-		return topTypes.indexOf(type) !== -1 ? type : 'Others';
+		return topTypes.indexOf(type) !== -1 ? type : null;
 	}
-	var trendCategories = topTypes.concat((tailTypes.length || blankCount) ? ['Others'] : []);
+	var trendCategories = topTypes.slice();
 	var monthlyBucketed = {};
 	months.forEach(function(m){
 		monthlyBucketed[m] = {};
 		trendCategories.forEach(function(c){ monthlyBucketed[m][c] = 0; });
 		Object.keys(ccsMonthlyCounts[m]).forEach(function(type){
-			monthlyBucketed[m][trendBucket(type)] += ccsMonthlyCounts[m][type];
+			var b = trendBucket(type);
+			if(b !== null) monthlyBucketed[m][b] += ccsMonthlyCounts[m][type];
 		});
 	});
 	var monthlyDatasets = trendCategories.map(function(cat, idx){
 		return {
-			label: cat === 'Others' ? 'Others' : cat,
+			label: cat,
 			data: months.map(function(m){ return monthlyBucketed[m][cat]; }),
-			backgroundColor: cat === 'Others' ? othersColor : palette[idx % palette.length]
+			backgroundColor: palette[idx % palette.length]
 		};
 	});
 
@@ -539,11 +586,17 @@ $(function(){
 			if(tailTotal > 0){
 				lines.push('+ ' + tailTotal + ' more across ' + tailTypes.length + ' other equipment type' + (tailTypes.length === 1 ? '' : 's'));
 			}
+			if(catchAllCount > 0){
+				lines.push('+ ' + catchAllCount + ' recorded only as a catch-all category');
+			}
 			if(ccsSuggestedTotal > 0){
 				lines.push('Lighter segments: ' + ccsSuggestedTotal + ' auto-suggested from descriptions');
 			}
 			if(blankCount > 0){
-				lines.push('+ ' + blankCount + ' still unplaced (see next figure)');
+				/* @norecurring -- was "(see next figure)", which pointed at the
+				   recurring-words chart. The count still belongs here; the
+				   chart it referred to is gone. */
+				lines.push('+ ' + blankCount + ' with no equipment recorded and none suggested');
 			}
 			if(!lines.length) return;
 			ctx.save();
@@ -689,52 +742,66 @@ $(function(){
 
 	// ---- Chart 3: what is left after the classifier has done its work.
 	// These are rows with no recorded equipment that the classifier ABSTAINED
-	// on — too little evidence, or two categories too close to call. Their
-	// descriptions are mined for recurring words, so the residue is described
-	// rather than guessed at, and whoever tidies the records can see what it
-	// is made of.
-	if(ccsBlankTerms.length){
-		new Chart(document.getElementById('ccsBlankTerms'), {
-			type: 'bar',
-			data: {
-				labels: ccsBlankTerms.map(function(p){ return p[0]; }),
-				datasets: [{ data: ccsBlankTerms.map(function(p){ return p[1]; }), backgroundColor: '#1baf7a', borderRadius: 3, categoryPercentage: 0.6, barPercentage: 0.9 }]
-			},
-			options: {
-				indexAxis: 'y', responsive: false, animation: false, layout: { padding: { right: 22 } },
-				plugins: {
-					title: { display: true, text: 'Unplaced after auto-suggestion (' + ccsBlankTotal + ') \u2014 recurring words', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 8 } },
-					legend: { display: false },
-					tooltip: { callbacks: { label: function(c){ return 'appears in ' + c.parsed.x + ' unplaced incidents'; } } }
-				},
-				scales: {
-					x: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } },
-					y: { ticks: { color: textInk, font: { size: 11 } }, grid: { display: false } }
-				}
-			},
-			plugins: [{
-				id: 'blankTermLabels',
-				afterDatasetsDraw: function(chart){
-					var ctx = chart.ctx, meta = chart.getDatasetMeta(0);
-					ctx.save(); ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = textInk;
-					ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-					meta.data.forEach(function(bar,i){ ctx.fillText(chart.data.datasets[0].data[i], bar.x + 6, bar.y); });
-					ctx.restore();
-				}
-			}]
-		});
-	}
-	else{
-		var cvB = document.getElementById('ccsBlankTerms');
-		var cB = cvB.getContext('2d');
-		cB.clearRect(0,0,cvB.width,cvB.height);
-		cB.textBaseline='middle'; cB.textAlign='left';
-		cB.font='11px Arial, sans-serif'; cB.fillStyle=textInk;
-		cB.fillText('Unplaced after auto-suggestion (' + ccsBlankTotal + ') \u2014 recurring words', 0, 9);
-		cB.font='10px Arial, sans-serif'; cB.fillStyle=mutedInk;
-		cB.fillText(ccsBlankTotal ? 'Too few unplaced incidents to rank terms.' : 'No unplaced incidents \u2014 every row recorded or suggested.', 0, 34);
-	}
 
+
+
+	/* ============ Chart 4: equipment that failed more than once ============
+	   @repeat -- Deliberately NOT a bar chart. Bars rank by count, which is
+	   what the Pareto already does; a dot per separate failure makes the
+	   OCCASION the unit, and the trailing note carries what a bar cannot --
+	   whether the failures were spread out or clustered. Those need different
+	   responses and look identical on a bar chart.
+	   Hand-drawn on a raw canvas so it flattens to an image for the print
+	   handoff exactly like the Chart.js canvases. */
+	(function drawRepeat(){
+		var cv = document.getElementById('ccsRepeat');
+		if(!cv) return;
+		var c = cv.getContext('2d');
+		c.clearRect(0,0,cv.width,cv.height);
+		c.textBaseline = 'middle';
+		c.font = '11px Arial, sans-serif'; c.fillStyle = textInk; c.textAlign = 'left';
+		c.fillText('Equipment that failed more than once', 0, 9);
+
+		if(!ccsRepeat.length){
+			c.font = '10px Arial, sans-serif'; c.fillStyle = mutedInk;
+			c.fillText('No equipment failed more than once in this period.', 0, 34);
+			return;
+		}
+
+		var rowH = 26, top = 32, labelW = 112, dotR = 5, gap = 13;
+		ccsRepeat.forEach(function(r, i){
+			var y = top + i*rowH;
+			c.font = '10px Arial, sans-serif'; c.fillStyle = textInk; c.textAlign = 'left';
+			var name = r.equipment;
+			while(c.measureText(name).width > labelW - 6 && name.length > 4){ name = name.slice(0,-2); }
+			if(name !== r.equipment) name += '\u2026';
+			c.fillText(name, 0, y);
+
+			/* Colour by how TIGHT the cluster is, not by volume: a same-week
+			   repeat is the one worth chasing. */
+			var perMonth = r.times / Math.max(r.months, 1);
+			c.fillStyle = (r.spanDays <= 7) ? '#A32D2D' : (perMonth >= 2 ? '#E24B4A' : '#F09595');
+
+			var shown = Math.min(r.times, 8);
+			for(var d = 0; d < shown; d++){
+				c.beginPath(); c.arc(labelW + dotR + d*gap, y, dotR, 0, Math.PI*2); c.fill();
+			}
+			var x = labelW + dotR + shown*gap + 4;
+			if(r.times > shown){ c.font='10px Arial, sans-serif'; c.fillText('+'+(r.times-shown), x, y); x += 20; }
+
+			c.font = '10px Arial, sans-serif'; c.fillStyle = mutedInk;
+			var when = (r.spanDays <= 7)
+				? 'all within ' + (r.spanDays <= 1 ? 'a day' : r.spanDays + ' days')
+				: 'across ' + r.months + ' month' + (r.months === 1 ? '' : 's');
+			c.fillText(r.times + ' times, ' + when, x + 4, y);
+		});
+
+		if(ccsRepeatSkipped > 0){
+			c.font = '10px Arial, sans-serif'; c.fillStyle = mutedInk; c.textAlign = 'left';
+			c.fillText(ccsRepeatSkipped + ' incident' + (ccsRepeatSkipped===1?'':'s') +
+			           ' without a recorded equipment are not counted here', 0, cv.height - 6);
+		}
+	})();
 
 	// ---- 2. Intercept the existing TableTools print button ----
 	// additional.js/custom.min.js auto-init .datatable2 and, as part of
@@ -805,7 +872,7 @@ $(function(){
 		var chartMonthlyImg = document.getElementById('ccsChartMonthly').toDataURL('image/png');
 		var chartParetoImg  = document.getElementById('ccsChartPareto').toDataURL('image/png');
 		var severityImg     = document.getElementById('ccsSeverity').toDataURL('image/png');
-		var blankTermsImg   = document.getElementById('ccsBlankTerms').toDataURL('image/png');
+		var repeatImg       = document.getElementById('ccsRepeat').toDataURL('image/png');
 		var captured  = ccsFullTableHtml();
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
@@ -873,8 +940,8 @@ $(function(){
 				'<div class="chart"><img src="' + chartMonthlyImg + '">' + '<div class="cap">Figure 1 &mdash; Incidents by month, by equipment</div></div>' +
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Leading equipment by incident count</div></div>' +
 				'<div class="chart"><img src="' + severityImg + '">' + '<div class="cap">Figure 3 &mdash; Equipment by severity level</div></div>' +
-				'<div class="chart"><img src="' + blankTermsImg + '">' + '<div class="cap">Figure 4 &mdash; Recurring words among incidents left unplaced</div></div>' +
-				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified; Figure 4 counts words appearing in those descriptions and assigns no category. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
+				'<div class="chart"><img src="' + repeatImg + '">' + '<div class="cap">Figure 4 &mdash; Equipment that failed more than once</div></div>' +
+				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified. Figure 4 lists equipment that failed more than once, using recorded values only &mdash; a repeat is a claim about the same component failing twice, which a suggestion is not strong enough to carry. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
@@ -926,9 +993,12 @@ function getEquipmentType($db,$type){
 // model is confident. Suggestions are display-only — nothing is written back
 // to the database, and the model retrains on every page load.
 //
-// Rows the classifier ABSTAINS on stay unplaced, and ccsTokenize is reused to
-// mine THEIR descriptions for recurring words (Figure 4) — so the residue is
-// described rather than guessed at.
+// Rows the classifier ABSTAINS on stay unplaced and are reported as a count in
+// the trend chart's footnote. They used to have their descriptions mined for
+// recurring words as Figure 4; that chart is gone -- token frequency described
+// the vocabulary operators type, not the faults that occurred, so one battery
+// problem became three bars and filler like "RS" outranked real signal.
+// ccsTokenize stays: the classifier itself still needs it.
 // ============================================================
 
 function ccsTokenize($text){

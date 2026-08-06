@@ -125,6 +125,11 @@ $nbModel = ccsTrainClassifier($allRows,$causeMap);
 // classifier is confident enough; otherwise they stay Uncategorized.
 $suggestedCounts=array();  // [cause] => how many were auto-suggested
 $suggestedTotal=0;
+/* @hourchart -- all 24 slots present, so a quiet hour renders as a gap in the
+   bars rather than a column the axis silently drops. */
+$hourCounts=array_fill(0,24,0);
+$hourTotal=0;
+$hourUnknown=0;
 
 foreach($allRows as $row){
 
@@ -145,6 +150,16 @@ foreach($allRows as $row){
 			$cause='Uncategorized';
 		}
 	}
+
+	/* @hourchart -- Hour of day. For obstructions and passenger incidents the
+	   time IS the finding: a cluster at rush hour is a crowding problem, one at
+	   23:00 is something else. Counted from the same filtered rows as the rest
+	   of the page, so the chart cannot disagree with the table.
+	   A row with no usable timestamp is set aside rather than counted as hour
+	   0, which would invent a midnight spike out of missing data. */
+	$hourTs = strtotime($row['incident_date']);
+	if($hourTs){ $hourCounts[(int)date("G",$hourTs)]++; $hourTotal++; }
+	else { $hourUnknown++; }
 
 	$monthKey=date("F Y", strtotime($row['incident_date']));
 	if(!isset($monthlyCounts[$monthKey])) $monthlyCounts[$monthKey]=array();
@@ -256,6 +271,7 @@ foreach($allRows as $row){
 	<div style="display:flex; flex-direction:column; gap:16px;">
 		<canvas id="ccsHeatmap" width="560" height="220"></canvas>
 		<canvas id="ccsChartPareto" width="440" height="200"></canvas>
+		<canvas id="ccsHours" width="560" height="190"></canvas>
 	</div>
 </div>
 
@@ -263,6 +279,9 @@ foreach($allRows as $row){
 // Raw aggregates from the same query/filter as the table above.
 var ccsMonthlyCounts = <?php echo json_encode($monthlyCounts); ?>;
 var ccsProblemCounts = <?php echo json_encode($problemCounts); ?>;
+var ccsHourCounts    = <?php echo json_encode(array_values($hourCounts)); ?>;   /* @hourchart */
+var ccsHourTotal     = <?php echo (int)$hourTotal; ?>;
+var ccsHourUnknown   = <?php echo (int)$hourUnknown; ?>;
 var ccsSuggested = <?php echo json_encode($suggestedCounts, JSON_FORCE_OBJECT); ?>;
 var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
 var ccsCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_QUOTES)); ?>;
@@ -457,6 +476,55 @@ $(function(){
 		}
 	};
 
+	/* @hourchart -- Bars shaded by their own height, so the peak reads without
+	   a legend: the shape is the message, not the individual counts. Every hour
+	   is drawn, including empty ones, or a quiet overnight would compress the
+	   axis and hide the very gap worth seeing. */
+	(function drawHours(){
+		var cv = document.getElementById('ccsHours');
+		if(!cv || !ccsHourTotal) return;
+		var peak = Math.max.apply(null, ccsHourCounts) || 1;
+		var shade = ccsHourCounts.map(function(v){
+			var r = v / peak;
+			if(r >= 0.75) return '#185FA5';
+			if(r >= 0.45) return '#378ADD';
+			if(r >  0)    return '#85B7EB';
+			return '#E6F1FB';
+		});
+		var labels = ccsHourCounts.map(function(_, h){
+			/* Only every third hour is labelled -- 24 labels on a 560px canvas
+			   overlap, and Chart.js would start dropping them unpredictably. */
+			return (h % 3 === 0) ? (h < 10 ? '0'+h : ''+h) : '';
+		});
+		new Chart(cv, {
+			type: 'bar',
+			data: { labels: labels, datasets: [{ data: ccsHourCounts, backgroundColor: shade, borderRadius: 2, categoryPercentage: 0.9, barPercentage: 0.92 }] },
+			options: {
+				responsive: false, animation: false,
+				plugins: {
+					title: { display: true, text: 'Incidents by hour of day', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 6 } },
+					legend: { display: false },
+					tooltip: { callbacks: { title: function(i){ return 'Hour ' + i[0].dataIndex + ':00'; } } }
+				},
+				scales: {
+					x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 0, autoSkip: false }, grid: { display: false } },
+					y: { beginAtZero: true, ticks: { color: mutedInk, precision: 0, font: { size: 9 } }, grid: { color: gridInk } }
+				}
+			},
+			plugins: [{
+				id: 'ccsHourFoot',
+				afterDraw: function(chart){
+					if(!ccsHourUnknown) return;
+					var ctx = chart.ctx, a = chart.chartArea;
+					ctx.save();
+					ctx.font = '10px Arial, sans-serif'; ctx.fillStyle = mutedInk; ctx.textAlign = 'left';
+					ctx.fillText(ccsHourUnknown + ' incident' + (ccsHourUnknown===1?'':'s') + ' with no recorded time, not shown', a.left, chart.height - 4);
+					ctx.restore();
+				}
+			}]
+		});
+	})();
+
 	new Chart(document.getElementById('ccsChartPareto'), {
 		type: 'bar',
 		data: {
@@ -596,6 +664,7 @@ $(function(){
 	function ccsPrintWithCharts(){
 		var heatmapImg     = document.getElementById('ccsHeatmap').toDataURL('image/png');
 		var chartParetoImg = document.getElementById('ccsChartPareto').toDataURL('image/png');
+		var hoursImg       = document.getElementById('ccsHours').toDataURL('image/png');
 		var captured  = ccsFullTableHtml();
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
@@ -624,9 +693,19 @@ $(function(){
 				'h2.sec{ font-size:11px; text-transform:uppercase; letter-spacing:.09em;' +
 					' color:#1f4e79; border-bottom:1px solid #d1d5db; padding-bottom:4px;' +
 					' margin:20px 0 10px; font-weight:600; }' +
-				'.charts{ page-break-inside:avoid; }' +
-				'.chart{ display:inline-block; vertical-align:top; margin:0 14px 12px 0; }' +
-				'.chart img{ display:block; border:1px solid #e5e7eb; }' +
+				'.charts{ font-size:0; }' +
+				/* @printcharts -- Same two faults equipment_history.php had. The
+				   images had no width rule, so each printed at its natural pixel
+				   size and the inline-blocks could not sit side by side; they
+				   wrapped, grew taller than the space left, and a
+				   page-break-inside:avoid on the container then pushed the whole
+				   block to a fresh page, leaving a gap and clipping whatever did
+				   not fit. Sized to the page, break rule on the individual
+				   chart. */
+				'.chart{ display:inline-block; vertical-align:top; width:48%; margin:0 2% 12px 0;' +
+					' page-break-inside:avoid; break-inside:avoid; font-size:9px; }' +
+				'.chart img{ display:block; width:100%; height:auto; max-height:70mm;' +
+					' object-fit:contain; border:1px solid #e5e7eb; }' +
 				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
 				'.tbl-head{ margin-bottom:6px; }' +
@@ -668,6 +747,7 @@ $(function(){
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + heatmapImg + '">' + '<div class="cap">Figure 1 &mdash; Cause / issue by month</div></div>' +
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Cause / issue by total incidents</div></div>' +
+				'<div class="chart"><img src="' + hoursImg + '">' + '<div class="cap">Figure 3 &mdash; Incidents by hour of day</div></div>' +
 			(ccsSuggestedTotal ? '<p class="note">Italicised categories in the log are auto-suggested from description text (' + ccsSuggestedTotal + ' record' + (ccsSuggestedTotal===1?'':'s') + ') and are not recorded values.</p>' : '') +
 			'</div>' +
 

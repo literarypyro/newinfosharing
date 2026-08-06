@@ -198,7 +198,6 @@ $tdTypes=array();     // [problem type] => count
 $tdTiming=array();    // [weekday 0=Mon..6=Sun][band 0..3] => count
 for($d=0;$d<7;$d++){ $tdTiming[$d]=array(0,0,0,0); }
 $tdTotal=0;
-$termCounts=array();  // [token] => number of incidents it appears in
 
 // Previously this ran a query for "XXXX" when nothing was searched, purely so
 // it would match nothing. Skip the query entirely instead and show an honest
@@ -233,13 +232,6 @@ if($hasSearch){
 		else $band=3;                      // evening / night
 		$tdTiming[$dow][$band]++;
 
-		// Document frequency: count a term once per incident it appears in,
-		// so one verbose description can't dominate the ranking.
-		foreach(array_unique(ccsTokenize($row['description'])) as $t){
-			if(!isset($termCounts[$t])) $termCounts[$t]=0;
-			$termCounts[$t]++;
-		}
-
 		$tdTotal++;
 ?>	
 	<tr>
@@ -258,14 +250,6 @@ if($hasSearch){
 // raises as a JS alert on page load. An empty <tbody> is correct; DataTables
 // renders its own "No data available in table" message, and the guidance
 // notice above the table covers the first-visit case.
-// Rank recurring terms; keep the top 8 that appear in 2+ incidents.
-arsort($termCounts);
-$topTerms=array();
-foreach($termCounts as $t=>$c){
-	if($c < 2) break;                  // sorted desc — everything after is rarer
-	$topTerms[]=array($t,(int)$c);
-	if(count($topTerms) >= 8) break;
-}
 ?>	
 </tbody>
 </table>
@@ -279,7 +263,6 @@ foreach($termCounts as $t=>$c){
 	<canvas id="tdVolume" width="340" height="160"></canvas>
 	<canvas id="tdTypes"  width="340" height="230"></canvas>
 	<canvas id="tdTiming" width="340" height="180"></canvas>
-	<canvas id="tdTerms"  width="340" height="180"></canvas>
 </div>
 
 <script>
@@ -287,11 +270,29 @@ var tdCoverageNote = <?php echo json_encode(htmlspecialchars($coverageNote, ENT_
 // Aggregates from the same query as the table above.
 var tdPersonName = <?php echo json_encode($reportedBy); ?>;
 var tdHasSearch  = <?php echo $hasSearch ? 'true' : 'false'; ?>;
+<?php
+/* @months -- A month this person filed nothing in had no key at all, so the
+   axis closed the gap and drew February next to June as if they were
+   consecutive. On a REPORTING-volume chart that is the worst possible
+   omission: a month off shift is exactly the thing a reader needs to see, and
+   a closed gap turns an absence into apparent continuity. Filled with 0. */
+if(count($tdMonthly)){
+	$mk=array_keys($tdMonthly); sort($mk);
+	$cur=new DateTime($mk[0]."-01");
+	$end=new DateTime($mk[count($mk)-1]."-01");
+	$seq=array();
+	while($cur <= $end){
+		$k=$cur->format("Y-m");
+		$seq[$k]=isset($tdMonthly[$k]) ? $tdMonthly[$k] : 0;
+		$cur->modify("+1 month");
+	}
+	$tdMonthly=$seq;
+}
+?>
 var tdMonthly    = <?php echo json_encode($tdMonthly, JSON_FORCE_OBJECT); ?>;
 var tdTypeCounts = <?php echo json_encode($tdTypes, JSON_FORCE_OBJECT); ?>;
 var tdTiming     = <?php echo json_encode($tdTiming); ?>;
 var tdTotal      = <?php echo (int)$tdTotal; ?>;
-var tdTerms      = <?php echo json_encode($topTerms); ?>;
 </script>
 
 <!--
@@ -423,6 +424,20 @@ $(function(){
 
 	var who = tdHasSearch ? tdPersonName : '';
 
+	/* @months -- The keys are "YYYY-MM" because that string sorts correctly and
+	   is safe as an object key; they were never meant to reach the axis. The
+	   label was m.slice(2), which chops the century and prints "25-03" -- a
+	   number that reads as neither a month nor a date. Two lines instead, which
+	   Chart.js stacks, so the year rides on every label without rotating. */
+	var TD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+	function tdMonthLabel(k){
+		var t = String(k);
+		if(!/^\d{4}-\d{2}$/.test(t)) return t;      /* never mangle a bad key */
+		var mi = parseInt(t.slice(5,7), 10) - 1;
+		if(!(mi >= 0 && mi < 12)) return t;
+		return [TD_MON[mi], t.slice(0,4)];
+	}
+
 	// ============ Chart 1: monthly reporting volume ============
 	(function drawVolume(){
 		var months = Object.keys(tdMonthly).sort();
@@ -432,7 +447,7 @@ $(function(){
 		new Chart(document.getElementById('tdVolume'), {
 			type: 'bar',
 			data: {
-				labels: shown.map(function(m){ return m.slice(2); }),
+				labels: shown.map(tdMonthLabel),
 				datasets: [{ data: shown.map(function(m){ return tdMonthly[m]; }), backgroundColor: mainColor, borderRadius: 3 }]
 			},
 			options: {
@@ -442,7 +457,9 @@ $(function(){
 					legend: { display: false }
 				},
 				scales: {
-					x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 45 }, grid: { display: false } },
+					/* Two-line labels do not need rotating; autoSkip still thins
+					   them if 24 will not fit the 340px canvas. */
+					x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 0, autoSkipPadding: 3 }, grid: { display: false } },
 					y: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } }
 				}
 			}
@@ -524,7 +541,12 @@ $(function(){
 		if(!tdTotal){ ctx.font='10px Arial, sans-serif'; ctx.fillStyle=mutedInk; ctx.fillText('No incidents to chart.', 0, 34); return; }
 
 		var days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+		/* @months -- The bands are defined in PHP as 05-09 / 09-16 / 16-20 /
+		   rest, but the axis only said "AM peak / Midday / PM peak / Evening",
+		   so where one ends and the next begins was guesswork -- and "Evening"
+		   silently includes the small hours. Hours stated on the label. */
 		var bands = ['AM peak','Midday','PM peak','Evening'];
+		var bandHours = ['05\u201309','09\u201316','16\u201320','20\u201305'];
 		var padL = 46, padT = 34, padR = 8, padB = 8;
 		var gridW = W - padL - padR, gridH = H - padT - padB;
 		var cellW = gridW / bands.length, cellH = gridH / days.length;
@@ -534,7 +556,14 @@ $(function(){
 		if(maxV === 0) maxV = 1;
 
 		ctx.font='10px Arial, sans-serif'; ctx.fillStyle=mutedInk; ctx.textAlign='center';
-		bands.forEach(function(b,ci){ ctx.fillText(b, padL + ci*cellW + cellW/2, padT - 10); });
+		bands.forEach(function(b,ci){
+			var cx = padL + ci*cellW + cellW/2;
+			ctx.fillText(b, cx, padT - 16);
+			ctx.save();
+			ctx.font = '9px Arial, sans-serif'; ctx.fillStyle = mutedInk;
+			ctx.fillText(bandHours[ci], cx, padT - 6);
+			ctx.restore();
+		});
 
 		days.forEach(function(d,ri){
 			var y = padT + ri*cellH;
@@ -555,46 +584,6 @@ $(function(){
 		});
 	})();
 
-	// ============ Chart 4: recurring description terms ============
-	// Same treatment as problem_history: the descriptions are mined for
-	// frequently-recurring words rather than used to infer a category. It
-	// surfaces what this person's reports actually mention — including
-	// signalling or unloading terms that the recorded type may not capture —
-	// without asserting a classification onto anyone's record.
-	if(tdTerms.length){
-		new Chart(document.getElementById('tdTerms'), {
-			type: 'bar',
-			data: {
-				labels: tdTerms.map(function(p){ return p[0]; }),
-				datasets: [{ data: tdTerms.map(function(p){ return p[1]; }), backgroundColor: '#1baf7a', borderRadius: 3, categoryPercentage: 0.6, barPercentage: 0.9 }]
-			},
-			options: {
-				indexAxis: 'y', responsive: false, animation: false, layout: { padding: { right: 22 } },
-				plugins: {
-					title: { display: true, text: who + ' \u2014 recurring words in descriptions', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 8 } },
-					legend: { display: false },
-					tooltip: { callbacks: { label: function(c){ return 'appears in ' + c.parsed.x + ' incidents'; } } }
-				},
-				scales: {
-					x: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } },
-					y: { ticks: { color: textInk, font: { size: 11 } }, grid: { display: false } }
-				}
-			},
-			plugins: [{
-				id: 'tdTermLabels',
-				afterDatasetsDraw: function(chart){
-					var ctx = chart.ctx, meta = chart.getDatasetMeta(0);
-					ctx.save(); ctx.font='11px Arial, sans-serif'; ctx.fillStyle=textInk;
-					ctx.textBaseline='middle'; ctx.textAlign='left';
-					meta.data.forEach(function(bar,i){ ctx.fillText(chart.data.datasets[0].data[i], bar.x + 6, bar.y); });
-					ctx.restore();
-				}
-			}]
-		});
-	}
-	else{
-		blankCanvas('tdTerms', 'Recurring words in descriptions', 'Not enough description data to rank recurring terms.');
-	}
 
 	// ============ Intercept the TableTools print button ============
 	var printBtn = $('#add_form_wrapper').find('.DTTT_button_print, .buttons-print');
@@ -661,7 +650,6 @@ $(function(){
 		var imgVolume = document.getElementById('tdVolume').toDataURL('image/png');
 		var imgTypes  = document.getElementById('tdTypes').toDataURL('image/png');
 		var imgTiming = document.getElementById('tdTiming').toDataURL('image/png');
-		var imgTerms  = document.getElementById('tdTerms').toDataURL('image/png');
 		var captured  = tdFullTableHtml();
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
@@ -738,9 +726,11 @@ $(function(){
 					'<div class="cap">Figure 2 &mdash; Problem types reported</div></div>' +
 				'<div class="chart"><img src="' + imgTiming + '">' +
 					'<div class="cap">Figure 3 &mdash; When reported incidents occur</div></div>' +
-				'<div class="chart"><img src="' + imgTerms + '">' +
-					'<div class="cap">Figure 4 &mdash; Recurring words in descriptions</div></div>' +
-				'<p class="note">Counts reflect incidents this person filed. They describe reporting coverage and shift pattern, not individual performance &mdash; volume depends heavily on roster, assigned area and shift. Figure 2 shows recorded problem types only; Figure 4 counts words appearing in the descriptions themselves and does not assign a category.</p>' +
+				/* @norecurring -- the Figure 4 sentence went with the chart. The
+				   first half stays: it is the caveat that keeps this page from
+				   reading as a performance ranking, and it is more important
+				   now that every remaining figure is a recorded value. */
+				'<p class="note">Counts reflect incidents this person filed. They describe reporting coverage and shift pattern, not individual performance &mdash; volume depends heavily on roster, assigned area and shift. All figures use recorded values only; nothing is inferred onto an individual\'s record.</p>' +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
@@ -780,11 +770,12 @@ function getProblemType($db,$type){
 // ============================================================
 // Description text mining (shared with problem_history.php).
 //
-// Only the tokenizer is used here: descriptions are mined for recurring
-// words to build Figure 4. No classifier — problem types on this page come
-// from recorded values only, so nothing is inferred onto an individual's
-// record. Stopwords include rail-report boilerplate (hrs, nb, sb); extend
-// the list if other filler shows up in the term chart.
+// @norecurring -- Nothing on this page mines descriptions any more. Figure 4
+// ranked word frequency, which describes the vocabulary a reporter types
+// rather than the faults they reported, and on a per-person page that is a
+// particularly poor thing to chart. ccsTokenize is kept only because
+// problem_history.php shares this block; if that page drops it too, the whole
+// section can go.
 // ============================================================
 
 function ccsTokenize($text){
