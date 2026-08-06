@@ -754,26 +754,53 @@ function csPrintReport(){
 			'.kpi-v{ font-size:17px; font-weight:600; color:#1f4e79; line-height:1.1; }' +
 			'.kpi-v.name{ font-size:11px; color:#7A1F1F; line-height:1.25; }' +
 			'.kpi-s{ font-size:8px; color:#6b7280; margin-top:2px; }' +
-			'table{ width:100%; border-collapse:collapse; font-size:9px; margin-bottom:2px; }' +
+			/* @tablestyle -- Matched to car_history.php's printout, which is the
+			   one that reads cleanly. Two things were making these heavier:
+
+			   1. Every data row's FIRST cell is a <th>, not a <td>. car_history
+			      has no body th at all, so its 'th{background:navy}' only ever
+			      hits the header. Here that rule would paint the whole label
+			      column navy, so it had been given its own beige fill -- which
+			      turned column one into a second header running down the page and
+			      buried the striping underneath it. Body th is styled as a td now,
+			      and only the leading column keeps its left alignment.
+			   2. Full 1px boxes around every cell. Horizontal rules only, so the
+			      stripe does the column separation instead of a grid. */
+			'table{ width:100%; border-collapse:collapse; font-size:9.5px; margin-bottom:2px; }' +
 			'thead{ display:table-header-group; }' +
-			'thead th{ background:#1f4e79; color:#fff; text-align:center; padding:4px 3px; font-size:8px; font-weight:600;' +
-				' text-transform:uppercase; letter-spacing:.03em; border:1px solid #1f4e79; }' +
-			/* Each data row's first cell is a th too, so the header fill has to
-			   be scoped to thead or the whole Equipment column goes navy. */
-			'tbody th, tfoot th{ background:#F1EFE8; color:#1a1a1a; text-align:left; padding:3px 5px; font-size:9px;' +
-				' font-weight:600; border:1px solid #e5e7eb; }' +
-			'td{ padding:3px; border:1px solid #e5e7eb; text-align:center; }' +
-			/* @cols -- mirrors the screen: fixed columns, wrapping names, and
-			   the threshold shown as red text rather than a pink fill. */
+			/* @gridlines -- I had cut these to border-bottom only. car_history.php,
+			   the printout this is matched to, uses a full 1px box on every cell --
+			   dropping the vertical rules left the columns floating, which is the
+			   missing lines. Full grid restored, in the same hairline grey.
+			   And the numeric columns are centred, not right-aligned: they were
+			   centred on screen and in the previous printout, and right-alignment
+			   only earns its keep when figures need decimal alignment. */
+			'thead th{ background:#1f4e79; color:#fff; text-align:center; padding:6px 7px;' +
+				' font-size:9px; font-weight:600; text-transform:uppercase;' +
+				' letter-spacing:.04em; border:1px solid #1f4e79; }' +
+			'thead th:first-child{ text-align:left; }' +
+			'tbody th, tbody td{ padding:5px 7px; background:none; color:#1a1a1a;' +
+				' font-weight:400; vertical-align:top; border:1px solid #e5e7eb; }' +
+			'tbody th{ text-align:left; font-weight:500; overflow-wrap:anywhere; }' +
+			'tbody td{ text-align:center; }' +
+			/* @stripe -- every data table, not just .eq-table: the severity table
+			   (.lv) is built inline and was left plain, so one report carried two
+			   table styles. .kpi is excluded -- a tile strip, not a data table.
+			   Must follow the tbody rule above; equal weight, later wins. */
+			'table:not(.kpi) tbody tr:nth-child(even) th,' +
+			'table:not(.kpi) tbody tr:nth-child(even) td{ background:#f6f8fa; }' +
+			/* The Total row: one rule above it, no heavy fill competing with the
+			   stripe underneath. */
+			'tfoot th, tfoot td{ background:none; font-weight:700; padding:5px 7px;' +
+				' border:1px solid #e5e7eb; border-top:2px solid #1f4e79; }' +
+			'tfoot th{ text-align:left; } tfoot td{ text-align:center; }' +
 			'table.eq-table{ table-layout:fixed; }' +
-			'table.eq-table tbody th{ text-align:left; overflow-wrap:anywhere; }' +
-			'table.eq-table tbody tr:nth-child(even) th,' +
-			'table.eq-table tbody tr:nth-child(even) td{ background:#F7F5EE; }' +
+			'table.lv{ width:auto; min-width:190px; }' +
+			/* Threshold rows: red text and weight, no fill -- the pink fill read
+			   as an error state and fought the striping. */
 			'tr.eq-flag th, tr.eq-flag td{ color:#7A1F1F !important; font-weight:700; }' +
 			'tr.eq-flag th a{ color:#7A1F1F !important; }' +
-			'tfoot td{ background:#F1EFE8; font-weight:700; }' +
 			'tr{ page-break-inside:avoid; }' +
-			'table.lv{ width:auto; min-width:180px; }' +
 			/* The equipment names are links on screen; inline colours would win
 			   without !important, and a printed link should not look clickable. */
 			'a{ color:inherit !important; text-decoration:none !important; pointer-events:none; }' +
