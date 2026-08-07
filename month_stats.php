@@ -946,7 +946,6 @@ function csPrintReport(){
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
 		tableHtml +
 		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
-		(csCoverage ? '<p class="note" style="color:#7A1F1F;">'+esc(csCoverage)+'</p>' : '') +
 		'<p class="note">Figures count car-level failures for this car: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
 		'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 		'</body></html>'

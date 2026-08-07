@@ -47,19 +47,6 @@ $car_id=$_GET['car_id'];
 // the car, so the two pages disagreed about what was being looked at.
 $ccsEquipt = isset($_GET['eq']) && $_GET['eq'] !== '' ? (int)$_GET['eq'] : 0;
 
-/* @levelfilter -- Inherited from car_stats.php, which passes its level filter
-   through on the "Full incident history" button. !== '' rather than isset():
-   a blank level= means "all levels", and isset() is true for it. */
-$ccsLevel = isset($_GET['level']) && $_GET['level'] !== '' ? (int)$_GET['level'] : 0;
-if($ccsLevel < 0 || $ccsLevel > 4){ $ccsLevel = 0; }
-
-/* Resolved once, so the heading and the printout name it the same way. */
-$ccsEquiptName = '';
-if($ccsEquipt){
-	$eqr = $db->query("select equipment_name from equipment where id='".$ccsEquipt."'");
-	if($eqr && ($eqw = $eqr->fetch_assoc())) $ccsEquiptName = (string)$eqw['equipment_name'];
-}
-
 $ccsYear  = isset($_GET['y']) && $_GET['y'] !== '' ? (int)$_GET['y'] : 0;
 $ccsMonth = isset($_GET['m']) && $_GET['m'] !== '' ? (int)$_GET['m'] : 0;
 if($ccsMonth < 1 || $ccsMonth > 12){ $ccsMonth = 0; }
@@ -99,11 +86,11 @@ else if($ccsYear){
 		   further down, so this reads it after the fact via a small query
 		   rather than moving the map's load point. */
 		if($ccsYear){ echo " &mdash; ".($ccsMonth ? date("F Y", strtotime(sprintf("%04d-%02d-01",$ccsYear,$ccsMonth))) : "Year ".$ccsYear); }
-		/* @levelfilter -- stated in the heading; a page showing a fraction of a
-		   car's history with nothing saying why reads as missing data. */
-		if($ccsLevel){ echo " &mdash; Level ".$ccsLevel." only"; }
 		if($ccsEquipt){
-			echo " &mdash; ".htmlspecialchars($ccsEquiptName !== '' ? $ccsEquiptName : 'Equipment #'.$ccsEquipt)." only";
+			$enm = '';
+			$eqRs = $db->query("select equipment_name from equipment where id='".$ccsEquipt."'");
+			if($eqRs && ($eqRow=$eqRs->fetch_assoc())){ $enm = (string)$eqRow['equipment_name']; }
+			echo " &mdash; ".htmlspecialchars($enm !== '' ? $enm : 'Equipment #'.$ccsEquipt)." only";
 		}
 		?>
 		&mdash; Line 3</div>
@@ -142,11 +129,7 @@ else if($ccsYear){
 // @carryfilter -- equipment clause alongside the date clause, so the table AND
 // every chart below (they all read this one result set) narrow together.
 $equiptClause = $ccsEquipt ? " and incident_union.equipt = ".$ccsEquipt." " : "";
-/* @levelfilter -- Applied to the row query, which every chart on this page is
-   derived from, so the table and the figures narrow together. Chart 3 is the
-   exception -- see the note where it is built. */
-$levelClause  = $ccsLevel  ? " and incident_union.level = ".$ccsLevel." "   : "";
-$sql="select * from incident_cars inner join incident_union on incident_cars.incident_id=incident_union.id where incident_cars.car_no*1='".$car_id."' ".$dateClause." ".$equiptClause." ".$levelClause." order by incident_date desc";
+$sql="select * from incident_cars inner join incident_union on incident_cars.incident_id=incident_union.id where incident_cars.car_no*1='".$car_id."' ".$dateClause." ".$equiptClause." order by incident_date desc";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
 
@@ -420,7 +403,6 @@ var ccsSuggested     = <?php echo json_encode($suggestedCounts, JSON_FORCE_OBJEC
 var ccsSuggestedTotal = <?php echo (int)$suggestedTotal; ?>;
 var ccsSevGrid       = <?php echo json_encode($sevGrid, JSON_FORCE_OBJECT); ?>;
 var ccsSevRows       = <?php echo json_encode($sevRows); ?>;
-var ccsLevelOnly     = <?php echo (int)$ccsLevel; ?>;   /* @levelfilter */
 var ccsSevCols       = <?php echo json_encode(array_values($sevOrder)); ?>;
 var ccsBlankTotal    = <?php echo (int)$blankTotal; ?>;
 var ccsRepeat        = <?php echo json_encode($repeatRows); ?>;          /* @repeat */
@@ -699,15 +681,7 @@ $(function(){
 		ctx.textBaseline = 'middle';
 
 		ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = textInk; ctx.textAlign = 'left';
-		/* @levelfilter -- On car_stats.php the severity TILES stay unfiltered,
-		   because they are also the control and filtering them would erase the
-		   way back. This chart is not a control -- there is no level picker on
-		   this page -- and its grid is built inside the row loop from the same
-		   filtered set every other figure here uses. Keeping it unfiltered
-		   would need a second pass over the rows purely for one chart, and
-		   would put an unfiltered figure among filtered ones with nothing
-		   marking it. So it narrows with the page, and says so instead. */
-		ctx.fillText('Equipment \u00d7 severity' + (ccsLevelOnly ? ' \u2014 Level ' + ccsLevelOnly + ' only' : ''), 0, 9);
+		ctx.fillText('Equipment \u00d7 severity', 0, 9);
 
 		if(!ccsSevRows.length || !ccsSevCols.length){
 			ctx.font = '10px Arial, sans-serif'; ctx.fillStyle = mutedInk;
@@ -957,11 +931,6 @@ $(function(){
   }
   else { echo htmlspecialchars((int)$_GET["y"]); }
 ?></span>' +
-				<?php /* @levelfilter -- every inherited filter stated on the printout,
-				         or a report showing a fraction of the car's history has
-				         nothing on the page explaining why. */ ?>
-				'<?php if($ccsLevel){ ?><span><b>Level:</b> <?php echo (int)$ccsLevel; ?> only</span><?php } ?>' +
-				'<?php if($ccsEquipt){ ?><span><b>Equipment:</b> <?php echo htmlspecialchars($ccsEquiptName !== "" ? $ccsEquiptName : "#".$ccsEquipt, ENT_QUOTES); ?> only</span><?php } ?>' +
 				'<span><b>Records:</b> ' + rowCount + '</span>' +
 				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 			'</div>' +
@@ -970,7 +939,7 @@ $(function(){
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + chartMonthlyImg + '">' + '<div class="cap">Figure 1 &mdash; Incidents by month, by equipment</div></div>' +
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Leading equipment by incident count</div></div>' +
-				'<div class="chart"><img src="' + severityImg + '">' + '<div class="cap">Figure 3 &mdash; Equipment by severity level' + (ccsLevelOnly ? ' (Level ' + ccsLevelOnly + ' only)' : '') + '</div></div>' +
+				'<div class="chart"><img src="' + severityImg + '">' + '<div class="cap">Figure 3 &mdash; Equipment by severity level</div></div>' +
 				'<div class="chart"><img src="' + repeatImg + '">' + '<div class="cap">Figure 4 &mdash; Equipment that failed more than once</div></div>' +
 				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified. Figure 4 lists equipment that failed more than once, using recorded values only &mdash; a repeat is a claim about the same component failing twice, which a suggestion is not strong enough to carry. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
 			'</div>' +

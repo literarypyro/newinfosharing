@@ -98,6 +98,10 @@ if(isset($_GET['year']) && $_GET['year'] !== ''){
 	$carHistoryUrl .= "&y=".$year.($month ? "&m=".$month : "");
 }
 if($equipt){ $carHistoryUrl .= "&eq=".$equipt; }
+/* @levelfilter -- car_history.php reads level= and narrows with it. Without
+   this, filtering to Level 2 here and clicking through gave a history showing
+   every level: two answers to the same question, one click apart. */
+if($level){ $carHistoryUrl .= "&level=".$level; }
 
 
 // Inside the slide panel this page is an iframe, so a plain link would load

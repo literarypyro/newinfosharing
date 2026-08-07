@@ -680,7 +680,12 @@ $(function(){
 			'</div>' +
 			'<div class="rpt-meta">' +
 				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
-				'<?php echo isset($_GET["level"]) ? "<span><b>Severity:</b> Level ".htmlspecialchars($_GET["level"])."</span>" : ""; ?>' +
+				<?php /* @levelfilter -- was isset($_GET["level"]), which is TRUE for a
+				         blank level= and printed "Severity: Level ". $ehLevel is
+				         the already-resolved value, so the printout and the page
+				         cannot disagree. Car added: it was filtered but unstated. */ ?>
+				'<?php if($ehLevel){ ?><span><b>Severity:</b> Level <?php echo (int)$ehLevel; ?> only</span><?php } ?>' +
+				'<?php if($ehCar){ ?><span><b>Car:</b> <?php echo (int)$ehCar; ?> only</span><?php } ?>' +
 				'<span><b>Incidents listed:</b> ' + rowCount + '</span>' +
 				'<span><b>Car-level failures:</b> <?php echo (int)$ehPairs; ?></span>' +
 				'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
