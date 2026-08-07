@@ -196,6 +196,13 @@ $carHistoryTarget = $IR_EMBED ? "_top" : "_self";
 $where = "1=1".$dateClause;
 if($car)    $where .= " and incident_cars.car_no*1 = ".$car." ";
 if($equipt) $where .= " and incident_report.equipt = ".$equipt." ";
+
+/* @levelfilter -- TWO clauses, deliberately. The severity tiles have to keep
+   counting EVERY level: filtering them would leave one tile with a figure and
+   the rest on zero, and no way back, because those tiles are the only control
+   for level on this page. The severity query reads $whereAllLevels; the
+   breakdown, the period table and the incident count read $where. */
+$whereAllLevels = $where;
 if($level)  $where .= " and incident_report.level = ".$level." ";
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
@@ -204,7 +211,7 @@ $levelCounts = array();
 $sql = "select incident_report.level as level, count(1) as c
           from incident_report
           inner join incident_cars on incident_report.id=incident_cars.incident_id
-         where ".$where."
+         where ".$whereAllLevels."
          group by incident_report.level";
 $rs = $db->query($sql);
 if($rs){
@@ -465,6 +472,22 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 .kpi-tile .k-value { font-size:22px; font-weight:600; color:#00529B; }
 .kpi-tile .k-value--name { font-size:15px; line-height:1.3; margin-top:3px; color:#7A1F1F; }
 .kpi-tile .k-sub   { font-size:11px; color:#5A6275; }
+/* @levelfilter -- the level tiles double as the filter control. */
+.kpi-striphead { font-size:11.5px; color:#5A6275; margin:14px 0 -4px; line-height:1.5; }
+.kpi-striphead b { color:#1A2238; }
+.kpi-clear { color:#00529B; font-weight:600; text-decoration:none; margin-left:6px; }
+.kpi-clear:hover { text-decoration:underline; }
+a.kpi-tile { text-decoration:none; color:inherit; display:block; }
+.kpi-tile--link { cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s, opacity .12s; }
+.kpi-tile--link:hover { background:#F3F7FC; border-color:#00529B; box-shadow:0 1px 5px rgba(0,40,90,.13); opacity:1; }
+.kpi-tile--link:focus-visible { outline:2px solid #00529B; outline-offset:2px; }
+/* Filled, not outlined: hover is already an outline change, so "active filter"
+   has to read differently from "your mouse is here". */
+.kpi-tile--on { background:#00529B !important; border-color:#00529B !important; }
+.kpi-tile--on .k-label, .kpi-tile--on .k-sub { color:rgba(255,255,255,.82) !important; }
+.kpi-tile--on .k-value { color:#FFFFFF !important; }
+.kpi-tile--on:hover { background:#003E76 !important; }
+.kpi-tile--dim { opacity:.55; }
 </style>
 <?php include("history_theme.php"); ?>
 
@@ -487,7 +510,9 @@ if($level)  $msNarrow[] = 'Level '.$level;
 ?>
 <h1><?php echo htmlspecialchars($period); ?></h1>
 <?php if(count($msNarrow)){ ?>
-<div class='sub' style="color:#FDB813;">Filtered to <?php echo htmlspecialchars(implode(' &middot; ', $msNarrow)); ?></div>
+<div class='sub' style="color:#FDB813;">Filtered to <?php /* @entity -- see equipt_stats.php: escape the parts, then join,
+        or htmlspecialchars() escapes the separator's own ampersand. */
+     echo implode(' &middot; ', array_map('htmlspecialchars', $msNarrow)); ?></div>
 <?php } ?>
 <div class='sub'><?php echo htmlspecialchars($period); ?></div>
 </div>
@@ -510,6 +535,8 @@ if($level)  $msNarrow[] = 'Level '.$level;
 		<?php /* @monthstats -- the same period, seen the other way. One click
 		         rather than going back to the report and opening the other tile. */ ?>
 		<a class="scope-btn scope-btn--ghost" href="?<?php
+			/* @levelfilter -- $_GET carries level through, so flipping the axis
+			   keeps the filter rather than silently widening the page. */
 			$qs = $_GET; $qs['by'] = ($by === 'equipt' ? 'car' : 'equipt');
 			echo htmlspecialchars(http_build_query($qs));
 		?>">By <?php echo $by === 'equipt' ? 'car' : 'equipment'; ?></a>
@@ -543,15 +570,42 @@ if($level)  $msNarrow[] = 'Level '.$level;
 	</div>
 </div>
 
+<?php
+/* @levelfilter -- Same treatment as equipt_stats.php. The strip is captioned
+   because the confusing part of a level filter is that these tiles keep
+   showing every level while the rest of the page shows one -- without a line
+   saying so, a reader has to work out for themselves which numbers moved. */
+function msLevelUrl($lv){
+	$q = $_GET;
+	if(isset($q['level']) && (int)$q['level'] === $lv) unset($q['level']);
+	else $q['level'] = $lv;
+	return '?'.http_build_query($q);
+}
+$msClearUrl = '?'.http_build_query(array_diff_key($_GET, array('level'=>1)));
+?>
+<div class="kpi-striphead">
+<?php if($level){ ?>
+	Severity &mdash; <b>showing Level <?php echo $level; ?> only</b>.
+	These counts cover <em>all</em> levels for the period, so you can switch;
+	everything else on the page is Level <?php echo $level; ?>.
+	<a href="<?php echo htmlspecialchars($msClearUrl); ?>" class="kpi-clear">Show all levels</a>
+<?php } else { ?>
+	Severity &mdash; click a level to show only its failures below.
+<?php } ?>
+</div>
 <div class="kpi-strip">
 <?php foreach($TILE_LEVELS as $lv){
 	$c = isset($levelCounts[(string)$lv]) ? $levelCounts[(string)$lv] : 0;
+	$isActive = ($level === $lv);
+	/* A level with no failures is not worth a click: filtering to it empties
+	   the page and says nothing the tile has not already said. */
+	$canClick = ($c > 0);
 ?>
-	<div class="kpi-tile">
-		<div class="k-label">Level <?php echo $lv; ?></div>
-		<div class="k-value" style="<?php echo $lv>=3 ? 'color:#7A1F1F;' : ''; ?>"><?php echo $c; ?></div>
-		<div class="k-sub"><?php echo $levelledFail ? round($c/$levelledFail*100).'% of levelled' : '&mdash;'; ?></div>
-	</div>
+	<?php if($canClick){ ?><a class="kpi-tile kpi-tile--link<?php echo $isActive ? ' kpi-tile--on' : ''; ?><?php echo ($level && !$isActive) ? ' kpi-tile--dim' : ''; ?>" href="<?php echo htmlspecialchars(msLevelUrl($lv)); ?>" title="<?php echo $isActive ? 'Show all levels again' : 'Show only Level '.$lv; ?>"><?php } else { ?><div class="kpi-tile<?php echo $level ? ' kpi-tile--dim' : ''; ?>"><?php } ?>
+		<div class="k-label">Level <?php echo $lv; ?><?php echo $isActive ? ' &mdash; showing' : ''; ?></div>
+		<div class="k-value" style="<?php echo (!$isActive && $lv>=3) ? 'color:#7A1F1F;' : ''; ?>"><?php echo $c; ?></div>
+		<div class="k-sub"><?php echo $levelledFail ? round($c/$levelledFail*100).'% of all levels' : '&mdash;'; ?></div>
+	<?php if($canClick){ ?></a><?php } else { ?></div><?php } ?>
 <?php } ?>
 </div>
 
@@ -669,6 +723,8 @@ foreach($periodBuckets as $pk => $pCount){
    is opened directly. */
 var csCar        = <?php echo json_encode($car); ?>;
 var csPeriod     = <?php echo json_encode($period); ?>;
+var csLevelOnly  = <?php echo (int)$level; ?>;   /* @levelfilter */
+var csCarFilter  = <?php echo (int)$car; ?>;      /* @monthstats */
 var csFrom       = <?php echo json_encode(date("d M Y", strtotime($start_date1))); ?>;
 var csTo         = <?php echo json_encode(date("d M Y", strtotime($end_date1))); ?>;
 var csTotal      = <?php echo (int)$equipt_count; ?>;
@@ -799,8 +855,13 @@ function csPrintReport(){
 		'<div class="rpt-meta">' +
 			/* @printtiles -- failures / incidents / types moved down into the
 			   tiles, so the meta strip no longer states them twice. */
-			'<span><b>Car:</b> '+esc(csCar)+'</span>' +
-			'<span><b>Period:</b> '+esc(csFrom)+' &ndash; '+esc(csTo)+'</span>' +
+			/* @monthstats -- csCar is a leftover from the car_stats copy this page
+			   was built from; the subject here is the PERIOD, and any car or
+			   equipment narrowing is already in the heading. Replaced with the
+			   filters that actually apply. */
+			'<span><b>Period:</b> '+esc(csPeriod)+'</span>' +
+			(csCarFilter  ? '<span><b>Car:</b> '+csCarFilter+' only</span>' : '') +
+			(csLevelOnly  ? '<span><b>Level:</b> '+csLevelOnly+' only</span>' : '') +
 			'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 		'</div>' +
 		'<h2 class="sec">Key Figures</h2>' +
@@ -822,6 +883,7 @@ function csPrintReport(){
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
 		tableHtml +
 		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
+		(csCoverage ? '<p class="note" style="color:#7A1F1F;">'+esc(csCoverage)+'</p>' : '') +
 		'<p class="note">Figures count car-level failures for this car: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
 		'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 		'</body></html>'

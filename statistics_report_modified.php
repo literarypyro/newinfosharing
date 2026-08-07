@@ -1099,6 +1099,7 @@ var srmBucketWord   = <?php echo json_encode($bucketWord); ?>;   /* @buckets */
 var srmPanelFrom    = <?php echo json_encode($panelFrom); ?>;    /* @monthpanel */
 var srmPanelTo      = <?php echo json_encode($panelTo); ?>;
 var srmPanelCar     = <?php echo json_encode($panelCar ? (string)$panelCar : ''); ?>;
+var srmPanelLevel   = <?php echo json_encode($level !== '' ? (string)$level : ''); ?>;   /* @levelfilter */
 </script>
 </div>
 <br>
@@ -1299,6 +1300,15 @@ function openMonthPanel(year, csv, dayMonth, title, multiYear){
 		       : "&months=" + encodeURIComponent(csv));
 	}
 	if(srmPanelCar) q += "&car=" + encodeURIComponent(srmPanelCar);
+	/* @levelfilter -- openEquiptPanel passes the report's level filter through;
+	   this one did not, so the two panels on the same page disagreed about
+	   whether a filter applies. month_stats.php reads level= either way.
+
+	   car_statistics_report.php's own openMonthPanel sends no level, correctly:
+	   that report has no level filter at all, so there is nothing to inherit.
+	   The tiles inside the panel still work there -- the filter is simply
+	   panel-local rather than inherited. */
+	if(srmPanelLevel) q += "&level=" + encodeURIComponent(srmPanelLevel);
 
 	document.getElementById('ir-panel-title').textContent = title;
 	document.getElementById('irFallbackLink').href = "month_stats.php?" + q;
@@ -1330,6 +1340,10 @@ function openEquiptPanel(sd, ed, equipt, title, car){
 	      + "&title="  + encodeURIComponent(title);
 	if(sd && ed){ q += "&sd=" + encodeURIComponent(sd) + "&ed=" + encodeURIComponent(ed); }
 	if(car){ q += "&car=" + encodeURIComponent(car); }   /* @carfilter */
+	/* @levelfilter -- the panel inherits this report's level filter. Without
+	   it, filtering the report to level 2 and opening a panel gave two
+	   different answers to the same question, one click apart. */
+	if(srmPanelLevel){ q += "&level=" + encodeURIComponent(srmPanelLevel); }
 
 	document.getElementById('ir-panel-title').textContent=title;
 	document.getElementById('irFallbackLink').href="equipt_stats.php?"+q; /* no embed=1: full standalone page */

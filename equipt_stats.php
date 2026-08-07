@@ -59,6 +59,12 @@ $equipt = isset($_GET['equipt']) ? (int)$_GET['equipt'] : 0;
 // answers to the same question on one screen.
 $carFilter = isset($_GET['car']) && $_GET['car'] !== '' ? (int)$_GET['car'] : 0;
 
+/* @levelfilter -- Inherited from statistics_report_modified.php, which passes
+   its own level filter through when it opens the panel. !== '' rather than
+   isset(): a blank level= means "all levels", and isset() is true for it. */
+$level = isset($_GET['level']) && $_GET['level'] !== '' ? (int)$_GET['level'] : 0;
+if($level < 0 || $level > 4){ $level = 0; }
+
 // @range -- statistics_report_modified.php filters by a From-To range, not by
 // year/month. Anything spanning more than one calendar year used to arrive here
 // with no year at all and render as All Time, which is why a Jan 2025 - Apr 2026
@@ -130,7 +136,8 @@ if($equipt){
 // history widened back to all time. Ranges travel as sd/ed now, which
 // equipment_history reads.
 $carHistoryUrl = "equipment_history.php?equipt=".$equipt
-               . ($carFilter ? "&car_id=".$carFilter : "");
+               . ($carFilter ? "&car_id=".$carFilter : "")
+               . ($level ? "&level=".$level : "");
 if($hasRange){
 	$carHistoryUrl .= "&sd=".urlencode(date("Y-m-d",$sd))."&ed=".urlencode(date("Y-m-d",$ed));
 }
@@ -167,8 +174,19 @@ $dateClause = $hasPeriod
 // car_no*1 matches how the report buckets cars, so '05' and '5' fold together.
 $carClause = $carFilter ? " and incident_cars.car_no*1 = ".$carFilter." " : "";
 
-$whereOwn = "incident_report.equipt = ".$equipt.$dateClause.$carClause;
-$whereExt = "is_external.incident_defects.equipt_id = ".$equipt.$dateClause.$carClause;
+/* @levelfilter -- TWO pairs of clauses, deliberately.
+   The severity tiles must keep counting EVERY level: filtering them would
+   leave one tile with a figure and the rest on zero, and no way back -- the
+   tile you clicked to get here is also the only control for the others. So
+   the severity query reads the ...AllLevels pair, and the breakdown, period
+   table and incident count read the filtered pair.
+   Both sources get the clause, or the two halves stop reconciling. */
+$whereOwnAllLevels = "incident_report.equipt = ".$equipt.$dateClause.$carClause;
+$whereExtAllLevels = "is_external.incident_defects.equipt_id = ".$equipt.$dateClause.$carClause;
+
+$levelClause = $level ? " and incident_report.level = ".$level." " : "";
+$whereOwn = $whereOwnAllLevels.$levelClause;
+$whereExt = $whereExtAllLevels.$levelClause;
 
 $joinOwn = "from incident_report
             inner join incident_cars on incident_report.id=incident_cars.incident_id";
@@ -186,12 +204,12 @@ $levelCounts = array();
 $sql = "select level, sum(c) as c from (
           select incident_report.level as level, count(1) as c
             ".$joinOwn."
-           where ".$whereOwn."
+           where ".$whereOwnAllLevels."
            group by incident_report.level
           union all
           select incident_report.level as level, count(1) as c
             ".$joinExt."
-           where ".$whereExt."
+           where ".$whereExtAllLevels."
            group by incident_report.level
         ) u group by level";
 $rs = $db->query($sql);
@@ -497,6 +515,24 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 .kpi-tile .k-value { font-size:22px; font-weight:600; color:#00529B; }
 .kpi-tile .k-value--name { font-size:15px; line-height:1.3; margin-top:3px; color:#7A1F1F; }
 .kpi-tile .k-sub   { font-size:11px; color:#5A6275; }
+/* @levelfilter -- the level tiles double as the filter control. */
+.kpi-striphead { font-size:11.5px; color:#5A6275; margin:14px 0 -4px; line-height:1.5; }
+.kpi-striphead b { color:#1A2238; }
+.kpi-clear { color:#00529B; font-weight:600; text-decoration:none; margin-left:6px; }
+.kpi-clear:hover { text-decoration:underline; }
+a.kpi-tile { text-decoration:none; color:inherit; display:block; }
+.kpi-tile--link { cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s, opacity .12s; }
+.kpi-tile--link:hover { background:#F3F7FC; border-color:#00529B; box-shadow:0 1px 5px rgba(0,40,90,.13); opacity:1; }
+.kpi-tile--link:focus-visible { outline:2px solid #00529B; outline-offset:2px; }
+/* Filled, not outlined: hover is already an outline change, and "this is the
+   active filter" has to read differently from "your mouse is here". */
+.kpi-tile--on { background:#00529B !important; border-color:#00529B !important; }
+.kpi-tile--on .k-label, .kpi-tile--on .k-sub { color:rgba(255,255,255,.82) !important; }
+.kpi-tile--on .k-value { color:#FFFFFF !important; }
+.kpi-tile--on:hover { background:#003E76 !important; }
+/* The non-selected tiles recede while a filter is on, so the strip reads as
+   "one of these is active" rather than as four equal figures. */
+.kpi-tile--dim { opacity:.55; }
 </style>
 <?php include("history_theme.php"); ?>
 
@@ -505,8 +541,16 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
 <div class="ccs-header">
 <h1>Car Failures for <?php echo $equipt > 0 ? htmlspecialchars($equiptName) : '&mdash;'; ?></h1>
-<?php if($carFilter){ /* @carfilter -- stated, or a one-row table looks like a bug */ ?>
-<div class='sub' style="color:#FDB813;">Filtered to Car <?php echo $carFilter; ?> only</div>
+<?php
+/* @carfilter / @levelfilter -- every active filter stated in the heading. */
+$esNarrow = array();
+if($carFilter) $esNarrow[] = 'Car '.$carFilter.' only';
+if($level)     $esNarrow[] = 'Level '.$level.' only';
+if(count($esNarrow)){ ?>
+<div class='sub' style="color:#FDB813;">Filtered to <?php /* @entity -- escape the PARTS, then join with the separator.
+        htmlspecialchars() over the joined string turns the & of
+        &middot; into &amp;, so the entity printed literally. */
+     echo implode(' &middot; ', array_map('htmlspecialchars', $esNarrow)); ?></div>
 <?php } ?>
 <div class='sub'><?php echo htmlspecialchars($period); ?></div>
 </div>
@@ -556,15 +600,45 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 	</div>
 </div>
 
+<?php
+/* @levelfilter -- The confusing part of inheriting a level filter is that the
+   tiles keep showing every level while the rest of the page shows one. Without
+   a caption a reader has to work out for themselves which numbers moved and
+   which did not.
+   So the strip is labelled, and the label says plainly what these figures are:
+   the whole severity profile, unaffected by the filter, and the way to change
+   it. Two states -- filtered and not -- with different wording for each. */
+function esLevelUrl($lv){
+	$q = $_GET;
+	if(isset($q['level']) && (int)$q['level'] === $lv) unset($q['level']);
+	else $q['level'] = $lv;
+	return '?'.http_build_query($q);
+}
+$esClearUrl = '?'.http_build_query(array_diff_key($_GET, array('level'=>1)));
+?>
+<div class="kpi-striphead">
+<?php if($level){ ?>
+	Severity &mdash; <b>showing Level <?php echo $level; ?> only</b>.
+	These counts cover <em>all</em> levels for the period, so you can switch;
+	everything else on the page is Level <?php echo $level; ?>.
+	<a href="<?php echo htmlspecialchars($esClearUrl); ?>" class="kpi-clear">Show all levels</a>
+<?php } else { ?>
+	Severity &mdash; click a level to show only its failures below.
+<?php } ?>
+</div>
 <div class="kpi-strip">
 <?php foreach($TILE_LEVELS as $lv){
 	$c = isset($levelCounts[(string)$lv]) ? $levelCounts[(string)$lv] : 0;
+	$isActive = ($level === $lv);
+	/* A level with no failures is not worth a click: filtering to it empties
+	   the page and says nothing the tile has not already said. */
+	$canClick = ($c > 0);
 ?>
-	<div class="kpi-tile">
-		<div class="k-label">Level <?php echo $lv; ?></div>
-		<div class="k-value" style="<?php echo $lv>=3 ? 'color:#7A1F1F;' : ''; ?>"><?php echo $c; ?></div>
-		<div class="k-sub"><?php echo $levelledFail ? round($c/$levelledFail*100).'% of levelled' : '&mdash;'; ?></div>
-	</div>
+	<?php if($canClick){ ?><a class="kpi-tile kpi-tile--link<?php echo $isActive ? ' kpi-tile--on' : ''; ?><?php echo ($level && !$isActive) ? ' kpi-tile--dim' : ''; ?>" href="<?php echo htmlspecialchars(esLevelUrl($lv)); ?>" title="<?php echo $isActive ? 'Show all levels again' : 'Show only Level '.$lv; ?>"><?php } else { ?><div class="kpi-tile<?php echo $level ? ' kpi-tile--dim' : ''; ?>"><?php } ?>
+		<div class="k-label">Level <?php echo $lv; ?><?php echo $isActive ? ' &mdash; showing' : ''; ?></div>
+		<div class="k-value" style="<?php echo (!$isActive && $lv>=3) ? 'color:#7A1F1F;' : ''; ?>"><?php echo $c; ?></div>
+		<div class="k-sub"><?php echo $levelledFail ? round($c/$levelledFail*100).'% of all levels' : '&mdash;'; ?></div>
+	<?php if($canClick){ ?></a><?php } else { ?></div><?php } ?>
 <?php } ?>
 </div>
 <?php /* @invert -- car_stats.php guards its equipment table with if(!$equipt),
@@ -733,6 +807,7 @@ var csEquipt     = <?php echo json_encode($equipt); ?>;
 var csEquiptName = <?php echo json_encode($equiptName); ?>;
 var csPeriod     = <?php echo json_encode($period); ?>;
 var csCarFilter  = <?php echo (int)$carFilter; ?>;   /* @carfilter */
+var csLevelOnly  = <?php echo (int)$level; ?>;      /* @levelfilter */
 var csFrom       = <?php echo json_encode(date("d M Y", strtotime($start_date1))); ?>;
 var csTo         = <?php echo json_encode(date("d M Y", strtotime($end_date1))); ?>;
 var csTotal      = <?php echo (int)$equipt_count; ?>;
@@ -871,6 +946,7 @@ function csPrintReport(){
 			   tiles, so the meta strip no longer states them twice. */
 			'<span><b>Equipment:</b> '+esc(csEquiptName)+'</span>' +
 			(csCarFilter ? '<span><b>Car:</b> '+csCarFilter+' only</span>' : '') +
+			(csLevelOnly ? '<span><b>Level:</b> '+csLevelOnly+' only</span>' : '') +
 			'<span><b>Period:</b> '+esc(csFrom)+' &ndash; '+esc(csTo)+'</span>' +
 			'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 		'</div>' +
