@@ -763,9 +763,17 @@ function csPrintReport(){
 	}
 	if(!tableHtml){ tableHtml = '<p>No table to print.</p>'; }
 
+	/* @levelprint -- On screen the active level is a filled tile under a
+	   caption. In print that was all lost: the table listed every level with
+	   nothing marking which one the rest of the report is filtered to, so a
+	   reader saw four counts disagreeing with every other figure on the page
+	   and no explanation. The active row is marked, and a note says what these
+	   counts are. */
 	var levelRows = csLevels.map(function(r){
 		var pct = csLevelled ? Math.round(r[1]/csLevelled*100)+'%' : '\u2014';
-		return '<tr><th>Level '+r[0]+'</th><td>'+r[1]+'</td><td>'+pct+'</td></tr>';
+		var on  = (csLevelOnly && r[0] === csLevelOnly);
+		return '<tr'+(on ? ' class="lv-on"' : '')+'><th>Level '+r[0]
+		     + (on ? ' \u2190 this report' : '') + '</th><td>'+r[1]+'</td><td>'+pct+'</td></tr>';
 	}).join('');
 
 	var win = window.open('', '_blank');
@@ -790,6 +798,8 @@ function csPrintReport(){
 			'h2.sec{ font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:#1f4e79;' +
 				' border-bottom:1px solid #d1d5db; padding-bottom:4px; margin:18px 0 10px; font-weight:600; }' +
 			'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:4px 0 0; }' +
+			/* @levelprint -- the filtered level, marked so it survives to paper. */
+			'tr.lv-on th, tr.lv-on td{ background:#00529B !important; color:#fff !important; font-weight:700; }' +
 			/* @printtiles -- the on-screen KPI strip, rebuilt for print. Same
 			   label / value / sub structure, sized for paper. table-layout
 			   fixed rather than flex because print engines size flex children
@@ -882,6 +892,10 @@ function csPrintReport(){
 		'<table class="lv"><thead><tr><th>Level</th><th>Failures</th><th>Share</th></tr></thead><tbody>' +
 			levelRows +
 		'</tbody></table>' +
+		(csLevelOnly
+			? '<p class="note">These counts cover <b>all</b> levels for the period. Every other figure in this report is Level '
+			  + csLevelOnly + ' only.</p>'
+			: '') +
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
 		tableHtml +
 		'<p class="note">Rows in red are at or above 60% of the highest total in their own table \u2014 the review threshold.</p>' +

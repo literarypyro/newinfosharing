@@ -514,14 +514,35 @@ if($level)  $msNarrow[] = 'Level '.$level;
         or htmlspecialchars() escapes the separator's own ampersand. */
      echo implode(' &middot; ', array_map('htmlspecialchars', $msNarrow)); ?></div>
 <?php } ?>
-<div class='sub'><?php echo htmlspecialchars($period); ?></div>
+<?php
+/* @dupperiod -- This said the period again, directly under an <h1> that had
+   just said it. Harmless over "March and July 2025", absurd over a single
+   month: panel header, h1 and this line all reading "March 2026" one under
+   the other. It carries the exact span instead, which the h1 does not -- "March
+   2026" does not tell you the report runs 01 to 31, and a part-month range
+   would look identical. */
+/* CONTIGUOUS periods only. A tie names months that are not adjacent -- over
+   "March and July" the span 01 Mar to 31 Jul would claim April, May and June
+   are included, which is exactly what the OR-of-LIKE date clause was written
+   to avoid. Same for a day tie: "11 to 14 March" would swallow the 12th and
+   13th. Those selections have no single span, so they get none. */
+$msContiguous = $hasRange || (!count($days) && count($months) <= 1);
+if($msContiguous && $start_date1 !== '' && $end_date1 !== ''){
+	$msSpan = date("d M Y", strtotime($start_date1)).' to '.date("d M Y", strtotime($end_date1));
+	/* Only worth printing when it says something the heading did not. */
+	if($msSpan !== $period){ ?>
+<div class='sub'><?php echo htmlspecialchars($msSpan); ?></div>
+<?php }
+} ?>
 </div>
 
 <div class="ccs-panel">
 <div class="ccs-panel-head">
 <div class="stat-scope">
 	<div class="scope-left">
-		<?php echo htmlspecialchars($period); ?>
+		<?php /* @dupperiod -- was the period a third time. The bar sits directly
+		         above the table, so it names what the table shows instead. */ ?>
+		Failures by <?php echo $by === 'equipt' ? 'equipment' : 'car'; ?>
 		<?php 
 		if(isset($_POST['year'])){
 			?>
@@ -721,7 +742,34 @@ foreach($periodBuckets as $pk => $pCount){
    being framed, and the result is a real page the browser prints normally.
    No dependency on the host page, so the button also works when car_stats.php
    is opened directly. */
-var csCar        = <?php echo json_encode($car); ?>;
+/* @monthstats -- csCar is a leftover from the car_stats copy this page was
+   built from. On a PERIOD page there is no single car, so it is 0, and the
+   printout was headed "Equipment Failures - Car 0". Kept only as the car
+   FILTER value, which is what it actually means here. */
+var csBy         = <?php echo json_encode($by); ?>;
+<?php
+/* Resolved once here rather than in the meta strip, so the printout names the
+   equipment the same way the heading does. */
+$msEqName = '';
+if($equipt){
+	$eqr = $db->query("select equipment_name from equipment where id='".$equipt."'");
+	if($eqr && ($eqw = $eqr->fetch_assoc())) $msEqName = (string)$eqw['equipment_name'];
+	if($msEqName === '') $msEqName = 'Equipment #'.$equipt;
+}
+?>
+var csEquiptName = <?php echo json_encode($msEqName); ?>;
+/* @monthstats -- The heading names the SUBJECT, and this page's subject is the
+   period. It was naming the breakdown AXIS instead, which fails twice: the
+   axis flips with ?by=, so the same report changed its own name depending on
+   which tile opened it, and neither name mentioned the period the report is
+   actually about.
+   The sibling pages can name their axis in the heading because theirs is
+   fixed -- car_stats always breaks down by equipment, equipt_stats always by
+   car. This page's is a toggle, so the axis belongs where it already is: the
+   section heading above each table, "By car" / "By equipment".
+   "Period Breakdown" is also what the slide-panel header says, so the printout
+   now matches what was on screen when it was generated. */
+var csSubject    = "Period Breakdown";
 var csPeriod     = <?php echo json_encode($period); ?>;
 var csLevelOnly  = <?php echo (int)$level; ?>;   /* @levelfilter */
 var csCarFilter  = <?php echo (int)$car; ?>;      /* @monthstats */
@@ -757,9 +805,17 @@ function csPrintReport(){
 	}
 	if(!tableHtml){ tableHtml = '<p>No table to print.</p>'; }
 
+	/* @levelprint -- On screen the active level is a filled tile under a
+	   caption. In print that was all lost: the table listed every level with
+	   nothing marking which one the rest of the report is filtered to, so a
+	   reader saw four counts disagreeing with every other figure on the page
+	   and no explanation. The active row is marked, and a note says what these
+	   counts are. */
 	var levelRows = csLevels.map(function(r){
 		var pct = csLevelled ? Math.round(r[1]/csLevelled*100)+'%' : '\u2014';
-		return '<tr><th>Level '+r[0]+'</th><td>'+r[1]+'</td><td>'+pct+'</td></tr>';
+		var on  = (csLevelOnly && r[0] === csLevelOnly);
+		return '<tr'+(on ? ' class="lv-on"' : '')+'><th>Level '+r[0]
+		     + (on ? ' \u2190 this report' : '') + '</th><td>'+r[1]+'</td><td>'+pct+'</td></tr>';
 	}).join('');
 
 	var win = window.open('', '_blank');
@@ -768,7 +824,7 @@ function csPrintReport(){
 	if(!win){ alert('The printout opens in a new window. Please allow pop-ups for this site and try again.'); return; }
 
 	win.document.write(
-		'<html><head><title>Equipment Failures \u2014 Car '+esc(csCar)+'</title>' +
+		'<html><head><title>'+esc(csSubject)+' \u2014 '+esc(csPeriod)+'</title>' +
 		'<style>' +
 			'@page{ size:A4 portrait; margin:12mm 10mm 13mm; }' +
 			'*{ box-sizing:border-box; }' +
@@ -784,6 +840,8 @@ function csPrintReport(){
 			'h2.sec{ font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:#1f4e79;' +
 				' border-bottom:1px solid #d1d5db; padding-bottom:4px; margin:18px 0 10px; font-weight:600; }' +
 			'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:4px 0 0; }' +
+			/* @levelprint -- the filtered level, marked so it survives to paper. */
+			'tr.lv-on th, tr.lv-on td{ background:#00529B !important; color:#fff !important; font-weight:700; }' +
 			/* @printtiles -- the on-screen KPI strip, rebuilt for print. Same
 			   label / value / sub structure, sized for paper. table-layout
 			   fixed rather than flex because print engines size flex children
@@ -849,8 +907,8 @@ function csPrintReport(){
 		'</style></head><body>' +
 		'<div class="rpt-head">' +
 			'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
-			'<h1 class="rpt-title">Equipment Failures</h1>' +
-			'<p class="rpt-subject">Car '+esc(csCar)+' &middot; '+esc(csPeriod)+'</p>' +
+			'<h1 class="rpt-title">'+esc(csSubject)+'</h1>' +
+			'<p class="rpt-subject">'+esc(csPeriod)+'</p>' +
 		'</div>' +
 		'<div class="rpt-meta">' +
 			/* @printtiles -- failures / incidents / types moved down into the
@@ -861,6 +919,7 @@ function csPrintReport(){
 			   filters that actually apply. */
 			'<span><b>Period:</b> '+esc(csPeriod)+'</span>' +
 			(csCarFilter  ? '<span><b>Car:</b> '+csCarFilter+' only</span>' : '') +
+			(csEquiptName ? '<span><b>Equipment:</b> '+esc(csEquiptName)+' only</span>' : '') +
 			(csLevelOnly  ? '<span><b>Level:</b> '+csLevelOnly+' only</span>' : '') +
 			'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 		'</div>' +
@@ -880,6 +939,10 @@ function csPrintReport(){
 		'<table class="lv"><thead><tr><th>Level</th><th>Failures</th><th>Share</th></tr></thead><tbody>' +
 			levelRows +
 		'</tbody></table>' +
+		(csLevelOnly
+			? '<p class="note">These counts cover <b>all</b> levels for the period. Every other figure in this report is Level '
+			  + csLevelOnly + ' only.</p>'
+			: '') +
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
 		tableHtml +
 		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
