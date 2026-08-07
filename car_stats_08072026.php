@@ -52,10 +52,6 @@ $coverage = ccsLoadCoverage($db);
 // to int both fixes that and makes a junk car_id read as 0 rather than as SQL.
 //$equipt
 $equipt   = isset($_GET['equipt']) ? (int)$_GET['equipt'] : 0;
-/* @levelfilter -- !== '' rather than isset(): a blank level= means "all
-   levels", and isset() is true for it. */
-$level    = isset($_GET['level']) && $_GET['level'] !== '' ? (int)$_GET['level'] : 0;
-if($level < 0 || $level > 4){ $level = 0; }
 
 $car   = isset($_GET['car_id']) ? (int)$_GET['car_id'] : 0;
 $year  = isset($_GET['year'])   ? (int)$_GET['year']   : (int)date("Y");
@@ -133,15 +129,6 @@ if($equipt){
 		$where.=" and equipt='".$equipt."' ";
 }
 
-/* @levelfilter -- TWO clauses, deliberately.
-   The severity tiles have to keep counting every level: filtering them by the
-   selected level would leave one tile with a figure and the other three on
-   zero, and no way back -- the control you clicked to get here would have
-   erased the controls for everything else. So the tiles read $whereAllLevels,
-   while the breakdown, the period table and the incident count read $where. */
-$whereAllLevels = $where;
-if($level){ $where .= " and incident_report.level = ".$level." "; }
-
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
 // never set and every tile read from one undefined key.
@@ -149,7 +136,7 @@ $levelCounts = array();
 $sql = "select incident_report.level as level, count(1) as c
           from incident_report
           inner join incident_cars on incident_report.id=incident_cars.incident_id
-         where ".$whereAllLevels."
+         where ".$where."
          group by incident_report.level";
 $rs = $db->query($sql);
 if($rs){
@@ -412,19 +399,6 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 .kpi-tile .k-value { font-size:22px; font-weight:600; color:#00529B; }
 .kpi-tile .k-value--name { font-size:15px; line-height:1.3; margin-top:3px; color:#7A1F1F; }
 .kpi-tile .k-sub   { font-size:11px; color:#5A6275; }
-/* @levelfilter -- the level tiles double as the filter control. Affordance at
-   rest, not on hover: a control you have to discover by hovering is one most
-   people never find. */
-a.kpi-tile { text-decoration:none; color:inherit; display:block; }
-.kpi-tile--link { cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s; }
-.kpi-tile--link:hover { background:#F3F7FC; border-color:#00529B; box-shadow:0 1px 5px rgba(0,40,90,.13); }
-.kpi-tile--link:focus-visible { outline:2px solid #00529B; outline-offset:2px; }
-/* The active one is filled rather than outlined, so "this is the filter" reads
-   from across the room and cannot be confused with hover. */
-.kpi-tile--on { background:#00529B !important; border-color:#00529B !important; }
-.kpi-tile--on .k-label, .kpi-tile--on .k-sub { color:rgba(255,255,255,.82) !important; }
-.kpi-tile--on .k-value { color:#FFFFFF !important; }
-.kpi-tile--on:hover { background:#003E76 !important; }
 </style>
 <?php include("history_theme.php"); ?>
 
@@ -433,11 +407,7 @@ a.kpi-tile { text-decoration:none; color:inherit; display:block; }
 
 <div class="ccs-header">
 <h1>Equipment Failures for Car <?php echo $car > 0 ? $car : '&mdash;'; ?></h1>
-<div class='sub'><?php echo htmlspecialchars($period); ?><?php
-	/* @levelfilter -- stated in the heading: a page showing a fraction of the
-	   car's failures with nothing saying why reads as missing data. */
-	if($level) echo ' &mdash; <span style="color:#FDB813;">Level '.$level.' only</span>';
-?></div>
+<div class='sub'><?php echo htmlspecialchars($period); ?></div>
 </div>
 
 <div class="ccs-panel">
@@ -486,30 +456,14 @@ a.kpi-tile { text-decoration:none; color:inherit; display:block; }
 </div>
 
 <div class="kpi-strip">
-<?php
-/* @levelfilter -- The tiles become the control. You asked "I see a figure on
-   level 2, how many were level 2" -- so the answer is to click the figure,
-   rather than hunting for a dropdown somewhere else on the page.
-   Clicking an active tile clears the filter, so the same control gets you back
-   out; without that, the only exit would be editing the URL. */
-function csLevelUrl($lv){
-	$q = $_GET;
-	if(isset($q['level']) && (int)$q['level'] === $lv) unset($q['level']);
-	else $q['level'] = $lv;
-	return '?'.http_build_query($q);
-}
-foreach($TILE_LEVELS as $lv){
+<?php foreach($TILE_LEVELS as $lv){
 	$c = isset($levelCounts[(string)$lv]) ? $levelCounts[(string)$lv] : 0;
-	$isActive = ($level === $lv);
-	/* A level with no incidents is not worth a click -- filtering to it would
-	   empty the page and tell you nothing you cannot already see. */
-	$canClick = ($c > 0);
 ?>
-	<?php if($canClick){ ?><a class="kpi-tile kpi-tile--link<?php echo $isActive ? ' kpi-tile--on' : ''; ?>" href="<?php echo htmlspecialchars(csLevelUrl($lv)); ?>" title="<?php echo $isActive ? 'Clear the level filter' : 'Show only level '.$lv; ?>"><?php } else { ?><div class="kpi-tile"><?php } ?>
-		<div class="k-label">Level <?php echo $lv; ?><?php echo $isActive ? ' &mdash; filtering' : ''; ?></div>
+	<div class="kpi-tile">
+		<div class="k-label">Level <?php echo $lv; ?></div>
 		<div class="k-value" style="<?php echo $lv>=3 ? 'color:#7A1F1F;' : ''; ?>"><?php echo $c; ?></div>
 		<div class="k-sub"><?php echo $levelledFail ? round($c/$levelledFail*100).'% of levelled' : '&mdash;'; ?></div>
-	<?php if($canClick){ ?></a><?php } else { ?></div><?php } ?>
+	</div>
 <?php } ?>
 </div>
 <?php if(!$equipt){
@@ -727,7 +681,6 @@ var csPeriod     = <?php echo json_encode($period); ?>;
 var csFrom       = <?php echo json_encode(date("d M Y", strtotime($start_date1))); ?>;
 var csTo         = <?php echo json_encode(date("d M Y", strtotime($end_date1))); ?>;
 var csTotal      = <?php echo (int)$equipt_count; ?>;
-var csLevelOnly  = <?php echo (int)$level; ?>;   /* @levelfilter */
 var csIncidents  = <?php echo (int)$distinctIncidents; ?>;
 var csTypes      = <?php echo (int)count($rows); ?>;
 var csTracked    = <?php echo (int)$equiptTracked; ?>;
@@ -863,7 +816,6 @@ function csPrintReport(){
 			   tiles, so the meta strip no longer states them twice. */
 			'<span><b>Car:</b> '+esc(csCar)+'</span>' +
 			'<span><b>Period:</b> '+esc(csFrom)+' &ndash; '+esc(csTo)+'</span>' +
-			(csLevelOnly ? '<span><b>Level:</b> '+csLevelOnly+' only</span>' : '') +
 			'<span><b>Generated:</b> <?php echo date("d M Y, H:i"); ?></span>' +
 		'</div>' +
 		'<h2 class="sec">Key Figures</h2>' +
