@@ -1151,8 +1151,15 @@ for($i=0; $i<$nm; $i++){
 	$rs3  = db_query($db,"select * from train_switch where train_ava_id=? order by date_change",array($row['id']));
 	$nm3  = $rs3->num_rows;
 	$chips = "";
+	
+	$compo_id="";
+	
+	$switch_limit=$nm3*1-1;
+	$switch_sum=$nm3;
 	for($n=0; $n<$nm3; $n++){
 		$row3 = $rs3->fetch_assoc();
+		if($n==$switch_limit){ $compo_id=$row3['new_index']; }
+			
 		$swDriver = ($row3['train_driver']!="") ? getTrainDriver($row3['train_driver'], $db) : "";
 		$chips .= '<span class="sw-chip" data-switch-id="'.$row3['id'].'">'
 			.'<span class="sw-idx">'.htmlspecialchars($row3['new_index']).'</span>'
@@ -1165,8 +1172,18 @@ for($i=0; $i<$nm; $i++){
 
 	/* ── Train compo -> per-sub-row cars (operations.php layout) ── */
 	$carsArr = array();
-	foreach(['car_a','car_b','car_c','car_d'] as $car_key){
-		if(!empty($row[$car_key])) $carsArr[] = $row[$car_key];
+	
+	if($switch_sum>0){
+		
+		$switchRs2=$db->query("select * from train_compo where tar_id=(select id from train_availability where index_no='".$compo_id."' order by date desc limit 1)");	
+		$compoRows2=$switchRs2->fetch_all(MYSQLI_ASSOC);
+		$carsArr=array_column($compoRows2,'car_no');
+	}
+	else {
+		foreach(['car_a','car_b','car_c','car_d'] as $car_key){
+			if(!empty($row[$car_key])) $carsArr[] = $row[$car_key];
+		}
+	
 	}
 	$spanN = max(count($carsArr), 1);
 

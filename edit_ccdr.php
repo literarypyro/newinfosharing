@@ -2,95 +2,1257 @@
 session_start();
 ?>
 <?php
-ini_set("date.timezone","Asia/Kuala_Lumpur");
-/* embed=1 -> page is hosted inside the train_operations slide-panel iframe.
-   Tmenu.php still runs (it provides $db / session / auth side effects) but
-   its printed chrome is captured and discarded so only the incident form
-   shows inside the panel. Opened standalone (no embed), nothing changes. */
 $IR_EMBED = isset($_GET['embed']);
 if($IR_EMBED){ ob_start(); }
 require("Tmenu.php");
 if($IR_EMBED){ ob_end_clean(); }
+require_once("db_config.php"); /* centralized credentials -- see db_config.php */
+	
+	$db=iss_db('transport');
+
+	$db2=iss_db('external');
+	
+	
+global $Mup;
 ?>
+<!---- Modified: Jun
+ Date: July 11, 2014
+ Modify: Updating of fields
+ Marks: Mjun@
+ ----->
+ 
+<!-- php -->
+
 <?php
-/* =========================================================================
-   incident_report_option_c.php
-   Link option: Full modal overlay (Option C)
-   Operations Console redesign of incident report.php.
-   PHP/JS: 100% verbatim from original.
-   CSS: replaced. Inline border/color attributes on inputs cleaned up
-        (cosmetic only — all name/id/onchange/data-* untouched).
-   ========================================================================= */
-if(isset($_POST['type'])){
-	
-	$incident_id=$_POST['incident_no']." ".$_POST['incident_suffix'];
-	$description=$_POST['description'];
-	$dotc_taken="";
+function getOrdinal($number){
+$ends = array('th','st','nd','rd','th','th','th','th','th','th');
+if (($number %100) >= 11 && ($number%100) <= 13)
+   $abbreviation = $number. 'th';
+else
+   $abbreviation = $number. $ends[$number % 10];
 
-	if(isset($_POST['dotc'])){
-		$dotc_taken=$_POST['dotc'];
+   
+ return $abbreviation;  
+
+}
+?>
+
+<!--  http://faulknercs.github.io/Knockstrap/#alert sample 
+
+<script src="dist/js/knockout-bootstrap.min.js"></script>
+<link href="dist/css/bootstrap.css" rel="stylesheet">
+<div data-bind="alerts">
+    <div data-bind="alert: $data"></div>
+</div>
+
+<script src="jquery-1.11.1.js"></script>
+<script src="Freeow/jquery.freeow.js"></script>
+<script src="Freeow/jquery.freeow.min.js"></script>
+<link href="Freeow/style/freeow/freeow.css" rel="stylesheet"/>
+
+-->
+<link href="css/modal_only.css" rel="stylesheet" />
+<script src="jquery-1.11.1.js"></script>
+<script src="Freeow/jquery.freeow.js"></script>
+<script src="Freeow/jquery.freeow.min.js"></script>
+<link href="Freeow/style/freeow/freeow.css" rel="stylesheet"/>
+
+<script language='javascript' src='ajax.js'></script>
+<script language='javascript'>
+function openLink(){
+	window.open("link_incident.php","_blank");
+
+
+}
+function addCoordinate(){
+	var coordinate=document.getElementById('dotc_coordinated').value;
+	var remarksValue=document.getElementById('dotc').value;
+	var additional="";
+	
+	if(coordinate=="c_with"){
+		additional="Coordinated with "+document.getElementById('coordinated_to').value+".";
+		
+		
 	}
-	else if(isset($_POST['dotc_coordinated'])){
-		$dotc_taken=$_POST['dotc_coordinated']." ".$_POST['coordinated_to'];
+	else if(coordinate=="c_to"){
+		
+		additional="Coordinated to "+document.getElementById('coordinated_to').value+".";
+		
+		
+	}
+
+	else if(coordinate=="reinitialize"){
+		
+		additional="Re-initialized, ok.";
+		
+		
+	}
+	else if(coordinate=="recorded"){
+		
+		additional="Recorded.";
+		
+		
 	}
 	
-	$maintenance_taken=$_POST['maintenance'];
-	$level=$_POST['level'];
+	document.getElementById('dotc').value=remarksValue+" "+additional;	
+
+}
+
+/* --------------------------------------------------------------------
+   Edit-field modal: shown/hidden directly, without Bootstrap's plugin.
+
+   This used to be $('#addModal').modal('show'), which depends on two
+   things that are not reliable inside the embed=1 slide-panel iframe:
+   bootstrap.min.js having registered $.fn.modal, and a transitionend
+   firing on the injected backdrop before the plugin calls .show() on
+   the modal (see the modal shim note in the stylesheet below). When
+   either link in that chain breaks, fillEdit() still runs to completion
+   -- the fields are built into #edit_table -- but nothing appears, so
+   the Edit click looks dead.
+
+   The equipment and link editors on this page never had that problem
+   because they just toggle a class. These helpers do the same for
+   #addModal: no plugin, no transition timing. Closing is handled here
+   too, since the Close controls relied on data-dismiss, which is also
+   plugin-driven and would otherwise stop working.
+   -------------------------------------------------------------------- */
+function ccEditBackdrop(show){
+	var b=document.getElementById('cc-edit-backdrop');
+	if(show){
+		if(!b){
+			b=document.createElement('div');
+			b.id='cc-edit-backdrop';
+			b.className='modal-backdrop fade in';
+			b.onclick=function(){ ccEditModalHide(); };
+			document.body.appendChild(b);
+		}
+		b.style.display='block';
+	}
+	else if(b){ b.style.display='none'; }
+}
+
+function ccEditModalShow(){
+	var m=document.getElementById('addModal');
+	if(!m){ return; }
+	ccEditBackdrop(true);
+	m.classList.remove('hide');   /* .hide { display:none } from the shim */
+	m.classList.add('in');        /* .fade.in -> opacity 1, #addModal.in -> top */
+	m.style.display='block';      /* inline, beats #addModal { display:none } */
+}
+
+function ccEditModalHide(){
+	var m=document.getElementById('addModal');
+	if(m){
+		m.classList.remove('in');
+		m.style.display='none';
+	}
+	ccEditBackdrop(false);
+}
+
+function fillEdit(elementName){
+	var elementContents="";
 	
-	$incident_day=date("Y-m-d",strtotime($_POST['incident_date']));
+	if(elementName=='dotc'){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Action Taken</td></tr>";
+		elementContents+="<tr><th width=20%>DOTC</th><td><span name='remarks_space' id='remarks_space'><textarea rows=5 cols=50 name='dotc' id='dotc'></textarea></span>";
+//		elementContents+="<input type=checkbox name='remarks_check' id='remarks_check' onclick='setPreset(this)' /><font color=blue>Preset Values</font>";
+
+		elementContents+="<br>";
+		elementContents+="<select name='dotc_coordinated' id='dotc_coordinated'>";
+		elementContents+="<option value='c_with'>Coordinated with</option>";
+		elementContents+="<option value='c_to'>Coordinated to</option>";
+		elementContents+="<option value='reinitialize'>Re-initialized</option>";
+		elementContents+="<option value='recorded'>Recorded</option>";
+
+		elementContents+="</select>";
+
+
+
+
+		elementContents+="<input style='border: 1px solid gray' type=text name='coordinated_to' id='coordinated_to' /><input type=button value='Add' onclick='addCoordinate()' />";
+		
+		
+		elementContents+="</td></tr>";
+			
+		
+		document.getElementById('fieldType').value='dotc';
+	}
+	else if(elementName=="maintenance"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Action Taken</td></tr>";
+
+		elementContents+="<tr><th width=20%>Maintenance Provider</th><td><textarea rows=5 cols=50 name='maintenance_provider'></textarea></td></tr>";
+		document.getElementById('fieldType').value='maintenance';
 	
-	$hour=$_POST['hour'];
-	$minute=$_POST['minute'];
-	$amorpm=$_POST['amorpm'];
+	}
+	else if(elementName=="level"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>Level</th>";
+		elementContents+="<td>";
+		elementContents+="<select name='level' onchange='getLevel(this)'>";
+//		elementContents+="<select name='level' onchange='enterOrder(this.value)'>";
+		elementContents+="<option value='1'>1</option>";
+		elementContents+="<option value='2'>2</option>";
+		elementContents+="<option value='3'>3</option>";
+		elementContents+="<option value='4'>4</option>";
+		elementContents+="</select>";
+		elementContents+="<span name='condition_html' id='condition_html'></span>";
 
+		//		elementContents+="<span name='order_space' id='order_space'></span>";
+		elementContents+="</td></tr>";
+		document.getElementById('fieldType').value='level';
 
-	$resolution_day=date("Y-m-d",strtotime($_POST['resolution_date']));
+	}
+	else if(elementName=="description"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>Description</th><td><textarea rows=5 cols=50 name='description'></textarea></td></tr>";
+		document.getElementById('fieldType').value='description';
 
-	$hour2=$_POST['hour2'];
-	$minute2=$_POST['minute2'];
-	$amorpm2=$_POST['amorpm2'];
+	}
+	else if(elementName=="onboard_equipt"){
 	
+/*		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		var equipmentHTML=document.getElementById('equipment_copy').innerHTML;
+		elementContents+="<tr><th width=20%>On-Board Equipment/Accessories</th><td><select name='onboard_equipt'>"+equipmentHTML+"</select></td></tr>";
+		document.getElementById('fieldType').value='onboard_equipt';
+*/		
+	}
+	else if(elementName=="duration"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>Incident Duration</th><td><input type=text name='duration' /></td></tr>";
+		document.getElementById('fieldType').value='duration';
 
 
-	/* Legacy single-select equipment removed — equipment now comes from
-	   the multi-equipment picker ($_POST['equipment_ids']) only. */
+	}
+	/*
+	else if(elementName=="incident_no"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+//		elementContents+="<tr><th width=20%>Incident Number</th><td><input type=text name='incident_number' /></td></tr>";
+		document.getElementById('fieldType').value='incident_no';
+
+
+	}
+	*/
+	else if(elementName=="link_incident"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>Linked Incident Number</th>";
+		elementContents+="<td>";
+		elementContents+="<input type='text' name='incident_no_link' id='incident_no_link' />";
+		elementContents+="<input type='hidden' name='incident_link' id='incident_link' />";
+		elementContents+="<input type=button value='Link Incident' onclick='openLink()' />";
+		elementContents+="</td></tr>";
+		document.getElementById('fieldType').value='linked_to';
 	
-	if($amorpm=="pm"){
-		if($hour<12){ $hour+=12; }
+	}	
+	else if(elementName=="date"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+	
+		var dateHTML=setDate();
+//		var dateHTML=document.getElementById('dateStamp').innerHTML;
+		elementContents+="<tr><th width=20%>Date/Time</th><td>"+dateHTML+"</td></tr>";
+		document.getElementById('fieldType').value='date';
+		
+	}
+	else if(elementName=="resolution_date"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+	
+		var dateHTML=setDate();
+//		var dateHTML=document.getElementById('dateStamp').innerHTML;
+		elementContents+="<tr><th width=20%>Date/Time</th><td>"+dateHTML+"</td></tr>";
+		document.getElementById('fieldType').value='resolution_date';
+		
+	}
+	
+	
+	
+	else if(elementName=="problem"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>Type of Problem</th>";
+		
+		elementContents+="<td>";
+		elementContents+="<select name='type' id='type' onchange='getCategory(this.value)'>";
+		elementContents+="<option value='cc_equipt'>CC Equipment</option>";
+		elementContents+="<option value='communication'>Communication</option>";
+		elementContents+="<option value='depot_equipt'>Depot Equipment</option>";
+		elementContents+="<option value='power'>Power</option>";
+		elementContents+="<option value='rolling'>Rolling Stock</option>";
+		elementContents+="<option value='signaling'>Signaling</option>";
+		elementContents+="<option value='tracks'>Tracks</option>";
+		elementContents+="<option value='gradual'>Gradual Removal</option>";
+		elementContents+="<option value='c_loops'>Cancelled Loops; Acc. Delay/Failure</option>";
+		elementContents+="<option value='unload'>Unloading of Passengers</option>";
+		elementContents+="<option value='nload'>Not Loading</option>";
+
+
+		//		elementContents+="<option value='ser_int'>Service Interruption</option>";
+		elementContents+="<option value='others'>Others</option>";
+
+		elementContents+="</select>";
+
+//		elementContents+="<span id='rolling_category' name='rolling_category'>";
+		
+//		elementContents+="</span>";
+		
+		elementContents+="</td></tr>";
+		
+		document.getElementById('fieldType').value='problem';
+	}
+	else if(elementName=="index"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>Index Number</th>";
+
+		elementContents+="<td>";
+		elementContents+="<input type='text' name='index_id' id='index_id' size=5 />  ";
+		elementContents+="</td></tr>";
+
+
+		elementContents+="<tr><th width=20%>Car Numbers.</th>";
+
+		elementContents+="<td>";
+
+		elementContents+="<span id='car_space' name='car_space'></span>";	
+
+		
+		elementContents+="</td></tr>";
+
+		document.getElementById('fieldType').value='index';
+
+		
+	}
+	else if(elementName=="location"){
+		
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>Location/Direction</th>";
+
+		elementContents+="<td>";
+
+		elementContents+="<select name='direction' id='direction' onchange='setDirection(this.value)'>";
+		elementContents+="<option></option>";
+		elementContents+="<option value='S'>Station</option>";
+		elementContents+="<option value='D'>Depot</option>";
+		elementContents+="<option value='ML'>Mainline</option>";
+
+		elementContents+="<option value='CC'>Control Center</option>";
+
+		elementContents+="<option value='NB'>Northbound</option>";
+		elementContents+="<option value='SB'>Southbound</option>";
+		elementContents+="<option value='NTB'>North Turnback</option>";
+		elementContents+="<option value='IR'>Insertion/Removal Area</option>";
+		elementContents+="<option value='SPT'>Shaw Pocket Track</option>";
+		elementContents+="<option value='TPT'>Taft Pocket Track</option>";
+
+
+		elementContents+="</select>";
+		
+		elementContents+=" ";
+		elementContents+="<input type='text' size=5 name='location' id='location' />";
+		
+		elementContents+="</td></tr>";
+		
+		document.getElementById('fieldType').value='location';
+		
+		
+	}
+	else if(elementName=="recommend_approval"){
+		
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Reporting Details</td></tr>";
+		elementContents+="<tr><th width=20%>Recommend Approval</th>";
+		elementContents+="<td>";
+		elementContents+="<input type=text name='recommend_approval' id='recommend_approval' />";
+
+		elementContents+="</td></tr>";
+
+		
+		document.getElementById('fieldType').value='recommend_approval';
+		
+		
+	}
+	else if(elementName=="approving_officer"){
+		
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Reporting Details</td></tr>";
+		elementContents+="<tr><th width=20%>Approving Officer</th>";
+		elementContents+="<td>";
+		elementContents+="<input type=text name='approving_officer' id='approving_officer' />";
+
+		elementContents+="</td></tr>";
+
+		
+		document.getElementById('fieldType').value='approving_officer';
+		
+		
+	}
+
+
+	else if(elementName=="reported_by"){
+
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Reporting Details</td></tr>";
+		elementContents+="<tr><th width=20%>Reported By</th>";
+		elementContents+="<td>";
+		elementContents+="<input type=text name='reported_by' id='reported_by' />";
+
+		elementContents+="</td></tr>";
+
+		document.getElementById('fieldType').value='reported_by';
+	
+	}
+	else if(elementName=="received_by"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Reporting Details</td></tr>";
+		elementContents+="<tr><th width=20%>Reported By</th>";
+		elementContents+="<td>";
+		elementContents+="<span name='receive_space' id='receive_space'> </span>";
+
+		elementContents+="</td></tr>";
+
+		document.getElementById('fieldType').value='received_by';
+	
+	}
+	else if(elementName=="cancel"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Incident Details</td></tr>";
+		elementContents+="<tr><th width=20%>Cancelled Loops</th>";
+		elementContents+="<td>";
+		
+		
+		elementContents+="<select name='cancel' id='cancel' onchange='getMore(this.value)'>";
+		elementContents+="<option value='none'>0</option>";
+		elementContents+="<option value='whole'>1</option>";
+		elementContents+="<option value='half'>1/2</option>";
+		elementContents+="<option value='more'> more than 1</option>";
+		elementContents+="</select>";
+		elementContents+="<input type=text name='cancel_more' id='cancel_more' size=5 style='border:1px solid gray' disabled />";		
+		
+		elementContents+="</td></tr>";
+
+		document.getElementById('fieldType').value='cancelled';
+	
+	
+	
+	}
+	else if(elementName=="incident_no"){
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit Incident Number</td></tr>";
+		elementContents+="<tr><th width=20%>Incident Number</th>";
+		elementContents+="<td>";
+		elementContents+="<input type='text' name='incident_digit'/>";
+		
+		elementContents+="<select name='incident_suffix'>";
+		elementContents+="<option value=''></option>";
+		elementContents+="<option value='RS'>RS</option>";
+		elementContents+="<option value='SEQ'>SEQ</option>";
+		elementContents+="<option value='SIG'>SIG</option>";
+		elementContents+="<option value='PWR'>PWR</option>";
+		elementContents+="<option value='AFC'>AFC</option>";
+		elementContents+="<option value='DEQ'>DEQ</option>";
+		elementContents+="<option value='COM'>COM</option>";
+		elementContents+="<option value='TRK'>TRK</option>";
+		elementContents+="<option value='CEQ'>CEQ</option>";
+		elementContents+="<option value='OTR'>OTR</option>";
+		elementContents+="</select>";
+		
+		elementContents+="</td></tr>";
+
+		document.getElementById('fieldType').value='incident_no';
+	
+		
+		
+	}
+	else if(elementName=="additional_defects"){
+		var multipleTable="<table name='multi_list' id='multi_list' width=80%>";
+		
+		
+		
+		multipleTable+="</table>";
+		var multipleTable2="<a href='#' onclick=\"window.open('multiple_defects.php?problemType=RS')\">Update</a>";	
+		
+
+
+		elementContents="<tr><td colspan=2>"+multipleTable+"</td></tr>";
+		elementContents+="<tr><td colspan=2>"+multipleTable2+"</td></tr>";
+
+		document.getElementById('fieldType').value='additional_defects';
+		
+	}
+	
+	
+	document.getElementById('edit_table').innerHTML=elementContents;
+	
+	
+	if(elementName=="index"){
+
+		var incident_id=document.getElementById('incident_report').value;
+
+		makeajax("processing.php?getCars="+incident_id,"fillCars");	
+
+		
+		
+	}
+	else if(elementName=="received_by"){
+	
+		makeajax("processing.php?supervisor=Y","fillSuper");	
+	
+	}
+	else if(elementName=="additional_defects"){
+		var incident_id=document.getElementById('incident_report').value;
+		makeajax("processing.php?debugDefects="+incident_id,"okayDefects");	
+	
+	}
+	
+	
+	ccEditModalShow();
+}
+
+function okayDefects(ajaxHTML){
+	
+	retrieveDefects();
+
+
+}
+
+function setPreset(check){
+	var remarksHTML="";
+	
+	if(check.checked){
+		remarksHTML="<select name='dotc_coordinated' id='dotc_coordinated'>";
+		remarksHTML+="<option>Coordinated with</option>";
+		remarksHTML+="<option>Coordinated to</option>";
+		remarksHTML+="</select>";
+		remarksHTML+="<input style='border: 1px solid gray' type=text name='coordinated_to' id='coordinated_to' />";
 	}
 	else {
-		if($hour=="12"){ $hour=0; }
+		remarksHTML="<textarea rows=5 cols=50 name='dotc'></textarea>";
+	
 	}
 
-	if($amorpm2=="pm"){
-		if($hour2<12){ $hour2+=12; }
+	document.getElementById('remarks_space').innerHTML=remarksHTML;
+}
+
+function getMore(cancel){
+	if(cancel=="more"){
+		document.getElementById('cancel_more').disabled=false;
 	}
 	else {
-		if($hour2=="12"){ $hour2=0; }
+		document.getElementById('cancel_more').disabled=true;
 	}
 
+}
+
+
+function fillSuper(ajaxHTML){
+
+	if(ajaxHTML=="None available"){
+	}
+	else {
+
+		driverHTML="<select name='received_by' id='received_by'>";
+
+		var driverTerms=ajaxHTML.split("==>");
+		var count=(driverTerms.length)*1-1;
+		
+		for(var n=0;n<count;n++){
+			var parts=driverTerms[n].split(";");
+			driverHTML+="<option value='"+parts[0]+"'>";
+			driverHTML+=parts[1];
+			driverHTML+="</option>";
+		
+		}
+		driverHTML+="</select>";
+		
+	}
+	document.getElementById('receive_space').innerHTML=driverHTML;
 	
-	$reported_by=$_POST['reported_by'];
-	$received_by=$_POST['received_by'];
-	$level_condition=$_POST['condition'];
+}
+
+function fillCars(ajaxHTML){
+	var subHTML="";
 	
-	$incident_date=date("Y-m-d H:i",strtotime($incident_day." ".$hour.":".$minute));
+	if(ajaxHTML=="No data available"){
+	
+	
+	}
+	else {
+		var subItemTerms=ajaxHTML.split(";");
+		var count=(subItemTerms.length)*1-1;
 
-	$resolution_date=date("Y-m-d H:i",strtotime($resolution_day." ".$hour2.":".$minute2));
 
-//	$duration=$_POST['duration'];
+		var optionHTML="";
+		for(var n=0;n<count;n++){
+			optionHTML+="<option value='"+subItemTerms[n]+"'>";
+			optionHTML+=subItemTerms[n];
+			optionHTML+="</option>";
+		
+		}
 
-	$dur=abs(strtotime($resolution_date)-strtotime($incident_date))/60;
 
-	if($dur>60){
-			$hr=ceil($dur/60);
-			$min=$dur%60;
-			$dur=$hr." hour(s)";
-			if(abs($min)>0){
-			$dur.="and ".$min." minutes";
+		subHTML="<select id='car' name='car'>";
+		subHTML+="<option></option>";
+		subHTML+=optionHTML;
+		subHTML+="</select>, ";
+
+
+		subHTML+="<select id='car_2' name='car_2'>";
+		subHTML+="<option></option>";
+		subHTML+=optionHTML;
+		subHTML+="</select>, ";
+
+		subHTML+="<select id='car_3' name='car_3'>";
+		subHTML+="<option></option>";
+		subHTML+=optionHTML;
+		subHTML+="</select>";
+		
+	}
+	document.getElementById('car_space').innerHTML=subHTML;
+	
+}
+
+
+function enterOrder(level){
+	var orderHTML="";
+	if((level==2)||(level==3)){
+		orderHTML+="<input type='text' name='order' id='order' size=5 /> Order of Removal";
+		
+	}
+	else {
+		orderHTML="";
+	
+	}
+
+	document.getElementById('order_space').innerHTML=orderHTML;
+}
+
+
+function getLevel(element){
+	var level=element.value;
+	var conditionHTML="";
+	/*	if((level=="1")){
+		document.getElementById('remove').className='removalnone';
+		document.getElementById('order').disabled=true;
+	}	
+	else {
+		document.getElementById('remove').className='removal';
+		document.getElementById('order').disabled=false;
+	}
+*/
+	if(level==3){
+		conditionHTML+="<select name='condition'>";
+		conditionHTML+="<option value='1'>Train is removed without replacement</option>";
+		conditionHTML+="<option value='2'>Cancellation of loops and insertion</option>";
+		conditionHTML+="</select>";
+	}
+	else if(level==4){
+		conditionHTML+="<select name='condition'>";
+		conditionHTML+="<option value='3'>Service interruption</option>";
+		conditionHTML+="<option value='4'>Cancellation of loops. Ticket refunds.</option>";
+		conditionHTML+="</select>";
+	
+	}
+	document.getElementById('condition_html').innerHTML=conditionHTML;
+}
+
+
+
+
+function fillEquipt(problemType,equiptId){
+	var elementName=problemType;
+	
+	if(elementName=="onboard_equipt"){
+		
+		
+		
+		elementContents="<tr class='rowHeading'><td>&nbsp;</td><td>Edit CCDR Details</td></tr>";
+		elementContents+="<tr><th width=20%>On-Board Equipment/Accessories</th><td><span id='rolling_category' name='rolling_category'></span><span id='equipment_space' name='equipment_space'> <select name='equipment' id='equipment' onchange='fillSubItem(this.value)'></select></span> <span id='sub_item_space' name='sub_item_space' ></span></td></tr>";
+
+		//var equipmentHTML=document.getElementById('equipment_copy').innerHTML;
+		//elementContents+="<tr><th width=20%>On-Board Equipment/Accessories</th><td><select name='onboard_equipt'>"+equipmentHTML+"</select></td></tr>";
+
+		document.getElementById('edit_table').innerHTML=elementContents;
+
+		document.getElementById('fieldType').value='onboard_equipt';
+
+//		if((equiptId=="rolling")||(equiptId=="power")){
+		if(equiptId=="power"){
+
+			getCategory(equiptId);
+		}
+		else if(equiptId=="rolling"){
+			makeajax("processing.php?scrollRolling="+equiptId,"fillOnboard");		
+		
+		
+		}		
+		else if((equiptId=="cc_equipt")||(equiptId=="depot_equipt")){
+			
+			document.getElementById('equipment_space').innerHTML="<input type='text' name='equipment' id='equipment' />";
+		}
+		else if((equiptId=="gradual")||(equiptId=="ser_int")){
+			document.getElementById('equipment_space').innerHTML="";
+		}
+		else if(equiptId=="others"){
+			makeajax("processing.php?scrollOthers="+problemType,"fillOnboard");		
+		}
+	
+		else {
+			makeajax("processing.php?scrollRolling="+problemType,"fillOnboard");		
+		}
+	}
+	ccEditModalShow();
+
+}
+
+function fillItem(equiptId,categoryId){
+	makeajax("processing.php?scrollRolling="+equiptId+"&category="+categoryId,"fillOnboard");	
+	
+
+}
+
+function fillSubItem(equiptId){
+	makeajax("processing.php?scrollSubItem="+equiptId,"subItem");	
+	
+
+}
+
+
+function setDate(){
+	var d=new Date();
+	
+	var year=d.getFullYear();
+	var mmonth=d.getMonth()*1+1;
+	var day=d.getDate();
+	
+	var tentativehour=d.getHours();
+	var minute=d.getMinutes();
+	var hour=0;
+	
+	var amorpm="AM";
+	
+	if(tentativehour==0){
+		hour=12;
+		
+		amorpm="AM";
+	
+	}
+	else {
+		if(tentativehour>12){
+			hour=tentativehour-12;
+			amorpm="PM";
+		}
+		else {
+			hour=tentativehour;
+			amorpm="AM";
+		}
+	
+	}
+	
+	
+	
+	dateHTML="<select name='month' id='month'>";
+
+	for(var i=1;i<=12;i++){
+		d=new Date(year+"-"+i+"-1");	
+		var month="";
+
+		switch(i){
+			case 1: month='January'; break;
+			case 2: month='February'; break;
+			case 3: month='March'; break;
+			case 4: month='April'; break;
+			case 5: month='May'; break;
+			case 6: month='June'; break;
+			case 7: month='July'; break;
+			case 8: month='August'; break;
+			case 9: month='September'; break;
+			case 10: month='October'; break;
+			case 11: month='November'; break;
+			case 12: month='December'; break;
+		
+		}
+		
+		dateHTML+="<option value='"+i+"' "; 
+		
+		if(mmonth==i){
+		dateHTML+="selected";
+		}
+		dateHTML+=">";
+		dateHTML+=month;
+		dateHTML+="</option>";
+		
+	}
+	dateHTML+="</select>";
+
+	
+	dateHTML+="<select name='day' id='day'>";
+	for(var i=1;i<=31;i++){
+		dateHTML+="<option value='"+i+"' ";
+		if(day==i){
+		dateHTML+="selected";
+		}
+		dateHTML+=">"+i+"</option>";
+	}
+	
+	dateHTML+="</select>";
+
+	yearLimit=year*1+16;
+	dateHTML+="<select name='year' id='year'>";
+	for(var i=1999;i<=yearLimit;i++){
+		dateHTML+="<option value='"+i+"' ";
+		if(year==i){
+		dateHTML+="selected";
+		}
+		dateHTML+=">"+i+"</option>";
+	}
+	
+	dateHTML+="</select>";
+//	dateHTML+="<br>";
+	dateHTML+="<select name='hour'>";
+	
+	for(var i=1;i<=12;i++){
+		dateHTML+="<option value='"+i+"' ";
+		if(hour==i){
+		dateHTML+="selected";
+		}
+		dateHTML+=">"+i+"</option>";
+	}
+	
+	
+	
+	dateHTML+="</select>";
+
+	dateHTML+="<select name='minute'>";
+	
+	var label="";
+	for(var i=0;i<=59;i++){
+		
+		if(i<10){
+			label="0"+i;			
+		}
+		else {
+			label=i;
+		}
+		
+		dateHTML+="<option value='"+i+"' ";
+		if(minute==i){
+		dateHTML+="selected";
+		}
+		dateHTML+=">"+label+"</option>";
+
+	}
+	
+	
+	
+	dateHTML+="</select>";
+	dateHTML+="<select name='amorpm'>";
+	dateHTML+="<option value='am' ";
+	if(amorpm=="AM"){
+		dateHTML+="selected";
+	}
+	dateHTML+=">AM</option>";
+
+	dateHTML+="<option value='pm' ";
+	if(amorpm=="PM"){
+		dateHTML+="selected";
+	}
+	dateHTML+=">PM</option>";
+
+	dateHTML+="</select>";
+	
+    return dateHTML;
+	
+
+
+
+	
+}
+
+function retrieveDefects(){
+	makeajax("processing.php?retrieveAdditional=Y","getAdditional");	
+
+}
+function getAdditional(ajaxHTML){
+	var subHTML="";
+	
+	if(ajaxHTML=="No data available"){
+	
+	
+	}
+	else {
+		var subItemTerms=ajaxHTML.split(";");
+		var count=(subItemTerms.length)*1-1;
+		subHTML="<tr><th>Equipment</th><th>Sub-item</th></tr>";
+		for(var n=0;n<count;n++){
+			var parts=subItemTerms[n].split(",");
+			subHTML+="<tr>";
+			subHTML+="<td>"+parts[0]+"</td><td>";
+			subHTML+=parts[1];
+			subHTML+="</td>";
+			subHTML+="</tr>";
+		}
+		//subHTML+="</select>";
+	
+	}
+	document.getElementById('multi_list').innerHTML=subHTML;
+
+
+
+}
+
+
+
+function fillOnboard(ajaxHTML){
+	var rollingHTML="<option></option>";
+
+	if(ajaxHTML=="No data available"){
+	
+		
+	}
+	else {
+		var equipmentTerms=ajaxHTML.split("==>");
+		var count=(equipmentTerms.length)*1-1;
+		
+		for(var n=0;n<count;n++){
+			var parts=equipmentTerms[n].split(";");
+			rollingHTML+="<option value='"+parts[0]+"'>";
+			rollingHTML+=parts[1];
+			rollingHTML+="</option>";
+		
+		}
+
+	
+	}
+
+
+
+
+	
+	document.getElementById('equipment').innerHTML=rollingHTML;
+	
+	document.getElementById('sub_item_space').innerHTML="";		
+
+}
+
+
+function subItem(ajaxHTML){
+	var subHTML="";
+	
+	if(ajaxHTML=="No data available"){
+	
+	
+	}
+	else {
+		var subItemTerms=ajaxHTML.split("==>");
+		var count=(subItemTerms.length)*1-1;
+		subHTML="<select id='subitem' name='subitem'>";
+		//subHTML+="<option></option>";
+		for(var n=0;n<count;n++){
+			var parts=subItemTerms[n].split(";");
+			subHTML+="<option value='"+parts[0]+"'>";
+			subHTML+=parts[1];
+			subHTML+="</option>";
+		
+		}
+		subHTML+="</select>";
+	
+	}
+	document.getElementById('sub_item_space').innerHTML=subHTML;
+
+}
+
+
+
+function getCategory(problemType){
+	var rollingHTML="";
+	if(problemType=="rolling"){
+		
+		rollingHTML+="<select name='category' id='category' onchange='fillItem(\""+problemType+"\",this.value)' >";
+		rollingHTML+="<option></option>";
+		rollingHTML+="<option value='EXT'>Exterior</option>";
+		rollingHTML+="<option value='UFE'>Underfloor Equipment</option>";
+		rollingHTML+="<option value='OB'>Onboard Equipment and Accessories</option>";
+		rollingHTML+="<option value='OTH'>Others</option>";
+
+
+		rollingHTML+="</select>";	
+		document.getElementById('rolling_category').innerHTML=rollingHTML;
+	
+	}
+	
+	else {
+		if(problemType=="power"){
+			rollingHTML+="<select id='category' name='category' onchange='fillItem(\""+problemType+"\",this.value)'>";
+			rollingHTML+="<option></option>";
+			rollingHTML+="<option value='OCS'>Overhead Catenary System</option>";
+			rollingHTML+="<option value='SS'>Station Substation</option>";
+			rollingHTML+="<option value='TPSS'>Traction Power Substation Equipment</option>";
+
+
+			rollingHTML+="</select>";	
+			
+			document.getElementById('rolling_category').innerHTML=rollingHTML;
+		
+		
+		}
+		else {
+			document.getElementById('rolling_category').innerHTML=rollingHTML;
+
+		}
+		
+	}
+}
+
+function sampleFreeow(){	
+$("#freeow").freeow("Success!", "Data Update..", {
+    classes: ["gray", "append"],
+    autoHide: true
+});
+	
+}
+
+</script>
+
+<?php
+if(isset($_POST['fieldType'])){			
+//$incident_report=$_POST['incident_report'];
+	//Mjun@
+	$fieldT=$_POST['fieldType'];
+	$incident_report=$_POST['inc_report'];
+
+	/* -- Multi-equipment / multi-linked-incident writes -------------------
+	   These no longer depend on a specific fieldType value -- equipment_ids
+	   and incident_links now travel with edit_form itself (attached via
+	   form="edit_form" on their hidden inputs, since the equipment/link
+	   editors are no longer separate <form>s). That means they run
+	   whenever their hidden field is present, REGARDLESS of what (if
+	   anything) fieldType says -- including when fieldType is empty, which
+	   is what the standalone "Save Equipment & Linked Incidents" button
+	   submits when the user hasn't touched any other field.
+
+	   IMPORTANT: because these hidden fields are now present on every
+	   edit_form submission (not just when their own editor was opened),
+	   they are seeded from the existing DB rows unconditionally on page
+	   load now (ccEqSeedExisting()/ccLinkSeedExisting() are called
+	   immediately, not just on first modal-open -- see the bottom of the
+	   script block below). Without that, editing an unrelated field like
+	   Level would submit an EMPTY equipment_ids/incident_links and wipe
+	   out equipment/links the user never touched this session. ---------- */
+	if(isset($_POST['equipment_ids'])){
+		$db->query("delete from incident_equipt where incident_id='".$incident_report."'");
+		if(!empty($_POST['equipment_ids'])){
+			$pairs=array_filter(is_array($_POST['equipment_ids'])
+				? $_POST['equipment_ids']
+				: explode(',',$_POST['equipment_ids']));
+			foreach($pairs as $pair){
+				$pair=trim($pair);
+				if($pair==='') continue;
+				$parts=explode(':',$pair);
+				$equipt_id =(int)trim($parts[0]);
+				$subitem_id=isset($parts[1]) ? (int)trim($parts[1]) : 0;
+				if($equipt_id<=0) continue;
+				$db->query("insert ignore into incident_equipt(incident_id,equipt_id,subitem_id) values ('".$incident_report."','".$equipt_id."','".$subitem_id."')");
+			}
+		}
+		$Mup=1;
+	}
+	if(isset($_POST['incident_links'])){
+		$db->query("delete from incident_linked_reports where incident_id='".$incident_report."'");
+		$firstLink=true;
+		if(!empty($_POST['incident_links'])){
+			$links=array_filter(is_array($_POST['incident_links'])
+				? $_POST['incident_links']
+				: explode(',',$_POST['incident_links']));
+			foreach($links as $linked_id){
+				$linked_id=(int)trim($linked_id);
+				if($linked_id<=0) continue;
+				$db->query("insert ignore into incident_linked_reports(incident_id,linked_to) values ('".$incident_report."','".$linked_id."')");
+				if($firstLink){
+					$db->query("update incident_report set linked_to='".$linked_id."' where id='".$incident_report."'");
+					$firstLink=false;
+				}
+			}
+		}
+		if($firstLink){
+			$db->query("update incident_report set linked_to='' where id='".$incident_report."'");
+		}
+		$Mup=1;
+	}
+
+	/* -- Generic single-field update (unchanged switch/cases) -- only when
+	   a specific field edit was actually requested via one of the "Edit"
+	   links elsewhere on the page. The standalone equipment/links save
+	   leaves fieldType empty, so this whole block correctly does nothing
+	   extra in that case -- the two writes above already covered it. ---- */
+	if ($fieldT<>"") {			
+	$sql="update incident_report ";		
+	switch($_POST['fieldType']){
+		case "onboard_equipt":
+			$sql.="set equipt='".$_POST['equipment']."' ";
+			break;
+		case "dotc":
+			if(isset($_POST['dotc'])){
+				$dotc_taken=$_POST['dotc'];
+
+			}
+			else if(isset($_POST['dotc_coordinated'])){
+				$dotc_taken=$_POST['dotc_coordinated']." ".$_POST['coordinated_to'];
+			}		
+		
+			$sql.="set action_dotc='".$dotc_taken."' ";
+			break;
+		case "maintenance":
+			$sql.="set action_maintenance='".$_POST['maintenance_provider']."' ";
+			break;
+		case "level":
+			$level_condition=$_POST['condition'];
+
+			$sql.="set level='".$_POST['level']."',level_condition='".$level_condition."' ";
+			break;
+		case "description":
+			$sql.="set description='".$_POST['description']."' ";
+			break;
+
+		case "duration":
+			$sql.="set duration='".$_POST['duration']."' ";
+			break;
+			
+			
+		case "linked_to":
+			$sql.="set linked_to='".$_POST['incident_link']."' ";
+			break;
+			
+		case "recommend_approval":
+			$sql.="set recommending_approval='".$_POST['recommend_approval']."' ";
+			break;
+			
+		case "approving_officer":
+			$sql.="set approving_person='".$_POST['approving_officer']."' ";
+			break;			
+			
+		case "incident_no":
+			
+			$incidentSQL="select * from incident_report where id='".$incident_report."'";
+			$incidentRS=$db->query($incidentSQL);
+			$incidentRow=$incidentRS->fetch_assoc();
+			
+			$suffixSQL="select * from equipment_type where equipment_code='".$incidentRow['incident_type']."'";
+			$suffixRS=$db->query($suffixSQL);
+			
+			$suffixRow=$suffixRS->fetch_assoc();
+			$suffix=$suffixRow['incident_code'];
+		
+		
+		
+			$sql.="set incident_no='".$_POST['incident_number']." ".$suffix."' ";
+			//$_POST['incident_report']=$_POST['incident_number'];
+			break;
+		case "problem":
+			$sql.="set incident_type='".$_POST['type']."',equipt='',";
+
+			$incidentSQL="select * from incident_report where id='".$incident_report."'";
+			$incidentRS=$db->query($incidentSQL);
+			$incidentRow=$incidentRS->fetch_assoc();
+			
+			$suffixSQL="select * from equipment_type where equipment_code='".$_POST['type']."'";
+			$suffixRS=$db->query($suffixSQL);
+			$suffixRow=$suffixRS->fetch_assoc();
+			$suffix=$suffixRow['incident_code'];
+				
+		
+			$sql.="incident_no='".$incidentRow['id']." ".$suffix."' ";
+
+			
+			if($_POST['type']=="ser_int"){
+				echo "<script language='javascript'>";
+				echo "window.open('service interruption.php?incident=".$incident_report."');";
+				echo "</script>";
+			}
+						
+			break;
+		case "cancelled":
+		
+			$cancelTerm=$_POST['cancel'];
+			if($cancelTerm=="whole"){
+				$cancel=1;
+			}
+			else if($cancelTerm=="half"){
+				$cancel=.5;
+			}
+			else if($cancelTerm=="more"){
+				$cancel=$_POST['cancel_more'];
+			}
+			$sql.="set cancel='".$cancel."' ";
+			break;	
+		case "date":
+			$year=$_POST['year'];
+			$month=$_POST['month'];
+			$day=$_POST['day'];
+			
+			$hour=$_POST['hour'];
+//			echo $hour;
+			$minute=$_POST['minute'];
+//			echo $minute;
+			$amorpm=$_POST['amorpm'];
+//			echo $amorpm;
+			$equipment=$_POST['equipment'];
+			if($amorpm=="pm"){
+				if($hour<12){
+					$hour+=12;
+				}
+				else {
+				}
+			}
+			else {
+				if($hour=="12"){
+					$hour=0;
+				}
 			}
 			
-			if($hr>=24){
+			$incident_date=$year."-".$month."-".$day." ".$hour.":".$minute;
+			//date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
+	//		echo $incident_date;
+			$sql.="set incident_date='".$incident_date."' ";
+			break;
+			
+			
+		case "resolution_date":
+			$year=$_POST['year'];
+			$month=$_POST['month'];
+			$day=$_POST['day'];
+			
+			$hour=$_POST['hour'];
+//			echo $hour;
+			$minute=$_POST['minute'];
+//			echo $minute;
+			$amorpm=$_POST['amorpm'];
+//			echo $amorpm;
+			$equipment=$_POST['equipment'];
+			if($amorpm=="pm"){
+				if($hour<12){
+					$hour+=12;
+				}
+				else {
+				}
+			}
+			else {
+				if($hour=="12"){
+					$hour=0;
+				}
+			}
+			
+			$resolution_date=$year."-".$month."-".$day." ".$hour.":".$minute;
+			//date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
+	//		echo $incident_date;
+	
+	
+			$incidentSQL="select * from incident_report where id='".$incident_report."'";
+			$incidentRS=$db->query($incidentSQL);
+			$incidentRow=$incidentRS->fetch_assoc();
+			$incident_date=strtotime($incidentRow['incident_date']);
+			
+			$res_date=strtotime($resolution_date);
+			
+			$dur=abs($res_date-$incident_date)/60;
+
+			if($dur>60){
+					$hr=ceil($dur/60);
+					$min=$dur%60;
+					$dur=$hr." hour(s)";
+					if(abs($min)>0){
+					$dur.="and ".$min." minutes";
+					}
+								if($hr>=24){
 				$dd=ceil($hr/24);
 
 				$hr=abs($hr%24);
@@ -113,1923 +1275,1864 @@ if(isset($_POST['type'])){
 				}
 				
 			}
-
-			
-	}
-	
-	
-	if($duration==""){ $duration=$dur; }
-	
-	
-	
-
-	$incidentYear=$year;
-	
-	$type=$_POST['type'];
-	
-	$cancel=0;
-	if(isset($_POST['cancel'])){
-		if($_POST['cancel']=="more"){     $cancel=$_POST['cancel_more']; }
-		else if($_POST['cancel']=="half"){ $cancel=.5; }
-		else if($_POST['cancel']=="whole"){ $cancel=1; }
-		else if($_POST['cancel']=="none"){ $cancel=0; }
-	}
-	
-	$unit_no="";
-	if(isset($_POST['unit_no'])){ $unit_no=$_POST['unit_no']; }
-	
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-	$description=$db->real_escape_string($description);
-	
-	$sql="insert into incident_report ";
-	$sql.="(incident_type,incident_no,level,incident_date,resolution_date,";
-	$sql.="description,action_dotc,action_maintenance,duration,equipt,cancel,unit_no,level_condition,recommending_approval,approving_person,action_type)";
-	$sql.=" values ";
-	$sql.="(\"".$type."\",\"".$incident_id."\",'".$level."','".$incident_date."','".$resolution_date."',";
-	$sql.="\"".$description."\",\"".$dotc_taken."\",\"".$maintenance_taken."\",\"".$duration."\",'','".$cancel."','".$unit_no."','".$level_condition."','".$_POST['recommending_approval']."','".$_POST['approving_person']."','".$_POST['action_type']."')";
-
-	$rs=$db->query($sql);
-	$incident_code=$db->insert_id;
-	$_SESSION['incident_id']=$db->insert_id;
-
-	if($level==2){
-		$update="update incident_report set l2='".$_POST['order']."' where id='".$_SESSION['incident_id']."'";
-		$rs=$db->query($update);
-		$update="insert into level(date,level,incident_id) values ('".date("Y-m-d",strtotime($incident_date))."','2','".$incident_code."')";
-		$rs=$db->query($update);
-	}
-	else if($level==3){
-		$update="update incident_report set l3='".$_POST['order']."' where id='".$incident_code."'";
-		$rs=$db->query($update);
-		$update="insert into level(date,level,incident_id) values ('".date("Y-m-d",strtotime($incident_date))."','3','".$incident_code."')";
-		$rs=$db->query($update);
-	}
-	else if($level==1){
-		$update="update incident_report set l3='".$_POST['order']."' where id='".$incident_code."'";
-		$rs=$db->query($update);
-		$update="insert into level(date,level,incident_id) values ('".date("Y-m-d",strtotime($incident_date))."','1','".$incident_code."')";
-		$rs=$db->query($update);
-	}
-	else if($level==0){
-		$update="update incident_report set l3='".$_POST['order']."' where id='".$incident_code."'";
-		$rs=$db->query($update);
-		$update="insert into level(date,level,incident_id) values ('".date("Y-m-d",strtotime($incident_date))."','0','".$incident_code."')";
-		$rs=$db->query($update);
-	}
-	else if($level==4){
-		$update="update incident_report set l4='".$_POST['order']."' where id='".$incident_code."'";
-		$rs=$db->query($update);
-		$update="insert into level(date,level,incident_id) values ('".date("Y-m-d",strtotime($incident_date))."','4','".$incident_code."')";
-		$rs=$db->query($update);
-	}
-
-	$incidentSQL="select * from is_user_transport.incident_no where incident_id='".$incident_code."'";
-	$incidentRS=$db->query($incidentSQL);
-	$incidentNM=$incidentRS->num_rows;
-	if($incidentNM==0){
-		$insert="insert into is_user_transport.incident_no(year,incident_id,incident_number,suffix) values ('".$incidentYear."','".$incident_code."','".$_POST['incident_no']."','".$_POST['incident_suffix']."')"; 
-		$insertRS=$db->query($insert);
-	}
-
-	/* ── Multi-equipment-with-subitem handler ─────────────────────────────
-	   Writes each selected equipment item — and whichever sub-item was
-	   chosen for it, if any — to incident_equipment.
-
-	   $_POST['equipment_ids'] arrives as a comma-separated list of
-	   "equipt_id:subitem_id" pairs, e.g. "104:7,108:,112:3" — the empty
-	   subitem_id on the second pair means that item's sub-item dropdown
-	   either had no data or the user hadn't picked one yet; it's still
-	   recorded as an equipment selection with subitem_id left at 0.
-
-	   incident_description.equipt/subitem is populated from the FIRST item in
-	   this list (see $initial_equipt / $initial_subitem below). The old
-	   single-select equipment field has been removed.
-
-	   Required DDL — note this widens the table from the previous turn's
-	   version by one column; if incident_equipment already exists without
-	   subitem_id, run the ALTER instead of the CREATE:
-	     CREATE TABLE incident_equipment (
-	       id int AUTO_INCREMENT PRIMARY KEY,
-	       incident_id int NOT NULL,
-	       equipt_id   int NOT NULL,
-	       subitem_id  int NOT NULL DEFAULT 0,
-	       UNIQUE KEY uq_pair (incident_id, equipt_id)
-	     );
-	     -- or, if the table from before already exists:
-	     ALTER TABLE incident_equipment ADD COLUMN subitem_id int NOT NULL DEFAULT 0;
-	   ─────────────────────────────────────────────────────────────────── */
-	$initial_equipt="";
-	$initial_subitem="";
-	if(!empty($_POST['equipment_ids'])){
-		$pairs=array_filter(is_array($_POST['equipment_ids'])
-			? $_POST['equipment_ids']
-			: explode(',',$_POST['equipment_ids']));
-		$n=0;
-		
-		foreach($pairs as $pair){
-			$pair=trim($pair);
-			if($pair==='') continue;
-			$parts=explode(':',$pair);
-			$equipt_id =(int)trim($parts[0]);
-			$subitem_id=isset($parts[1]) ? (int)trim($parts[1]) : 0;
-			if($equipt_id<=0) continue;
-			if($n==0){ 
-			
-				$initial_equipt=$equipt_id;
-				$initial_subitem=$subitem_id;
-				$db->query("update incident_report set equipt='".$equipt_id."' where id='".$incident_code."'");
+					
+					
+					
+					
+					
 			}
-			
-			$db->query("insert ignore into incident_equipt(incident_id,equipt_id,subitem_id) values ('".$incident_code."','".$equipt_id."','".$subitem_id."')");
-		
-			$n++;
-		}
-	}
-
-	/* ── Multi-link handler ─────────────────────────────────────────────
-	   Writes each linked incident to incident_linked_reports junction table.
-	   Required DDL (run once):
-	     CREATE TABLE incident_linked_reports (
-	       id int AUTO_INCREMENT PRIMARY KEY,
-	       incident_id int NOT NULL,
-	       linked_to   int NOT NULL,
-	       UNIQUE KEY uq_pair (incident_id, linked_to)
-	     );
-	   ─────────────────────────────────────────────────────────────────── */
-	if(!empty($_POST['incident_links'])){
-		$links=array_filter(is_array($_POST['incident_links'])
-			? $_POST['incident_links']
-			: explode(',',$_POST['incident_links']));
-		$first=true;
-		$m=0;
-		foreach($links as $linked_id){
-			$linked_id=(int)trim($linked_id);
-			if($linked_id<=0) continue;
-			
-			if($m==0){ $initial_linked=$linked_id; }
-			$db->query("insert ignore into incident_linked_reports(incident_id,linked_to) values ('".$incident_code."','".$linked_id."')");
-			if($first){ $db->query("update incident_report set linked_to='".$linked_id."' where id='".$incident_code."'"); $first=false; }
-			$m++;
-		}
-	}
-	$location=$_POST['location'];
-	$direction=$_POST['direction'];
-	$index_no=$_POST['index_id'];
-	$car_no=$_POST['car_id'];
 	
-	$sql="insert into incident_description ";
-	$sql.="(incident_id,location,direction,equipt,subitem,index_no,car_no,reported_by,received_by)";	
-	$sql.=" values ";
-	$sql.=" ('".$incident_code."','".$location."','".$direction."','".$initial_equipt."','".$initial_subitem."','".$index_no."','".$car_no."','".$reported_by."','".$received_by."')";
+	
+			$duration=$dur; 
+	
+	
+	
+			$sql.="set resolution_date='".$resolution_date."', duration='".$duration."'";
+			break;
+		}
+	$sql.=" where id='".$incident_report."'";
+	
 	$rs=$db->query($sql);
+	$Mup = 1;
 	
-	foreach(['car_id','car_id_2','car_id_3','car_id_4'] as $car_field){
-		if($_POST[$car_field]!=""){
-			$sql="insert into incident_cars(incident_id,car_no) values ('".$incident_code."','".$_POST[$car_field]."')";
-			$rs=$db->query($sql);
+	if($_POST['fieldType']=='onboard_equipt'){
+		$update="update incident_description set equipt='".$_POST['equipment']."', subitem='".$_POST['subitem']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+	}
+	if($_POST['fieldType']=='problem'){
+		$update="update incident_description set equipt='', subitem='' where incident_id='".$incident_report."'";
+		$rs=$db->query($update);
+	}
+	else if($_POST['fieldType']=="additional_defects"){
+		$update="delete from incident_defects where incident_id='".$incident_report."'";
+		$rs=$db2->query($update);
+		
+		$update="insert into incident_defects(incident_id,equipt_id,sub_item_id) (select '".$incident_report."',equipt_id,sub_item_id from temp_multiple)";
+		$rs=$db2->query($update);
+		
+		$update="delete from temp_multiple";
+		$rs=$db2->query($update);
+			
+	
+	}
+	
+
+	else if($_POST['fieldType']=="level"){
+		$levelSQL="select * from level where incident_id='".$incident_report."'";
+		$levelRS=$db->query($levelSQL);
+
+
+		
+		$levelNM=$levelRS->num_rows;
+
+		if($_POST['level']=="2"){
+			//$update="update incident_report set l2='".$_POST['order']."',l3='',l4='' where id='".$incident_report."'";
+			//$rs=$db->query($update);
+			
+			
+			if($levelNM>0){
+//				$update="update level set level='2',order='".$_POST['order']."' where id='".$incident_report."'";
+//				$rs=$db->query($update);
+			}
+			else {
+//				$update="insert into level(level,order,incident_id
+			
+			}
+
 		}
-	}
-	
-	if(isset($_GET['cancel'])){
-		$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-		$sql="update train_availability set status='cancelled' where id='".$_GET['cancel']."' and status='active'";
-		$rs=$db->query($sql);
-		$sql="update train_ava_time set cancel_loop='1' where train_ava_id='".$_GET['cancel']."'";
-		$rs=$db->query($sql);
-		$sql="insert into train_incident_report(train_ava_id,incident_id) values ('".$_GET['cancel']."','".$_SESSION['incident_id']."')";
-		$rs=$db->query($sql);
-		if($IR_EMBED){ echo "<script>parent.postMessage('ir-saved','*');</script>"; }
-		else { echo "<script language='javascript'>window.opener.location='train_availability.php';</script>"; }
-	}
-	if(isset($_GET['add_incident'])){
-		$sql="insert into train_incident_report(train_ava_id,incident_id) values ('".$_GET['add_incident']."','".$incident_code."')";
-		$rs=$db->query($sql);
-		if(isset($_POST['cancel'])){
-			$sql="update train_ava_time set cancel_loop='".$cancel."' where train_ava_id='".$_GET['cancel']."'";
-			$rs=$db->query($sql);
+		else if($_POST['level']=="3"){
+			//$update="update incident_report set l3='".$_POST['order']."',l2='',l4='' where id='".$incident_report."'";
+		//	$rs=$db->query($update);
+		
+			if($levelNM>0){
+			
+			
+			}
+			else {
+			
+			
+			}
+
 		}
-		if($IR_EMBED){ echo "<script>parent.postMessage('ir-saved','*');</script>"; }
-		else { echo "<script language='javascript'>window.opener.location='train_availability.php';</script>"; }
+		else if($_POST['level']=="4"){
+		//	$update="update incident_report set l4='".$_POST['order']."',l2='',l3='' where id='".$incident_report."'";
+			//$rs=$db->query($update);
+			
+			if($levelNM>0){
+			
+			
+			}
+			else {
+			
+			}
+
+		}
+
+		$incidentSQL="select * from incident_report where id='".$incident_report."'";
+		$incidentRS=$db->query($incidentSQL);
+		$incidentRow=$incidentRS->fetch_assoc();
+
+		$incident_date=date("Y-m-d",strtotime($incidentRow['incident_date']));
+		$resolution_date=date("Y-m-d",strtotime($incidentRow['resolution_date']));
+
+		
+		$updateSQL="delete from level where incident_id='".$incident_report."'";
+		$updateRS=$db->query($updateSQL);
+		
+		$updateSQL="insert into level(date,incident_id,level) values ";
+		$updateSQL.="('".$incident_date."','".$incident_report."','".$_POST['level']."')";
+		$updateRS=$db->query($updateSQL);
+		
+		
+		
+	}
+	else if($_POST['fieldType']=="index"){
+		$update="update incident_description set index_no='".$_POST['index_id']."', car_no='".$_POST['car']."' where incident_id='".$incident_report."'";
+		$rs=$db->query($update);
+		
+		$update="delete from incident_cars where incident_id='".$incident_report."'";
+		$rs=$db->query($update);
+
+		if($_POST['car']==""){
+		}
+		else {
+			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car']."')";
+			$rs=$db->query($update);
+
+		}
+		
+		if($_POST['car_2']==""){
+		}
+		else {
+			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car_2']."')";
+			$rs=$db->query($update);
+		
+		}
+		
+		if($_POST['car_3']==""){
+		}
+		else {
+			$update="insert into incident_cars(incident_id,car_no) values ('".$incident_report."','".$_POST['car_3']."')";
+			$rs=$db->query($update);
+		
+		}
+		
+		
+		
 	}
 	
-	if($level_condition=='3'){
-		echo "<script language='javascript'>window.open('service interruption.php?incident=".$incident_code."');</script>";
+	else if($_POST['fieldType']=="location"){
+		$update="update incident_description set location='".$_POST['location']."',direction='".$_POST['direction']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+
 	}
 
-	/* Legacy 'Additional Defects' removed: the temp_multiple ->
-	   incident_defects copy and its is_external connection are gone. */
+	else if($_POST['fieldType']=="reported_by"){
+		$update="update incident_description set reported_by='".$_POST['reported_by']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+
+	}
+
+	else if($_POST['fieldType']=="received_by"){
+		$update="update incident_description set received_by='".$_POST['received_by']."' where incident_id='".$incident_report."'";
+
+		$rs=$db->query($update);
+
+	}
+	else if($_POST['fieldType']=="incident_no"){
+		$update="update incident_report set incident_no='".$_POST['incident_digit']." ".$_POST['incident_suffix']."' where id='".$incident_report."'";
+		$rs=$db->query($update);
+		
+		
+		$update="update incident_no set incident_number='".$_POST['incident_digit']."', suffix='".$_POST['incident_suffix']."' where incident_id='".$incident_report."'";
+		/* item #1 fix: was `new mysqli("localhost","root","","user_transport")` -- root,
+		   blank password, and the pre-migration database name. Confirmed (2026-07):
+		   is_user_transport is the current name; this almost certainly meant incident
+		   renumbering never reached the live table. Centralized via db_config.php. */
+		require_once("db_config.php");
+		$db2=iss_db('user_transport');
+		$rs=$db2->query($update);
+	}
+		
+	
+	
+	// echo "<script typ=javascript> sampleFreeow();</script>"; 
+	
+	// echo "<script type='text/javascript'>Samplefreeow();</script>";	
+	
+	// echo '<script type="text/javascript">window.onload = function () { alert("Data Update!"); }</script>';
+	
+	} /* end if($fieldT<>"") - generic single-field update path */
+	
+	//Mjun@ initialize
+	$incident_report="";
+	
 }
 ?>
 
-<?php
-/* Display-path DB connection. This page used to rely on the connection opened
-   inside the legacy equipment <select> (now removed); restore it here so the
-   form's own queries (incident-suffix list, index/car lookups, etc.) still run
-   on a GET request, when the POST-only save block above never opens one. */
-$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-?>
 
-<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
-<script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
-<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
 
 <style type='text/css'>
 /* =========================================================================
-   INCIDENT REPORT — Operations Console Theme
-   Scoped under .ir-page so nothing bleeds to other pages loaded alongside.
+   EDIT CCDR ? Operations Console Theme
+   Uniform with train_availability_console.php / incident_report_console.php
+   / clearance_form_console.php. Scoped under .ta-grid.ta-console.
+   PHP/JS: completely unchanged below ? including every fillEdit() and
+   fillEquipt() string that injects <tr class='rowHeading'> into the modal;
+   that class is restyled here to match, not altered in the JS itself.
    ========================================================================= */
 :root {
-	--ir-blue:    #00529B;
-	--ir-gold:    #FDB813;
-	--ir-dark:    #16243B;
-	--ir-mid:     #41506A;
-	--ir-muted:   #8A95A6;
-	--ir-border:  #D2DDEA;
-	--ir-row-odd: #EEF4FB;
-	--ir-bg:      #F7F9FC;
-	--ir-white:   #ffffff;
-	--ir-sans:    "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-	--ir-mono:    ui-monospace, "Cascadia Mono", "Consolas", monospace;
+	--cc-blue:    #00529B;
+	--cc-gold:    #FDB813;
+	--cc-dark:    #16243B;
+	--cc-mid:     #41506A;
+	--cc-muted:   #8A95A6;
+	--cc-border:  #D2DDEA;
+	--cc-row-odd: #EEF4FB;
+	--cc-bg:      #F7F9FC;
+	--cc-white:   #ffffff;
+	--cc-sans:    "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
 }
 
-body { background: #EAEEF3; font-family: var(--ir-sans); color: var(--ir-dark); margin: 0; }
+body { font-family: var(--cc-sans); color: var(--cc-dark); }
 
-.ir-page {
-	max-width: 780px;
-	margin: 24px auto 48px;
-	border-radius: 10px;
-	overflow: hidden;
-	box-shadow: 0 2px 12px rgba(0,30,80,.10), 0 1px 3px rgba(0,30,80,.07);
-	background: var(--ir-white);
-}
-
-/* ── Page header ── */
-.ir-page-header {
-	background: var(--ir-blue);
-	border-bottom: 3px solid var(--ir-gold);
-	padding: 13px 20px;
-	display: flex;
-	align-items: center;
-	gap: 12px;
-}
-.ir-page-header .ir-wordmark {
-	background: var(--ir-gold);
-	color: #3A2D00;
-	font-size: 11px;
-	font-weight: 600;
-	letter-spacing: .5px;
-	padding: 2px 8px;
-	border-radius: 4px;
-}
-.ir-page-header h1 {
-	margin: 0;
-	font-size: 14px;
-	font-weight: 600;
-	color: #fff;
-	letter-spacing: .3px;
-}
-.ir-page-header .ir-context {
-	margin-left: auto;
-	font-size: 11px;
-	color: rgba(255,255,255,.6);
-}
-
-/* ── Form body ── */
-.ir-form-body { padding: 0; }
-
-/* ── Section headers ── */
-.ir-section-head {
-	background: var(--ir-blue);
-	color: #fff;
-	font-size: 11px;
-	font-weight: 600;
-	letter-spacing: .5px;
-	text-transform: uppercase;
-	padding: 7px 16px;
-	border-bottom: 2px solid var(--ir-gold);
-}
-
-/* ── Field rows ── */
-.ir-table {
-	width: 100%;
+/* -- .ccdr property-sheet tables (Control / Reporting / Action Taken) -- */
+.ta-grid.ta-console .ccdr {
 	border-collapse: collapse;
-}
-.ir-table tr { border-bottom: 1px solid var(--ir-border); }
-.ir-table tr:last-child { border-bottom: none; }
+	border: 1px solid var(--cc-border);
+	border-radius: 8px;
+	overflow: hidden;
+	font-size: 12px;
+	
+		margin: 24px auto 0 auto;
 
-.ir-table td.ir-label {
-	background: var(--ir-row-odd);
-	color: var(--ir-dark);
-	font-size: 11px;
+}
+.ta-grid.ta-console .ccdr td,
+.ta-grid.ta-console .ccdr th {
+	border: 1px solid var(--cc-border);
+	padding: 8px 12px;
+	vertical-align: middle;
+}
+.ta-grid.ta-console .ccdr tr:nth-child(odd) td { background: var(--cc-row-odd); }
+.ta-grid.ta-console .ccdr tr:nth-child(even) td { background: var(--cc-white); }
+.ta-grid.ta-console .ccdr tr th:first-child {
+	color: var(--cc-dark);
 	font-weight: 600;
-	padding: 9px 16px;
-	width: 200px;
-	vertical-align: middle;
+	font-size: 11px;
+	text-align: left;
 	white-space: nowrap;
+	background: transparent;
 }
-.ir-table td.ir-label.ir-label--top { vertical-align: top; padding-top: 11px; }
-
-.ir-table td.ir-field {
-	background: var(--ir-white);
-	padding: 7px 14px;
-	vertical-align: middle;
+.ta-grid.ta-console .ccdr #ccdr_heading,
+.ta-grid.ta-console .ccdr tr#ccdr_heading {
+	background: var(--cc-blue);
 }
-.ir-table td.ir-field--top { vertical-align: top; padding-top: 9px; }
-
-/* ── Form controls ── */
-.ir-page input[type="text"],
-.ir-page input[type="number"] {
-	height: 28px;
-	font-size: 12px;
-	font-family: var(--ir-sans);
-	font-weight: 400;
-	border: 1px solid var(--ir-border);
-	background: var(--ir-white);
-	color: var(--ir-dark);
-	border-radius: 4px;
-	padding: 0 8px;
-	box-sizing: border-box;
-	transition: border-color .15s, box-shadow .15s;
-}
-.ir-page input[type="text"]:focus,
-.ir-page input[type="number"]:focus {
-	border-color: var(--ir-blue);
-	outline: none;
-	box-shadow: 0 0 0 2px rgba(0,82,155,.12);
-}
-
-/* Narrow inputs for short values */
-.ir-page input.ir-input--xs  { width: 64px; }
-.ir-page input.ir-input--sm  { width: 100px; }
-.ir-page input.ir-input--md  { width: 180px; }
-.ir-page input.ir-input--lg  { width: 100%; }
-
-.ir-page select {
-	height: 28px;
-	font-size: 12px;
-	font-family: var(--ir-sans);
-	border: 1px solid var(--ir-border);
-	background: var(--ir-white);
-	color: var(--ir-dark);
-	border-radius: 4px;
-	padding: 0 6px;
-	box-sizing: border-box;
-}
-.ir-page select:focus { border-color: var(--ir-blue); outline: none; }
-
-/* Time selects inline */
-.ir-page select.ir-sel--time { width: auto; display: inline-block; margin-right: 3px; }
-
-/* Suffix select (next to incident no.) */
-.ir-page select.ir-sel--suffix { width: auto; display: inline-block; margin-left: 6px; }
-
-/* Equipment and sub-item selects: full-width */
-.ir-page select.ir-sel--full  { width: 100%; }
-
-.ir-page textarea {
-	font-size: 12px;
-	font-family: var(--ir-sans);
-	border: 1px solid var(--ir-border);
-	background: var(--ir-white);
-	color: var(--ir-dark);
-	border-radius: 4px;
-	padding: 7px 9px;
-	width: 100%;
-	box-sizing: border-box;
-	resize: vertical;
-	min-height: 80px;
-}
-.ir-page textarea:focus { border-color: var(--ir-blue); outline: none; box-shadow: 0 0 0 2px rgba(0,82,155,.12); }
-
-/* ── Inline field groups (index / car selects) ── */
-.ir-inline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.ir-inline .ir-sep { color: var(--ir-muted); font-size: 13px; font-weight: 500; }
-
-/* ── Checkbox rows ── */
-.ir-check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ir-mid); }
-.ir-check-row input[type="checkbox"] { margin: 0; accent-color: var(--ir-blue); width: 14px; height: 14px; }
-
-/* ── Button styles ── */
-.ir-page input[type="submit"] {
-	height: 34px;
+.ta-grid.ta-console .ccdr tr#ccdr_heading th {
+	background: var(--cc-blue);
+	color: #fff;
+	font-family: var(--cc-sans);
 	font-size: 13px;
 	font-weight: 600;
-	font-family: var(--ir-sans);
-	background: var(--ir-blue);
-	color: #fff;
-	border: none;
-	border-radius: 5px;
-	padding: 0 28px;
-	cursor: pointer;
 	letter-spacing: .3px;
-	transition: background .15s;
+	border-bottom: 3px solid var(--cc-gold);
+	border-color: #0A639E;
+	text-align: center;
 }
-.ir-page input[type="submit"]:hover { background: #013E76; }
 
-.ir-page input[type="button"],
-.ir-page button[type="button"] {
-	height: 28px;
+/* -- Edit links inside each row's third cell -- */
+.ta-grid.ta-console .alink a,
+.ta-grid.ta-console .ccdr a {
 	font-size: 11px;
-	font-weight: 500;
-	font-family: var(--ir-sans);
-	background: var(--ir-white);
-	color: var(--ir-blue);
-	border: 1px solid var(--ir-border);
-	border-radius: 4px;
-	padding: 0 12px;
-	cursor: pointer;
+	font-weight: 600;
+	text-decoration: none;
+	color: var(--cc-blue);
+	padding: 2px 9px;
+	border-radius: 3px;
+	border: 1px solid var(--cc-border);
+	background: var(--cc-bg);
 }
-.ir-page input[type="button"]:hover,
-.ir-page button[type="button"]:hover { background: var(--ir-row-odd); border-color: var(--ir-blue); }
+.ta-grid.ta-console .alink a:hover,
+.ta-grid.ta-console .ccdr a:hover { background: var(--cc-blue); color: #fff; border-color: var(--cc-blue); }
+.ta-grid.ta-console .alink a.disabled { color: var(--cc-muted); background: transparent; border-color: transparent; cursor: default; }
+/* the "See <incident>" link and "[Report]" link read as plain text links, not buttons */
+.ta-grid.ta-console .ccdr td a[onclick*="edit_ccdr"],
+.ta-grid.ta-console .ccdr td a[onclick*="service interruption"] {
+	padding: 0; border: none; background: none; font-weight: 500;
+}
+.ta-grid.ta-console .ccdr td a[onclick*="edit_ccdr"]:hover,
+.ta-grid.ta-console .ccdr td a[onclick*="service interruption"]:hover { background: none; color: var(--cc-blue); text-decoration: underline; }
 
-/* ── Submit footer ── */
-.ir-submit-row {
-	background: var(--ir-bg);
-	border-top: 1px solid var(--ir-border);
-	padding: 16px 20px;
-	text-align: right;
+/* -- Search bar at top of page -- */
+.ta-grid.ta-console .cc-search-bar {
+	background: var(--cc-blue);
+	border-bottom: 3px solid var(--cc-gold);
+	border-radius: 8px 8px 0 0;
+	padding: 10px 16px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-bottom: 16px;
+}
+.ta-grid.ta-console .cc-search-bar b,
+.ta-grid.ta-console .cc-search-bar font { color: #fff !important; font-size: 12px !important; font-weight: 600 !important; font-family: var(--cc-sans) !important; }
+.ta-grid.ta-console .cc-search-bar input.text_input,
+.ta-grid.ta-console .cc-search-bar select.text_input {
+	height: 28px; font-size: 12px; font-family: var(--cc-sans);
+	border: 1px solid var(--cc-border); background: #fff; color: var(--cc-dark);
+	border-radius: 4px; padding: 0 8px;
+}
+.ta-grid.ta-console .cc-search-bar input[type="submit"] {
+	height: 28px; font-size: 11px; font-weight: 600; font-family: var(--cc-sans);
+	background: var(--cc-gold); color: #3A2D00; border: none; border-radius: 4px;
+	padding: 0 14px; cursor: pointer;
+}
+.ta-grid.ta-console .cc-search-bar input[type="submit"]:hover { background: #E5A50F; }
+.ta-grid.ta-console .cc-search-bar form { display: flex; align-items: center; gap: 8px; margin: 0; }
+
+/* -- Section spacing -- */
+.ta-grid.ta-console .ccdr { margin-bottom: 18px; }
+
+/* -- rowHeading rows injected by fillEdit()/fillEquipt() JS into #edit_table -- */
+#addModal .rowHeading td {
+	background: var(--cc-blue);
+	color: #fff;
+	font-weight: 600;
+	font-size: 12px;
+	padding: 8px 12px;
+	border-bottom: 3px solid var(--cc-gold);
 }
 
-/* ── Level condition span (injected by JS getLevel) ── */
-#condition select { margin-left: 10px; }
+/* -- Multiple-defects sub-tables (#multi_list / #multi_list2) -- */
+#multi_list tr th, #multi_list2 tr th {
+	background: var(--cc-blue);
+	color: #fff;
+	border: 1px solid var(--cc-border);
+	text-align: center;
+	font-size: 11px;
+	font-weight: 600;
+	padding: 6px 10px;
+}
+#multi_list tr:nth-child(n+2) td, #multi_list2 tr:nth-child(n+2) td {
+	background: var(--cc-row-odd);
+	color: var(--cc-dark);
+	border: 1px solid var(--cc-border);
+	padding: 6px 10px;
+	font-size: 12px;
+}
 
-/* ── Dropdown menu (Bootstrap autocomplete — kept as-is visually) ── */
-.dropdown-menu { position:absolute; top:100%; left:0; z-index:1000; display:none; float:left; min-width:160px; padding:5px 0; margin:2px 0 0; list-style:none; background-color:#fff; border:1px solid rgba(0,0,0,0.15); border-radius:6px; box-shadow:0 5px 10px rgba(0,0,0,0.12); }
-.dropdown-menu>li>a { display:block; padding:5px 16px; font-size:12px; color:#333; white-space:nowrap; text-decoration:none; }
-.dropdown-menu>li>a:hover { color:#fff; background-color:var(--ir-blue); }
+/* -- Modal shell ? console theme, uniform with the other pages -- */
+.modal { z-index: 99999; }
+/* -- Embed-safe Bootstrap-2 modal shims --------------------------------
+   Standalone, Tmenu.php's <head> prints the full bootstrap.css -- which is
+   where .hide, the generic .fade transition, .modal.fade's top slide and
+   the .modal-backdrop rules actually live; modal_only.css only carries the
+   .modal shell. With embed=1 (train_operations slide-panel iframe) the
+   Tmenu require is wrapped in ob_start/ob_end_clean, so ALL of that CSS is
+   discarded -- and bootstrap-modal.js, seeing a .fade modal, appends the
+   backdrop and waits for a transitionend on it before it ever calls
+   $element.show() on the modal. With no .fade transition rule in the
+   document that event never fires, so $('#addModal').modal('show') runs
+   but the modal never appears: the Edit click looks dead inside the panel,
+   while standalone (Tmenu CSS present) works fine. Duplicating the exact
+   BS2 rules here is a no-op standalone and makes the modal self-sufficient
+   when embedded. Two deliberate deltas: the id-level display guard (same
+   fix as equipment_list/signatories_list, so the hidden modal can never
+   sit invisibly over the page intercepting clicks), and backdrop z-index
+   raised to sit just under this page's .modal { z-index: 99999 }. -- */
+#addModal { display: none; }
+#addModal.in { display: block; }
+.hide { display: none; }
+.fade { opacity: 0; -webkit-transition: opacity .15s linear; -moz-transition: opacity .15s linear; -o-transition: opacity .15s linear; transition: opacity .15s linear; }
+.fade.in { opacity: 1; }
+.modal.fade { top: -25%; -webkit-transition: opacity .3s linear, top .3s ease-out; -moz-transition: opacity .3s linear, top .3s ease-out; -o-transition: opacity .3s linear, top .3s ease-out; transition: opacity .3s linear, top .3s ease-out; }
+.modal.fade.in, #addModal.in { top: 10%; }
+.modal-backdrop { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 99998; background-color: #000000; }
+.modal-backdrop.fade { opacity: 0; }
+.modal-backdrop, .modal-backdrop.fade.in { opacity: 0.8; }
+#addModal {
+	border-radius: 8px;
+	overflow: hidden;
+	border: none;
+	box-shadow: 0 8px 32px rgba(0,30,80,.18), 0 2px 8px rgba(0,30,80,.10);
+	font-family: var(--cc-sans);
+	min-width: 420px;
+}
+#addModal .modal-header {
+	background: var(--cc-blue);
+	border-bottom: 3px solid var(--cc-gold);
+	padding: 10px 16px;
+}
+#addModal .modal-header h3 { color: #fff; font-size: 13px; font-weight: 600; margin: 0; }
+#addModal .modal-header .close { color: rgba(255,255,255,.7); text-shadow: none; opacity: 1; font-size: 18px; }
+#addModal .modal-header .close:hover { color: var(--cc-gold); }
+#addModal .modal-body { background: var(--cc-bg); padding: 16px 18px; }
+#addModal .modal-footer {
+	background: #fff;
+	border-top: 1px solid var(--cc-border);
+	padding: 10px 16px;
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+#addModal .modal-footer .btn {
+	font-size: 12px; font-weight: 500; padding: 5px 16px; border-radius: 4px;
+	border: 1px solid var(--cc-border); background: #fff; color: var(--cc-mid); text-decoration: none;
+}
+#addModal .modal-footer .btn:hover { background: var(--cc-row-odd); border-color: var(--cc-blue); color: var(--cc-blue); }
+#addModal .modal-footer .btn-primary { background: var(--cc-blue); border-color: var(--cc-blue); color: #fff; }
+#addModal .modal-footer .btn-primary:hover { background: #013E76; border-color: #013E76; }
 
-/* ── datepicker override ── */
-.ui-datepicker { font-size: 12px; font-family: var(--ir-sans); }
+/* -- #edit_table (built by fillEdit/fillEquipt JS) and #edit_form th -- */
+#edit_table { width: 100%; border-collapse: collapse; font-size: 12px; }
+#edit_table th {
+	background: var(--cc-row-odd); color: var(--cc-dark); font-weight: 600;
+	font-size: 11px; padding: 8px 10px; text-align: left; white-space: nowrap;
+	border-bottom: 1px solid var(--cc-border);
+}
+#edit_table td { padding: 7px 10px; border-bottom: 1px solid var(--cc-border); }
+#edit_form th { background: var(--cc-row-odd); color: var(--cc-dark); padding: 7px 10px; font-size: 11px; font-weight: 600; }
 
+/* -- Form controls ? scoped to #addModal so nothing outside the modal changes -- */
+#addModal input[type="text"],
+#addModal select {
+	height: 28px; font-size: 12px; font-family: var(--cc-sans); font-weight: 400;
+	border: 1px solid var(--cc-border); background: #fff; color: var(--cc-dark);
+	border-radius: 4px; padding: 0 8px; box-sizing: border-box;
+}
+#addModal input[type="text"]:focus,
+#addModal select:focus { border-color: var(--cc-blue); outline: none; box-shadow: 0 0 0 2px rgba(0,82,155,.12); }
+#addModal textarea {
+	font-size: 12px; font-family: var(--cc-sans); border: 1px solid var(--cc-border);
+	background: #fff; color: var(--cc-dark); border-radius: 4px; padding: 7px 9px;
+	width: 100%; box-sizing: border-box; resize: vertical; min-height: 80px;
+}
+#addModal textarea:focus { border-color: var(--cc-blue); outline: none; box-shadow: 0 0 0 2px rgba(0,82,155,.12); }
+#addModal input[type="button"],
+#addModal button[type="button"]:not(.close) {
+	height: 28px; font-size: 11px; font-weight: 500; font-family: var(--cc-sans);
+	background: #fff; color: var(--cc-blue); border: 1px solid var(--cc-border);
+	border-radius: 4px; padding: 0 12px; cursor: pointer;
+}
+#addModal input[type="button"]:hover { background: var(--cc-row-odd); border-color: var(--cc-blue); }
+#addModal input[type="checkbox"] { margin-right: 5px; vertical-align: middle; }
+#addModal input[disabled] { background: var(--cc-bg); color: var(--cc-muted); }
+/* The original markup includes invisible white-on-white spacer text
+   (<font color=white>| | | ...) used as layout padding before the hidden
+   inputs. It renders as nothing either way; hidden here for cleanliness
+   without touching the markup itself. */
+#addModal font[color="white"] { display: none; }
 
-/* ── Linked incident chips (shared by all link options) ── */
-.ir-link-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:6px 8px;border:1px solid var(--ir-border);border-radius:4px;background:var(--ir-bg);margin-top:8px;}
-.ir-link-chip{display:inline-flex;align-items:center;gap:5px;background:var(--ir-row-odd);border:1px solid var(--ir-border);border-radius:12px;padding:2px 6px 2px 9px;font-size:11px;font-weight:500;color:var(--ir-blue);}
-.ir-link-chip button{background:none;border:none;cursor:pointer;color:var(--ir-muted);padding:0;line-height:1;font-size:14px;display:flex;align-items:center;}
-.ir-link-chip button:hover{color:#E24B4A;}
-/* @unlink -- the x was a bare glyph in muted grey and read as decoration.
-   Same control, given a hit area and a colour change on hover. */
-.ir-link-chip button{border-radius:50%;width:15px;height:15px;justify-content:center;}
-.ir-link-chip button:hover{background:#FBE3E3;}
-.ir-link-empty{font-size:11px;color:var(--ir-muted);padding:4px 2px;}
-/* @unlink */
-.ir-link-clear{display:none;font-size:11px;color:var(--ir-muted);text-decoration:none;margin-top:5px;cursor:pointer;}
-.ir-link-clear:hover{color:#E24B4A;text-decoration:underline;}
-.ir-link-label{font-size:11px;font-weight:600;color:var(--ir-mid);margin-bottom:5px;margin-top:8px;}
-.ir-link-search-row{display:flex;gap:7px;margin-bottom:8px;}
-.ir-link-search-row input{flex:1;}
-.ir-link-results{border-collapse:collapse;width:100%;font-size:11px;}
-.ir-link-results th{background:var(--ir-blue);color:#fff;font-weight:500;padding:5px 8px;text-align:left;border-bottom:2px solid var(--ir-gold);}
-.ir-link-results td{padding:6px 8px;border-bottom:1px solid var(--ir-border);vertical-align:middle;}
-.ir-link-results tbody tr:hover td{background:var(--ir-row-odd);}
-.ir-link-no{font-family:var(--ir-mono);font-weight:600;color:var(--ir-blue);}
-.ir-link-muted{color:var(--ir-muted);}
-.ir-lvl{display:inline-block;font-size:10px;font-weight:700;border-radius:3px;padding:1px 5px;}
-.ir-lvl-0{background:#F3F4F6;color:#6B7280;} .ir-lvl-1{background:#E8F5EE;color:#0F6E4E;}
-.ir-lvl-2{background:#EAF2FB;color:#0C447C;} .ir-lvl-3{background:#FAEEDA;color:#854F0B;}
-.ir-lvl-4{background:#FCEBEB;color:#A32D2D;}
+/* --- Per-field Edit pill (hidden until row hover, matches clearance_form) --- */
+.ta-grid.ta-console .ccdr a.cc-edit-pill {
+	display: inline-flex; align-items: center;
+	font-size: 10px; font-weight: 600; text-decoration: none;
+	padding: 2px 9px; border-radius: 999px;
+	border: 1px solid var(--cc-border); background: var(--cc-white);
+	color: var(--cc-muted);
+	opacity: 0; transform: translateY(1px);
+	transition: opacity .12s, background .12s, border-color .12s, color .12s, transform .12s;
+}
+.ta-grid.ta-console .ccdr tr:hover a.cc-edit-pill { opacity: 1; transform: translateY(0); }
+.ta-grid.ta-console .ccdr a.cc-edit-pill:hover {
+	background: var(--cc-blue); border-color: var(--cc-blue); color: #fff;
+}
 
-/* ── Multi-equipment picker (Option A pattern, applied to Equipment field) ── */
-.ir-eq-panel{border:1px solid var(--ir-border);border-radius:6px;overflow:hidden;margin-top:8px;}
-.ir-eq-panel-head{background:var(--ir-row-odd);padding:7px 11px;font-size:11px;font-weight:600;color:var(--ir-mid);border-bottom:1px solid var(--ir-border);display:flex;align-items:center;gap:7px;}
-.ir-eq-panel-body{max-height:200px;overflow-y:auto;}
-.ir-eq-panel-foot{padding:7px 11px;border-top:1px solid var(--ir-border);background:var(--ir-bg);display:flex;justify-content:flex-end;gap:7px;}
-.ir-eq-cb-row{display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--ir-border);}
-.ir-eq-cb-row:last-child{border-bottom:none;}
-.ir-eq-cb-row:hover{background:var(--ir-row-odd);}
-.ir-eq-cb-row input[type=checkbox]{accent-color:var(--ir-blue);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
-.ir-eq-cb-row .ir-eq-name{font-size:12px;color:var(--ir-dark);flex:1;}
-.ir-eq-cb-row .ir-eq-cat{font-size:10px;color:var(--ir-muted);white-space:nowrap;}
-.ir-eq-chips{display:flex;flex-direction:column;gap:8px;min-height:32px;padding:8px;border:1px solid var(--ir-border);border-radius:4px;background:var(--ir-bg);margin-top:8px;}
-.ir-eq-card{background:var(--ir-white);border:1px solid var(--ir-border);border-radius:6px;overflow:hidden;}
-.ir-eq-card-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--ir-row-odd);border-bottom:1px solid var(--ir-border);}
-.ir-eq-card-name{font-size:12px;font-weight:600;color:var(--ir-blue);}
-.ir-eq-card-head button{background:none;border:none;cursor:pointer;color:var(--ir-muted);padding:0;line-height:1;font-size:15px;display:flex;align-items:center;}
-.ir-eq-card-head button:hover{color:#E24B4A;}
-.ir-eq-card-sub{padding:8px 10px;}
-.ir-eq-subselect{height:28px;font-size:12px;font-family:var(--ir-sans);border:1px solid var(--ir-border);background:var(--ir-white);color:var(--ir-dark);border-radius:4px;padding:0 6px;width:100%;box-sizing:border-box;}
-.ir-eq-subselect:focus{border-color:var(--ir-blue);outline:none;}
-.ir-eq-loading{font-size:11px;color:var(--ir-muted);font-style:italic;}
-.ir-eq-no-sub{font-size:11px;color:var(--ir-muted);font-style:italic;}
-.ir-eq-empty{font-size:11px;color:var(--ir-muted);padding:4px 2px;}
-.ir-eq-label{font-size:11px;font-weight:600;color:var(--ir-mid);margin-bottom:5px;margin-top:8px;}
-.ir-divider{border:0;border-top:1px dashed var(--ir-border);margin:10px 0;}
-.ir-subtle-note{font-size:10px;color:var(--ir-muted);font-style:italic;margin-top:4px;}
-/* ── Option C: Full modal overlay ── */
-.ir-modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.38);z-index:1000;display:none;align-items:center;justify-content:center;}
-.ir-modal-backdrop.open{display:flex;}
-.ir-modal-box{background:var(--ir-white);border-radius:10px;overflow:hidden;width:600px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,30,80,.20);}
-.ir-modal-head{background:var(--ir-blue);border-bottom:3px solid var(--ir-gold);padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex:none;}
-.ir-modal-head h4{font-size:13px;font-weight:600;color:#fff;margin:0;}
-.ir-modal-close{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:20px;line-height:1;padding:0;}
-.ir-modal-close:hover{color:var(--ir-gold);}
-.ir-modal-body{padding:14px 16px;flex:1;overflow-y:auto;}
-.ir-modal-foot{padding:11px 16px;border-top:1px solid var(--ir-border);background:var(--ir-bg);display:flex;align-items:center;justify-content:space-between;flex:none;}
-.ir-modal-sel-count{font-size:11px;color:var(--ir-mid);font-weight:600;}
-.ir-filter-tabs{display:flex;gap:4px;margin-bottom:10px;}
-.ir-filter-tab{font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;border:1px solid var(--ir-border);background:var(--ir-white);color:var(--ir-mid);cursor:pointer;}
-.ir-filter-tab.active{background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);}
-.ir-result-scroll{max-height:240px;overflow-y:auto;border:1px solid var(--ir-border);border-radius:4px;}
+/* Read-only listings in the property sheet */
+.cc-none-note { font-size: 11px; color: var(--cc-muted); font-style: italic; }
+.ta-grid.ta-console .cc-eq-list { border-collapse: collapse; font-size: 12px; }
+.ta-grid.ta-console .cc-eq-list th {
+	background: var(--cc-row-odd); color: var(--cc-mid); font-size: 10px;
+	font-weight: 600; text-align: left; padding: 4px 10px; border: 1px solid var(--cc-border);
+}
+.ta-grid.ta-console .cc-eq-list td { padding: 5px 10px; border: 1px solid var(--cc-border); }
+/* @unlink -- row-level remove, matching the chip x in incident_report.php.
+   Held at low contrast until the row is hovered so a column of red x's does
+   not read as an error state, but always present rather than hover-only:
+   a control that appears on hover cannot be found by someone looking for it. */
+.cc-linked-item { font-size: 12px; margin: 2px 0; display:flex; align-items:center; gap:6px; }
+.cc-linked-x {
+	background:none; border:none; cursor:pointer; padding:0; line-height:1;
+	font-size:14px; color:var(--cc-muted); opacity:.55;
+	width:16px; height:16px; border-radius:50%;
+	display:inline-flex; align-items:center; justify-content:center;
+}
+.cc-linked-item:hover .cc-linked-x { opacity:1; }
+.cc-linked-x:hover { color:#E24B4A; background:#FBE3E3; opacity:1; }
+.cc-linked-x:focus-visible { outline:2px solid var(--cc-blue); outline-offset:1px; opacity:1; }
+.cc-link-dirty { font-size:11px; color:#8A6D00; margin-top:4px; font-style:italic; }
+.cc-linked-item a { color: var(--cc-blue); }
+
+/* --- Ported multi-equipment picker (option-C ir-eq-*, renamed cc-eq-*) --- */
+.cc-eq-panel{border:1px solid var(--cc-border);border-radius:6px;overflow:hidden;margin-top:8px;}
+.cc-eq-panel-head{background:var(--cc-row-odd);padding:7px 11px;font-size:11px;font-weight:600;color:var(--cc-mid);border-bottom:1px solid var(--cc-border);display:flex;align-items:center;gap:7px;}
+.cc-eq-panel-body{max-height:200px;overflow-y:auto;}
+.cc-eq-panel-foot{padding:7px 11px;border-top:1px solid var(--cc-border);background:var(--cc-bg);display:flex;justify-content:flex-end;gap:7px;}
+.cc-eq-cb-row{display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--cc-border);}
+.cc-eq-cb-row:last-child{border-bottom:none;}
+.cc-eq-cb-row:hover{background:var(--cc-row-odd);}
+.cc-eq-cb-row input[type=checkbox]{accent-color:var(--cc-blue);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
+.cc-eq-cb-row .cc-eq-name{font-size:12px;color:var(--cc-dark);flex:1;}
+.cc-eq-cb-row .cc-eq-cat{font-size:10px;color:var(--cc-muted);white-space:nowrap;}
+.cc-eq-chips{display:flex;flex-direction:column;gap:8px;min-height:32px;padding:8px;border:1px solid var(--cc-border);border-radius:4px;background:var(--cc-bg);margin-top:8px;}
+.cc-eq-card{background:var(--cc-white);border:1px solid var(--cc-border);border-radius:6px;overflow:hidden;}
+.cc-eq-card-head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--cc-row-odd);border-bottom:1px solid var(--cc-border);}
+.cc-eq-card-name{font-size:12px;font-weight:600;color:var(--cc-blue);}
+.cc-eq-card-head button{background:none;border:none;cursor:pointer;color:var(--cc-muted);padding:0;line-height:1;font-size:15px;display:flex;align-items:center;}
+.cc-eq-card-head button:hover{color:#E24B4A;}
+.cc-eq-card-sub{padding:8px 10px;}
+.cc-eq-subselect{height:28px;font-size:12px;font-family:var(--cc-sans);border:1px solid var(--cc-border);background:var(--cc-white);color:var(--cc-dark);border-radius:4px;padding:0 6px;width:100%;box-sizing:border-box;}
+.cc-eq-subselect:focus{border-color:var(--cc-blue);outline:none;}
+.cc-eq-loading{font-size:11px;color:var(--cc-muted);font-style:italic;}
+.cc-eq-no-sub{font-size:11px;color:var(--cc-muted);font-style:italic;}
+.cc-eq-empty{font-size:11px;color:var(--cc-muted);padding:4px 2px;}
+
+/* --- Ported multi-link chips + modal (option-C ir-link-*/ir-modal-*, renamed cc-*) --- */
+.cc-link-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:6px 8px;border:1px solid var(--cc-border);border-radius:4px;background:var(--cc-bg);margin-top:8px;}
+.cc-link-chip{display:inline-flex;align-items:center;gap:5px;background:var(--cc-row-odd);border:1px solid var(--cc-border);border-radius:12px;padding:2px 6px 2px 9px;font-size:11px;font-weight:500;color:var(--cc-blue);}
+.cc-link-chip button{background:none;border:none;cursor:pointer;color:var(--cc-muted);padding:0;line-height:1;font-size:14px;display:flex;align-items:center;}
+/* @unlink -- same hit area and hover treatment as the chip x on
+   incident_report.php; a bare 14px glyph in grey reads as punctuation. */
+.cc-link-chip button{border-radius:50%;width:15px;height:15px;justify-content:center;}
+.cc-link-chip button:hover{background:#FBE3E3;}
+.cc-link-chip button:hover{color:#E24B4A;}
+.cc-link-empty{font-size:11px;color:var(--cc-muted);padding:4px 2px;}
+.cc-link-label{font-size:11px;font-weight:600;color:var(--cc-mid);margin-bottom:5px;margin-top:8px;}
+.cc-link-results{border-collapse:collapse;width:100%;font-size:11px;}
+.cc-link-results th{background:var(--cc-blue);color:#fff;font-weight:500;padding:5px 8px;text-align:left;border-bottom:2px solid var(--cc-gold);}
+.cc-link-results td{padding:6px 8px;border-bottom:1px solid var(--cc-border);vertical-align:middle;}
+.cc-link-results tbody tr:hover td{background:var(--cc-row-odd);}
+.cc-link-no{font-family:var(--cc-sans);font-weight:600;color:var(--cc-blue);}
+.cc-link-muted{color:var(--cc-muted);}
+.cc-lvl{display:inline-block;font-size:10px;font-weight:700;border-radius:3px;padding:1px 5px;}
+.cc-lvl-0{background:#F3F4F6;color:#6B7280;} .cc-lvl-1{background:#E8F5EE;color:#0F6E4E;}
+.cc-lvl-2{background:#EAF2FB;color:#0C447C;} .cc-lvl-3{background:#FAEEDA;color:#854F0B;}
+.cc-lvl-4{background:#FCEBEB;color:#A32D2D;}
+.cc-modal-backdrop{position:fixed;inset:0;background:rgba(16,24,40,.38);z-index:100000;display:none;align-items:center;justify-content:center;}
+.cc-modal-backdrop.open{display:flex;}
+.cc-modal-box{background:var(--cc-white);border-radius:10px;overflow:hidden;width:600px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,30,80,.20);}
+.cc-modal-head{background:var(--cc-blue);border-bottom:3px solid var(--cc-gold);padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex:none;}
+.cc-modal-head h4{font-size:13px;font-weight:600;color:#fff;margin:0;}
+.cc-modal-close{background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:20px;line-height:1;padding:0;}
+.cc-modal-close:hover{color:var(--cc-gold);}
+.cc-modal-body{padding:14px 16px;flex:1;overflow-y:auto;}
+.cc-modal-foot{padding:11px 16px;border-top:1px solid var(--cc-border);background:var(--cc-bg);display:flex;align-items:center;justify-content:space-between;flex:none;}
+.cc-modal-sel-count{font-size:11px;color:var(--cc-mid);font-weight:600;}
+.cc-filter-tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;}
+.cc-filter-tab{font-size:11px;font-weight:500;padding:3px 9px;border-radius:4px;border:1px solid var(--cc-border);background:var(--cc-white);color:var(--cc-mid);cursor:pointer;}
+.cc-filter-tab.active{background:var(--cc-blue);color:#fff;border-color:var(--cc-blue);}
+.cc-result-scroll{max-height:240px;overflow-y:auto;border:1px solid var(--cc-border);border-radius:4px;}
+.cc-input{height:28px;font-size:12px;font-family:var(--cc-sans);border:1px solid var(--cc-border);background:#fff;color:var(--cc-dark);border-radius:4px;padding:0 8px;}
+.cc-editor-note{font-size:10px;color:var(--cc-muted);font-style:italic;margin-top:6px;}
+.cc-picker-badge{display:inline-block;font-size:11px;font-weight:600;border-radius:10px;padding:2px 9px;margin-left:6px;background:var(--cc-row-odd);color:var(--cc-blue);}
+.cc-picker-badge-empty{background:var(--cc-bg);color:var(--cc-muted);}
+
 </style>
 
-<!-- JS: verbatim from original — no changes -->
-<script language='javascript' src='js/jquery-1.10.2.min.js'></script>
-<script language='javascript' src='ajax.js'></script>
-<script language='javascript'>
 
-function scrollCat(){
-	eqSelected={};   /* sub-category changed → previous ticks no longer apply */
-	var problemType=document.getElementById('type').value;
-	var category=document.getElementById('category').value;
-	if(problemType=="rolling"){
-		makeajax("processing.php?scrollRolling="+problemType+"&category="+category,"scrollRolling");	
+
+<!-- orig javascrip    -->
+
+<body>
+
+
+<div id="freeow" class="freeow freeow-bottom-right"></div>
+<div class="ta-grid ta-console">
+<?php
+if($IR_EMBED){ ob_start(); }
+?>
+<div class="cc-search-bar">
+<form action='edit_ccdr.php' method='post'><b>Search Incident Number</b> <input class='text_input' type=text name='search_incident_number'/><input type=submit value='Search' /></form>
+
+
+
+
+<?php
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+
+
+
+?>
+<?php
+if(isset($_POST['search_incident_number'])){
+	$sql="select * from incident_report where incident_no like '".$_POST['search_incident_number']."%%' order by incident_no";
+
+	$rs=$db->query($sql);
+	$nm=$rs->num_rows;
+	if($nm>0){
+	?>	
+<form action='edit_ccdr.php' method=post><b>Retrieve Incident Report</b> <select  class='text_input' name='incident_report'>
+	<?php
+		for($i=0;$i<$nm;$i++){
+		$row=$rs->fetch_assoc();
+	?>	
+			<option value="<?php echo $row['id']; ?>"><?php echo $row['incident_no']; ?></option>
+	<?php
+		}
+	?>
+	</select>
+	<input type=submit value='Retrieve' />
+</form>
+	<?php	
 	}
-	else if(problemType=="power"){
-		makeajax("processing.php?scrollRolling="+problemType+"&category="+category,"scrollRolling");	
-	}
-	else {
-		makeajax("processing.php?scrollRolling="+problemType,"scrollRolling");	
-	}
+
 }
+?>
+</div><!-- /.cc-search-bar -->
+<?php
 
-function scrollType(element){
-	var problemType=document.getElementById('type').value;
-	
 
-	if($("#type").find("option:selected").data("incident_type")==""){
-	}
-	else {
-		$('#incident_suffix').val($("#type").find("option:selected").data("incident_type"));
-	}
 
-	/* Always start from a clean sub-category slot. The block below only
-	   REFILLS rolling_category for problem types that actually have a
-	   sub-category (currently just "power"); the rolling/unload branch never
-	   touched it, so a dropdown left over from a previous "power" selection
-	   (e.g. Overhead Catenary System) survived under Rolling Stock. Resetting
-	   here first is what makes the sub-category react to the category change.
-	   Uncommitted equipment ticks are dropped too — they belonged to the
-	   previous category's equipment set and shouldn't carry over. */
-	document.getElementById('rolling_category').innerHTML='';
-	eqSelected={};
-
-	var rollingHTML="";
-	
-	if((problemType=="rolling")||(problemType=="unload")){
-		document.getElementById('index_id').disabled=false;
-		document.getElementById('car_id').disabled=false;
-	}
-	else {
-		if(problemType=="power"){
-			rollingHTML+="<select id='category' name='category' onchange='scrollCat()'>";
-			rollingHTML+="<option value='OCS'>Overhead Catenary System</option>";
-			rollingHTML+="<option value='SS'>Station Substation</option>";
-			rollingHTML+="<option value='TPSS'>Traction Power Substation Equipment</option>";
-			rollingHTML+="</select>";	
-			document.getElementById('rolling_category').innerHTML=rollingHTML;
+if($IR_EMBED){ ob_end_clean(); }
+?>
+<?php
+	if((isset($_POST['incident_report']))||(isset($_GET['ir']))){
+		
+		if(isset($_GET['ir'])){
+			$incident_report=$_GET['ir'];
 		}
 		else {
-			rollingHTML="";
-			document.getElementById('rolling_category').innerHTML=rollingHTML;
+			$incident_report=$_POST['incident_report'];
+		
 		}
-		document.getElementById('index_id').disabled=true;
-		document.getElementById('car_id').disabled=true;
-	}
-	
-	var category="";
-	var equiptHTML="";
-	
-	if(problemType=="rolling"){
-		makeajax("processing.php?scrollRolling="+problemType,"scrollRolling");	
-	}
-	else if(problemType=="power"){
-		category=document.getElementById('category').value;
-		makeajax("processing.php?scrollRolling="+problemType+"&category="+category,"scrollRolling");	
-	}
-	else if(problemType=="others"){
-		makeajax("processing.php?scrollOthers="+problemType,"scrollRolling");	
-	}
-	else {
-		makeajax("processing.php?scrollRolling="+problemType,"scrollRolling");	
-	}
+		
+//		$sql="select * from train_incident_view inner join level on train_incident_view.incident_id=level.incident_id where id='".$incident_report."'";
+		$sql="select * from incident_report inner join level on incident_report.id=level.incident_id where incident_report.id='".$incident_report."'";
+		
+		$rs=$db->query($sql);
+		$row=$rs->fetch_assoc();
+		
 
-	if(problemType=="cc_equipt"){
-		equiptHTML="<input type='text' name='cc_equipt' id='cc_equipt' />";
-		document.getElementById('equipment_space').innerHTML=equiptHTML;
-	}
-	else if(problemType=="station_equipt"){
-		equiptHTML="<input type='text' name='station_equipt' id='station_equipt' />";
-		document.getElementById('equipment_space').innerHTML=equiptHTML;
-	}
-	else if(problemType=="depot_equipt"){
-		equiptHTML="<input type='text' name='depot' id='depot' />";
-		document.getElementById('equipment_space').innerHTML=equiptHTML;
-	}
-	else {
-		document.getElementById('equipment_space').innerHTML="";
-	}
-
-	if(problemType=="afc"){
-		equiptHTML="<input type='text' name='unit_no' id='unit_no' class='ir-input--xs' />";
-		document.getElementById('unit_space').innerHTML=equiptHTML;
-	}
-	else {
-		document.getElementById('unit_space').innerHTML="";
-	}
-	eqUnitRowSync();
-}
-
-function eqUnitRowSync(){
-	/* The Equipment/Unit row only holds type-specific inputs (CC/Station/Depot
-	   free-text, AFC unit number); hide it whenever both spans are empty so it
-	   doesn't show as a blank labelled row for the other problem types. */
-	var eq=document.getElementById('equipment_space');
-	var un=document.getElementById('unit_space');
-	var row=document.getElementById('equip_unit_row');
-	if(!row){ return; }
-	var has=((eq&&eq.innerHTML.trim()!=="")||(un&&un.innerHTML.trim()!==""));
-	row.style.display=has?"":"none";
-}
-
-function scrollRolling(ajaxHTML){
-	/* This callback used to populate the legacy single-select #equipment,
-	   which has been removed. scrollType()/scrollCat() still fire the
-	   scrollRolling fetch on a Problem Category change, so this now serves
-	   only to refresh the multi-equipment picker afterward — kept here (not
-	   called directly from those handlers) so it stays serialized after the
-	   in-flight request. */
-	if(typeof eqReloadList==='function'){ eqReloadList(); }
-}
-
-function getMore(cancel){
-	if(cancel=="more"){ document.getElementById('cancel_more').disabled=false; }
-	else { document.getElementById('cancel_more').disabled=true; }
-}
-
-function getLevel(element){
-	var level=element.value;
-	var conditionHTML="";
-	if(level==3){
-		conditionHTML+="<select name='condition'>";
-		conditionHTML+="<option></option>";
-		conditionHTML+="<option value='1'>Train is removed without replacement</option>";
-		conditionHTML+="<option value='2'>Cancellation of loops and insertion</option>";
-		conditionHTML+="<option value='5'>With Passenger Unloading</option>";
-		conditionHTML+="</select>";
-	}
-	else if(level==4){
-		conditionHTML+="<select name='condition'>";
-		conditionHTML+="<option></option>";
-		conditionHTML+="<option value='3'>Service interruption</option>";
-		conditionHTML+="<option value='4'>Cancellation of loops. Ticket refunds.</option>";
-		conditionHTML+="</select>";
-	}
-	document.getElementById('condition').innerHTML=conditionHTML;
-}
-
-function changeDirection(element){ var direction=element.value; }
-
-function setPreset(check){
-	var remarksHTML="";
-	if(check.checked){
-		remarksHTML="<select name='dotc_coordinated' id='dotc_coordinated'>";
-		remarksHTML+="<option>Coordinated with</option>";
-		remarksHTML+="<option>Coordinated to</option>";
-		remarksHTML+="</select>";
-		remarksHTML+="<input type=text name='coordinated_to' id='coordinated_to' />";
-	}
-	else {
-		remarksHTML="<textarea rows=5 cols=50 name='dotc'></textarea>";
-	}
-	document.getElementById('remarks_space').innerHTML=remarksHTML;
-}
-
-function addCoordinate(){
-	var coordinate=document.getElementById('dotc_coordinated').value;
-	var remarksValue=document.getElementById('dotc').value;
-	var additional="";
-	if(coordinate=="c_with"){ additional="Coordinated with "+document.getElementById('coordinated_to').value+"."; }
-	else if(coordinate=="c_to"){ additional="Coordinated to "+document.getElementById('coordinated_to').value+"."; }
-	else if(coordinate=="reinitialize"){ additional="Re-initialized, ok."; }
-	else if(coordinate=="recorded"){ additional="Recorded."; }
-	document.getElementById('dotc').value=remarksValue+" "+additional;	
-}
-
-function checkIncidentNo(element){
-	var year=$('#year').val();
-	var incident_no=element.value;
-	$.ajax({url:"processing.php?checkIncidentNo="+incident_no+"&year="+year,success:function(result){
-		confirmIncidentNo(result);
-	}});
-}
-
-function confirmIncidentNo(ajaxHTML){
-	if(ajaxHTML=="No number"){}
-	else {}
-}
-
-/* ── Shared incident-linking helpers ───────────────────────────────────── */
-var irLinked={};
-
-function irLvlBadge(l){ return '<span class="ir-lvl ir-lvl-'+l+'">L'+l+'</span>'; }
-
-var irSearchCallback=null;
-
-function irSearchIncidents(q=null,cb,dated){
-	irSearchCallback=cb;
-	/* Calls processing.php?searchIncidents=  — add this case to processing.php:
-	     if(isset($_GET['searchIncidents'])){
-	         $q     = $db->real_escape_string($_GET['searchIncidents']);
-	         $scope = isset($_GET['scope']) ? $_GET['scope'] : 'today';
-	         $sql = "select incident_report.id, incident_no, incident_type, level,
-	                        incident_date, level_condition
-	                 from incident_report
-	                 where 1=1 ";
-	         if($scope=='today'){
-	             $sql .= "and date(incident_date)=curdate() ";
-	         }
-	         if($q!=''){
-	             $sql .= "and (incident_no like '%".$q."%' or incident_type like '%".$q."%') ";
-	         }
-	         $sql .= "order by incident_date desc";
-	         if($scope!='all' && $q==''){
-	             $sql .= " limit 100"; // safety cap when browsing "today" without a search term
-	         }
-	         $rs = $db->query($sql);
-	         $out = "";
-	         while($row = $rs->fetch_assoc()){
-	             $idxSQL = "select index_no from incident_description where incident_id='".$row['id']."'";
-	             $idxRS  = $db->query($idxSQL);
-	             $idxRow = $idxRS->fetch_assoc();
-	             $index_no = $idxRow ? $idxRow['index_no'] : '';
-	             $out .= $row['id'].";"
-	                   . $row['incident_no'].";"
-	                   . $row['incident_type'].";"
-	                   . $row['level'].";"
-	                   . date('Y-m-d',strtotime($row['incident_date'])).";"
-	                   . $index_no
-	                   . "==>";
-	         }
-	         echo ($out=="") ? "No data available" : $out;
-	     }
-	   Response format matches the existing scrollRolling/getDriver convention:
-	   rows separated by "==>", fields within a row separated by ";".
-	   Field order: id;incident_no;incident_type;level;date;index_no */
-	/* Only the explicit "All" tab requests unscoped history. Every other
-	   tab — today, rolling, power, l3 — is a same-day view, so all of them
-	   send scope=today and stay within the date(incident_date)=curdate()
-	   safety boundary on the server. */
-	   
-	var scope = (cTabFilter==='all') ? 'all' : 'today';
-	var dateClause="";
-	if(dated!=null){ dateClause="&dClause="+dated; }
-	
-	
-	
-	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope+dateClause,"irSearchResponse");
-}
-
-function irSearchResponse(ajaxHTML){
-	var results=[];
-	if(ajaxHTML!=="No data available" && ajaxHTML!==""){
-		var rows=ajaxHTML.split("==>");
-		var count=rows.length-1; /* trailing ==> leaves one empty element */
-		for(var n=0;n<count;n++){
-			var parts=rows[n].split(";");
-			results.push({
-				id:parts[0], no:parts[1], type:parts[2],
-				level:parseInt(parts[3],10)||0, date:parts[4],
-				index_no:parts[5]||"", description:""
-			});
+		
+		$level_condition=$row['level_condition'];
+		
+		$conditionSQL="select * from level_condition where id='".$level_condition."'";
+		$conditionRS=$db->query($conditionSQL);
+		
+		$conditionRow=$conditionRS->fetch_assoc();
+		
+		$condition=$conditionRow['description'];
+		
+		$link_no="";
+		$linked_to=$row['linked_to'];
+		
+		$linkSQL="select * from incident_report where id='".$linked_to."'";
+		$linkRS=$db->query($linkSQL);
+		
+		$linkNM=$linkRS->num_rows;
+		
+		if($linkNM>0){
+			$linkRow=$linkRS->fetch_assoc();
+		
+			$link_no=$linkRow['incident_no'];
+		
+		
 		}
+			
+		$incident_no=$row['incident_no'];
+		$problem_type2=$row['incident_type'];
+		$equipSQL="select * from equipment_type where equipment_code='".$problem_type2."'";
+		$equipRS=$db->query($equipSQL);
+		$row2=$equipRS->fetch_assoc();
+		$problem_type=$row2['equipment_name'];
+
+
+		$level=$row['level'];
+		
+		$levelClause=="";
+		if($level==2){
+			$levelClause.=" (".getOrdinal($row['order']).")";
+		
+		}
+		else if($level==3){
+			$levelClause.=" (".getOrdinal($row['order']).")";
+		
+		}
+		else if($level==4){
+			$levelClause.=" (".getOrdinal($row['order']).")";
+		
+		}		
+		$cancel=$row['cancel'];
+		
+		
+		$date=date("Y-m-d",strtotime($row['incident_date']));
+		
+		$_SESSION['incident_day']=$date;
+		
+		$time=date("H:ia",strtotime($row['incident_date']));
+		
+		$incident_time=date("Y-m-d H:ia",strtotime($row['incident_date']));
+		if($row['resolution_date']==""){
+			$resolution_time="";
+		}
+		else {
+			$resolution_time=date("Y-m-d H:ia",strtotime($row['resolution_date']));
+		}
+
+		$duration=$row['duration'];
+		$equipt=$row['equipt'];
+		
+		$onboard_equipt="";
+		if($problem_type2=="others"){
+			$equipSQL="select * from other_problem where id='".$equipt."'";
+
+			$equipRS=$db->query($equipSQL);
+			$row2=$equipRS->fetch_assoc();
+			$onboard_equipt=$row2['problem'];		
+		}
+		else {
+			$equipSQL="select * from equipment where id='".$equipt."'";
+
+			$equipRS=$db->query($equipSQL);
+			$row2=$equipRS->fetch_assoc();
+			$onboard_equipt=$row2['equipment_name'];
+		}
+		
+		$description=$row['description'];
+		$dotc_action=$row['action_dotc'];
+		$maintenance_action=$row['action_maintenance'];
+		$recommend_approval=$row['recommending_approval'];
+		$approving_officer=$row['approving_person'];
+		
+		$category=$row['category'];
+
+		$categoryName="";
+
+		if($category==""){
+			$categorySQL="select * from category where category_code='".$category."'";
+			$categoryRS=$db->query($categorySQL);
+			
+			$categoryRow=$categoryRS->fetch_assoc();
+			
+			$categoryName=$categoryRow['category'];
+
+		
+		}
+		
+
+		$irSQL="select * from incident_description where incident_id='".$incident_report."'";
+		$irRS=$db->query($irSQL);
+		
+			
+		$irRow=$irRS->fetch_assoc();
+		
+		
+		$indexNo=$irRow['index_no'];
+		$carNo=$irRow['car_no'];
+		
+		$car[0]="";
+		$car[1]="";
+		$car[2]="";
+
+		
+		$carSQL="select * from incident_cars where incident_id='".$incident_report."'";
+		$carRS=$db->query($carSQL);
+		$carNM=$carRS->num_rows;
+		
+		if($carNM>0){
+			for($b=0;$b<$carNM;$b++){
+				$carRow=$carRS->fetch_assoc();
+				$car[$b]=$carRow['car_no'];
+			}			
+			
+			$carClause=$car[0];
+			if($car[1]==""){
+			}
+			else {
+				$carClause.=", ".$car[1];
+			}
+			
+			if($car[2]==""){
+			}
+			else {
+				$carClause.=", ".$car[2];
+			}
+			
+		}
+		
+		
+		
+		
+		
+		
+		
+		$location=$irRow['location'];
+		$direction=$irRow['direction'];
+		
+		
+		
+		$reported_by=$irRow['reported_by'];
+		$received_by="";
+		
+		$tdSQL="select * from train_driver where id='".$irRow['received_by']."'";
+		$tdRS=$db->query($tdSQL);
+		$tdNM=$tdRS->num_rows;
+		if($tdNM>0){
+			$tdRow=$tdRS->fetch_assoc();
+			$received_by=$tdRow['lastName'].", ".$tdRow['firstName'];
+			
+		}
+		
+		
+		
+		
+		if($direction=="S"){
+			$direction="";
+		}
+		
+		
+		$subClause="";
+		
+		$subItemSQL="select * from sub_item where id='".$irRow['subitem']."'";
+		$subItemRS=$db->query($subItemSQL);
+		$subItemNM=$subItemRS->num_rows;
+		
+		if($subItemNM>0){
+			$subItemRow=$subItemRS->fetch_assoc();
+
+			$subClause=" / ".$subItemRow['sub_item'];			
+		
+		}
+		
+	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+		
+		$serviceSQL="select * from service_interruption where incident_id='".$incident_report."'";
+		$serviceRS=$db->query($serviceSQL);
+		$serviceNM=$serviceRS->fetch_assoc();
+		if(isset($_POST['incident_report'])){
+			if($level_condition=='3'){
+				echo "<script language='javascript'>";
+				echo "window.open('service interruption.php?incident=".$incident_report."');";
+				echo "</script>";
+		//		header("Location: service interruption.php?incident=".$incident_code);
+			}		
+		}	
+		
+		
+	$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
+		$defectsSQL="select * from incident_defects where incident_id='".$incident_report."'";
+		
+		$defectsRS=$db2->query($defectsSQL);
+		$defectsNM=$defectsRS->num_rows;
+		
+		
+		$additional_defects="";
+		if($defectsNM>0){
+			for($n=0;$n<$defectsNM;$n++){
+				$defectsRow=$defectsRS->fetch_assoc();
+
+				$equiptSQL="select * from equipment where id='".$defectsRow['equipt_id']."' limit 1";
+				$equiptRS=$db->query($equiptSQL);
+				$equiptRow=$equiptRS->fetch_assoc();
+				
+				$eq_name=$equiptRow['equipment_name'];
+				
+
+				if($defectsRow['sub_item_id']==""){
+				}
+				else {
+					$subitemSQL="select * from sub_item where id='".$defectsRow['sub_item_id']."'";
+					$subitemRS=$db->query($subitemSQL);
+					$subitemNM=$subitemRS->num_rows;
+					
+					if($subitemNM>0){
+						$subitemRow=$subitemRS->fetch_assoc();
+						$sub_item=$subitemRow['sub_item'];
+					}
+				}
+					
+				$additional_defects.="<tr><td>".$eq_name."</td><td>".$sub_item."</td></tr>";
+			}
+		}
+
+		/* -- Read-back: multi-equipment (incident_equipment junction) --------
+		   Mirrors the write side in incident_report.php. Each row is one
+		   equipment item plus its own sub-item. Built into two parallel
+		   structures: $equipment_rows_display for the read-only property-sheet
+		   listing, and $existing_eq_pairs (equipt_id:subitem_id, comma-joined)
+		   to seed the editor's chips as pre-existing selections so the modal
+		   opens showing the current set rather than empty. ------------------- */
+		$equipment_rows_display="";
+		$existing_eq_pairs="";
+		$eqJoinSQL="select ie.equipt_id, ie.subitem_id, e.equipment_name, s.sub_item
+		            from incident_equipt ie
+		            left join equipment e on e.id=ie.equipt_id
+		            left join sub_item s on s.id=ie.subitem_id
+		            where ie.incident_id='".$incident_report."'
+		            order by e.equipment_name";
+		$eqJoinRS=$db->query($eqJoinSQL);
+		if($eqJoinRS){
+			$eqPairsArr=array();
+			while($eqRow=$eqJoinRS->fetch_assoc()){
+				$eqName=($eqRow['equipment_name']!==null && $eqRow['equipment_name']!=='')
+					? $eqRow['equipment_name'] : "(unnamed - id ".$eqRow['equipt_id'].")";
+				$subName=($eqRow['subitem_id']*1>0 && $eqRow['sub_item']!==null && $eqRow['sub_item']!=='')
+					? $eqRow['sub_item'] : "<span style='color:#8A95A6;font-style:italic'>none</span>";
+				$equipment_rows_display.="<tr><td>".$eqName."</td><td>".$subName."</td></tr>";
+				$eqPairsArr[]=$eqRow['equipt_id'].":".($eqRow['subitem_id']*1>0 ? $eqRow['subitem_id'] : "");
+			}
+			$existing_eq_pairs=implode(",",$eqPairsArr);
+		}
+
+		/* -- Read-back: multi-link (incident_linked_reports junction) --------
+		   $linked_rows_display lists each linked incident (each still a
+		   click-through to its own edit_ccdr). $existing_link_ids seeds the
+		   link editor's chips. Falls back to nothing extra here; the legacy
+		   single linked_to is still read separately above as $link_no. ------ */
+		$linked_rows_display="";
+		$existing_link_ids="";
+		$existing_link_labels="";
+		$linkJoinSQL="select ilr.linked_to, ir.incident_no
+		              from incident_linked_reports ilr
+		              left join incident_report ir on ir.id=ilr.linked_to
+		              where ilr.incident_id='".$incident_report."'
+		              order by ir.incident_no";
+		$linkJoinRS=$db->query($linkJoinSQL);
+		if($linkJoinRS){
+			$linkIdsArr=array();
+			$linkLabelsArr=array();
+			while($lnkRow=$linkJoinRS->fetch_assoc()){
+				$lnkNo=($lnkRow['incident_no']!==null && $lnkRow['incident_no']!=='')
+					? $lnkRow['incident_no'] : ("ID ".$lnkRow['linked_to']);
+				$linked_rows_display.="<div class='cc-linked-item'>See <a href='#' onclick='window.open(\"edit_ccdr.php?ir=".$lnkRow['linked_to']."\",\"_blank\")'>".$lnkNo."</a></div>";
+				$linkIdsArr[]=$lnkRow['linked_to'];
+				$linkLabelsArr[]=$lnkNo;
+			}
+			$existing_link_ids=implode(",",$linkIdsArr);
+			/* JS-safe label list for seeding chips (pipe-delimited, matches ids order) */
+			$existing_link_labels=implode("|",$linkLabelsArr);
+		}
+
+		
+		
+		
 	}
-	if(irSearchCallback) irSearchCallback(results);
+
+
+
+?>
+
+<!-- table for Control -->
+<script type="text/javascript">
+$(document).ready(function(){
+    $(".alink a").each(function(){
+        if($(this).hasClass("disabled")){
+            $(this).removeAttr("href");
+        }
+    });
+});
+</script>
+
+
+<?php
+/* Embed diagnostic (temporary): shows what $ULev the iframe request actually
+   carries. Open the panel, right-click inside it -> View frame source, and
+   look for this comment just above the details table. Remove once confirmed. */
+if($IR_EMBED){ echo "<!-- embed diag: ULev=" . (isset($ULev) ? var_export($ULev,true) : "(unset)") . " -->"; }
+if ($ULev>=2){
+	$SRemove = "";
+} else {
+	$SRemove = "disabled";
+}
+/* Per-field Edit links use the pill treatment and, matching the decision
+   made for clearance_form.php, are always available regardless of $ULev.
+   The permission-gated $SRemove is still used elsewhere; $SRemove4 is the
+   always-on pill class for the property-sheet Edit links. */
+$SRemove4 = "cc-edit-pill";
+?>
+
+<!-- table for Control -->
+
+<div class="alink">
+
+<table width=70% class='ccdr'>
+<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Incident Details</th></tr>
+<tr><th width=20%>Incident Number</th><td width=50%><?php echo $incident_no; ?></td><td align=center><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("incident_no")'>Edit</a></td>
+
+
+<!--
+
+<a href='#edit_form' onclick='fillEdit("incident_no")'>Edit</a>
+-->
+&nbsp;
+</tr>
+<tr><th>Problem Category</th>
+<td>
+<?php echo $problem_type; ?>
+<?php
+if($categoryName==""){
+}
+else {
+	echo " / ".$categoryName;
+
+}
+?>
+<?php
+if($level_condition=="3"){	
+
+//	if($serviceNM>0){
+		echo " [<a href='#' onclick='window.open(\"service interruption.php?incident=".$incident_report."\")'>Report</a>]";
+	
+//	}
+
 }
 
-function irAddChip(id,label){
-	id=String(id);
-	if(irLinked[id]) return;
-	irLinked[id]=label;
-	var chips=document.getElementById('ir-chips');
-	var empty=chips.querySelector('.ir-link-empty');
-	if(empty) chips.removeChild(empty);
-	var chip=document.createElement('span');
-	chip.className='ir-link-chip'; chip.id='ir-chip-'+id;
-	chip.innerHTML=label+"<button type=\"button\" onclick=\"irRemoveChip('"+id+"')\" title=\"Remove\">&times;</button>";
-	chips.appendChild(chip);
-	irSyncHidden();
-	irUpdateClearAll();
+?>
+</td>
+
+<td align="center"><a href='#edit_form' onclick='fillEdit("problem")'  class="<?php echo $SRemove; ?>">Edit</a></td></tr>
+
+<tr><th>Equipment Involved</th>
+<td>
+<?php
+/* Multi-equipment read-back listing (incident_equipment). Replaces the
+   former single On-board Equipt display + legacy Additional Defects table.
+   Each row: equipment name + its sub-item. */
+if($equipment_rows_display!==""){
+	echo "<table class='cc-eq-list' width=90%>";
+	echo "<tr><th>Equipment</th><th>Sub-item</th></tr>";
+	echo $equipment_rows_display;
+	echo "</table>";
+} else {
+	echo "<span class='cc-none-note'>No equipment recorded</span>";
+}
+?>
+</td>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccEqOpenEditor()'>Edit</a>
+	<span id="cc-eq-badge" class="cc-picker-badge cc-picker-badge-empty">none yet</span></td>
+</tr>
+
+
+<tr>
+<th>Linked Incident(s)</th>
+<td>
+<?php
+/* Multi-link read-back listing (incident_linked_reports). Replaces the
+   former single "Linked Incident (?)" row.
+
+   @unlink -- The list is a container now and ccLinkSyncList() rewrites it from
+   ccLinked on every change, so it cannot drift out of step with the chips: the
+   two are views of one set, not two lists kept in step by hand. The PHP echo
+   below is still what renders without JS, and it is overwritten on load by the
+   seed, which produces the same rows. */
+?>
+<div id="cc-linked-list"><?php
+if($linked_rows_display!==""){
+	echo $linked_rows_display;
+} else {
+	echo "<span class='cc-none-note'>No linked incidents</span>";
+}
+?></div>
+<div id="cc-link-dirty" class="cc-link-dirty" style="display:none">Link changes apply when you save.</div>
+<?php ?>
+</td>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick="ccLinkOpenEditor('<?php echo $_SESSION['incident_day']; ?>' )">Edit</a>
+	<span id="cc-link-badge" class="cc-picker-badge cc-picker-badge-empty">none yet</span></td>
+</tr>
+<tr>
+<th>Index Number</th>
+
+
+<td>
+<?php
+	echo $indexNo;
+
+?>
+
+
+</td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
+
+<tr>
+
+<tr>
+<th>Car Numbers</th>
+
+
+<td>
+<?php
+if($carNo==""){
+}
+else {
+	echo $carClause;
+
 }
 
-/* Only offer "Clear all" when there is more than one to clear -- with a single
-   chip its own x is right there and a second control is just noise. */
-function irUpdateClearAll(){
-	var btn=document.getElementById('ir-clear-links');
-	if(!btn) return;
-	btn.style.display = (Object.keys(irLinked).length > 1) ? 'inline' : 'none';
+?>
+
+
+</td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
+
+<tr>
+
+<th>Cancelled Loops</th>
+<td>
+<?php echo $cancel; ?>
+
+</td>
+<td align="center">
+<a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("cancel")'>Edit</a>
+</td>
+</tr>
+
+</tr>
+<tr><th>Level</th><td><?php echo $level; echo $levelClause; echo ". ".$condition; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("level")'>Edit</a></td></tr>
+
+<tr><th>Incident Date/Time</th><td><?php echo $incident_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
+<tr><th>Time Resolved</th><td><?php echo $resolution_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("resolution_date")'>Edit</a></td></tr>
+<tr><th>Incident Duration</th><td><?php echo $duration; ?></td><td align="center">&nbsp;</td></tr>
+
+<tr><th>Location/Direction</th><td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
+
+
+
+
+<tr><th>Description</th><td><?php echo $description; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("description")'>Edit</a></td></tr>
+		
+		
+
+</table>
+<br>
+
+<!-- table for Report -->
+
+<table  class='ccdr' width=70% border=1>
+<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Reporting</th></tr>
+<tr><th width=20%>Reported By</th><td width=50%><?php echo $reported_by; ?></td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("reported_by")'>Edit</a></td></tr>
+<tr><th>Received By</th><td><?php echo $received_by; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("received_by")'>Edit</a></td></tr>
+<tr><th width=20%>Recommending Approval</th><td width=50%><?php echo $recommend_approval; ?></td><td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("recommend_approval")'>Edit</a></td></tr>
+<tr><th>Approving Officer</th><td><?php echo $approving_officer; ?></td><td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("approving_officer")'>Edit</a></td></tr>
+
+</table>
+<br>
+
+<!-- table for maintenance -->
+
+<table  class='ccdr' width=70% border=1>
+<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Action Taken</th></tr>
+<tr><th width=20%>DOTR</th><td width=50%><?php echo $dotc_action; ?></td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("dotc")'>Edit</a></td></tr>
+<tr><th>Maintenance Provider (TESP/Other)</th><td><?php echo $maintenance_action; ?></td><td align="center">&nbsp;</td></tr>
+
+</table>
+<br>
+<br>
+</div><!-- /.alink -->
+</div><!-- /.ta-grid -->
+
+<!--<form id='edit_form' name='edit_form' action='edit_ccdr.php'  method='post'>
+	<table id='edit_table' name='edit_table' width=80%>	
+	</table>
+	<table width=80%>
+	<tr><th width=20%>Incident ID</th><td><input type=hidden id='incident_report' name='incident_report' value='<?php echo $incident_report; ?>' /><input type='text' name='incident_report1' value='<?php echo $incident_no; ?>' /></td></tr>
+	</table>
+	<br>
+	<div align=left><font color=white>| | | | | | | | | | | | | | | | | | | |</font><input type=hidden name='fieldType' id='fieldType' /><input type=submit value='Edit' /></div>
+	
+	
+	------------
+	<div align=left><font color=white>| | | | | | | | | | | | | | | | | | | |</font><input type="hidden" name='fieldType' id='fieldType' /> <input type="hidden" name="inc_report" value='<?php echo $incident_report?>' /> <input type=button id=submit onclick="sampleFreeow()" value='Edit' /></div>
+	</form>
+	
+</form> -->
+
+<!-- Mjun@ -->
+		<div class="modal hide fade" id="addModal">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" onclick="ccEditModalHide();" aria-label="Close">&times;</button>
+				<h3>Edit CCDR Field</h3>
+			</div>
+<form id='edit_form' name='edit_form' action='edit_ccdr.php?ir=<?php echo $incident_report; if($IR_EMBED){ echo "&embed=1"; } ?>'  method='post'>
+
+			<div class="modal-body">	
+				<table id='edit_table' name='edit_table' width=80%>	
+				</table>
+				<table width=80%>
+				<!-- Incident reference: shown as static read-only text (the user
+				     never edits it), with the actual id carried in ONE hidden
+				     input. Replaces the previous disabled text input (which the
+				     browser never submits) plus a parallel hidden inc_report --
+				     the save handler reads inc_report, so that single hidden
+				     field below is the one authoritative source now.
+
+				     id='incident_report' is kept on this hidden input (even
+				     though the visible display above no longer uses that id)
+				     because fillEdit()'s "index" branch -- used by both Index
+				     Number and Car Numbers -- and its "additional_defects"
+				     branch call document.getElementById('incident_report').value
+				     to fetch the id before an AJAX call. Without the id here,
+				     that lookup returns null and throws, which silently aborts
+				     fillEdit() before it ever reaches $('#addModal').modal('show'),
+				     so the modal never opens -- exactly the "Index/Car edit
+				     doesn't work" symptom. Keeping the id on this element (now
+				     the sole authoritative source) fixes it with no JS changes. -->
+					 
+					 <?php
+					 /**
+				<tr><th width=20%>Incident</th><td>
+					<span style="font-weight:600;color:var(--cc-blue);"><?php echo $incident_no; ?></span>
+					<span style="color:var(--cc-muted);font-size:11px;margin-left:6px;">(ID <?php echo $incident_report; ?>)</span>
+				</td></tr>
+*/
+?>				
+				</table>
+				<br>
+				<input type="hidden" name='fieldType' id='fieldType' />
+				<input type="hidden" name="inc_report" id="incident_report" value='<?php echo $incident_report; ?>' />
+
+
+				
+			</div>
+						
+			<div class="modal-footer">
+				<a href="#" class="btn" data-dismiss="modal" onclick="ccEditModalHide();return false;">Close</a>
+				<button type='submit' class="btn btn-primary" id='Suc' value='Submit'>Edit </button>
+			</div>
+			  </form>
+		</div>
+
+<!-- ----------- Multi-equipment editor (ported from incident_report option-C) ----------- -->
+<div class="cc-modal-backdrop" id="cc-eq-modal">
+	<div class="cc-modal-box">
+		<div class="cc-modal-head">
+			<h4>Edit Equipment Involved</h4>
+			<button class="cc-modal-close" type="button" onclick="ccEqCloseEditor()">&times;</button>
+		</div>
+		<div class="cc-modal-body">
+			<div style="display:flex;gap:7px;margin-bottom:6px;">
+				<input type='text' class="cc-input" id='cc-eq-search-input' style="flex:1"
+					placeholder="Search equipment..." oninput='ccEqFilterInput(this.value)' autocomplete="off" />
+				<input type='button' value='Browse' onclick='ccEqTogglePanel()' />
+			</div>
+			<div class="cc-eq-panel" id="cc-eq-panel" style="display:none;">
+				<div class="cc-eq-panel-head">Tick equipment to add, then click Add Selected</div>
+				<div class="cc-eq-panel-body" id="cc-eq-list"></div>
+				<div class="cc-eq-panel-foot">
+					<input type='button' value='Cancel' onclick='document.getElementById("cc-eq-panel").style.display="none"' />
+					<input type='button' value='Add selected ✓' onclick='ccEqAddSelected()'
+						style="background:var(--cc-blue);color:#fff;border-color:var(--cc-blue);" />
+				</div>
+			</div>
+			<div class="cc-link-label">Selected equipment (each with its own sub-item)</div>
+			<div class="cc-eq-chips" id="cc-eq-chips">
+				<span class="cc-eq-empty">No equipment selected</span>
+			</div>
+			<!-- No longer its own <form>: this incident's equipment set now
+			     rides along with whatever edit_form submission happens next
+			     (a single-field edit elsewhere, or the standalone "Save
+			     Equipment & Linked Incidents" button), via form="edit_form".
+			     fieldType/inc_report hidden fields removed -- no longer
+			     needed, the server now keys off equipment_ids being present
+			     rather than a specific fieldType value.
+
+			     equipment_ids travels as a REAL PHP array now, not one
+			     joined string: ccEqSyncHidden() (re)populates this
+			     container with one equipment_ids[] hidden input per
+			     equipment item (each "id:subitem"), all form="edit_form".
+			     The server's is_array($_POST['equipment_ids']) branch
+			     already expected exactly this shape -- it just never
+			     received it before. -->
+			<div id="cc-eq-ids-container"></div>
+			<div class="cc-editor-note">Selections here are saved to the form as you make them -- Submit persists them, same as editing any other field.</div>
+		</div>
+		<div class="cc-modal-foot">
+			<span class="cc-modal-sel-count" id="cc-eq-sel-note">&nbsp;</span>
+			<div style="display:flex;gap:8px;">
+				<input type='button' value='Close' onclick='ccEqCloseEditor()' />
+				<button type='submit' form='edit_form' class="btn btn-primary"
+					onclick="document.getElementById('fieldType').value='';"
+					style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Submit</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- ----------- Multi-link editor (ported from incident_report option-C) ----------- -->
+<div class="cc-modal-backdrop" id="cc-link-modal">
+	<div class="cc-modal-box">
+		<div class="cc-modal-head">
+			<h4>Edit Linked Incident Report(s)</h4>
+			<button class="cc-modal-close" type="button" onclick="ccLinkCloseEditor()">&times;</button>
+		</div>
+		<div class="cc-modal-body">
+			<div style="display:flex;gap:7px;margin-bottom:8px;">
+				<input type='text' id='cc-link-search-input' class="cc-input" style="flex:1"
+					placeholder="Search by incident no., type..." oninput='ccLinkFilterSearch(this.value)' autocomplete="off" />
+				<input type='button' value='Clear' onclick='document.getElementById("cc-link-search-input").value="";ccLinkFilterSearch("")' />
+			</div>
+			<div class="cc-filter-tabs" id="cc-link-tabs">
+				<button class="cc-filter-tab active" type="button" onclick="ccLinkSetTab(this,'today','<?php echo $_SESSION['incident_day']; ?>')">Today</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'all')">All (date desc)</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'rolling','<?php echo $_SESSION['incident_day']; ?>')">Rolling Stock</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'power','<?php echo $_SESSION['incident_day']; ?>')">Power</button>
+				<button class="cc-filter-tab" type="button" onclick="ccLinkSetTab(this,'l3','<?php echo $_SESSION['incident_day']; ?>')">Level 3+</button>
+			</div>
+			<div class="cc-result-scroll">
+				<table class="cc-link-results">
+					<thead><tr>
+						<th style="width:28px"></th><th>Incident No.</th><th>Type</th><th>Lvl</th><th>Date</th><th>Index</th>
+					</tr></thead>
+					<tbody id="cc-link-tbody"></tbody>
+				</table>
+			</div>
+			<div class="cc-link-label">Currently linked</div>
+			<div class="cc-link-chips" id="cc-link-chips">
+				<span class="cc-link-empty">No incidents linked yet</span>
+			</div>
+			<!-- No longer its own <form>: see the equivalent note in the
+			     equipment editor above -- same reasoning, same mechanism.
+			     incident_links travels as a real PHP array too now. -->
+			<div id="cc-link-ids-container"></div>
+			<div class="cc-editor-note">Selections here are saved to the form as you make them -- Submit persists them, same as editing any other field.</div>
+		</div>
+		<div class="cc-modal-foot">
+			<span class="cc-modal-sel-count" id="cc-link-sel-count">0 selected</span>
+			<div style="display:flex;gap:8px;">
+				<input type='button' value='Close' onclick='ccLinkCloseEditor()' />
+				<button type='submit' form='edit_form' class="btn btn-primary"
+					onclick="document.getElementById('fieldType').value='';"
+					style="background:var(--cc-blue);color:#fff;border:1px solid var(--cc-blue);border-radius:4px;padding:4px 14px;cursor:pointer;">Submit</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+
+<?php	
+if(isset($_POST['submit'])){	
+	if ($Mup==1) {		
+	if($IR_EMBED){ echo "<script>parent.postMessage('sp:saved','*');</script>"; }
+	else { echo "<script typ=javascript> sampleFreeow();</script>"; }
+	$Mup=0;
+	}
+}
+	?>
+
+<!-- --- Multi-equipment / multi-link editor bootstrap (seed data + logic) --- -->
+<script type="text/javascript">
+/* PHP-emitted seed data: the incident's existing junction-table rows, so the
+   editors open pre-populated with the current set rather than empty. */
+var ccSelfIncidentId = '<?php echo (int)$incident_report; ?>';
+var ccProblemType = '<?php echo isset($problem_type2) ? $problem_type2 : ""; ?>';
+var ccExistingEqPairs = '<?php echo isset($existing_eq_pairs) ? $existing_eq_pairs : ""; ?>';
+var ccExistingLinks = '<?php echo isset($existing_link_ids) ? $existing_link_ids : ""; ?>';
+var ccExistingLinkLabels = <?php echo isset($existing_link_labels) ? json_encode($existing_link_labels) : "''"; ?>;
+/* Equipment display names keyed by id, so seeded chips show real names.
+   Built from the same incident_equipment read-back. */
+var ccExistingEqNames = {};
+<?php
+if(isset($existing_eq_pairs) && $existing_eq_pairs!==""){
+    $seedDb = new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
+    foreach(explode(",",$existing_eq_pairs) as $seedPair){
+        $seedParts = explode(":",$seedPair);
+        $seedEqId = (int)$seedParts[0];
+        if($seedEqId<=0) continue;
+        $seedRs = $seedDb->query("select equipment_name from equipment where id='".$seedEqId."' limit 1");
+        $seedRow = $seedRs ? $seedRs->fetch_assoc() : null;
+        $seedName = ($seedRow && $seedRow['equipment_name']!=="") ? $seedRow['equipment_name'] : ("Equipment ".$seedEqId);
+        echo "ccExistingEqNames['".$seedEqId."'] = ".json_encode($seedName).";
+";
+    }
+}
+?>
+</script>
+<script type="text/javascript">
+/* -----------------------------------------------------------------------
+   edit_ccdr - multi-equipment & multi-link EDITORS
+   Ported from incident_report.php (option C), with two edit-side additions
+   the create side never needed:
+     1. cc-prefixed identifiers, so nothing collides with the many existing
+        functions/ids already in edit_ccdr.php (fillEdit, fillEquipt, etc).
+     2. Openers that PRE-SEED chips from the incident's existing junction-
+        table rows (emitted by PHP into ccExistingEqPairs / ccExistingLinks
+        below), so each editor opens showing the current set, not empty.
+   The picker/search/subitem mechanics themselves are unchanged from the
+   verified option-C source, including the serialized sub-item queue and
+   the well-formedness diagnostics.
+   ----------------------------------------------------------------------- */
+
+/* -- MULTI-EQUIPMENT --------------------------------------------------- */
+var ccEqSelected={};
+var ccEqLinked={};          /* id ? equipment name */
+var ccEqSubItemChoice={};   /* id ? chosen subitem_id ('' if none yet) */
+var ccEqPendingQueue=[];    /* FIFO of equipt_ids whose scrollSubItem fetch is in flight */
+var ccEqSearchResults=[];
+var ccEqSearchCallback=null;
+var ccEqSeeded=false;       /* seed existing rows only once per page load */
+
+function ccEqOpenEditor(){
+	document.getElementById('cc-eq-modal').classList.add('open');
+	if(!ccEqSeeded){
+		ccEqSeedExisting();
+		ccEqSeeded=true;
+	}
+}
+function ccEqCloseEditor(){
+	document.getElementById('cc-eq-modal').classList.remove('open');
 }
 
-/* @unlink -- Drops every link at once. The per-chip x is still the usual way;
-   this is for starting over without clicking through eight of them. */
-function irClearChips(){
-	Object.keys(irLinked).forEach(function(id){ irRemoveChip(id); });
-}
-
-function irRemoveChip(id){
-	var el=document.getElementById('ir-chip-'+id);
-	if(el) el.remove();
-	delete irLinked[id];
-	var chips=document.getElementById('ir-chips');
-	if(!chips.querySelector('.ir-link-chip'))
-		chips.innerHTML='<span class="ir-link-empty">No incidents linked yet</span>';
-	irSyncHidden();
-	irUpdateClearAll();
-}
-
-function irSyncHidden(){
-	/* Same array-format change as eqSyncHidden() above -- one
-	   incident_links[] hidden input per linked incident, not one joined
-	   string. The legacy single-link fallback fields (incident_link /
-	   incident_no_link) are untouched -- still set from the first linked
-	   id, exactly as before, for whatever older code still reads them. */
-	var ids=Object.keys(irLinked);
-	var container=document.getElementById('ir-links-container');
-	container.innerHTML='';
-	ids.forEach(function(id){
-		var input=document.createElement('input');
-		input.type='hidden';
-		input.name='incident_links[]';
-		input.value=id;
-		container.appendChild(input);
+/* Seed chips from PHP-emitted existing pairs "equipt_id:subitem_id,...".
+   Each seeded chip fetches its sub-item list (so the dropdown is populated)
+   and then its previously-saved sub-item is re-selected once that list
+   arrives (handled in ccEqRenderSubItemSelect via ccEqSubItemChoice). */
+function ccEqSeedExisting(){
+	if(typeof ccExistingEqPairs==='undefined' || !ccExistingEqPairs) return;
+	var pairs=ccExistingEqPairs.split(',');
+	var ids=[];
+	pairs.forEach(function(pair){
+		pair=pair.trim(); if(pair==='') return;
+		var parts=pair.split(':');
+		var eqId=String(parseInt(parts[0],10));
+		if(!eqId || eqId==='NaN') return;
+		var subId=(parts.length>1)?parts[1]:'';
+		var label=(typeof ccExistingEqNames!=='undefined' && ccExistingEqNames[eqId])
+			? ccExistingEqNames[eqId] : ('Equipment '+eqId);
+		ccEqLinked[eqId]=label;
+		ccEqSubItemChoice[eqId]=subId; /* remember prior choice; applied on render */
+		ccEqRenderChip(eqId,label);
+		ids.push(eqId);
 	});
-	document.getElementById('incident_link').value=ids.length?ids[0]:'';
-	document.getElementById('incident_no_link').value=ids.length?Object.values(irLinked)[0]:'';
-}
-/* ── Multi-equipment-with-subitem picker (Option A pattern) ──────────────
-   Each selected equipment item gets its own card with an independent
-   sub-item dropdown, fetched from the SAME processing.php?scrollSubItem=
-   endpoint the legacy single-select already uses — called once per item
-   instead of once total.
-
-   IMPORTANT: every existing makeajax() call anywhere in this codebase
-   (scrollRolling, getDriver, fillSuper, subItem, all of them) passes a
-   single, static, hardcoded callback name. None of them ever construct
-   the callback name dynamically per call. An earlier version of this
-   picker tried to register a fresh "eqSubItemResponse_<id>" function on
-   window for every card — that pattern has no precedent anywhere in this
-   app and was never confirmed against the actual ajax.js implementation,
-   which is why sub-items silently failed to appear: the assumption that
-   makeajax can resolve a freshly-minted callback name was unverified and
-   wrong.
-
-   Fixed approach: ONE static callback, "eqSubItemResponse", exactly like
-   every other working makeajax() call in this file. Since each card's
-   fetch is triggered one user-click at a time (never genuinely
-   simultaneous), a small FIFO queue tracks which equipment id the next
-   incoming response belongs to — first request in, first response out,
-   which matches how a single XMLHttpRequest-per-call helper like
-   makeajax actually behaves in practice.
-   ────────────────────────────────────────────────────────────────────── */
-var eqSelected={};
-var eqLinked={};          /* id → equipment name */
-var eqSubItemChoice={};   /* id → currently chosen subitem_id (or '' if none yet) */
-var eqPendingQueue=[];    /* FIFO of equipt_ids whose scrollSubItem fetch is in flight */
-
-var eqSearchResults=[];
-
-function eqSearch(q,cb,prob){
-	eqSearchCallback=cb;
-	/* Fetches from processing.php?searchEquipment= (implemented there). Sends
-	   probname + sub-category + the search term; processing.php resolves probname
-	   -> type via equipment_type (power filters by sub-category instead), then
-	   name-searches. Response: rows "==>"-separated, fields ";"-separated. */
-	var cat=eqCurrentSubCategory();
-	makeajax("processing.php?probname="+encodeURIComponent(prob)
-		+"&category="+encodeURIComponent(cat)
-		+"&searchEquipment="+encodeURIComponent(q),"eqSearchResponse");
+	ccEqSyncHidden();
+	ccEqPendingQueue=ids.slice();
+	ccEqFetchNextInQueue();
 }
 
-var eqSearchCallback=null;
+function ccEqSearch(q,cb){
+	ccEqSearchCallback=cb;
+	makeajax("processing.php?probname="+encodeURIComponent(ccProblemType)+"&searchEquipment="+encodeURIComponent(q),"ccEqSearchResponse");
+}
 
-function eqSearchResponse(ajaxHTML){
+function ccEqSearchResponse(ajaxHTML){
 	var results=[];
-	/* DIAGNOSTIC: if processing.php?searchEquipment= hasn't been added yet,
-	   or the call errors, ajaxHTML will be something other than the exact
-	   strings this code expects ("No data available" or a well-formed
-	   "id;name;category==>" sequence). Surface that loudly instead of
-	   silently parsing garbage into fake equipment rows.
-
-	   Note: an equipment item correctly having NO sub-items is a normal,
-	   legitimate result from scrollSubItem — the equipment table genuinely
-	   contains a mix of items with and without sub-items. That is not, by
-	   itself, evidence of anything being wrong; the diagnostic here only
-	   concerns whether searchEquipment's response is well-formed at all,
-	   not whether any individual item happens to have sub-items.
-
-	   CORRECTED: the equipment_name field can legitimately be EMPTY — the
-	   real equipment table has rows like (129, '', 'RS', 'EXT') with a
-	   blank name, confirmed directly against the live database dump. The
-	   original regex required [^;]+ (one or more characters) for the name
-	   field, which wrongly rejected that real, valid row as "malformed."
-	   The id field is the one part of each row that should always be
-	   numeric, so that's what the pattern actually checks now instead. */
-	var looksWellFormed = (ajaxHTML==="No data available") ||
-		(ajaxHTML==="") ||
+	var looksWellFormed = (ajaxHTML==="No data available") || (ajaxHTML==="") ||
 		(/^(\d+;[^;]*;[^;]*==>)+$/.test(ajaxHTML));
-
 	if(!looksWellFormed){
-		console.error('[eqSearchResponse] Unexpected response from processing.php?searchEquipment= — '
-			+'this almost always means processing.php errored, the equipment table query '
-			+'matched zero rows in an unexpected way, or something in the response isn\'t '
-			+'pure data. Raw response below:');
+		console.error('[ccEqSearchResponse] Unexpected response from processing.php?searchEquipment=. Raw:');
 		console.error(ajaxHTML);
-		/* Escape the raw response so it displays as visible text rather than
-		   being interpreted as HTML — if processing.php is leaking a PHP
-		   warning or notice, that warning is often itself HTML-formatted
-		   (e.g. "<br />\n<b>Warning</b>: ..."), and without escaping it the
-		   browser would render it as styled markup instead of showing the
-		   actual diagnostic text that explains what's wrong. */
-		var escaped = String(ajaxHTML)
-			.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-		document.getElementById('eq-list').innerHTML=
+		var escaped=String(ajaxHTML).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+		document.getElementById('cc-eq-list').innerHTML=
 			'<div style="padding:9px 11px;font-size:11px;color:#A32D2D;line-height:1.5;">'
 			+'<strong>Equipment search did not return usable data.</strong><br>'
-			+'Raw response from processing.php?searchEquipment= shown below — '
-			+'this is the actual text needed to find what is wrong:'
-			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;'
-			+'padding:8px;margin-top:6px;white-space:pre-wrap;word-break:break-word;'
-			+'font-family:monospace;font-size:11px;color:#7A1F1F;max-height:160px;overflow-y:auto;">'
-			+(escaped===''?'(completely empty response — processing.php may not be reaching this code path at all)':escaped)
-			+'</pre>'
-			+'</div>';
-		eqSearchResults=[];
-		/* Deliberately do NOT invoke eqSearchCallback here: eqRenderList([])
-		   would immediately overwrite the diagnostic message above with its
-		   own "No matches" fallback, hiding the very error we're trying to
-		   surface. The diagnostic message stays visible until the next
-		   search attempt. */
+			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;padding:8px;'
+			+'margin-top:6px;white-space:pre-wrap;word-break:break-word;font-family:monospace;'
+			+'font-size:11px;color:#7A1F1F;max-height:160px;overflow-y:auto;">'
+			+(escaped===''?'(empty response)':escaped)+'</pre></div>';
+		ccEqSearchResults=[];
 		return;
 	}
-
 	if(ajaxHTML!=="No data available" && ajaxHTML!==""){
 		var rows=ajaxHTML.split("==>");
 		var count=rows.length-1;
 		for(var n=0;n<count;n++){
 			var parts=rows[n].split(";");
-			/* Guard against malformed individual rows even within an
-			   otherwise well-formed-looking response. */
 			if(!parts[0] || isNaN(parseInt(parts[0],10))){
-				console.warn('[eqSearchResponse] Skipping row with non-numeric id:', rows[n]);
+				console.warn('[ccEqSearchResponse] Skipping row with non-numeric id:',rows[n]);
 				continue;
 			}
-			/* IMPORTANT: preserve name as-is, including a genuinely empty
-			   string — do NOT substitute a placeholder here. A blank
-			   equipment_name is real, confirmed data (see id 129 above),
-			   not something to paper over at the parsing layer. Display
-			   fallback labeling belongs in eqRenderList, the one place
-			   that decides what the user actually sees, not duplicated
-			   here where it would just get overwritten or cause
-			   confusion about which layer owns that decision. */
-			results.push({id:parts[0], name:parts[1]||'', category:parts[2]||""});
+			results.push({id:parts[0],name:parts[1]||'',category:parts[2]||""});
 		}
 	}
-	eqSearchResults=results;
-	if(eqSearchCallback) eqSearchCallback(results);
+	ccEqSearchResults=results;
+	if(ccEqSearchCallback) ccEqSearchCallback(results);
 }
 
-function eqCurrentSubCategory(){
-	/* The sub-category <select id='category'> only exists in the DOM for
-	   problem types that have one (e.g. Power → OCS/SS/TPSS). For every other
-	   type it isn't rendered at all, so fall back to an empty string. */
-	var el=document.getElementById('category');
-	return el ? el.value : '';
-}
-
-function eqReloadList(){
-	/* Re-fetch the picker list for the currently selected Problem Category /
-	   sub-category. Only acts when the panel is open, so changing the category
-	   actually updates what the user is looking at; when it's closed, the next
-	   eqTogglePanel() already fetches fresh, so there's nothing to do. */
-	var panel=document.getElementById('eq-panel');
-	if(!panel || panel.style.display==='none') return;
-	var prob=document.getElementById('type').value;
-	var box=document.getElementById('eq-search-input');
-	eqSearch(box ? box.value : '', eqRenderList, prob);
-}
-
-function eqTogglePanel(){
-	var prob_type=document.getElementById('type').value;
-
-	var p=document.getElementById('eq-panel');
+function ccEqTogglePanel(){
+	var p=document.getElementById('cc-eq-panel');
 	var open=p.style.display!=='none';
 	p.style.display=open?'none':'block';
-	if(!open){ eqSearch('',eqRenderList,prob_type); }
+	if(!open){ ccEqSearch('',ccEqRenderList); }
 }
-
-function eqFilterInput(q){
-	
-	var prob_type=document.getElementById('type').value;
-	eqSearch(q,eqRenderList,prob_type);
-	
-	document.getElementById('eq-panel').style.display='block';
+function ccEqFilterInput(q){
+	ccEqSearch(q,ccEqRenderList);
+	document.getElementById('cc-eq-panel').style.display='block';
 }
-
-function eqRenderList(data){
+function ccEqRenderList(data){
 	var html='';
 	data.forEach(function(r){
-		var chk=eqSelected[String(r.id)]?'checked':'';
-		/* Some equipment rows genuinely have a blank equipment_name in the
-		   database (confirmed against the live data — e.g. id 129 through
-		   183 are a block of unnamed entries, category EXT). Without a
-		   fallback label these would render as an empty, unreadable row.
-		   Showing "(unnamed — id <n>)" keeps them identifiable and still
-		   selectable rather than silently invisible. */
-		var displayName = r.name && r.name.trim()!=='' ? r.name : '(unnamed — id '+r.id+')';
-		var displayNameEsc = displayName.replace(/'/g,"\\'");
-		html+='<label class="ir-eq-cb-row">'
+		var chk=ccEqSelected[String(r.id)]?'checked':'';
+		var displayName=r.name && r.name.trim()!==''?r.name:'(unnamed - id '+r.id+')';
+		var displayNameEsc=displayName.replace(/'/g,"\\'");
+		html+='<label class="cc-eq-cb-row">'
 			+'<input type="checkbox" value="'+r.id+'" '+chk
-			+' onchange="eqToggle(\''+r.id+'\',\''+displayNameEsc+'\',this.checked)">'
-			+'<span class="ir-eq-name"'+(displayName.indexOf('unnamed')>=0?' style="color:var(--ir-muted);font-style:italic;"':'')+'>'+displayName+'</span>'
-			+'<span class="ir-eq-cat">'+r.category+'</span>'
+			+' onchange="ccEqToggle(\''+r.id+'\',\''+displayNameEsc+'\',this.checked)">'
+			+'<span class="cc-eq-name"'+(displayName.indexOf('unnamed')>=0?' style="color:var(--cc-muted);font-style:italic;"':'')+'>'+displayName+'</span>'
+			+'<span class="cc-eq-cat">'+r.category+'</span>'
 			+'</label>';
 	});
-	document.getElementById('eq-list').innerHTML=html||
-		'<div style="padding:9px 11px;font-size:11px;color:var(--ir-muted)">No matches</div>';
+	document.getElementById('cc-eq-list').innerHTML=html||
+		'<div style="padding:9px 11px;font-size:11px;color:var(--cc-muted)">No matches</div>';
 }
-
-function eqToggle(id,name,checked){
+function ccEqToggle(id,name,checked){
 	id=String(id);
-	if(checked) eqSelected[id]=name; else delete eqSelected[id];
+	if(checked) ccEqSelected[id]=name; else delete ccEqSelected[id];
 }
-
-function eqAddSelected(){
-	/* Add each chip first (synchronous, all cards appear immediately in
-	   "Loading…" state). */
-	var ids=Object.keys(eqSelected);
-	ids.forEach(function(id){ eqAddChip(id,eqSelected[id]); });
-	document.getElementById('eq-panel').style.display='none';
-	eqSelected={};
-
-	/* THEN fetch each card's sub-items ONE AT A TIME, never more than one
-	   scrollSubItem request in flight simultaneously.
-
-	   Why: makeajax(url, callbackName) takes a callback by STRING NAME,
-	   not a function reference or closure — every existing call in this
-	   codebase confirms that's the only contract it supports. That means
-	   there is no way to attach per-request identity to an individual
-	   in-flight call. An earlier version of this queued requests by SEND
-	   order and assumed responses would arrive back in that same order —
-	   but that assumption is false for real network requests fired back
-	   to back; a later-sent request can easily complete before an
-	   earlier one, especially if one equipment id's sub_item lookup
-	   happens to be faster than another's. When that happened here, a
-	   response correctly meant for one card got dequeued and applied to
-	   a DIFFERENT card instead — exactly the bug reported: items that do
-	   have sub-items showed empty, because their real response had
-	   already been consumed by the wrong card's slot.
-
-	   Serializing removes the race entirely: only one scrollSubItem
-	   request exists at any moment, so there is never an ordering
-	   question to get wrong. eqFetchNextInQueue is called again once
-	   each response is rendered, advancing to the next card. */
-	eqPendingQueue = ids.slice();
-	eqFetchNextInQueue();
+function ccEqAddSelected(){
+	var ids=Object.keys(ccEqSelected);
+	ids.forEach(function(id){ ccEqAddChip(id,ccEqSelected[id]); });
+	document.getElementById('cc-eq-panel').style.display='none';
+	ccEqSelected={};
+	ccEqPendingQueue=ccEqPendingQueue.concat(ids);
+	if(ccEqPendingQueue.length===ids.length) ccEqFetchNextInQueue();
 }
-
-function eqFetchNextInQueue(){
-	if(eqPendingQueue.length===0) return;
-	var id=eqPendingQueue[0]; /* peek, not shift — eqSubItemResponse shifts after rendering */
-	makeajax("processing.php?scrollSubItem="+id,"eqSubItemResponse");
+function ccEqFetchNextInQueue(){
+	if(ccEqPendingQueue.length===0) return;
+	var id=ccEqPendingQueue[0]; /* peek; response shifts */
+	makeajax("processing.php?scrollSubItem="+id,"ccEqSubItemResponse");
 }
-
-function eqAddChip(id,label){
+function ccEqAddChip(id,label){
 	id=String(id);
-	if(eqLinked[id]) return;
-	eqLinked[id]=label;
-	eqSubItemChoice[id]='';
-
-	var chips=document.getElementById('eq-chips');
-	var empty=chips.querySelector('.ir-eq-empty');
+	if(ccEqLinked[id]) return;
+	ccEqLinked[id]=label;
+	if(ccEqSubItemChoice[id]===undefined) ccEqSubItemChoice[id]='';
+	ccEqRenderChip(id,label);
+	ccEqSyncHidden();
+}
+/* DOM-only chip render, shared by seed + add so both look identical */
+function ccEqRenderChip(id,label){
+	var chips=document.getElementById('cc-eq-chips');
+	var empty=chips.querySelector('.cc-eq-empty');
 	if(empty) chips.removeChild(empty);
-
-	/* Card: equipment name + remove button on top, its own sub-item
-	   select (loading state initially) underneath. */
+	if(document.getElementById('cc-eq-card-'+id)) return;
 	var card=document.createElement('div');
-	card.className='ir-eq-card'; card.id='eq-card-'+id;
+	card.className='cc-eq-card'; card.id='cc-eq-card-'+id;
 	card.innerHTML=
-		'<div class="ir-eq-card-head">'
-			+'<span class="ir-eq-card-name">'+label+'</span>'
-			+'<button type="button" onclick="eqRemoveChip(\''+id+'\')" title="Remove">&times;</button>'
+		'<div class="cc-eq-card-head">'
+			+'<span class="cc-eq-card-name">'+label+'</span>'
+			+'<button type="button" onclick="ccEqRemoveChip(\''+id+'\')" title="Remove">&times;</button>'
 		+'</div>'
-		+'<div class="ir-eq-card-sub" id="eq-sub-'+id+'">'
-			+'<span class="ir-eq-loading">Loading sub-items…</span>'
+		+'<div class="cc-eq-card-sub" id="cc-eq-sub-'+id+'">'
+			+'<span class="cc-eq-loading">Loading sub-items...</span>'
 		+'</div>';
 	chips.appendChild(card);
-
-	eqSyncHidden();
 }
-
-function eqSubItemResponse(ajaxHTML){
-	var id=eqPendingQueue.shift(); /* this request is done — remove it, THEN advance */
-	if(id===undefined) return; /* defensive: response with nothing queued */
-	eqRenderSubItemSelect(id,ajaxHTML);
-	eqFetchNextInQueue(); /* fire the next card's request only after this one is fully handled */
+function ccEqSubItemResponse(ajaxHTML){
+	var id=ccEqPendingQueue.shift();
+	if(id===undefined) return;
+	ccEqRenderSubItemSelect(id,ajaxHTML);
+	ccEqFetchNextInQueue();
 }
-
-function eqRenderSubItemSelect(id,ajaxHTML){
-	var target=document.getElementById('eq-sub-'+id);
-	if(!target) return; /* card was removed before the response arrived */
-
-	/* Same diagnostic principle as eqSearchResponse: distinguish a
-	   genuinely correct "this equipment has no sub-items" response from
-	   an unexpected/malformed one, instead of treating both identically.
-	   id required numeric, sub-item name allowed to be empty — same
-	   reasoning as the equipment-search fix above. */
-	var looksWellFormed = (ajaxHTML==="No data available") ||
-		(ajaxHTML==="") ||
+function ccEqRenderSubItemSelect(id,ajaxHTML){
+	var target=document.getElementById('cc-eq-sub-'+id);
+	if(!target) return;
+	var looksWellFormed = (ajaxHTML==="No data available") || (ajaxHTML==="") ||
 		(/^(\d+;[^;]*==>)+$/.test(ajaxHTML));
-
 	var html;
 	if(!looksWellFormed){
-		console.error('[eqRenderSubItemSelect] Unexpected response from processing.php?scrollSubItem='+id
-			+' — raw response below:');
+		console.error('[ccEqRenderSubItemSelect] Unexpected scrollSubItem response for '+id+'. Raw:');
 		console.error(ajaxHTML);
-		var escapedSub = String(ajaxHTML)
-			.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-		html='<div style="color:#A32D2D;font-size:11px;line-height:1.5;">'
-			+'Could not load sub-items — raw response:'
-			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;'
-			+'padding:6px;margin-top:4px;white-space:pre-wrap;word-break:break-word;'
-			+'font-family:monospace;font-size:10px;color:#7A1F1F;max-height:120px;overflow-y:auto;">'
-			+(escapedSub===''?'(empty response)':escapedSub)
-			+'</pre></div>';
+		var escapedSub=String(ajaxHTML).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+		html='<div style="color:#A32D2D;font-size:11px;line-height:1.5;">Could not load sub-items:'
+			+'<pre style="background:#FDF2F2;border:1px solid #DDB5B3;border-radius:4px;padding:6px;'
+			+'margin-top:4px;white-space:pre-wrap;word-break:break-word;font-family:monospace;'
+			+'font-size:10px;color:#7A1F1F;max-height:120px;overflow-y:auto;">'
+			+(escapedSub===''?'(empty response)':escapedSub)+'</pre></div>';
 	} else if(ajaxHTML==="No data available" || ajaxHTML===""){
-		html='<span class="ir-eq-no-sub">No sub-items for this equipment</span>';
+		html='<span class="cc-eq-no-sub">No sub-items for this equipment</span>';
 	} else {
 		var rows=ajaxHTML.split("==>");
 		var count=rows.length-1;
-		html='<select class="ir-eq-subselect" onchange="eqSetSubItem(\''+id+'\',this.value)">'
-			+'<option value="">Select sub-item…</option>';
+		var prior=String(ccEqSubItemChoice[String(id)]||'');
+		html='<select class="cc-eq-subselect" onchange="ccEqSetSubItem(\''+id+'\',this.value)">'
+			+'<option value="">Select sub-item...</option>';
 		for(var n=0;n<count;n++){
 			var parts=rows[n].split(";");
-			html+='<option value="'+parts[0]+'">'+(parts[1]||'(unnamed)')+'</option>';
+			var sel=(String(parts[0])===prior && prior!=='')?' selected':'';
+			html+='<option value="'+parts[0]+'"'+sel+'>'+(parts[1]||'(unnamed)')+'</option>';
 		}
 		html+='</select>';
 	}
 	target.innerHTML=html;
 }
-
-function eqSetSubItem(id,subitemId){
-	eqSubItemChoice[String(id)]=subitemId;
-	eqSyncHidden();
+function ccEqSetSubItem(id,subitemId){
+	ccEqSubItemChoice[String(id)]=subitemId;
+	ccEqSyncHidden();
 }
-
-function eqRemoveChip(id){
+function ccEqRemoveChip(id){
 	id=String(id);
-	var el=document.getElementById('eq-card-'+id);
+	var el=document.getElementById('cc-eq-card-'+id);
 	if(el) el.remove();
-	delete eqLinked[id];
-	delete eqSubItemChoice[id];
-	/* If this card's fetch is currently the in-flight request (front of
-	   eqPendingQueue), or still waiting further back in the queue, it is
-	   deliberately left in place rather than spliced out here. The chain
-	   self-heals either way once its response arrives: eqSubItemResponse
-	   still shifts it off and calls eqFetchNextInQueue to keep the chain
-	   moving, and eqRenderSubItemSelect's "card was removed" guard below
-	   safely no-ops instead of writing to a DOM element that's gone. The
-	   only cost is one wasted network call for a card nobody will see
-	   the result of — not a correctness problem, just a minor inefficiency
-	   that isn't worth the complexity of splicing mid-queue. */
-	var chips=document.getElementById('eq-chips');
-	if(!chips.querySelector('.ir-eq-card'))
-		chips.innerHTML='<span class="ir-eq-empty">No equipment selected</span>';
-	eqSyncHidden();
+	delete ccEqLinked[id];
+	delete ccEqSubItemChoice[id];
+	var chips=document.getElementById('cc-eq-chips');
+	if(!chips.querySelector('.cc-eq-card'))
+		chips.innerHTML='<span class="cc-eq-empty">No equipment selected</span>';
+	ccEqSyncHidden();
 }
-
-function eqSyncHidden(){
+function ccEqSyncHidden(){
 	/* One equipment_ids[] hidden input per item ("id:subitem" each), not one
 	   joined string -- $_POST['equipment_ids'] arrives as a real PHP array,
-	   engaging the is_array() branch the server already has (it just never
-	   received one before). No empty-marker needed here, unlike edit_ccdr's
-	   version of this fix: this form only ever creates a NEW incident, so
-	   there's no pre-existing equipment that a deliberately-emptied
-	   selection could wipe -- an absent field and an empty field are
-	   handled identically by the server's !empty() check either way. */
-	var container=document.getElementById('eq-ids-container');
+	   engaging the is_array() branch the server already has.
+
+	   If ccEqLinked is empty (user removed everything), a plain marker
+	   input (no [] -- just name="equipment_ids", empty value) is emitted
+	   instead of nothing at all. Without it, isset($_POST['equipment_ids'])
+	   would be false when the array is empty (PHP simply never receives
+	   that key if zero equipment_ids[] inputs exist), and the server would
+	   skip its delete-then-reinsert entirely -- silently failing to clear
+	   equipment the user deliberately emptied out. The marker keeps
+	   isset() true; the server's existing explode(',','') / empty() path
+	   already handles an empty string correctly. */
+	var container=document.getElementById('cc-eq-ids-container');
 	container.innerHTML='';
-	Object.keys(eqLinked).forEach(function(id){
-		var input=document.createElement('input');
-		input.type='hidden';
-		input.name='equipment_ids[]';
-		input.value=id+":"+(eqSubItemChoice[id]||'');
-		container.appendChild(input);
+	var ids=Object.keys(ccEqLinked);
+	if(ids.length===0){
+		var marker=document.createElement('input');
+		marker.type='hidden'; marker.name='equipment_ids'; marker.value='';
+		marker.setAttribute('form','edit_form');
+		container.appendChild(marker);
+	} else {
+		ids.forEach(function(id){
+			var input=document.createElement('input');
+			input.type='hidden';
+			input.name='equipment_ids[]';
+			input.value=id+":"+(ccEqSubItemChoice[id]||'');
+			input.setAttribute('form','edit_form');
+			container.appendChild(input);
+		});
+	}
+	ccEqUpdateCount();
+}
+function ccEqUpdateCount(){
+	var n=Object.keys(ccEqLinked).length;
+	document.getElementById('cc-eq-sel-note').textContent = n ? n+' selected' : '\u00A0';
+	var badge=document.getElementById('cc-eq-badge');
+	badge.textContent = n ? n+' selected' : 'none yet';
+	badge.className = n ? 'cc-picker-badge' : 'cc-picker-badge cc-picker-badge-empty';
+}
+
+/* -- MULTI-LINK -------------------------------------------------------- */
+var ccLinkSelected={};
+var ccLinked={};            /* id ? incident_no label */
+var ccLinkTabFilter='today';
+var ccLinkSearchCallback=null;
+var ccLinkSeeded=false;
+
+function ccLinkOpenEditor(dd=null){
+	document.getElementById('cc-link-modal').classList.add('open');
+	ccLinkTabFilter='today';
+	document.querySelectorAll('#cc-link-modal .cc-filter-tab').forEach(function(t){t.classList.remove('active');});
+	document.querySelector('#cc-link-modal .cc-filter-tab').classList.add('active');
+	document.getElementById('cc-link-search-input').value='';
+	if(!ccLinkSeeded){
+		ccLinkSeedExisting();
+/* @unlink -- taken after the seed, so it records what was loaded from the
+   database rather than an empty set. */
+ccLinkInitialIds=Object.keys(ccLinked).slice().sort().join(',');
+ccLinkMarkDirty();
+		ccLinkSeeded=true;
+	}
+	ccLinkFilterSearch('',dd);
+}
+function ccLinkCloseEditor(){
+	document.getElementById('cc-link-modal').classList.remove('open');
+}
+/* Seed chips from PHP-emitted existing ids + pipe-delimited labels */
+function ccLinkSeedExisting(){
+	if(typeof ccExistingLinks==='undefined' || !ccExistingLinks) return;
+	var ids=ccExistingLinks.split(',');
+	var labels=(typeof ccExistingLinkLabels!=='undefined' && ccExistingLinkLabels)
+		? ccExistingLinkLabels.split('|') : [];
+	ids.forEach(function(id,i){
+		id=String(parseInt(id,10)); if(!id || id==='NaN') return;
+		var label=labels[i]||('ID '+id);
+		ccLinkAddChip(id,label);
 	});
 }
-
-/* ── Option C specifics (incident linking) ── */
-var cSelected={};
-var cTabFilter='today'; /* default scope — server only returns today's incidents until widened */
-
-function cOpenModal(dd=null){
-	document.getElementById('c-modal').classList.add('open');
-
-	/* @unlink -- Seed the tick state from what is ALREADY linked. Without this
-	   cSelected started empty every time, so a previously linked incident came
-	   back unticked: there was no way to tell from the modal that it was
-	   linked, and no way to un-link it here -- unticking an unticked box does
-	   nothing, and re-ticking it hit irAddChip's duplicate guard and silently
-	   did nothing either. Now the modal shows the true state and a tick can be
-	   taken away as well as added. */
-	cSelected={};
-	Object.keys(irLinked).forEach(function(id){ cSelected[id]=irLinked[id]; });
-	cUpdateCount();
-
-	/* Reset to the safe default each time the modal opens, regardless of
-	   what scope was active last time it was closed. */
-	cTabFilter='today';
-	document.querySelectorAll('#c-modal .ir-filter-tab').forEach(function(t){t.classList.remove('active');});
-	document.querySelector('#c-modal .ir-filter-tab').classList.add('active');
-	document.getElementById('c-search-input').value='';
-	cFilterSearch('',dd);
+function ccLinkSearchIncidents(q,cb,dated){
+	ccLinkSearchCallback=cb;
+	var scope=(ccLinkTabFilter==='all')?'all':'today';
+		var dateClause="";
+	if(dated!=null){ dateClause="&dClause="+dated; }
+	makeajax("processing.php?searchIncidents="+encodeURIComponent(q)+"&scope="+scope+dateClause,"ccLinkSearchResponse");
 }
-
-function cCloseModal(){
-	document.getElementById('c-modal').classList.remove('open');
+function ccLinkSearchResponse(ajaxHTML){
+	var results=[];
+	if(ajaxHTML!=="No data available" && ajaxHTML!==""){
+		var rows=ajaxHTML.split("==>");
+		var count=rows.length-1;
+		for(var n=0;n<count;n++){
+			var parts=rows[n].split(";");
+			results.push({id:parts[0],no:parts[1],type:parts[2],
+				level:parseInt(parts[3],10)||0,date:parts[4],index_no:parts[5]||"",description:""});
+		}
+	}
+	if(ccLinkSearchCallback) ccLinkSearchCallback(results);
 }
-
-function cSetTab(btn,key,dd=null){
-	document.querySelectorAll('#c-modal .ir-filter-tab').forEach(function(t){t.classList.remove('active');});
+function ccLinkSetTab(btn,key,dd=null){
+	document.querySelectorAll('#cc-link-modal .cc-filter-tab').forEach(function(t){t.classList.remove('active');});
 	btn.classList.add('active');
-	cTabFilter=key;
-	cFilterSearch(document.getElementById('c-search-input').value,dd);
+	ccLinkTabFilter=key;
+	ccLinkFilterSearch(document.getElementById('cc-link-search-input').value,dd);
 }
-
-function cFilterSearch(q,dd){
-	/* scope=today vs scope=all is resolved server-side in irSearchIncidents.
-	   Only the "All" tab requests scope=all (full history, date descending).
-	   Today, Rolling Stock, Power, and Level 3+ all request scope=today —
-	   the type/level narrowing below is applied on top of that same-day set,
-	   not on an unscoped fetch. */
-	irSearchIncidents(q,function(data){
+function ccLinkFilterSearch(q,dd){
+	ccLinkSearchIncidents(q,function(data){
 		var filtered=data.filter(function(r){
-			if(cTabFilter==='today' || cTabFilter==='all') return true;
-			if(cTabFilter==='l3') return r.level>=3;
-			return r.type.toLowerCase().indexOf(cTabFilter)>=0;
+			if(ccLinkTabFilter==='today'||ccLinkTabFilter==='all') return true;
+			if(ccLinkTabFilter==='l3') return r.level>=3;
+			return r.type.toLowerCase().indexOf(ccLinkTabFilter)>=0;
 		});
-		cRenderResults(filtered);
+		ccLinkRenderResults(filtered);
 	},dd);
 }
-
-function cRenderResults(data){
+function ccLinkLvlBadge(l){ return '<span class="cc-lvl cc-lvl-'+l+'">L'+l+'</span>'; }
+function ccLinkRenderResults(data){
 	var html='';
+	var selfId=(typeof ccSelfIncidentId!=='undefined')?String(ccSelfIncidentId):'';
 	data.forEach(function(r){
-		var chk=cSelected[String(r.id)]?'checked':'';
+		if(selfId!=='' && String(r.id)===selfId) return; /* never offer to link an incident to itself */
+		var chk=(ccLinked[String(r.id)]||ccLinkSelected[String(r.id)])?'checked':'';
 		html+='<tr>'
 			+'<td style="width:28px"><input type="checkbox" value="'+r.id+'" '+chk
-			+" onchange=\"cToggle('"+r.id+"','"+r.no+"',this.checked)\""
-			+' style="accent-color:var(--ir-blue)"></td>'
-			+'<td class="ir-link-no">'+r.no+'</td>'
-			+'<td>'+r.type+'<br><span style="font-size:10px;color:var(--ir-muted)">'+r.description+'</span></td>'
-			+'<td>'+irLvlBadge(r.level)+'</td>'
-			+'<td class="ir-link-muted" style="white-space:nowrap">'+r.date+'</td>'
-			+'<td class="ir-link-no" style="font-size:10px">'+(r.index_no||'—')+'</td>'
+			+" onchange=\"ccLinkToggle('"+r.id+"','"+r.no+"',this.checked)\""
+			+' style="accent-color:var(--cc-blue)"></td>'
+			+'<td class="cc-link-no">'+r.no+'</td>'
+			+'<td>'+r.type+'</td>'
+			+'<td>'+ccLinkLvlBadge(r.level)+'</td>'
+			+'<td class="cc-link-muted" style="white-space:nowrap">'+r.date+'</td>'
+			+'<td class="cc-link-no" style="font-size:10px">'+(r.index_no||'-')+'</td>'
 			+'</tr>';
 	});
-	document.getElementById('c-tbody').innerHTML=html||
-		'<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--ir-muted)">No matches</td></tr>';
+	document.getElementById('cc-link-tbody').innerHTML=html||
+		'<tr><td colspan="6" style="padding:12px;text-align:center;color:var(--cc-muted)">No matches</td></tr>';
 }
-
-function cToggle(id,no,checked){
+function ccLinkToggle(id,no,checked){
 	id=String(id);
-	if(checked) cSelected[id]=no; else delete cSelected[id];
-	cUpdateCount();
+	if(checked){
+		ccLinkSelected[id]=no;
+		ccLinkAddChip(id,no);      /* reflect into chips + hidden field immediately */
+	} else {
+		delete ccLinkSelected[id];
+		ccLinkRemoveChip(id);
+	}
+	ccLinkUpdateCount();
+}
+function ccLinkUpdateCount(){
+	var n=Object.keys(ccLinked).length; /* chips are the source of truth */
+	document.getElementById('cc-link-sel-count').textContent=n+' linked';
+	var badge=document.getElementById('cc-link-badge');
+	badge.textContent = n ? n+' linked' : 'none yet';
+	badge.className = n ? 'cc-picker-badge' : 'cc-picker-badge cc-picker-badge-empty';
+}
+function ccLinkAddChip(id,label){
+	id=String(id);
+	if(ccLinked[id]) return;
+	ccLinked[id]=label;
+	var chips=document.getElementById('cc-link-chips');
+	var empty=chips.querySelector('.cc-link-empty');
+	if(empty) chips.removeChild(empty);
+	var chip=document.createElement('span');
+	chip.className='cc-link-chip'; chip.id='cc-link-chip-'+id;
+	chip.innerHTML=label+"<button type=\"button\" onclick=\"ccLinkRemoveChip('"+id+"')\" title=\"Remove\">&times;</button>";
+	chips.appendChild(chip);
+	ccLinkSyncHidden();
+}
+function ccLinkRemoveChip(id){
+	id=String(id);
+	var el=document.getElementById('cc-link-chip-'+id);
+	if(el) el.remove();
+	delete ccLinked[id];
+	delete ccLinkSelected[id];
+	/* untick the matching checkbox if it's currently rendered in the results */
+	var cb=document.querySelector('#cc-link-tbody input[type=checkbox][value="'+id+'"]');
+	if(cb) cb.checked=false;
+	var chips=document.getElementById('cc-link-chips');
+	if(!chips.querySelector('.cc-link-chip'))
+		chips.innerHTML='<span class="cc-link-empty">No incidents linked yet</span>';
+	ccLinkSyncHidden();
+	ccLinkUpdateCount();
+}
+/* @unlink -- Rebuilt from ccLinked, so removing via a chip x, via the modal, or
+   via the x on a row below all end up in the same place. Each row keeps its
+   click-through to that incident's own edit_ccdr. */
+function ccLinkSyncList(){
+	var box=document.getElementById('cc-linked-list');
+	if(!box) return;
+	var ids=Object.keys(ccLinked);
+	if(!ids.length){
+		box.innerHTML="<span class='cc-none-note'>No linked incidents</span>";
+	}
+	else {
+		var html='';
+		ids.forEach(function(id){
+			var label=String(ccLinked[id]).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+			html+='<div class="cc-linked-item" id="cc-linked-row-'+id+'">'
+			    + 'See <a href="#" onclick="window.open(\'edit_ccdr.php?ir='+id+'\',\'_blank\'); return false;">'+label+'</a>'
+			    + '<button type="button" class="cc-linked-x" title="Remove this link"'
+			    + ' onclick="ccLinkRemoveChip(\''+id+'\')">&times;</button>'
+			    + '</div>';
+		});
+		box.innerHTML=html;
+	}
+	ccLinkMarkDirty();
 }
 
-function cUpdateCount(){
-	var n=Object.keys(cSelected).length;
-	document.getElementById('c-sel-count').textContent=n+' selected';
+/* The read-back list used to show only what was SAVED. Now that it can be
+   edited in place, say so once the set differs from what loaded -- otherwise a
+   row disappearing looks like it has already been deleted from the database. */
+var ccLinkInitialIds=null;
+function ccLinkMarkDirty(){
+	var note=document.getElementById('cc-link-dirty');
+	if(!note) return;
+	if(ccLinkInitialIds===null){ note.style.display='none'; return; }
+	var now=Object.keys(ccLinked).slice().sort().join(',');
+	note.style.display=(now===ccLinkInitialIds)?'none':'block';
 }
 
-function cConfirm(){
-	/* @unlink -- Reconciles in both directions now: anything ticked is linked,
-	   anything that WAS linked and is no longer ticked is removed. It only ever
-	   added before, which is why a link could not be taken back from here.
-	   Safe against the tab filters: cSelected holds every current link from the
-	   moment the modal opened, not just the rows on screen, so confirming while
-	   a narrow tab is active cannot drop links you never saw. */
-	Object.keys(irLinked).forEach(function(id){
-		if(!cSelected[id]) irRemoveChip(id);
-	});
-	Object.keys(cSelected).forEach(function(id){ irAddChip(id,cSelected[id]); });
-	cCloseModal();
-	cSelected={};
-	cUpdateCount();
+function ccLinkSyncHidden(){
+	/* Same shape change and same empty-set marker fix as ccEqSyncHidden()
+	   above -- see that comment for why the marker is necessary. */
+	var container=document.getElementById('cc-link-ids-container');
+	container.innerHTML='';
+	var ids=Object.keys(ccLinked);
+	if(ids.length===0){
+		var marker=document.createElement('input');
+		marker.type='hidden'; marker.name='incident_links'; marker.value='';
+		marker.setAttribute('form','edit_form');
+		container.appendChild(marker);
+	} else {
+		ids.forEach(function(id){
+			var input=document.createElement('input');
+			input.type='hidden';
+			input.name='incident_links[]';
+			input.value=id;
+			input.setAttribute('form','edit_form');
+			container.appendChild(input);
+		});
+	}
+	ccLinkUpdateCount();
+	ccLinkSyncList();
 }
 
-document.addEventListener('keydown',function(e){
-	if(e.key==='Escape') cCloseModal();
-});
-</script>
+/* Backdrop-click + Esc close for both editors */
+document.getElementById('cc-eq-modal').addEventListener('click',function(e){ if(e.target===this) ccEqCloseEditor(); });
+document.getElementById('cc-link-modal').addEventListener('click',function(e){ if(e.target===this) ccLinkCloseEditor(); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ ccEqCloseEditor(); ccLinkCloseEditor(); } });
 
-<body>
-<div class="ir-page">
+/* -- Seed both editors' hidden fields immediately, not just on first open --
+   equipment_ids / incident_links now travel with EVERY edit_form submission
+   (attached via form="edit_form"), including submissions that have nothing
+   to do with either editor -- a plain Level edit, for instance. If those
+   hidden fields were only ever populated the first time their own modal was
+   opened, a user who edits an unrelated field without ever opening the
+   equipment/link editors would submit them empty, and the server-side
+   delete-then-reinsert would silently wipe out equipment/links they never
+   touched this session. Seeding here, unconditionally, closes that gap. -- */
+ccEqSeedExisting();
+ccEqSeeded=true;
+ccLinkSeedExisting();
+ccLinkSeeded=true;
 
-	<!-- Page header -->
-	<div class="ir-page-header">
-		<span class="ir-wordmark">LINE 3</span>
-		<h1>Record Incident</h1>
-		<span class="ir-context">
-			<?php if(isset($_GET['cancel'])){ echo "Cancelled departure"; } elseif(isset($_GET['add_incident'])){ echo "Add incident to train"; } ?>
-		</span>
-	</div>
-
-	<div class="ir-form-body">
-	<form action='incident report.php<?php if(isset($_GET['cancel'])){ echo "?cancel=".$_GET['cancel']; } else if(isset($_GET['add_incident'])){ echo "?add_incident=".$_GET['add_incident']; } if($IR_EMBED){ echo (isset($_GET['cancel'])||isset($_GET['add_incident']))?"&embed=1":"?embed=1"; } ?>' method='post'>
-
-	<!-- ═══════════════════════════════════════════
-	     SECTION 1: Incident Details
-	     ═══════════════════════════════════════════ -->
-	<div class="ir-section-head">Incident Details</div>
-	<table class="ir-table">
-
-	<!-- Problem Category -->
-	<tr>
-		<td class="ir-label">Problem Category</td>
-		<td class="ir-field">
-			<select name='type' id='type' class="ir-sel--full" onchange='scrollType(this)'>
-				<option data-incident_type="RS"  value='rolling' <?php if((isset($_GET['cancel']))||(isset($_GET['add_incident']))){ echo "selected"; } ?>>Rolling Stock</option>
-				<option data-incident_type="CEQ" value='cc_equipt'>CC Equipment</option>
-				<option data-incident_type="COM" value='communication'>Communication</option>
-				<option data-incident_type="DEQ" value='depot_equipt'>Depot Equipment</option>
-				<option data-incident_type="PWR" value='power'>Power</option>
-				<option data-incident_type="SIG" value='signaling'>Signaling</option>
-				<option data-incident_type="TRK" value='tracks'>Tracks</option>
-				<option data-incident_type="AFC" value='afc'>AFC Equipment</option>
-				<option data-incident_type="SEQ" value='station_equipt'>Station Equipment</option>
-				<option data-incident_type="a"   value='gradual'>Gradual Removal</option>
-				<option data-incident_type="a"   value='c_loops'>Cancelled Loops; Acc. Delay/Failure</option>
-				<option data-incident_type="a"   value='r_trains'>Running Trains</option>
-				<option data-incident_type="RS"  value='unload'>Unloading of Passengers</option>
-				<option data-incident_type="RS"  value='nload'>Not Loading</option>
-				<option value='others'>Others</option>
-			</select>
-			<span id='rolling_category' name='rolling_category'></span>
-		</td>
-	</tr>
-
-	<!-- Equipment Involved — multi-select with per-item sub-items (now primary) -->
-	<tr>
-		<td class="ir-label ir-label--top" style="padding-top:11px;text-wrap:wrap;">Equipment(s) Involved (including Additional Defects)</td>
-		<td class="ir-field" style="padding-top:9px">
-
-			<!-- Multi-equipment picker — Option A: Inline search panel,
-			     each selected item expands into its own sub-item dropdown -->
-			<div style="display:flex;gap:7px;margin-bottom:6px;">
-				<input type='text' class="ir-input--sm" id='eq-search-input'
-					placeholder="Search equipment…"
-					oninput='eqFilterInput(this.value)'
-					autocomplete="off" />
-				<input type='button' value='Browse' onclick='eqTogglePanel()' />
-			</div>
-
-			<div class="ir-eq-panel" id="eq-panel" style="display:none;">
-				<div class="ir-eq-panel-head">
-					<i class="ti ti-search" style="color:var(--ir-muted)"></i>
-					Tick equipment to add, then click Add Selected
-				</div>
-				<div class="ir-eq-panel-body" id="eq-list"></div>
-				<div class="ir-eq-panel-foot">
-					<input type='button' value='Cancel'
-						onclick='document.getElementById("eq-panel").style.display="none"' />
-					<input type='button' value='Add selected ✓' onclick='eqAddSelected()'
-						style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
-				</div>
-			</div>
-
-			<div class="ir-eq-chips" id="eq-chips">
-				<span class="ir-eq-empty">No equipment selected</span>
-			</div>
-			<div id="eq-ids-container"></div>
-			<div class="ir-subtle-note">Each item added above gets its own sub-item dropdown once its list loads.</div>
-
-		</td>
-	</tr>
-
-	<!-- Type-specific inputs: free-text equipment for CC/Station/Depot,
-	     unit number for AFC — injected by scrollType() into these spans. -->
-	<tr id="equip_unit_row" style="display:none">
-		<td class="ir-label">Equipment / Unit</td>
-		<td class="ir-field">
-			<span name='equipment_space' id='equipment_space'></span>
-			<span id='unit_space' name='unit_space'></span>
-		</td>
-	</tr>
-
-	<!-- Link Incident Report — Option C: Full modal overlay -->
-	<tr>
-		<td class="ir-label ir-label--top" style="padding-top:11px">Link Other Incident Report(s)</td>
-		<td class="ir-field" style="padding-top:9px">
-			<?php
-			if(isset($daynow)){
-				$incident_date_label=date("m/d/Y",strtotime($daynow));
-				
-			}
-			else {
-			if(isset($_SESSION['month'])){
-				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
-			} else {
-				$incident_date_label=date("m/d/Y");
-			}
-			}
-			?>
-			<!-- Trigger row -->
-			<div style="display:flex;gap:7px;align-items:center;margin-bottom:6px;">
-				<input type='button' value='Link incidents…' onclick="cOpenModal('<?php echo $incident_date_label; ?>')"
-					style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
-			</div>
-
-			<!-- Linked chips -->
-			<div class="ir-link-label">Linked incidents</div>
-			<div class="ir-link-chips" id="ir-chips">
-				<span class="ir-link-empty">No incidents linked yet</span>
-			</div>
-			<?php /* @unlink -- hidden until there is more than one link; see irUpdateClearAll() */ ?>
-			<a href="#" id="ir-clear-links" class="ir-link-clear" style="display:none"
-			   onclick="irClearChips(); return false;">Remove all links</a>
-
-			<!-- Hidden fields -->
-			<div id="ir-links-container"></div>
-			<input type='hidden' name='incident_link'  id='incident_link' value=''>
-			<input type='text'   name='incident_no_link' id='incident_no_link' style='display:none' />
-
-		</td>
-	</tr>
-
-
-	<!-- Index No. / Car No. -->
-	<tr>
-		<td class="ir-label">Index Number</td>
-		<td class="ir-field">
-			<?php
-			$retrieve_id="";
-			if(isset($_GET['cancel']))      { $retrieve_id=$_GET['cancel']; }
-			if(isset($_GET['add_incident'])){ $retrieve_id=$_GET['add_incident']; }
-
-			$index_id="";
-			if($retrieve_id!=""){
-				$sql="select * from train_availability where id='".$retrieve_id."'";
-				$rs=$db->query($sql);
-				$row=$rs->fetch_assoc();
-				$index_id=$row['index_no'];
-				$switchSQL="select * from train_switch where train_ava_id='".$retrieve_id."' order by date_change desc";
-				$switchRS=$db->query($switchSQL);
-				if($switchRS->num_rows>0){
-					$switchRow=$switchRS->fetch_assoc();
-					$index_id=$switchRow['new_index'];
-				}
-			}
-			?>
-				<input name='index_id' id='index_id' type='text' class="ir-input--xs" value='<?php echo $index_id; ?>' />
-
-		</td>
-	</tr>
-	<tr>
-		<td class="ir-label">Car Number(s)</td>
-		<td class="ir-field">
-			<div class="ir-inline">
-				<!--
-				<span class="ir-sep">/</span>
-				-->
-				<?php
-				$car_fields = ['car_id','car_id_2','car_id_3','car_id_4'];
-				foreach($car_fields as $idx => $field_name){
-					echo "<select name='".$field_name."' id='".$field_name."' class='ir-sel--time'>";
-					echo "<option></option>";
-					if($retrieve_id!=""){
-						$sql="select * from train_availability where id='".$retrieve_id."'";
-						$rs=$db->query($sql);
-						$row=$rs->fetch_assoc();
-						$selected = ($idx==0) ? " selected" : "";
-						echo "<option".$selected." value='".$row['car_a']."'>".$row['car_a']."</option>";
-						echo "<option value='".$row['car_b']."'>".$row['car_b']."</option>";
-						if($row['car_c']) echo "<option value='".$row['car_c']."'>".$row['car_c']."</option>";
-						if($row['car_d']) echo "<option value='".$row['car_d']."'>".$row['car_d']."</option>";
-					}
-					echo "</select>";
-					if($idx < count($car_fields)-1) echo "<span class='ir-sep'>,</span>";
-				}
-				?>
-			</div>
-			</td>
-	</tr>
-	<!-- Cancelled Loop -->
-	<tr>
-		<td class="ir-label">Cancelled Loop</td>
-		<td class="ir-field ir-inline">
-			<select name='cancel' id='cancel' onchange='getMore(this.value)'>
-				<option value='none'>0</option>
-				<option value='whole'>1</option>
-				<option value='half'>1/2</option>
-				<option value='more'>More than 1</option>
-			</select>
-			<input type='text' name='cancel_more' id='cancel_more' class="ir-input--xs" disabled />
-		</td>
-	</tr>
-
-	<!-- Incident No. -->
-	<tr>
-		<td class="ir-label">Incident No.</td>
-		<td class="ir-field ir-inline">
-			<input type='text' name='incident_no' id='incident_no' class="ir-input--sm" onblur='checkIncidentNo(this)' />
-			<select name='incident_suffix' id='incident_suffix' class="ir-sel--suffix">
-				<?php
-				$sql_suffix="SELECT * FROM equipment_type where sequence is not null order by sequence";
-				$rs_suffix=$db->query($sql_suffix);
-				$nm=$rs_suffix->num_rows;
-				for($i=0;$i<$nm;$i++){
-					$row=$rs_suffix->fetch_assoc();
-					echo "<option value='".$row['incident_code']."'>".$row['incident_code']."</option>";
-				}
-				?>
-			</select>
-		</td>
-	</tr>
-
-	<!-- Location / Direction -->
-	<tr>
-		<td class="ir-label">Location / Direction</td>
-		<td class="ir-field ir-inline">
-			<select name='direction'>
-				<option></option>
-				<option value='S'>Station</option>
-				<option value='D'>Depot</option>
-				<option value='ML'>Mainline</option>
-				<option value='CC'>Control Center</option>
-				<option value='NB'>Northbound</option>
-				<option value='SB'>Southbound</option>
-				<option value='NTB'>North Turnback</option>
-				<option value='IR'>Insertion/Removal Area</option>
-				<option value='SPT'>Shaw Pocket Track</option>
-				<option value='TPT'>Taft Pocket Track</option>
-			</select>
-			<input type='text' name='location' id='location' class="ir-input--sm" placeholder="Station/location" />
-		</td>
-	</tr>
-
-	<!-- Level -->
-	<tr>
-		<td class="ir-label">Level</td>
-		<td class="ir-field ir-inline">
-			<select name='level' id='level' onchange='getLevel(this)'>
-				<option value='0'>0</option>
-				<option value='1'>1</option>
-				<option value='2'>2</option>
-				<option value='3'>3</option>
-				<option value='4'>4</option>
-			</select>
-			<span id='condition' name='condition'></span>
-		</td>
-	</tr>
-
-	<!-- Date -->
-	<tr>
-		<td class="ir-label">Date / Time of Incident</td>
-		<td class="ir-field">
-			<?php
-			if(isset($daynow)){
-				$incident_date_label=date("m/d/Y",strtotime($daynow));
-				
-			}
-			else {
-			if(isset($_SESSION['month'])){
-				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
-			} else {
-				$incident_date_label=date("m/d/Y");
-				
-			
-			}
-			}
-			
-			$hh=date("H");
-			if($hh>12){ $hh-=12; }
-			$min=date("i");
-			$aa=date("a");
-			
-			?>
-			<input type='text' name='incident_date' id='incident_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
-			
-			<select name='hour' class="ir-sel--time">
-				<?php for($i=1;$i<=12;$i++){ ?>
-				<option value='<?php echo $i; ?>' <?php if($i*1==$hh*1){ echo "selected"; } ?>><?php echo $i; ?></option>
-				<?php } ?>
-			</select>
-			<select name='minute' class="ir-sel--time">
-				<?php for($i=0;$i<=59;$i++){ ?>
-				<option value='<?php echo $i; ?>' <?php if($i*1==$min*1){ echo "selected"; } ?>><?php echo ($i<10?"0":"").$i; ?></option>
-				<?php } ?>
-			</select>
-			<select name='amorpm' class="ir-sel--time">
-				<option value='am' <?php if($aa=="am"){ echo "selected"; } ?>>AM</option>
-				<option value='pm' <?php if($aa=="pm"){ echo "selected"; } ?>>PM</option>
-			</select>
-		</td>
-	</tr>
-
-	<tr>
-		<td class="ir-label">Date / Time Resolved</td>
-		<td class="ir-field ir-inline">
-			<?php
-						if(isset($daynow)){
-				$incident_date_label=date("m/d/Y",strtotime($daynow));
-				
-			}
-			else {
-			if(isset($_SESSION['month'])){
-				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
-			} else {
-				$incident_date_label=date("m/d/Y");
-			}
-			}
-			?>
-			<input type='text' name='resolution_date' id='resolution_date' class='datepicker ir-input--md' value='<?php echo $incident_date_label; ?>' />
-
-			<select name='hour2' class="ir-sel--time">
-				<?php for($i=1;$i<=12;$i++){ ?>
-				<option value='<?php echo $i; ?>' <?php if($i*1==$hh*1){ echo "selected"; } ?>><?php echo $i; ?></option>
-				<?php } ?>
-			</select>
-			<select name='minute2' class="ir-sel--time">
-				<?php for($i=0;$i<=59;$i++){ ?>
-				<option value='<?php echo $i; ?>' <?php if($i*1==$min*1){ echo "selected"; } ?>><?php echo ($i<10?"0":"").$i; ?></option>
-				<?php } ?>
-			</select>
-			<select name='amorpm2' class="ir-sel--time">
-				<option value='am' <?php if($aa=="am"){ echo "selected"; } ?>>AM</option>
-				<option value='pm' <?php if($aa=="pm"){ echo "selected"; } ?>>PM</option>
-			</select>
-		</td>
-		
-	</tr>
-	<!-- Type of Action -->
-	<tr>
-		<td class="ir-label">Type of Action</td>
-		<td class="ir-field">
-			<input type='text' name='action_type' class="ir-input--lg" />
-		</td>
-	</tr>
-
-	<!-- Incident Duration -->
-	<!--
-	
-	<tr>
-		<td class="ir-label">Incident Duration</td>
-		<td class="ir-field">
-			<input type='text' name='duration' class="ir-input--md" placeholder="e.g. 00:15" />
-		</td>
-	</tr>
--->
-	<!-- Details -->
-	<tr>
-		<td class="ir-label ir-label--top">Details</td>
-		<td class="ir-field ir-field--top">
-			<textarea rows='5' name='description' id='typeahead'
-				class="span6 typeahead"
-				data-provide="typeahead" data-items="4"
-				data-source='[""
-				<?php
-				$db2=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
-				$sql="select * from preencoded";
-				$rs=$db2->query($sql);
-				$nm=$rs->num_rows;
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-					echo ',"'.$row['content'].'"';
-				}
-				?>
-				]'></textarea>
-		</td>
-	</tr>
-
-	</table>
-
-	<!-- ═══════════════════════════════════════════
-	     SECTION 2: Reporting
-	     ═══════════════════════════════════════════ -->
-	<div class="ir-section-head">Reporting</div>
-	<table class="ir-table">
-
-	<!-- Reported By -->
-	<tr>
-		<td class="ir-label">Reported By</td>
-		<td class="ir-field">
-			<input type='text' autocomplete='off' name='reported_by' id='reported_by'
-				class="ir-input--lg span6 typeahead"
-				data-provide="typeahead" data-items="4"
-				data-source='[
-				<?php
-				$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-				$sql="select * from train_driver order by lastName";
-				$rs=$db->query($sql);
-				$nm=$rs->num_rows;
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-					$comma=($i==0)?"":",";;
-					echo $comma.'"'.$row['position']." ".substr($row['firstName'],0,1).". ".$row['lastName'].'"';
-				}
-				?>
-				]' />
-		</td>
-	</tr>
-
-	<!-- Received By -->
-	<tr>
-		<td class="ir-label">Received By</td>
-		<td class="ir-field">
-			<select name='received_by' id='received_by' class="ir-sel--full">
-				<?php
-				$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-				$sql="select * from train_driver where position in ('STDO','CCRE') order by lastName";
-				$rs=$db->query($sql);
-				$nm=$rs->num_rows;
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-					$sel=($row['id']==$_SESSION['recording'])?" selected":"";
-					echo "<option value='".$row['id']."'".$sel.">".$row['lastName'].", ".$row['firstName']."</option>";
-				}
-				?>
-			</select>
-		</td>
-	</tr>
-
-	<!-- Recommending Approval -->
-	<tr>
-		<td class="ir-label">Recommending Approval</td>
-		<td class="ir-field">
-			<input type='text' name='recommending_approval' class="ir-input--lg" />
-		</td>
-	</tr>
-
-	<!-- Approving Person -->
-	<tr>
-		<td class="ir-label">Approving Person</td>
-		<td class="ir-field">
-			<input type='text' name='approving_person' class="ir-input--lg" />
-		</td>
-	</tr>
-
-	</table>
-
-	<!-- ═══════════════════════════════════════════
-	     SECTION 3: Action Taken
-	     ═══════════════════════════════════════════ -->
-	<div class="ir-section-head">Action Taken</div>
-	<table class="ir-table">
-
-	<!-- DOTR -->
-	<tr>
-		<td class="ir-label ir-label--top">DOTR</td>
-		<td class="ir-field ir-field--top">
-			<span name='remarks_space' id='remarks_space'>
-				<textarea rows='5' name='dotc' id='dotc'
-					class="span6 typeahead"
-					data-provide="typeahead" data-items="4"
-					data-source='[""
-					<?php
-					$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
-					$sql="select * from preencoded";
-					$rs=$db2->query($sql);
-					$nm=$rs->num_rows;
-					for($i=0;$i<$nm;$i++){
-						$row=$rs->fetch_assoc();
-						echo ',"'.$row['content'].'"';
-					}
-					?>
-					]'></textarea>
-			</span>
-		</td>
-	</tr>
-
-	<!-- Verified -->
-	<tr>
-		<td class="ir-label ir-label--top">Maintenance Provider (TESP / Other)</td>
-		<td class="ir-field ir-field--top">
-			<textarea rows='5' name='maintenance' id='maintenance'
-				class="span6 typeahead"
-				data-provide="typeahead" data-items="4"
-				data-source='[""
-				<?php
-				$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_external");
-				$sql="select * from preencoded";
-				$rs=$db2->query($sql);
-				$nm=$rs->num_rows;
-				for($i=0;$i<$nm;$i++){
-					$row=$rs->fetch_assoc();
-					echo ',"'.$row['content'].'"';
-				}
-				?>
-				]'></textarea>
-		</td>
-	</tr>
-
-	</table>
-
-	<!-- Submit footer -->
-	<div class="ir-submit-row">
-		<input type='submit' value='Submit Incident Report' />
-	</div>
-
-	</form>
-	</div><!-- /.ir-form-body -->
-
-</div><!-- /.ir-page -->
-
-<script src="js/jquery-1.10.2.min.js"></script>
-<script src="js/jquery-migrate-1.2.1.min.js"></script>
-<script src="js/jquery-ui-1.10.3.custom.min.js"></script>
-<script src="js/jquery.ui.touch-punch.js"></script>
-<script src="js/modernizr.js"></script>
-<script src="js/bootstrap.min.js"></script>
-<script src="js/additional2.js"></script>
-<script src="js/date.js"></script>
-<script>
-$(function(){
-	$('.datepicker').datepicker({changeMonth:true,changeYear:true,showAnim:"clip"});
-});
-</script>
-
-<!-- ── Option C Modal (in DOM, outside the form) ── -->
-<div class="ir-modal-backdrop" id="c-modal">
-	<div class="ir-modal-box">
-		<div class="ir-modal-head">
-			<h4><i class="ti ti-link" style="margin-right:6px"></i>Link Incident Reports</h4>
-			<button class="ir-modal-close" type="button" onclick="cCloseModal()">&times;</button>
-		</div>
-		<div class="ir-modal-body">
-			<!-- Search + tabs -->
-									<?php
-						if(isset($daynow)){
-				$incident_date_label=date("m/d/Y",strtotime($daynow));
-				
-			}
-			else {
-			if(isset($_SESSION['month'])){
-				$incident_date_label=date("m/d/Y",strtotime($_SESSION['year']."-".$_SESSION['month']."-".$_SESSION['day']));
-			} else {
-				$incident_date_label=date("m/d/Y");
-			}
-			}
-			?>
-			
-			
-			<div style="display:flex;gap:7px;margin-bottom:8px;">
-				<input type='text' id='c-search-input' class="ir-input--lg"
-					placeholder="Search by incident no., type, description…"
-					oninput='cFilterSearch(this.value)' autocomplete="off" />
-				<input type='button' value='Clear' onclick='document.getElementById("c-search-input").value="";cFilterSearch("","<?php echo $incident_date_label; ?>")' />
-			</div>
-			<div class="ir-filter-tabs" id="c-tabs">
-
-			
-			
-				<button class="ir-filter-tab active" type="button" onclick="cSetTab(this,'today','<?php echo $incident_date_label; ?>')">Today</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'all')">All (date descending)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'rolling','<?php echo $incident_date_label; ?>')">Rolling Stock (today)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'power','<?php echo $incident_date_label; ?>')">Power (today)</button>
-				<button class="ir-filter-tab" type="button" onclick="cSetTab(this,'l3','<?php echo $incident_date_label; ?>')">Level 3+ (today)</button>
-			</div>
-			<!-- Results -->
-			<div class="ir-result-scroll">
-				<table class="ir-link-results">
-					<thead>
-						<tr>
-							<th style="width:28px"></th>
-							<th>Incident No.</th>
-							<th>Type / Description</th>
-							<th>Lvl</th>
-							<th>Date</th>
-							<th>Index</th>
-						</tr>
-					</thead>
-					<tbody id="c-tbody"></tbody>
-				</table>
-			</div>
-		</div>
-		<div class="ir-modal-foot">
-			<span class="ir-modal-sel-count" id="c-sel-count">0 selected</span>
-			<div style="display:flex;gap:8px;">
-				<input type='button' value='Cancel' onclick='cCloseModal()' />
-				<input type='button' value='Confirm &amp; link' onclick='cConfirm()'
-					style="background:var(--ir-blue);color:#fff;border-color:var(--ir-blue);" />
-			</div>
-		</div>
-	</div>
-</div>
-<!-- close modal backdrop click -->
-<script>
-document.getElementById('c-modal').addEventListener('click',function(e){
-	if(e.target===this) cCloseModal();
-});
 </script>
 
 </body>
+	<script src="js/jquery-migrate-1.2.1.min.js"></script>	
+		<script src="js/jquery-ui-1.10.3.custom.min.js"></script>	
+		<script src="js/jquery.ui.touch-punch.js"></script>	
+		<script src="js/modernizr.js"></script>	
+		<script src="js/bootstrap.min.js"></script>	
+		
+
+<script src="js/date.js"></script>	
+<script src='js/form.js'></script>
