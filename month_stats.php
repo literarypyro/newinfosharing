@@ -48,28 +48,108 @@ $db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 $coverage = ccsLoadCoverage($db);
 
 // ---- Inputs --------------------------------------------------------------
-// $car went straight into the WHERE clause unquoted-by-intent before; casting
-// to int both fixes that and makes a junk car_id read as 0 rather than as SQL.
-$car   = isset($_GET['car_id']) ? (int)$_GET['car_id'] : 0;
-$year  = isset($_GET['year'])   ? (int)$_GET['year']   : (int)date("Y");
+// @monthstats -- The subject of this page is a PERIOD, not a car or an
+// equipment type. The tile that opens it can name more than one month, because
+// the peak-month calculation keeps ties rather than resolving them -- "Mar &
+// Jul" is a real answer and both have to arrive here.
+//
+//   months=3,7   one or more months of $year
+//   days=4,11    one or more days of $year-$month  (peak-DAY tile)
+//   sd / ed      an explicit range, for callers that filter by range
+//   year         required for months= and days=
+//
+// by=car | equipt decides what the breakdown table lists. One page rather than
+// two: the period logic, the filters, the printout and the panel plumbing are
+// identical, and two copies of that is how they drift apart.
+$by = (isset($_GET['by']) && $_GET['by'] === 'equipt') ? 'equipt' : 'car';
+
+$year  = isset($_GET['year']) && $_GET['year'] !== '' ? (int)$_GET['year'] : 0;
 $month = isset($_GET['month']) && $_GET['month'] !== '' ? (int)$_GET['month'] : 0;
 if($month < 1 || $month > 12){ $month = 0; }
 
-if($month){
-	$start_date1 = sprintf("%04d-%02d-01", $year, $month);
-	// The month branch used to set $end_date1 to the FIRST of the month, so a
-	// month drill-down returned one day. "t" gives the last day of the month.
-	$end_date1   = date("Y-m-t", strtotime($start_date1));
-	$period      = date("F Y", strtotime($start_date1));
+/* Optional narrowing, carried through from whichever report opened the panel. */
+/* Accepts either spelling: car_statistics_report.php sends car_id=, while
+   statistics_report_modified.php's own filter is car=. */
+$car = 0;
+if(isset($_GET['car_id']) && $_GET['car_id'] !== '') $car = (int)$_GET['car_id'];
+else if(isset($_GET['car']) && $_GET['car'] !== '')  $car = (int)$_GET['car'];
+$equipt = isset($_GET['equipt']) && $_GET['equipt'] !== '' ? (int)$_GET['equipt'] : 0;
+$level  = isset($_GET['level'])  && $_GET['level']  !== '' ? (int)$_GET['level']  : 0;
+
+/* A comma list, deduplicated and bounded. Anything out of range is dropped
+   rather than clamped -- a junk month is a caller bug, and silently turning
+   it into January would hide that. */
+function msList($raw, $lo, $hi){
+	$out = array();
+	foreach(explode(',', (string)$raw) as $v){
+		$v = (int)trim($v);
+		if($v >= $lo && $v <= $hi && !in_array($v, $out, true)) $out[] = $v;
+	}
+	sort($out);
+	return $out;
+}
+$months = isset($_GET['months']) ? msList($_GET['months'], 1, 12) : array();
+$days   = isset($_GET['days'])   ? msList($_GET['days'],   1, 31) : array();
+if($month && !count($months)) $months = array($month);
+
+$sd = isset($_GET['sd']) && $_GET['sd'] !== '' ? strtotime($_GET['sd']) : false;
+$ed = isset($_GET['ed']) && $_GET['ed'] !== '' ? strtotime($_GET['ed']) : false;
+$hasRange = ($sd !== false && $ed !== false);
+if($hasRange && $ed < $sd){ $t=$sd; $sd=$ed; $ed=$t; }
+
+/* ---- The period clause ---------------------------------------------------
+   Several months are an OR of LIKE terms rather than a BETWEEN: the months a
+   tie names are not adjacent, and a range spanning March to July would quietly
+   include April, May and June -- months the tile did not name and the reader
+   is not expecting. */
+$mnFull = array(1=>'January','February','March','April','May','June','July','August','September','October','November','December');
+$dateClause = "";
+$period     = "All Time";
+$grain      = 'month';   // what the period breakdown groups by
+
+if($hasRange){
+	$dateClause = " and incident_date between '".date("Y-m-d",$sd)." 00:00:00' and '".date("Y-m-d",$ed)." 23:59:59' ";
+	$period     = date("d M Y",$sd)." to ".date("d M Y",$ed);
+	$grain      = (date("Y-m",$sd) === date("Y-m",$ed)) ? 'day' : 'month';
+	$start_date1 = date("Y-m-d",$sd);
+	$end_date1   = date("Y-m-d",$ed);
+}
+else if($year && $month && count($days)){
+	$parts = array(); $labels = array();
+	foreach($days as $d){
+		$ymd = sprintf("%04d-%02d-%02d", $year, $month, $d);
+		$parts[]  = "incident_date like '".$ymd."%'";
+		$labels[] = date("j", strtotime($ymd));
+	}
+	$dateClause  = " and (".implode(" or ", $parts).") ";
+	$period      = implode(", ", $labels)." ".date("F Y", strtotime(sprintf("%04d-%02d-01",$year,$month)));
+	$grain       = 'day';
+	$start_date1 = sprintf("%04d-%02d-%02d", $year, $month, $days[0]);
+	$end_date1   = sprintf("%04d-%02d-%02d", $year, $month, $days[count($days)-1]);
+}
+else if($year && count($months)){
+	$parts = array(); $labels = array();
+	foreach($months as $m){
+		$parts[]  = "incident_date like '".sprintf("%04d-%02d",$year,$m)."-%'";
+		$labels[] = $mnFull[$m];
+	}
+	$dateClause  = " and (".implode(" or ", $parts).") ";
+	$period      = implode(" and ", $labels)." ".$year;
+	$grain       = (count($months) === 1) ? 'day' : 'month';
+	$start_date1 = sprintf("%04d-%02d-01", $year, $months[0]);
+	$end_date1   = date("Y-m-t", strtotime(sprintf("%04d-%02d-01", $year, $months[count($months)-1])));
+	if(count($months) === 1) $month = $months[0];
+}
+else if($year){
+	$dateClause  = " and incident_date like '".$year."-%' ";
+	$period      = "Full year ".$year;
+	$start_date1 = sprintf("%04d-01-01",$year);
+	$end_date1   = sprintf("%04d-12-31",$year);
 }
 else {
-	$start_date1 = sprintf("%04d-01-01", $year);
-	$end_date1   = sprintf("%04d-12-31", $year);
-	$period      = "Full year ".$year;
-}
-
-if(!isset($_GET['year'])){
-	$period="All Time";
+	$grain = 'year';
+	$start_date1 = '';
+	$end_date1   = '';
 }
 
 // ---- Full incident history link ------------------------------------------
@@ -78,12 +158,16 @@ if(!isset($_GET['year'])){
 // already uses for its own car_history links (car_id / y / m), so it is a
 // working guess rather than a blank -- change it if yours differ.
 
-if(isset($year)){ 
-$carHistoryUrl = "car_history.php?car_id=".$car;
-
-}
-else {
-$carHistoryUrl = "car_history.php?car_id=".$car."&y=".$year.($month ? "&m=".$month : "");
+/* @monthstats -- Only meaningful when the panel was opened with a car or an
+   equipment filter; a period on its own has no single history page, so the
+   button is simply not rendered then.
+   The if(isset($year)) branch this replaces was always true -- $year is
+   assigned unconditionally above -- so the else half was dead code. */
+$carHistoryUrl = "";
+if($car)         $carHistoryUrl = "car_history.php?car_id=".$car;
+else if($equipt) $carHistoryUrl = "equipment_history.php?equipt=".$equipt;
+if($carHistoryUrl !== "" && $year){
+	$carHistoryUrl .= "&y=".$year.($month ? "&m=".$month : "");
 }
 // Inside the slide panel this page is an iframe, so a plain link would load
 // car_history INSIDE the 820px panel. _top breaks it out into the full window.
@@ -107,11 +191,12 @@ $carHistoryTarget = $IR_EMBED ? "_top" : "_self";
 // 2. car_no='5' is a string comparison; the tile groups by car_no*1. Any row
 //    stored as '05', ' 5' or '5 ' fell into the tile's bucket for car 5 and
 //    was missed here. Both sides coerce numerically now.
-$where = "incident_cars.car_no*1 = ".$car;
-
-if(isset($year)){
-			$where.=" and incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'";
-}
+// @monthstats -- The period IS the subject, so it leads the clause; car and
+// equipment are optional narrowing carried through from the calling report.
+$where = "1=1".$dateClause;
+if($car)    $where .= " and incident_cars.car_no*1 = ".$car." ";
+if($equipt) $where .= " and incident_report.equipt = ".$equipt." ";
+if($level)  $where .= " and incident_report.level = ".$level." ";
 // ---- Severity split ------------------------------------------------------
 // The old query grouped by level but selected equipt, so $row['level'] was
 // never set and every tile read from one undefined key.
@@ -135,39 +220,108 @@ if($rs){
 $rows = array();
 $equipt_count   = 0;
 $unrecordedFail = 0;   /* failures whose incident has no equipment recorded */
-$sql = "select incident_report.equipt as equipt,
-               equipment.equipment_name as equipment_name,
-               count(1) as equipt_count
-          from incident_report
-          inner join incident_cars on incident_report.id=incident_cars.incident_id
-          left  join equipment on equipment.id = incident_report.equipt
-         where ".$where."
-         group by incident_report.equipt, equipment.equipment_name
-         order by equipt_count desc";
+/* @monthstats -- The breakdown axis follows ?by=. Both branches count the same
+   rows and total to the same figure; only the grouping differs, so the two
+   views of a month always agree with each other and with the tile that opened
+   them. */
+if($by === 'equipt'){
+	$sql = "select incident_report.equipt as k,
+	               equipment.equipment_name as nm,
+	               count(1) as c
+	          from incident_report
+	          inner join incident_cars on incident_report.id=incident_cars.incident_id
+	          left  join equipment on equipment.id = incident_report.equipt
+	         where ".$where."
+	         group by incident_report.equipt, equipment.equipment_name
+	         order by c desc";
+}
+else {
+	/* car_no*1 so '05' and '5' fold together, matching how the reports bucket
+	   them; comparing the raw column splits one car across two rows. */
+	$sql = "select incident_cars.car_no*1 as k, '' as nm, count(1) as c
+	          from incident_report
+	          inner join incident_cars on incident_report.id=incident_cars.incident_id
+	         where ".$where."
+	         group by incident_cars.car_no*1
+	         order by c desc";
+}
 $rs = $db->query($sql);
 if($rs){
 	while($row = $rs->fetch_assoc()){
-		$id    = $row['equipt'];
-		$blank = ($id === null || trim((string)$id) === '' || (int)$id === 0);
-		if($blank){
-			$label = 'Not recorded';
-			$unrecordedFail += (int)$row['equipt_count'];
-		}
-		elseif($row['equipment_name'] !== null && $row['equipment_name'] !== ''){
-			$label = $row['equipment_name'];
+		$id = $row['k'];
+		if($by === 'equipt'){
+			$blank = ($id === null || trim((string)$id) === '' || (int)$id === 0);
+			if($blank){ $label = 'Not recorded'; $unrecordedFail += (int)$row['c']; }
+			elseif($row['nm'] !== null && $row['nm'] !== ''){ $label = $row['nm']; }
+			else { $label = 'Equipment #'.(int)$id.' (not in equipment table)'; }
 		}
 		else {
-			/* id present but no matching equipment row — surfaced, not hidden */
-			$label = 'Equipment #'.(int)$id.' (not in equipment table)';
+			$cn = (int)$id;
+			if($cn <= 0){ $label = 'Not recorded'; $unrecordedFail += (int)$row['c']; }
+			else { $label = 'Car '.$cn; }
 		}
-		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['equipt_count']);
-		$equipt_count += (int)$row['equipt_count'];
+		$rows[] = array('id'=>$id, 'label'=>$label, 'count'=>(int)$row['c']);
+		$equipt_count += (int)$row['c'];
 	}
 }
-// Denominator for the "types affected" tile, now that there is no fixed list.
+
+/* Denominator for the "affected" tile: the size of the population the
+   breakdown is drawn from, so it means the same thing in both modes. */
 $equiptTracked = 0;
-$tq = $db->query("select count(*) as c from equipment");
+$tq = $db->query($by === 'equipt'
+	? "select count(*) as c from equipment"
+	: "select count(distinct car_no*1) as c from incident_cars where car_no*1 > 0");
 if($tq && ($tr = $tq->fetch_assoc())){ $equiptTracked = (int)$tr['c']; }
+
+/* ---- Period breakdown ----------------------------------------------------
+   @monthstats -- The point of this page. One month in scope breaks down by
+   DAY; several break down by month, so a tie like "March and July" shows the
+   two side by side instead of merging into one figure. Keys are composite so
+   two Marches from different years cannot collapse into one row. */
+$periodBuckets = array();
+$pq = $db->query("select year(incident_date) as yr, month(incident_date) as mo,
+                         day(incident_date) as dy, count(1) as c
+                    from incident_report
+                    inner join incident_cars on incident_report.id=incident_cars.incident_id
+                   where ".$where."
+                   group by year(incident_date), month(incident_date), day(incident_date)");
+if($pq){
+	while($pr = $pq->fetch_assoc()){
+		if($grain === 'year')       $k = (int)$pr['yr'];
+		else if($grain === 'month') $k = (int)$pr['yr']*100   + (int)$pr['mo'];
+		else                        $k = (int)$pr['yr']*10000 + (int)$pr['mo']*100 + (int)$pr['dy'];
+		if(!isset($periodBuckets[$k])) $periodBuckets[$k]=0;
+		$periodBuckets[$k] += (int)$pr['c'];
+	}
+}
+/* Empty periods omitted, as on the sibling pages: every row here is labelled,
+   so a reader sees January jump to March without a blank row saying so. */
+$periodBuckets = array_filter($periodBuckets, function($c){ return $c > 0; });
+ksort($periodBuckets);
+
+$peakPeriodCount = count($periodBuckets) ? max($periodBuckets) : 0;
+$periodThreshold = $peakPeriodCount * 0.60;
+$periodHeading   = ($grain === 'day') ? 'By day' : (($grain === 'year') ? 'By year' : 'By month');
+
+/* Year shown on a month row whenever the table spans more than one, so two
+   Marches can never appear as identical labels. */
+$labelWithYear = false;
+if($grain !== 'year'){
+	$div = ($grain === 'month') ? 100 : 10000;
+	$yrs = array();
+	foreach(array_keys($periodBuckets) as $bk){ $yrs[(int)floor($bk/$div)] = true; }
+	$labelWithYear = (count($yrs) > 1);
+}
+function msPeriodLabel($grain, $k, $showYear){
+	if($grain === 'year') return (string)$k;
+	if($grain === 'month'){
+		$y = (int)floor($k/100); $m = $k % 100;
+		return date($showYear ? "F Y" : "F", strtotime(sprintf("%04d-%02d-01", $y, $m)));
+	}
+	$y = (int)floor($k/10000); $m = (int)floor(($k%10000)/100); $d = $k % 100;
+	return date($showYear ? "d M Y (l)" : "d M (l)", strtotime(sprintf("%04d-%02d-%02d", $y, $m, $d)));
+}
+
 $peakTotal     = count($rows) ? $rows[0]['count'] : 0;
 $flagThreshold = $peakTotal * 0.60;
 
@@ -278,6 +432,8 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
    Failures and Share were squeezed into whatever was left. Fixed layout with
    declared widths pins the two numeric columns and lets long names wrap
    instead of stretching the row. */
+.brk-head { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:#00529B;
+	border-bottom:1px solid #E5DECC; padding-bottom:5px; margin:22px 0 8px; font-weight:600; }
 .eq-table { table-layout:fixed; width:100%; }
 .eq-table th, .eq-table td { padding:6px 8px; vertical-align:middle; }
 .eq-table col.c-name { width:auto; }
@@ -316,7 +472,23 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <div class="ccs-page">
 
 <div class="ccs-header">
-<h1>Equipment Failures for Car <?php echo $car > 0 ? $car : '&mdash;'; ?></h1>
+<?php
+/* @monthstats -- The heading names the period, and any narrowing the calling
+   report had active is stated after it. Arriving at a page showing a fraction
+   of a month with nothing saying why reads as missing data. */
+$msNarrow = array();
+if($car)    $msNarrow[] = 'Car '.$car;
+if($equipt){
+	$enm=''; $eq=$db->query("select equipment_name from equipment where id='".$equipt."'");
+	if($eq && ($er=$eq->fetch_assoc())) $enm=(string)$er['equipment_name'];
+	$msNarrow[] = ($enm !== '' ? $enm : 'Equipment #'.$equipt);
+}
+if($level)  $msNarrow[] = 'Level '.$level;
+?>
+<h1><?php echo htmlspecialchars($period); ?></h1>
+<?php if(count($msNarrow)){ ?>
+<div class='sub' style="color:#FDB813;">Filtered to <?php echo htmlspecialchars(implode(' &middot; ', $msNarrow)); ?></div>
+<?php } ?>
 <div class='sub'><?php echo htmlspecialchars($period); ?></div>
 </div>
 
@@ -324,7 +496,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <div class="ccs-panel-head">
 <div class="stat-scope">
 	<div class="scope-left">
-		Car <?php echo $car > 0 ? $car : '&mdash;'; ?>
+		<?php echo htmlspecialchars($period); ?>
 		<?php 
 		if(isset($_POST['year'])){
 			?>
@@ -333,10 +505,16 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 		}
 		?>
 	</div>
-<?php if($car > 0){ /* @historylink -- no car, no action to offer */ ?>
+<?php if($carHistoryUrl !== '' || $rows){ /* @monthstats -- printout always; history only when a car or equipment narrows it */ ?>
 	<div class="scope-actions">
+		<?php /* @monthstats -- the same period, seen the other way. One click
+		         rather than going back to the report and opening the other tile. */ ?>
+		<a class="scope-btn scope-btn--ghost" href="?<?php
+			$qs = $_GET; $qs['by'] = ($by === 'equipt' ? 'car' : 'equipt');
+			echo htmlspecialchars(http_build_query($qs));
+		?>">By <?php echo $by === 'equipt' ? 'car' : 'equipment'; ?></a>
 		<button type="button" class="scope-btn scope-btn--ghost" onclick="csPrintReport()">Generate printout</button>
-		<a class="scope-btn" href="<?php echo htmlspecialchars($carHistoryUrl); ?>" target="<?php echo $carHistoryTarget; ?>">Full incident history &rarr;</a>
+<?php if($carHistoryUrl !== ''){ ?>		<a class="scope-btn" href="<?php echo htmlspecialchars($carHistoryUrl); ?>" target="<?php echo $carHistoryTarget; ?>">Full incident history &rarr;</a><?php } ?>
 	</div>
 <?php } ?>
 </div>
@@ -354,12 +532,12 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 		<div class="k-sub">from <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?></div>
 	</div>
 	<div class="kpi-tile">
-		<div class="k-label">Equipment types affected</div>
+		<div class="k-label"><?php echo $by === 'equipt' ? 'Equipment types affected' : 'Cars affected'; ?></div>
 		<div class="k-value"><?php echo count($rows); ?></div>
-		<div class="k-sub"><?php echo $equiptTracked ? 'of '.$equiptTracked.' in the equipment table' : 'distinct types'; ?></div>
+		<div class="k-sub"><?php echo $equiptTracked ? 'of '.$equiptTracked.($by === 'equipt' ? ' in the equipment table' : ' cars on record') : 'distinct'; ?></div>
 	</div>
 	<div class="kpi-tile">
-		<div class="k-label">Equipment with the highest number of faults</div>
+		<div class="k-label"><?php echo $by === 'equipt' ? 'Equipment with the highest number of faults' : 'Car with the highest number of faults'; ?></div>
 		<div class="k-value k-value--name"><?php echo count($rows) ? htmlspecialchars($rows[0]['label']) : '&mdash;'; ?></div>
 		<div class="k-sub"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
 	</div>
@@ -377,11 +555,12 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <?php } ?>
 </div>
 
-<table class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
+<h3 class="brk-head">By <?php echo $by === 'equipt' ? 'equipment' : 'car'; ?></h3>
+<table id='equipt_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
 <colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
 <thead>
 <tr>
-	<th>Equipment</th>
+	<th><?php echo $by === 'equipt' ? 'Equipment' : 'Car'; ?></th>
 	<th>Failures</th>
 	<th>Share</th>
 </tr>
@@ -397,7 +576,7 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </tr>
 <?php } ?>
 <?php if(!count($rows)){ ?>
-<tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No equipment failures recorded for this car in this period.</td></tr>
+<tr><td colspan="3" align=center style="padding:18px;opacity:.6;">No failures recorded in this period.</td></tr>
 <?php } ?>
 </tbody>
 <tfoot>
@@ -408,6 +587,48 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 </tr>
 </tfoot>
 </table>
+
+<?php
+/* @monthstats -- The period breakdown. On a page whose subject IS the period,
+   this is the table that answers "was it evenly spread or one bad day", which
+   the by-car / by-equipment table above cannot show at all.
+   Same grain rule as the sibling pages: one month in scope breaks down by day,
+   several by month. */
+if(count($periodBuckets) > 1){
+?>
+<h3 class="brk-head"><?php echo htmlspecialchars($periodHeading); ?></h3>
+<table id='period_table' class="table table-striped table-bordered bootstrap-datatable datatable2 eq-table" border=1 style='border-collapse:collapse;' width=100%>
+<colgroup><col class="c-name"><col class="c-num"><col class="c-num"></colgroup>
+<thead>
+<tr>
+	<th><?php echo $grain === 'day' ? 'Day' : ($grain === 'year' ? 'Year' : 'Month'); ?></th>
+	<th>Failures</th>
+	<th>Share</th>
+</tr>
+</thead>
+<tbody>
+<?php
+/* Chronological, not ranked: on a period page read top to bottom this is a
+   timeline, and the red rows already carry which was worst. */
+foreach($periodBuckets as $pk => $pCount){
+	$isFlagged = ($peakPeriodCount > 0 && $pCount >= $periodThreshold);
+?>
+<tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
+	<th><?php echo htmlspecialchars(msPeriodLabel($grain, $pk, $labelWithYear)); ?></th>
+	<td align=center><?php echo $pCount; ?></td>
+	<td align=center><?php echo $equipt_count ? round($pCount/$equipt_count*100).'%' : '&mdash;'; ?></td>
+</tr>
+<?php } ?>
+</tbody>
+<tfoot>
+<tr style="background:#F1EEE3;font-weight:700;">
+	<th style="text-align:left;">Total</th>
+	<td align=center><?php echo $equipt_count; ?></td>
+	<td align=center><?php echo $equipt_count ? '100%' : '&mdash;'; ?></td>
+</tr>
+</tfoot>
+</table>
+<?php } ?>
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	<span style="color:#7A1F1F;font-weight:700;">Rows in red</span>
@@ -469,8 +690,16 @@ var csThreshold  = <?php echo json_encode(round($flagThreshold,1)); ?>;
 function csPrintReport(){
 	function esc(x){ return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-	var tbl = document.querySelector('.ccs-panel-body table');
-	var tableHtml = tbl ? tbl.outerHTML : '<p>No table to print.</p>';
+	/* @monthstats -- collected generically: the period table only renders for
+	   some periods, so naming tables individually would print a placeholder for
+	   whichever is absent. Headings travel with their tables, in page order. */
+	var blocks = document.querySelectorAll('.ccs-panel-body h3.brk-head, .ccs-panel-body table.eq-table');
+	var tableHtml = '';
+	for(var bi=0; bi<blocks.length; bi++){
+		var el = blocks[bi];
+		tableHtml += (el.tagName === 'H3') ? '<h2 class="sec">'+el.innerHTML+'</h2>' : el.outerHTML;
+	}
+	if(!tableHtml){ tableHtml = '<p>No table to print.</p>'; }
 
 	var levelRows = csLevels.map(function(r){
 		var pct = csLevelled ? Math.round(r[1]/csLevelled*100)+'%' : '\u2014';
@@ -510,26 +739,53 @@ function csPrintReport(){
 			'.kpi-v{ font-size:17px; font-weight:600; color:#1f4e79; line-height:1.1; }' +
 			'.kpi-v.name{ font-size:11px; color:#7A1F1F; line-height:1.25; }' +
 			'.kpi-s{ font-size:8px; color:#6b7280; margin-top:2px; }' +
-			'table{ width:100%; border-collapse:collapse; font-size:9px; margin-bottom:2px; }' +
+			/* @tablestyle -- Matched to car_history.php's printout, which is the
+			   one that reads cleanly. Two things were making these heavier:
+
+			   1. Every data row's FIRST cell is a <th>, not a <td>. car_history
+			      has no body th at all, so its 'th{background:navy}' only ever
+			      hits the header. Here that rule would paint the whole label
+			      column navy, so it had been given its own beige fill -- which
+			      turned column one into a second header running down the page and
+			      buried the striping underneath it. Body th is styled as a td now,
+			      and only the leading column keeps its left alignment.
+			   2. Full 1px boxes around every cell. Horizontal rules only, so the
+			      stripe does the column separation instead of a grid. */
+			'table{ width:100%; border-collapse:collapse; font-size:9.5px; margin-bottom:2px; }' +
 			'thead{ display:table-header-group; }' +
-			'thead th{ background:#1f4e79; color:#fff; text-align:center; padding:4px 3px; font-size:8px; font-weight:600;' +
-				' text-transform:uppercase; letter-spacing:.03em; border:1px solid #1f4e79; }' +
-			/* Each data row's first cell is a th too, so the header fill has to
-			   be scoped to thead or the whole Equipment column goes navy. */
-			'tbody th, tfoot th{ background:#F1EFE8; color:#1a1a1a; text-align:left; padding:3px 5px; font-size:9px;' +
-				' font-weight:600; border:1px solid #e5e7eb; }' +
-			'td{ padding:3px; border:1px solid #e5e7eb; text-align:center; }' +
-			/* @cols -- mirrors the screen: fixed columns, wrapping names, and
-			   the threshold shown as red text rather than a pink fill. */
+			/* @gridlines -- I had cut these to border-bottom only. car_history.php,
+			   the printout this is matched to, uses a full 1px box on every cell --
+			   dropping the vertical rules left the columns floating, which is the
+			   missing lines. Full grid restored, in the same hairline grey.
+			   And the numeric columns are centred, not right-aligned: they were
+			   centred on screen and in the previous printout, and right-alignment
+			   only earns its keep when figures need decimal alignment. */
+			'thead th{ background:#1f4e79; color:#fff; text-align:center; padding:6px 7px;' +
+				' font-size:9px; font-weight:600; text-transform:uppercase;' +
+				' letter-spacing:.04em; border:1px solid #1f4e79; }' +
+			'thead th:first-child{ text-align:left; }' +
+			'tbody th, tbody td{ padding:5px 7px; background:none; color:#1a1a1a;' +
+				' font-weight:400; vertical-align:top; border:1px solid #e5e7eb; }' +
+			'tbody th{ text-align:left; font-weight:500; overflow-wrap:anywhere; }' +
+			'tbody td{ text-align:center; }' +
+			/* @stripe -- every data table, not just .eq-table: the severity table
+			   (.lv) is built inline and was left plain, so one report carried two
+			   table styles. .kpi is excluded -- a tile strip, not a data table.
+			   Must follow the tbody rule above; equal weight, later wins. */
+			'table:not(.kpi) tbody tr:nth-child(even) th,' +
+			'table:not(.kpi) tbody tr:nth-child(even) td{ background:#f6f8fa; }' +
+			/* The Total row: one rule above it, no heavy fill competing with the
+			   stripe underneath. */
+			'tfoot th, tfoot td{ background:none; font-weight:700; padding:5px 7px;' +
+				' border:1px solid #e5e7eb; border-top:2px solid #1f4e79; }' +
+			'tfoot th{ text-align:left; } tfoot td{ text-align:center; }' +
 			'table.eq-table{ table-layout:fixed; }' +
-			'table.eq-table tbody th{ text-align:left; overflow-wrap:anywhere; }' +
-			'table.eq-table tbody tr:nth-child(even) th,' +
-			'table.eq-table tbody tr:nth-child(even) td{ background:#F7F5EE; }' +
+			'table.lv{ width:auto; min-width:190px; }' +
+			/* Threshold rows: red text and weight, no fill -- the pink fill read
+			   as an error state and fought the striping. */
 			'tr.eq-flag th, tr.eq-flag td{ color:#7A1F1F !important; font-weight:700; }' +
 			'tr.eq-flag th a{ color:#7A1F1F !important; }' +
-			'tfoot td{ background:#F1EFE8; font-weight:700; }' +
 			'tr{ page-break-inside:avoid; }' +
-			'table.lv{ width:auto; min-width:180px; }' +
 			/* The equipment names are links on screen; inline colours would win
 			   without !important, and a printed link should not look clickable. */
 			'a{ color:inherit !important; text-decoration:none !important; pointer-events:none; }' +
@@ -564,10 +820,8 @@ function csPrintReport(){
 			levelRows +
 		'</tbody></table>' +
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
-		'<h2 class="sec">Equipment Breakdown</h2>' +
 		tableHtml +
 		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
-		(csCoverage ? '<p class="note" style="color:#7A1F1F;">'+esc(csCoverage)+'</p>' : '') +
 		'<p class="note">Figures count car-level failures for this car: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
 		'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 		'</body></html>'

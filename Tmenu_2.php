@@ -281,6 +281,11 @@ body { height: 100%; overflow: hidden; }
 	</ul>
 	</li>	
 		<li><a href='clearance form.php' id='dr'>Clearance Form</a></li>
+		
+	<?php 
+	if(($_SESSION['Ulevel']==3)&&($_SESSION['division']=="admin")){
+	?>				
+		
 		<li><a href='#'>Statistics Report</a>
 		<ul>
 			<li><a href='#' onclick="window.open('problem_history.php')">Problems by Category</a>
@@ -302,7 +307,12 @@ body { height: 100%; overflow: hidden; }
 
 			</ul>
 			
-			</li>		
+			</li>	
+	<?php 
+	}
+	if(($_SESSION['Ulevel']==4)&&($_SESSION['division']=="admin")){
+		?>
+			
 	<li><a href='#'>Database Records</a>	
 	<ul>
 		<li><a style='text-decoration:none;' href='indexAdd.php'>Transport Employees</a></li>  
@@ -313,6 +323,10 @@ body { height: 100%; overflow: hidden; }
 
 	</ul>	
 	</li>
+	<?php
+	}
+	?>
+	
 </ul>
 
 <!--

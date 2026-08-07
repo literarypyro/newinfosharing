@@ -151,6 +151,15 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
 
 
+/* @sort -- The arrow sits at low contrast at rest so a header reads as
+   sortable before it is hovered; a control that appears only on hover cannot
+   be found by someone looking for it. */
+#csrMatrix thead th { cursor:pointer; user-select:none; position:relative; padding-right:15px; }
+#csrMatrix thead th:hover { background:#003E76; }
+#csrMatrix thead th::after { content:"\2195"; position:absolute; right:4px; opacity:.35; font-size:10px; font-weight:400; }
+#csrMatrix thead th[aria-sort="ascending"]::after  { content:"\25B2"; opacity:1; }
+#csrMatrix thead th[aria-sort="descending"]::after { content:"\25BC"; opacity:1; }
+
 .stat_hover:hover {
 	background-color:#FFF1CC;
 	text-decoration:underline;
@@ -332,7 +341,7 @@ for($i=0;$i<=$nm;$i++){
 // the table has run, so buffer the table and emit the summary above it.
 ob_start();
 ?>
-<table class='table table-striped table-bordered bootstrap-datatable datatable2' border=1 style='border-collapse:collapse;' width=100%>
+<table id="csrMatrix" class='table table-striped table-bordered bootstrap-datatable datatable2' border=1 style='border-collapse:collapse;' width=100%>
 <thead>
 
 
@@ -526,6 +535,12 @@ for($k=1;$k<=$bucketCount;$k++){
 <?php
 }
 ?>
+</tbody>
+<?php /* @sort -- "All cars" moved out of tbody into tfoot. It was the last row
+         INSIDE the body, so any sort would have carried it along and dropped a
+         totals row into the middle of the fleet. tfoot is also what a browser
+         repeats across printed pages. */ ?>
+<tfoot>
 <tr style="background:#F1EEE3;font-weight:700;">
 	<th>All cars</th>
 <?php for($k=1;$k<=$bucketCount;$k++){
@@ -540,7 +555,7 @@ for($k=1;$k<=$bucketCount;$k++){
 <?php } ?>
 	<td align=center><?php echo $grandTotal; ?></td>
 </tr>
-</tbody>
+</tfoot>
 </table>
 <?php
 $tableHtml = ob_get_clean();
@@ -669,11 +684,20 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 <?php } ?>
 	</div>
 	<!-- @peakmonth -- was echoing $avgPerActiveCar under this label -->
-	<div style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+<?php
+	/* @monthpanel -- The tile can name SEVERAL periods: the peak calculation
+	   keeps ties rather than resolving them, so "March & July" is a real
+	   answer. month_stats.php takes a comma list for exactly that reason --
+	   sending only the first would quietly drop half of what the tile says. */
+	$peakClickableMonth = (count($peakMonthKeys) > 0);
+	$peakMonthCsv = implode(',', $peakMonthKeys);
+?>
+	<div class="<?php echo $peakClickableMonth ? 'kpi-tile--link' : ''; ?>" style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickableMonth){ ?> role="button" tabindex="0" aria-label="Open the breakdown for <?php echo htmlspecialchars(strip_tags(str_replace('&amp;','and',$peakMonthLabel))); ?>" onclick="openMonthPanel('<?php echo $year; ?>','<?php echo $peakMonthCsv; ?>','<?php echo $isDayView ? (int)$month : 0; ?>',<?php echo htmlspecialchars(json_encode(strip_tags(str_replace('&amp;','and',$peakMonthLabel))), ENT_QUOTES); ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;"><?php echo $isDayView ? 'Day' : 'Month'; ?> with the Most Failures</div>
-		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $peakMonthLabel; ?></div>
+		<div class="kpi-figure" style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $peakMonthLabel; ?></div>
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakMonthSub; ?></div>
-	</div>
+<?php if($peakClickableMonth){ ?>		<div class="kpi-hint">View <?php echo $isDayView ? 'day' : 'month'; ?> breakdown &rarr;</div>
+<?php } ?>	</div>
 </div>
 
 <div style="margin-bottom:14px;">
@@ -728,6 +752,72 @@ function sortCar($count_a,$count_b){
 <?php require("slide_panel.php"); ?>
 
 <script language='javascript'>
+/* @sort -- Sorting reorders the DOM, and the printout is built by cloning the
+   table's outerHTML. That is the whole trick: the clone reads the LIVE DOM, not
+   the PHP-generated order, so whatever is on screen is what prints. No sort
+   state has to be handed to the print handler at all.
+
+   Written against the table directly rather than through DataTables: the
+   .datatable2 auto-init may or may not run depending on the template, and a
+   sort that silently does nothing on some pages is worse than none. */
+(function(){
+	var table = document.getElementById('csrMatrix');
+	if(!table || !table.tBodies[0] || !table.tHead) return;
+	var tbody = table.tBodies[0];
+
+	/* Decided per cell, not per column: a coverage-gap cell carries a marker,
+	   not a number, and must not read as 0 -- that would sort "no records" in
+	   among the genuinely quiet months. Gaps sort last in BOTH directions,
+	   because absent data is not a small value. */
+	function cellValue(row, idx){
+		var cell = row.cells[idx];
+		if(!cell) return { miss:true };
+		if((cell.className||'').indexOf('ccs-missing') !== -1) return { miss:true };
+		var txt = (cell.textContent || '').trim();
+		if(txt === '' || txt === '\u2014') return { miss:true };
+		var num = parseFloat(txt.replace(/[^0-9.\-]/g, ''));
+		return isNaN(num) ? { miss:false, txt:txt.toLowerCase() } : { miss:false, num:num };
+	}
+
+	function sortBy(idx, dir){
+		var rows = Array.prototype.slice.call(tbody.rows);
+		rows.sort(function(a, b){
+			var x = cellValue(a, idx), y = cellValue(b, idx);
+			if(x.miss && y.miss) return 0;
+			if(x.miss) return 1;
+			if(y.miss) return -1;
+			var r;
+			if(x.num !== undefined && y.num !== undefined) r = x.num - y.num;
+			else r = String(x.txt !== undefined ? x.txt : x.num)
+			           .localeCompare(String(y.txt !== undefined ? y.txt : y.num));
+			return dir === 'asc' ? r : -r;
+		});
+		rows.forEach(function(r){ tbody.appendChild(r); });
+	}
+
+	var heads = table.tHead.rows[0].cells;
+	Array.prototype.forEach.call(heads, function(th, idx){
+		th.setAttribute('role','button');
+		th.setAttribute('tabindex','0');
+		th.title = 'Sort by ' + (th.textContent||'').trim();
+		function go(){
+			var cur = th.getAttribute('aria-sort');
+			/* Count columns open DESCENDING: on a failures table the question is
+			   almost always "which is worst", and making that the second click
+			   is a needless step. Car # opens ascending. */
+			var dir = cur === 'descending' ? 'asc'
+			        : (cur === 'ascending' ? 'desc' : (idx === 0 ? 'asc' : 'desc'));
+			Array.prototype.forEach.call(heads, function(o){ o.removeAttribute('aria-sort'); });
+			th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending');
+			sortBy(idx, dir);
+		}
+		th.addEventListener('click', go);
+		th.addEventListener('keydown', function(e){
+			if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); }
+		});
+	});
+})();
+
 var irLoadTimer=null, irExpectingLoad=false, irNeedsReload=false;
 
 function closeIncidentPanel(){
@@ -751,6 +841,35 @@ function irFrameLoaded(){
 	document.getElementById('irLoading').classList.add('hidden');
 	document.getElementById('irFallback').classList.add('hidden');
 	document.getElementById('irFrame').classList.add('ready');
+}
+
+/* @monthpanel -- Same panel, different target. month_stats.php reads
+   months= / days= as comma lists and by= for the breakdown axis; a car report
+   drills into cars, so by=car.
+   dayMonth is the month those DAYS belong to -- sent only in day view, where
+   the tile names days rather than months. */
+function openMonthPanel(year, csv, dayMonth, title){
+	title = title || 'Period breakdown';
+	var q = "by=car&year=" + encodeURIComponent(year)
+	      + (dayMonth && dayMonth !== '0'
+	          ? "&month=" + encodeURIComponent(dayMonth) + "&days=" + encodeURIComponent(csv)
+	          : "&months=" + encodeURIComponent(csv))
+	      + "&title=" + encodeURIComponent(title);
+
+	document.getElementById('ir-panel-title').textContent = title;
+	document.getElementById('irFallbackLink').href = "month_stats.php?" + q;
+	var frame = document.getElementById('irFrame');
+	frame.classList.remove('ready');
+	document.getElementById('irLoading').classList.remove('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	clearTimeout(irLoadTimer);
+	irExpectingLoad = true;
+	frame.src = "month_stats.php?" + q + "&embed=1";
+	document.getElementById('irPanel').classList.add('active');
+	document.getElementById('irOverlay').classList.add('active');
+	irLoadTimer = setTimeout(function(){
+		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
+	}, 6000);
 }
 
 function openEditIncidentPanel(year,car,title,month,equipt=null){
@@ -979,4 +1098,7 @@ document.addEventListener('keydown',function(e){
 </script>
 
 </body>
+</html>
+</html>
+</html>
 </html>

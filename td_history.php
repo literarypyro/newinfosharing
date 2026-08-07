@@ -447,7 +447,19 @@ $(function(){
 		new Chart(document.getElementById('tdVolume'), {
 			type: 'bar',
 			data: {
-				labels: shown.map(tdMonthLabel),
+				/* @months -- The months were not missing from the data, they were
+				   missing from the AXIS. Chart.js autoSkip is on by default, so
+				   with 24 two-line labels on a 340px canvas it drops whichever
+				   ones it decides will not fit -- and it decides differently at
+				   different canvas sizes, which is why the printed copy skipped
+				   a different set from the screen.
+				   Thinned deterministically instead: every third month, plus
+				   the last one so the series always states where it ends.
+				   Every bar is still drawn; only the labels thin. */
+				labels: shown.map(function(m, i){
+					var showIt = (i % 3 === 0) || (i === shown.length - 1);
+					return showIt ? tdMonthLabel(m) : '';
+				}),
 				datasets: [{ data: shown.map(function(m){ return tdMonthly[m]; }), backgroundColor: mainColor, borderRadius: 3 }]
 			},
 			options: {
@@ -459,7 +471,9 @@ $(function(){
 				scales: {
 					/* Two-line labels do not need rotating; autoSkip still thins
 					   them if 24 will not fit the 340px canvas. */
-					x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 0, autoSkipPadding: 3 }, grid: { display: false } },
+					/* autoSkip off: the thinning above is ours, and leaving both
+					   on lets Chart.js drop labels we already chose to keep. */
+					x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 0, autoSkip: false }, grid: { display: false } },
 					y: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } }
 				}
 			}

@@ -271,52 +271,8 @@ if(isset($_POST['edit_car'])){
 
 
 
-/* @font -- --ta-sans already matches the stack every other page uses, so the
-   mismatch was never the value. Two scoping gaps:
-
-   1. The rule was scoped to .ta-ops, so anything rendered OUTSIDE that
-      container -- the template's own chrome, and the slide panels, which are
-      position:fixed siblings -- fell back to whatever the admin template sets.
-   2. Form controls do NOT inherit font-family. A <button>, <input>, <select>
-      or <textarea> with no explicit rule renders in the browser's own UI font
-      regardless of what its parent says. Several here had one (#search_date,
-      .ops-nav-btn, .ops-pill) and several did not (.ops-go, the panel close
-      button, anything added later), which is exactly the "some of the text"
-      pattern -- it was always the controls that had been missed.
-
-   Declaring it on body covers (1); the control reset covers (2) for
-   everything present and everything added afterwards. */
-body, .ta-ops { font-family:var(--ta-sans); }
-.ta-ops { color:var(--ink); }
+.ta-ops { font-family:var(--ta-sans); color:var(--ink); }
 .ta-ops * { box-sizing:border-box; }
-button, input, select, textarea,
-.ta-ops button, .ta-ops input, .ta-ops select, .ta-ops textarea,
-.ta-panel button, .ta-panel input, .ta-panel select, .ta-panel textarea {
-	font-family:var(--ta-sans);
-}
-/* The monospace elements opt back in explicitly, so the reset above cannot
-   flatten the figures the layout relies on being tabular. */
-/* @font -- TIMES are not in this list any more. The insertion and removal
-   times were monospace while the remarks beside them were sans, so two cells
-   in the same row disagreed about what font the page uses -- and the times are
-   the ones people read first.
-
-   The reason they were monospace is real though: a proportional font gives
-   digits different widths, so a column of times will not line up. That is what
-   font-variant-numeric:tabular-nums is for -- it asks the sans face for its
-   fixed-width digits, so the column still aligns without the typewriter look.
-   Supported everywhere this console runs; where it is not, the only loss is
-   the alignment it was solving for anyway.
-
-   Identifiers stay monospace: an index number or a car number is a code to be
-   read character by character, not prose. */
-.idx-num, .sw-chip .sw-idx, .tc-car, td.lvl, .ops-info .val { font-family:var(--ta-mono); }
-.hl-time, .ta-slot-time, .sw-chip .sw-time,
-.ta-ops td .hl-time, .ta-ops td .ta-slot-time {
-	font-family:var(--ta-sans);
-	font-variant-numeric:tabular-nums;
-	font-feature-settings:"tnum" 1;
-}
 
 /* ── Page header (operations.php two-row header, Line 3 skin) ── */
 .ops-header       { background:var(--rail); border-bottom:3px solid var(--gold); padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
@@ -386,7 +342,7 @@ tr.row--cancelled td.idx-cell::before { background:var(--c-cancelled); }
 .sw-trail         { display:flex; flex-direction:column; align-items:flex-start; gap:3px; margin-top:6px; }
 .sw-chip          { display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid #C5D8EE; border-left:3px solid var(--gold); border-radius:4px; padding:2px 7px; }
 .sw-chip .sw-idx  { font-family:var(--ta-mono); font-weight:700; font-size:12.5px; color:var(--rail); }
-.sw-chip .sw-time { font-family:var(--ta-sans); font-variant-numeric:tabular-nums; font-size:10.5px; color:var(--mut); }
+.sw-chip .sw-time { font-family:var(--ta-mono); font-size:10.5px; color:var(--mut); }
 .sw-chip .sw-drv  { font-size:10px; color:var(--mut); }
 .sw-chip .ta-del-sw { text-decoration:none; font-size:12px; color:#B23A33; line-height:1; }
 .sw-chip .ta-del-sw.disabled { display:none; }
@@ -401,8 +357,8 @@ td.tc-car-cell    { text-align:center; vertical-align:middle !important; min-wid
 
 /* Time / slot cells (train_availability console) */
 .ta-slot-cell     { padding:8px 10px !important; vertical-align:top !important; min-width:110px; }
-.hl-time          { display:inline-block; font-family:var(--ta-sans); font-variant-numeric:tabular-nums; font-size:13px; font-weight:700; color:#084298; background:#DCEBFB; border:1px solid #B7D3F2; border-radius:5px; padding:3px 10px; }
-.ta-slot-time     { display:block; font-family:var(--ta-sans); font-variant-numeric:tabular-nums; font-size:13px; font-weight:700; color:var(--ink); line-height:1.35; }
+.hl-time          { display:inline-block; font-family:var(--ta-mono); font-size:13px; font-weight:700; color:#084298; background:#DCEBFB; border:1px solid #B7D3F2; border-radius:5px; padding:3px 10px; }
+.ta-slot-time     { display:block; font-family:var(--ta-mono); font-size:13px; font-weight:700; color:var(--ink); line-height:1.35; }
 .ta-slot-driver   { display:block; font-size:11px; color:var(--mut); line-height:1.35; margin-top:2px; }
 .ta-slot-actions  { display:block; margin-top:5px; height:20px; visibility:hidden; }
 td.td-hover .ta-slot-actions { visibility:visible; }

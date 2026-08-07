@@ -187,6 +187,17 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 .eq-link { color:#00529B; font-weight:600; text-decoration:none; cursor:pointer; }
 .eq-link:hover, .eq-link:focus { text-decoration:underline; color:#003E76; }
 
+/* @sort -- Same treatment as car_statistics_report.php. The arrow sits at low
+   contrast at rest so a header reads as sortable before it is hovered.
+   padding-right is smaller in dense mode: at 24 columns the arrow would
+   otherwise eat width the counts need. */
+#srmMatrix thead th { cursor:pointer; user-select:none; position:relative; padding-right:14px; }
+#srmMatrix.stat-dense thead th { padding-right:10px; }
+#srmMatrix thead th:hover { background:#003E76; }
+#srmMatrix thead th::after { content:"\2195"; position:absolute; right:3px; top:50%; margin-top:-6px; opacity:.35; font-size:10px; font-weight:400; }
+#srmMatrix thead th[aria-sort="ascending"]::after  { content:"\25B2"; opacity:1; }
+#srmMatrix thead th[aria-sort="descending"]::after { content:"\25BC"; opacity:1; }
+
 .stat_hover:hover {
 	background-color:#FFF1CC;
 	text-decoration:underline;
@@ -646,7 +657,7 @@ for($i=0;$i<$nm;$i++){
 ob_start();
 ?>
 <div class="stat-wrap">
-<table class="table table-striped table-bordered bootstrap-datatable datatable2<?php echo $isDense ? ' stat-dense' : ''; ?>" border=1px style='border-collapse:collapse;' width=100%>
+<table id="srmMatrix" class="table table-striped table-bordered bootstrap-datatable datatable2<?php echo $isDense ? ' stat-dense' : ''; ?>" border=1px style='border-collapse:collapse;' width=100%>
 <thead>
 <tr >
 <th>Equipment</th>
@@ -948,11 +959,40 @@ $tableHtml = ob_get_clean();
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakTotal; ?> failure<?php echo $peakTotal==1?'':'s'; ?></div>
 <?php if($peakClickable){ ?>		<div class="kpi-hint">View car breakdown &rarr;</div>
 <?php } ?>	</div>
-	<div style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
+<?php
+	/* @monthpanel -- The bucket keys here are composite (YYYYMM or YYYYMMDD),
+	   built that way so two Marches from different years cannot merge. Split
+	   them back out for the panel, which takes a plain month or day list plus
+	   the year they belong to.
+	   Ties are kept, so the list can name several -- sending only the first
+	   would drop half of what the tile says. */
+	$peakClickableBucket = (count($peakBucketIdx) > 0);
+	$pbYear = 0; $pbMonth = 0; $pbCsv = '';
+	if($peakClickableBucket){
+		$parts = array();
+		foreach($peakBucketIdx as $bi){
+			$bk = $buckets[$bi]['key'];
+			if($isDayView){ $pbYear=(int)floor($bk/10000); $pbMonth=(int)floor(($bk%10000)/100); $parts[]=$bk%100; }
+			else          { $pbYear=(int)floor($bk/100);   $parts[]=$bk%100; }
+		}
+		$pbCsv = implode(',', $parts);
+		/* Buckets spanning more than one year cannot be expressed as one
+		   year + a month list, so those hand over the date range instead. */
+		$pbYears = array();
+		foreach($peakBucketIdx as $bi){
+			$bk = $buckets[$bi]['key'];
+			$pbYears[$isDayView ? (int)floor($bk/10000) : (int)floor($bk/100)] = true;
+		}
+		$pbMultiYear = (count($pbYears) > 1);
+	}
+	else { $pbMultiYear = false; }
+?>
+	<div class="<?php echo $peakClickableBucket ? 'kpi-tile--link' : ''; ?>" style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickableBucket){ ?> role="button" tabindex="0" aria-label="Open the breakdown for <?php echo htmlspecialchars(strip_tags(str_replace('&amp;','and',$peakBucketLabel))); ?>" onclick="openMonthPanel('<?php echo (int)$pbYear; ?>','<?php echo $pbCsv; ?>','<?php echo (int)$pbMonth; ?>',<?php echo htmlspecialchars(json_encode(strip_tags(str_replace('&amp;','and',$peakBucketLabel))), ENT_QUOTES); ?>,'<?php echo $pbMultiYear ? 1 : 0; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;"><?php echo $isDayView ? 'Day' : 'Month'; ?> with the Most Failures</div>
 		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $peakBucketLabel; ?></div>
 		<div style="font-size:11px;color:#5A6275;"><?php echo $peakBucketSub; ?></div>
-	</div>
+<?php if($peakClickableBucket){ ?>		<div class="kpi-hint">View <?php echo $isDayView ? 'day' : 'month'; ?> breakdown &rarr;</div>
+<?php } ?>	</div>
 </div>
 
 <div style="margin-bottom:14px;">
@@ -976,6 +1016,76 @@ $tableHtml = ob_get_clean();
 
 <script>
 var srmEquiptTotals = <?php echo json_encode($equiptTotals); ?>;
+/* @sort -- Sorting reorders the DOM, and the printout clones the table's
+   outerHTML from the LIVE DOM rather than the PHP-generated order, so whatever
+   is on screen is what prints. No sort state crosses into the print handler.
+
+   Against the table directly rather than through DataTables: the .datatable2
+   auto-init may or may not run depending on the template, and a sort that
+   silently does nothing on some pages is worse than none.
+
+   "All equipment" already sits in <tfoot> here, so unlike the car report it
+   needs no moving -- a tfoot row is not part of tBodies and cannot be caught
+   up in the sort. */
+(function(){
+	var table = document.getElementById('srmMatrix');
+	if(!table || !table.tBodies[0] || !table.tHead) return;
+	var tbody = table.tBodies[0];
+
+	/* Per cell, not per column: a coverage-gap cell carries a marker rather
+	   than a number and must not read as 0 -- that would sort "no records" in
+	   among the genuinely quiet months. Gaps sort last in BOTH directions,
+	   because absent data is not a small value. The equipment column is a th
+	   holding a link, so textContent is what gets compared there. */
+	function cellValue(row, idx){
+		var cell = row.cells[idx];
+		if(!cell) return { miss:true };
+		if((cell.className||'').indexOf('ccs-missing') !== -1) return { miss:true };
+		var txt = (cell.textContent || '').trim();
+		if(txt === '' || txt === '\u2014') return { miss:true };
+		var num = parseFloat(txt.replace(/[^0-9.\-]/g, ''));
+		return isNaN(num) ? { miss:false, txt:txt.toLowerCase() } : { miss:false, num:num };
+	}
+
+	function sortBy(idx, dir){
+		var rows = Array.prototype.slice.call(tbody.rows);
+		rows.sort(function(a, b){
+			var x = cellValue(a, idx), y = cellValue(b, idx);
+			if(x.miss && y.miss) return 0;
+			if(x.miss) return 1;
+			if(y.miss) return -1;
+			var r;
+			if(x.num !== undefined && y.num !== undefined) r = x.num - y.num;
+			else r = String(x.txt !== undefined ? x.txt : x.num)
+			           .localeCompare(String(y.txt !== undefined ? y.txt : y.num));
+			return dir === 'asc' ? r : -r;
+		});
+		rows.forEach(function(r){ tbody.appendChild(r); });
+	}
+
+	var heads = table.tHead.rows[0].cells;
+	Array.prototype.forEach.call(heads, function(th, idx){
+		th.setAttribute('role','button');
+		th.setAttribute('tabindex','0');
+		th.title = 'Sort by ' + (th.textContent||'').replace(/\s+/g,' ').trim();
+		function go(){
+			var cur = th.getAttribute('aria-sort');
+			/* Count columns open DESCENDING -- on a failures table the question
+			   is almost always "which is worst". The Equipment column opens
+			   ascending, so it sorts A-Z. */
+			var dir = cur === 'descending' ? 'asc'
+			        : (cur === 'ascending' ? 'desc' : (idx === 0 ? 'asc' : 'desc'));
+			Array.prototype.forEach.call(heads, function(o){ o.removeAttribute('aria-sort'); });
+			th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending');
+			sortBy(idx, dir);
+		}
+		th.addEventListener('click', go);
+		th.addEventListener('keydown', function(e){
+			if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); }
+		});
+	});
+})();
+
 var srmMonthSeries  = <?php echo json_encode($monthSeries); ?>;
 var srmPeriod       = <?php echo json_encode(isset($period) ? $period : ''); ?>;
 var srmLevel        = <?php echo json_encode($level); ?>;
@@ -986,6 +1096,9 @@ var srmPeakName     = <?php echo json_encode($peakName); ?>;
 var srmUncovered    = <?php echo json_encode($uncoveredMonths); ?>;
 var srmCoverageNote = <?php echo json_encode($coverageNote); ?>;
 var srmBucketWord   = <?php echo json_encode($bucketWord); ?>;   /* @buckets */
+var srmPanelFrom    = <?php echo json_encode($panelFrom); ?>;    /* @monthpanel */
+var srmPanelTo      = <?php echo json_encode($panelTo); ?>;
+var srmPanelCar     = <?php echo json_encode($panelCar ? (string)$panelCar : ''); ?>;
 </script>
 </div>
 <br>
@@ -1164,6 +1277,43 @@ function irFrameLoaded(){
 	document.getElementById('irLoading').classList.add('hidden');
 	document.getElementById('irFallback').classList.add('hidden');
 	document.getElementById('irFrame').classList.add('ready');
+}
+
+/* @monthpanel -- Reuses this page's existing panel, pointed at month_stats.php
+   with by=equipt: an equipment report drills into equipment.
+   multiYear means the tie spans a year boundary, which one year plus a month
+   list cannot express -- those fall back to the report's own date range, which
+   is always well defined. Any car filter travels too, so the panel shows the
+   same slice the table does. */
+function openMonthPanel(year, csv, dayMonth, title, multiYear){
+	title = title || 'Period breakdown';
+	var q = "by=equipt&title=" + encodeURIComponent(title);
+
+	if(multiYear === '1' || multiYear === 1){
+		q += "&sd=" + encodeURIComponent(srmPanelFrom) + "&ed=" + encodeURIComponent(srmPanelTo);
+	}
+	else {
+		q += "&year=" + encodeURIComponent(year)
+		   + (dayMonth && dayMonth !== '0'
+		       ? "&month=" + encodeURIComponent(dayMonth) + "&days=" + encodeURIComponent(csv)
+		       : "&months=" + encodeURIComponent(csv));
+	}
+	if(srmPanelCar) q += "&car=" + encodeURIComponent(srmPanelCar);
+
+	document.getElementById('ir-panel-title').textContent = title;
+	document.getElementById('irFallbackLink').href = "month_stats.php?" + q;
+	var frame = document.getElementById('irFrame');
+	frame.classList.remove('ready');
+	document.getElementById('irLoading').classList.remove('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	clearTimeout(irLoadTimer);
+	irExpectingLoad = true;
+	frame.src = "month_stats.php?" + q + "&embed=1";
+	document.getElementById('irPanel').classList.add('active');
+	document.getElementById('irOverlay').classList.add('active');
+	irLoadTimer = setTimeout(function(){
+		if(irExpectingLoad) document.getElementById('irFallback').classList.remove('hidden');
+	}, 6000);
 }
 
 function openEquiptPanel(sd, ed, equipt, title, car){
