@@ -2249,8 +2249,16 @@ $SRemove4 = "cc-edit-pill";
 <div class="alink">
 
 <table width=70% class='ccdr'>
-<tr id='ccdr_heading'><th colspan=3 style=text-align:center>Incident Details</th></tr>
-<tr><th width=20%>Incident Number</th><td width=50%><?php echo $incident_no; ?></td><td align=center><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("incident_no")'>Edit</a></td>
+<tr id='ccdr_heading'><th colspan=<?php if(isset($_GET['editable'])){ echo "3"; } else { echo "2"; } ?> style=text-align:center>Incident Details</th></tr>
+<tr><th width=20%>Incident Number</th><td width=50%><?php echo $incident_no; ?></td>
+<?php if(isset($_GET['editable'])){
+	?>
+
+
+<td align=center><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("incident_no")'>Edit</a></td>
+<?PHP
+}
+?>
 
 
 <!--
@@ -2282,8 +2290,13 @@ if($level_condition=="3"){
 
 ?>
 </td>
+<?php if(isset($_GET['editable'])){
+	?>
 
 <td align="center"><a href='#edit_form' onclick='fillEdit("problem")'  class="<?php echo $SRemove; ?>">Edit</a></td></tr>
+<?PHP
+}
+?>
 
 <tr><th>Equipment Involved</th>
 <td>
@@ -2301,13 +2314,22 @@ if($equipment_rows_display!==""){
 }
 ?>
 </td>
+<?php if(isset($_GET['editable'])){
+	?>
+
 <td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick='ccEqOpenEditor()'>Edit</a>
 	<span id="cc-eq-badge" class="cc-picker-badge cc-picker-badge-empty">none yet</span></td>
+
+
+<?PHP
+}
+?>
 </tr>
 
 
 <tr>
 <th>Linked Incident(s)</th>
+
 <td>
 <?php
 /* Multi-link read-back listing (incident_linked_reports). Replaces the
@@ -2326,12 +2348,23 @@ if($linked_rows_display!==""){
 	echo "<span class='cc-none-note'>No linked incidents</span>";
 }
 ?></div>
+
+
 <div id="cc-link-dirty" class="cc-link-dirty" style="display:none">Link changes apply when you save.</div>
-<?php ?>
 </td>
+<?php if(isset($_GET['editable'])){
+	?>
+
 <td align="center"><a href='#edit_form' class="<?php echo $SRemove4; ?>" onclick="ccLinkOpenEditor('<?php echo $_SESSION['incident_day']; ?>' )">Edit</a>
 	<span id="cc-link-badge" class="cc-picker-badge cc-picker-badge-empty">none yet</span></td>
+
+<?PHP
+}
+?>
+
 </tr>
+
+
 <tr>
 <th>Index Number</th>
 
@@ -2342,8 +2375,13 @@ if($linked_rows_display!==""){
 
 ?>
 
+<?php if(isset($_GET['editable'])){
+	?>
 
 </td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
+<?PHP
+}
+?>
 
 <tr>
 
@@ -2363,8 +2401,17 @@ else {
 ?>
 
 
-</td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
+</td>
+<?php if(isset($_GET['editable'])){
+	?>
 
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("index")'>Edit</a></td></tr>
+
+
+
+<?PHP
+}
+?>
 <tr>
 
 <th>Cancelled Loops</th>
@@ -2372,25 +2419,87 @@ else {
 <?php echo $cancel; ?>
 
 </td>
+<?php if(isset($_GET['editable'])){
+	?>
+
 <td align="center">
 <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("cancel")'>Edit</a>
 </td>
+<?PHP
+}
+?>
 </tr>
 
 </tr>
-<tr><th>Level</th><td><?php echo $level; echo $levelClause; echo ". ".$condition; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("level")'>Edit</a></td></tr>
+<tr><th>Level</th><td><?php echo $level; echo $levelClause; echo ". ".$condition; ?></td>
 
-<tr><th>Incident Date/Time</th><td><?php echo $incident_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
-<tr><th>Time Resolved</th><td><?php echo $resolution_time; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("resolution_date")'>Edit</a></td></tr>
-<tr><th>Incident Duration</th><td><?php echo $duration; ?></td><td align="center">&nbsp;</td></tr>
+<?php if(isset($_GET['editable'])){
+	?>
 
-<tr><th>Location/Direction</th><td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("level")'>Edit</a></td></tr>
+<?PHP
+}
+?>
+<tr><th>Incident Date/Time</th><td><?php echo $incident_time; ?></td>
+
+<?php if(isset($_GET['editable'])){
+	?>
+
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("date")'>Edit</a></td></tr>
+<?PHP
+}
+?>
+<tr><th>Time Resolved</th>
 
 
 
+<td><?php echo $resolution_time; ?></td>
 
-<tr><th>Description</th><td><?php echo $description; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("description")'>Edit</a></td></tr>
-		
+<?php if(isset($_GET['editable'])){
+	?>
+
+
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("resolution_date")'>Edit</a></td></tr>
+
+<?PHP
+}
+?>
+<tr><th>Incident Duration</th>
+
+
+<td><?php echo $duration; ?></td>
+
+<?php if(isset($_GET['editable'])){
+	?>
+
+
+<td align="center">&nbsp;</td></tr>
+<?PHP
+}
+?>
+<tr><th>Location/Direction</th>
+
+<?php if(isset($_GET['editable'])){
+	?>
+
+
+<td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
+<?PHP
+}
+?>
+
+
+
+<tr><th>Description</th>
+
+
+<?php if(isset($_GET['editable'])){
+	?>
+
+<td><?php echo $description; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("description")'>Edit</a></td></tr>
+<?PHP
+}
+?>		
 		
 
 </table>
@@ -2400,11 +2509,42 @@ else {
 
 <table  class='ccdr' width=70% border=1>
 <tr id='ccdr_heading'><th colspan=3 style=text-align:center>Reporting</th></tr>
-<tr><th width=20%>Reported By</th><td width=50%><?php echo $reported_by; ?></td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("reported_by")'>Edit</a></td></tr>
-<tr><th>Received By</th><td><?php echo $received_by; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("received_by")'>Edit</a></td></tr>
-<tr><th width=20%>Recommending Approval</th><td width=50%><?php echo $recommend_approval; ?></td><td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("recommend_approval")'>Edit</a></td></tr>
-<tr><th>Approving Officer</th><td><?php echo $approving_officer; ?></td><td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("approving_officer")'>Edit</a></td></tr>
+<tr><th width=20%>Reported By</th><td width=50%><?php echo $reported_by; ?></td>
 
+<?php if(isset($_GET['editable'])){
+	?>
+
+
+<td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("reported_by")'>Edit</a></td></tr>
+<?PHP
+}
+?>
+<tr><th>Received By</th><td><?php echo $received_by; ?></td>
+
+<?php if(isset($_GET['editable'])){
+	?>
+
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("received_by")'>Edit</a></td></tr>
+<?PHP
+}
+?>
+<tr><th width=20%>Recommending Approval</th>
+
+<?php if(isset($_GET['editable'])){
+	?>
+
+<td width=50%><?php echo $recommend_approval; ?></td><td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("recommend_approval")'>Edit</a></td></tr>
+<?PHP
+}
+?>
+<tr><th>Approving Officer</th><td><?php echo $approving_officer; ?></td>
+<?php if(isset($_GET['editable'])){
+	?>
+
+<td align=center> <a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("approving_officer")'>Edit</a></td></tr>
+<?PHP
+}
+?>
 </table>
 <br>
 
@@ -2412,8 +2552,23 @@ else {
 
 <table  class='ccdr' width=70% border=1>
 <tr id='ccdr_heading'><th colspan=3 style=text-align:center>Action Taken</th></tr>
-<tr><th width=20%>DOTR</th><td width=50%><?php echo $dotc_action; ?></td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("dotc")'>Edit</a></td></tr>
-<tr><th>Maintenance Provider (TESP/Other)</th><td><?php echo $maintenance_action; ?></td><td align="center">&nbsp;</td></tr>
+<tr><th width=20%>DOTR</th><td width=50%><?php echo $dotc_action; ?>
+
+<?php if(isset($_GET['editable'])){
+	?>
+
+</td><td width=5% align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("dotc")'>Edit</a></td></tr>
+<?PHP
+}
+?>
+<tr><th>Maintenance Provider (TESP/Other)</th>
+<?php if(isset($_GET['editable'])){
+	?>
+
+<td><?php echo $maintenance_action; ?></td><td align="center">&nbsp;</td></tr>
+<?PHP
+}
+?>
 
 </table>
 <br>

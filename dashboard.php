@@ -1,0 +1,267 @@
+<?php
+/* Session before any output -- the console header calls session_start().
+   Tmenu_2.php itself is required further down, inside <body>: it emits the
+   header markup and the nav list ONLY, never <!DOCTYPE>/<html>/<head>, so
+   this page supplies its own document scaffolding. */
+if(session_id()==""){ session_start(); }
+
+/* =====================================================================
+   dashboard.php  --  Layout B, the console home page.
+
+   Workstation density: compact tiles with sparklines and week-on-week
+   delta chips, the fleet strip, two feed cards, and a monthly trend
+   band.  Date-parameterised, so it doubles as a historical day view.
+
+   Depends only on dash_data.php (guarded).  Drop both files next to
+   the other console pages and link it from Tmenu_2.php.
+   ===================================================================== */
+
+if(file_exists(dirname(__FILE__)."/dash_data.php")){
+	require_once(dirname(__FILE__)."/dash_data.php");
+}
+
+/* Hard stop with a readable message rather than a blank page. */
+if(!function_exists('dash_trains')){
+	echo "<p style='font:14px sans-serif;padding:20px'>Dashboard data layer not found. Upload <code>dash_data.php</code> alongside this page.</p>";
+	exit;
+}
+
+/* ---- selected operating date ------------------------------------- */
+$view_date = dash_date(isset($_GET['d']) ? $_GET['d'] : (isset($_POST['d']) ? $_POST['d'] : date("Y-m-d")));
+$is_today  = ($view_date === date("Y-m-d"));
+
+/* ---- data -------------------------------------------------------- */
+$trains      = dash_trains($view_date);
+$fleet       = dash_fleet_counts($view_date);
+$inc         = dash_incident_counts($view_date);
+$incidents   = dash_incidents($view_date);
+$insertions  = dash_recent_insertions($view_date,5);
+$types       = dash_type_breakdown($view_date,6);
+$months      = dash_month_series($view_date,DASH_TREND_MONTHS);
+
+$sp_trains   = dash_spark_trains($view_date);
+$sp_inc      = dash_spark_incidents($view_date);
+$sp_cancel   = dash_spark_cancelled($view_date);
+
+$d_trains    = dash_delta($sp_trains,$view_date);
+$d_inc       = dash_delta($sp_inc,$view_date);
+$d_cancel    = dash_delta($sp_cancel,$view_date);
+
+$max_month   = 0;
+foreach($months as $v){ if($v>$max_month){ $max_month=$v; } }
+$max_type    = 0;
+foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
+?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard &mdash; Line 3 Operations Console</title>
+<?php dash_styles('console'); ?>
+</head>
+<body>
+<?php require("Tmenu_2.php"); ?>
+<div class="ds-wrap">
+
+	<div class="ds-bar">
+		<div>
+			<h1>Operations dashboard</h1>
+			<div class="ds-sub"><?php echo dash_h(date("l, d F Y",strtotime($view_date))); ?><?php if($is_today){ echo " &middot; ".dash_h(date("H:i")); } ?></div>
+		</div>
+		<form method="get" action="dashboard.php">
+			<input type="date" name="d" value="<?php echo dash_h($view_date); ?>">
+			<button type="submit">Show</button>
+			<?php if(!$is_today){ ?><a class="ds-today" href="dashboard.php">Today</a><?php } ?>
+		</form>
+	</div>
+
+<?php if(!dash_ready()){ ?>
+	<div class="ds-alert">No database connection. Check <code>db_config.php</code> &mdash; every panel below will read empty until it resolves.</div>
+<?php } ?>
+
+	<!-- ============================ TILES ============================ -->
+	<div class="ds-tiles">
+
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
+			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>On line</div>
+			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span><?php echo dash_delta_chip($d_trains); ?></div>
+			<?php echo dash_sparkline($sp_trains); ?>
+		</div></a>
+
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-warn"></span><div class="ds-tile-body">
+			<div class="ds-tile-label"><span class="ds-dot f-warn"></span>At boundary</div>
+			<div><span class="ds-val"><?php echo (int)$fleet['boundary']; ?></span><span class="ds-den">prepped</span></div>
+			<div class="ds-meter"><i class="f-warn" style="width:<?php echo dash_pct($fleet['boundary'],$fleet['target']); ?>%"></i></div>
+		</div></a>
+
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
+			<div class="ds-tile-label"><span class="ds-dot f-info"></span>Removed</div>
+			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span></div>
+			<div class="ds-meter"><i class="f-info" style="width:<?php echo dash_pct($fleet['removed'],$fleet['target']); ?>%"></i></div>
+		</div></a>
+
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('incidents',$view_date)); ?>" title="Open the incident summary for this date"><span class="ds-rail <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
+			<div class="ds-tile-label"><span class="ds-dot <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span>Incidents</div>
+			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span><span class="ds-den"><?php echo (int)$inc['failures']; ?> L2+</span><?php echo dash_delta_chip($d_inc); ?></div>
+			<?php echo dash_sparkline($sp_inc); ?>
+		</div></a>
+
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
+			<div class="ds-tile-label"><span class="ds-dot <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span>Cancelled</div>
+			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span><span class="ds-den">trainsets</span><?php echo dash_delta_chip($d_cancel); ?></div>
+			<?php echo dash_sparkline($sp_cancel); ?>
+		</div></a>
+
+	</div>
+
+	<!-- ========================= STATUS BAND ========================= -->
+<?php
+/* The band's items open edit_ccdr.php in the same iframe slide panel
+   train_operations.php uses.  Loaded HERE rather than in dash_data.php
+   so the wall board never pulls it in.  Guarded: without it the band's
+   anchors behave as ordinary links to the same record.
+
+   Prefer a real extracted slide_panel.php once it exists; dash_panel.php
+   is the stand-in port and can then be deleted. */
+if(file_exists(dirname(__FILE__)."/slide_panel.php")){
+	include_once(dirname(__FILE__)."/slide_panel.php");
+} else if(file_exists(dirname(__FILE__)."/dash_panel.php")){
+	include_once(dirname(__FILE__)."/dash_panel.php");
+}
+dash_status_band($view_date,false);
+?>
+
+	<!-- ============================ FLEET ============================ -->
+	<div class="ds-card">
+		<div class="ds-card-head">
+			<h2><a class="ds-more" style="font-size:inherit;color:inherit" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>">Fleet</a></h2>
+			<span class="ds-note"><?php echo (int)$fleet['total']; ?> record<?php echo $fleet['total']==1?'':'s'; ?><?php if($fleet['nonrevenue']){ echo " &middot; ".(int)$fleet['nonrevenue']." non-revenue"; } ?></span>
+		</div>
+<?php if(!count($trains)){ ?>
+		<div class="ds-empty">No train availability recorded for this date.</div>
+<?php } else { ?>
+		<div class="ds-fleet">
+<?php	foreach($trains as $t){
+			$meta = dash_state_meta($t['state']);
+			$tone = $t['revenue'] ? $meta[1] : 'mute';
+			$tip  = $meta[0];
+			if(dash_hm($t['insert_time'])!=""){ $tip.=" &middot; in ".dash_hm($t['insert_time']); }
+			if(dash_hm($t['remove_time'])!=""){ $tip.=" &middot; out ".dash_hm($t['remove_time']); }
+			if(!$t['revenue']){ $tip.=" &middot; ".$t['type']; }
+?>
+			<a class="ds-chip t-<?php echo $tone; ?>" title="<?php echo dash_h(strip_tags(str_replace('&middot;','-',$tip))); ?>"
+			   href="<?php echo dash_h(dash_link('ops',$view_date,'tr-'.$t['id'])); ?>"><?php echo dash_h($t['index_no']); ?></a>
+<?php	} ?>
+		</div>
+		<div class="ds-legend">
+			<span><i class="ds-key f-ok"></i>On line <?php echo (int)$fleet['online']; ?></span>
+			<span><i class="ds-key f-warn"></i>At boundary <?php echo (int)$fleet['boundary']; ?></span>
+			<span><i class="ds-key f-info"></i>Removed <?php echo (int)$fleet['removed']; ?></span>
+			<span><i class="ds-key f-bad"></i>Cancelled <?php echo (int)$fleet['cancelled']; ?></span>
+			<span><i class="ds-key f-mute"></i>Non-revenue <?php echo (int)$fleet['nonrevenue']; ?></span>
+		</div>
+		<div class="ds-note" style="margin-top:8px">State is derived from the recorded times, not from a stored flag: removed &rarr; inserted &rarr; at boundary &rarr; not prepped.</div>
+<?php } ?>
+	</div>
+
+	<!-- ======================== TWO-COLUMN ROW ======================== -->
+	<div class="ds-grid">
+
+		<div class="ds-card">
+			<div class="ds-card-head">
+				<h2>Latest insertions</h2>
+				<a class="ds-more" href="<?php echo dash_h(dash_link('depot',$view_date)); ?>">Depot insertion &rarr;</a>
+			</div>
+<?php if(!count($insertions)){ ?>
+			<div class="ds-empty">No insertions recorded yet.</div>
+<?php } else { ?>
+			<ul class="ds-feed">
+<?php	foreach($insertions as $i){ ?>
+				<li><span class="ds-time"><?php echo dash_h(date("H:i",$i['ts'])); ?></span>
+					<span>Index <?php echo dash_h($i['index_no']); ?> &middot; <?php echo dash_h($i['point']); ?></span></li>
+<?php	} ?>
+			</ul>
+<?php } ?>
+		</div>
+
+		<div class="ds-card">
+			<div class="ds-card-head">
+				<h2>Incidents today</h2>
+				<a class="ds-more" href="<?php echo dash_h(dash_link('incidents',$view_date)); ?>"><?php if($inc['worst']!==""){ echo "highest ".dash_h($inc['worst'])." &rarr;"; } else { echo "no service failures &rarr;"; } ?></a>
+			</div>
+<?php if(!count($incidents)){ ?>
+			<div class="ds-empty">No incidents recorded for this date.</div>
+<?php } else { ?>
+			<ul class="ds-feed">
+<?php	$shown=0;
+		foreach($incidents as $r){
+			if($shown>=6){ break; }
+			$shown++;
+			$lvl = $r['lvl'];
+			$desc= isset($r['description']) ? $r['description'] : '';
+			$desc= trim(preg_replace('/\s+/',' ',strip_tags((string)$desc)));
+			if(strlen($desc)>72){ $desc=substr($desc,0,72)."&hellip;"; }
+			if($desc===""){ $desc=dash_type_label(isset($r['incident_type'])?$r['incident_type']:''); }
+?>
+				<li><span class="ds-time"><?php echo dash_h(dash_hm($r['incident_date'])); ?></span>
+					<span><?php if($lvl!==""){ ?><span class="ds-badge t-<?php echo dash_level_tone($lvl); ?>"><?php echo dash_h($lvl); ?></span><?php } ?><a class="ds-more" style="font-size:inherit;color:inherit" href="<?php echo dash_h(dash_link('incidents',$view_date,dash_incident_id($r)?('ir-'.dash_incident_id($r)):'')); ?>"><?php echo dash_h($desc); ?></a><?php if($r['open']){ ?> <em style="color:var(--cf-bad)">open</em><?php } ?></span></li>
+<?php	} ?>
+			</ul>
+			<div class="ds-note" style="margin-top:9px"><a class="ds-more" href="<?php echo dash_h(dash_link('incidents',$view_date)); ?>">Full register</a> &mdash; showing <?php echo (int)$shown; ?> of <?php echo (int)$inc['total']; ?>.</div>
+<?php } ?>
+		</div>
+
+	</div>
+
+	<!-- ========================= BREAKDOWNS ========================== -->
+	<div class="ds-grid">
+
+		<div class="ds-card">
+			<h2>Today by problem type</h2>
+<?php if(!count($types)){ ?>
+			<div class="ds-empty">Nothing to break down.</div>
+<?php } else { ?>
+			<div class="ds-bars">
+<?php	foreach($types as $label=>$n){ ?>
+				<span style="color:var(--cf-ink-2)"><?php echo dash_h($label); ?></span>
+				<span class="ds-track"><i style="width:<?php echo dash_pct($n,$max_type); ?>%"></i></span>
+				<span class="ds-n"><?php echo (int)$n; ?></span>
+<?php	} ?>
+			</div>
+			<div class="ds-note" style="margin-top:10px">Resolved through <code>equipment_type</code>; unmapped codes show as recorded.</div>
+<?php } ?>
+		</div>
+
+		<div class="ds-card">
+			<div class="ds-card-head">
+				<h2>Last <?php echo (int)DASH_TREND_MONTHS; ?> months</h2>
+				<a class="ds-more" href="<?php
+					/* Hand the report the same window this chart is showing, so the
+					   drill-down opens on the range the user was just looking at
+					   rather than the report's year-to-date default. */
+					$ym_keys = array_keys($months);
+					echo dash_h(dash_link('stats',$view_date,'',array(
+						'sd'    => (count($ym_keys) ? $ym_keys[0]."-01" : $view_date),
+						'ed'    => $view_date,
+						'range' => 'custom'
+					)));
+				?>">Statistics report &rarr;</a>
+			</div>
+			<div class="ds-months">
+<?php	foreach($months as $ym=>$n){ ?>
+				<i style="height:<?php echo dash_pct($n,$max_month>0?$max_month:1); ?>%" title="<?php echo dash_h($ym.": ".$n); ?>"></i>
+<?php	} ?>
+			</div>
+			<div class="ds-months-x">
+<?php	foreach($months as $ym=>$n){ ?>
+				<span><?php echo dash_h(date("M",strtotime($ym."-01"))); ?></span>
+<?php	} ?>
+			</div>
+			<div class="ds-note" style="margin-top:10px">Window sits entirely inside covered data. Widen it past Dec 2024 and the 2021&ndash;2024 gap needs <code>data_coverage.php</code> wired in first, or those months read as zero rather than missing.</div>
+		</div>
+
+	</div>
+
+</div>
+</body>
+</html>

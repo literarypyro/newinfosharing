@@ -877,7 +877,7 @@ function openIncidentPanel(query,title){
 	},6000);
 }
 function openEditIncidentPanel(query,title){
-	var url="edit_ccdr.php?ir="+query+"&embed=1";
+	var url="edit_ccdr.php?ir="+query+"&editable=1&embed=1";
 	document.getElementById('ir-panel-title').textContent=title||"Incident Report Details";
 	document.getElementById('irFallbackLink').href="edit_ccdr.php?ir="+query; /* no embed=1: full standalone page */
 	var frame=document.getElementById('irFrame');

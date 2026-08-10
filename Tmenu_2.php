@@ -255,6 +255,17 @@ body { height: 100%; overflow: hidden; }
 
 
 <ul id="navMenu" >
+  
+  <?php
+  if(($_SESSION['username']=="ccadmin")||($_SESSION['username']=="demo2")){
+  ?>
+  <li><a href="dashboard.php">Main Dashboard</a></li>
+	<?php
+	  }
+	if($_SESSION['username']!="ccadmin"){
+
+?>
+	
   <li><a href="#">Incident Report</a>
   
   	<ul>
@@ -292,8 +303,9 @@ body { height: 100%; overflow: hidden; }
 	</ul>
 	</li>	
 		<li><a href='clearance form.php' id='dr'>Clearance Form</a></li>
-		
+	
 	<?php 
+	}
 	if(($_SESSION['Ulevel']==3)&&($_SESSION['division']=="admin")){
 	?>				
 		
@@ -310,7 +322,17 @@ body { height: 100%; overflow: hidden; }
 			     a Level severity filter that Rolling Stock doesn't have --
 			     the new label surfaces that distinction instead of leaving
 			     "Equipment" to sound like a duplicate of Rolling Stock. -->
-			<li><a href='#' onclick="window.open('statistics_report_modified.php')">Equipment Failures By Range</a></li>
+			<!-- Same-tab now that this page carries the nav (require Tmenu_2.php inside
+			     its <body>). window.open was only ever load-bearing because the report
+			     was nav-less and a same-tab link stranded the user. It also broke the
+			     session model: two windows share one session, and dash_goto.php writes
+			     search_date into it, so a second window silently rewrites the operating
+			     date under the first.
+
+			     THE OTHER FOUR BELOW ARE NOT YET CONVERTED. Change each one's link only
+			     after adding the nav to that page -- flipping a nav-less report to
+			     same-tab just recreates the dead end this fixes. -->
+			<li><a href='statistics_report_modified.php'>Equipment Failures By Range</a></li>
 
 			<li><a href='#' onclick="window.open('other_history.php')">Other Incidents</a></li>
 

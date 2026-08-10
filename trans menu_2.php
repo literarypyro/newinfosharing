@@ -1,5 +1,12 @@
 <?php
-session_start();
+/* Guarded: an unconditional session_start() here meant this header could
+   only ever be included as the very first thing on a page, before any
+   output. Pages that legitimately open their own <head> (the statistics
+   reports) must start the session themselves at line 1 and then include
+   the menu further down, inside <body>. Without this guard that raises
+   "A session had already been started". Behaviour is identical when no
+   session exists yet. */
+if(session_id()==""){ session_start(); }
 ?>
 <!--- Modified by Jun
 //--- Date: 7/30/2014

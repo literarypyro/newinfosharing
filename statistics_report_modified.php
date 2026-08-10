@@ -1,4 +1,30 @@
 <?php
+/* Session first, before ANY output -- the console header calls
+   session_start(), and Tmenu_2.php is included further down inside <body>
+   (this page keeps its own <head>, which Tmenu_2.php does NOT supply). */
+if(session_id()==""){ session_start(); }
+
+/* embed=1 suppresses the nav. month_stats.php and equipt_stats.php -- which
+   this page opens in its own slide panel -- are the same shape, and
+   edit_ccdr.php already carries an embed flag for exactly this reason.
+   Without the guard, the logo, header and nav bar would render inside an
+   820px iframe. */
+$SRM_EMBED = (isset($_GET['embed']) && $_GET['embed']!='');
+
+/* ---------------------------------------------------------------------------
+   GET fallback, so the dashboard can link a date range straight in.
+   This page is POST-only; it holds NOTHING in the session. The parameter
+   names sd/ed/range are not invented -- they are the ones this page already
+   passes to generate_statistics_report.php on the Generate Printout link,
+   so the whole file now speaks one vocabulary.
+   POST always wins; this only fills in on a cold GET.
+   --------------------------------------------------------------------------- */
+if(!isset($_POST['search_date2']) && isset($_GET['sd']) && $_GET['sd']!==''){
+	$_POST['search_date2'] = $_GET['sd'];
+	$_POST['search_date']  = isset($_GET['ed']) && $_GET['ed']!=='' ? $_GET['ed'] : $_GET['sd'];
+	$_POST['range']        = isset($_GET['range']) ? $_GET['range'] : 'custom';
+}
+
 // ---------------------------------------------------------------------------
 // Loaded FIRST, before any markup. ccsCoverageCss() is echoed inside the <head>
 // style block far above the database connection, so loading the helper down
@@ -48,6 +74,7 @@ if(!function_exists('ccsLoadCoverage')){
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="utf-8">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Equipment Failures (by Type)</title>
@@ -254,11 +281,23 @@ $(function() {
 </script>
 </head>
 <body>
+<?php
+/* The nav renders INSIDE body, after this page's own <head> -- Tmenu_2.php
+   emits only the header markup and the <ul id="navMenu">, never the document
+   scaffolding, so the page must supply that itself. */
+if(!$SRM_EMBED){ require("Tmenu_2.php"); }
+?>
 <div class="ccs-page">
 
 <?php
-	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-
+	/* Prefer the shared connector. The literal credentials below are the
+	   original line, kept ONLY so this page still runs if db_config.php is
+	   absent. Once iss_db() is confirmed working here, DELETE the else
+	   branch and rotate that password -- it is in plaintext in a file that
+	   gets copied between stations. */
+	if(file_exists(dirname(__FILE__)."/db_config.php")){ require_once(dirname(__FILE__)."/db_config.php"); }
+	if(function_exists('iss_db')){ $db=iss_db('transport'); }
+	else { $db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport"); }
 $coverage = ccsLoadCoverage($db);
 $selfPage = basename(__FILE__);   /* @equiptpanel -- reload target, rename-safe */
 $sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
