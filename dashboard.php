@@ -83,7 +83,7 @@ foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 	<div class="ds-tiles">
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
-			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>On line</div>
+			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>Inserted</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span><?php echo dash_delta_chip($d_trains); ?></div>
 			<?php echo dash_sparkline($sp_trains); ?>
 		</div></a>
@@ -154,7 +154,7 @@ dash_status_band($view_date,false);
 <?php	} ?>
 		</div>
 		<div class="ds-legend">
-			<span><i class="ds-key f-ok"></i>On line <?php echo (int)$fleet['online']; ?></span>
+			<span><i class="ds-key f-ok"></i>Inserted <?php echo (int)$fleet['online']; ?></span>
 			<span><i class="ds-key f-warn"></i>At boundary <?php echo (int)$fleet['boundary']; ?></span>
 			<span><i class="ds-key f-info"></i>Removed <?php echo (int)$fleet['removed']; ?></span>
 			<span><i class="ds-key f-bad"></i>Cancelled <?php echo (int)$fleet['cancelled']; ?></span>

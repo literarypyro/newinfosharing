@@ -2479,11 +2479,15 @@ else {
 ?>
 <tr><th>Location/Direction</th>
 
+
+
+<td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td>
+
 <?php if(isset($_GET['editable'])){
 	?>
 
 
-<td><?php echo str_replace("D","Depot",$direction); echo " ".$location; ?></td><td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
+<td align="center"><a href='#edit_form' class="<?php echo $SRemove; ?>" onclick='fillEdit("location")'>Edit</a></td></tr>
 <?PHP
 }
 ?>
@@ -2493,10 +2497,14 @@ else {
 <tr><th>Description</th>
 
 
+
+<td><?php echo $description; ?></td>
+
+
 <?php if(isset($_GET['editable'])){
 	?>
 
-<td><?php echo $description; ?></td><td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("description")'>Edit</a></td></tr>
+<td align="center"><a href='#edit_form'  class="<?php echo $SRemove; ?>" onclick='fillEdit("description")'>Edit</a></td></tr>
 <?PHP
 }
 ?>		
