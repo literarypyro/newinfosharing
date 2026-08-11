@@ -2092,6 +2092,8 @@ if($IR_EMBED){ ob_end_clean(); }
 		
 		if($subItemNM>0){
 			$subItemRow=$subItemRS->fetch_assoc();
+			
+			$subItemDefault=$subItemRow['sub_item'];
 
 			$subClause=" / ".$subItemRow['sub_item'];			
 		
@@ -2164,7 +2166,9 @@ if($IR_EMBED){ ob_end_clean(); }
 		            where ie.incident_id='".$incident_report."'
 		            order by e.equipment_name";
 		$eqJoinRS=$db->query($eqJoinSQL);
-		if($eqJoinRS){
+		
+		$eqJoinNM=$eqJoinRS->num_rows;
+		if($eqJoinNM>0){
 			$eqPairsArr=array();
 			while($eqRow=$eqJoinRS->fetch_assoc()){
 				$eqName=($eqRow['equipment_name']!==null && $eqRow['equipment_name']!=='')
@@ -2175,6 +2179,9 @@ if($IR_EMBED){ ob_end_clean(); }
 				$eqPairsArr[]=$eqRow['equipt_id'].":".($eqRow['subitem_id']*1>0 ? $eqRow['subitem_id'] : "");
 			}
 			$existing_eq_pairs=implode(",",$eqPairsArr);
+		}
+		else {
+			$equipment_rows_display="<tr><td>".$onboard_equipt."</td><td>".$subItemDefault."</td></tr>";
 		}
 
 		/* -- Read-back: multi-link (incident_linked_reports junction) --------

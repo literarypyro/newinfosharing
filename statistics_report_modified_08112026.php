@@ -246,15 +246,8 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 -->
 
 <script language='javascript'>
-/* @datepicker -- jQuery(function($){...}) rather than $(function(){...}).
-   ajax.js loads immediately above this block, and old in-house ajax helpers
-   very commonly define their own global $ (the document.getElementById kind).
-   If that happens, $ is no longer jQuery by the time this runs, $(function(){})
-   silently does nothing, and the pickers never bind -- which looks exactly like
-   "they stopped working" without any error on the page.
-   jQuery is never reassigned, so binding through it cannot be clobbered, and
-   the inner $ is jQuery's own argument. */
-jQuery(function($) {
+
+$(function() {
 	/*
     $( "#search_date2" ).daterangepicker(
 	{
@@ -396,23 +389,14 @@ if($carFilter){ echo " / Car ".$carFilter; }
 </div>
 <div class="ccs-panel">
 <div class="ccs-panel-head">
-<?php /* @toolbarform -- Two structural faults here, and together they put the
-         date inputs outside every form in the parsed DOM:
+<table>
 
-         1. A bare <table> wrapped the toolbar and was never closed. A <form>
-            sitting directly inside <table> but outside any <tr>/<td> gets
-            FOSTER-PARENTED by the HTML parser -- lifted out of the table --
-            which is why the surviving form ended up empty.
-         2. A second <form> was opened inside the first. HTML forbids nested
-            forms, so the parser DROPS the inner one outright. That inner form
-            was the one wrapping Level / Car / From / To / Submit, and its
-            action was misspelled 'statistics_report_modififed.php' besides.
-
-         One form now, opened before the toolbar table and closed after it. */ ?>
 <form action='statistics_report_modified.php' method='post'>
+
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
 	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
+		<form action='statistics_report_modififed.php' method='post' >
 <div width="50%" align=left>
 <table>
 <tr><th>Level</th>
@@ -458,6 +442,7 @@ if($carRS){
 
 </tr>
 </table>
+</form>
 	</td>
 	
 	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
@@ -474,11 +459,6 @@ if($carRS){
 	
 </tr>
 </table>
-<?php /* @toolbarform -- the form's close. The only other </form> in this file
-         is inside an HTML comment further down, so the form was never actually
-         closed; the browser then closed it wherever its own error recovery
-         decided, which is part of why the inputs ended up orphaned. */ ?>
-</form>
 
 
 <!--
