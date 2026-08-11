@@ -346,11 +346,6 @@ for($i=0;$i<=$nm;$i++){
 
 <input type=submit value='Submit' />
 </form>
-<div class="stat-legend">
-	<span><span class="swatch" style="background:#00529B;"></span>Click a car number for its full-year history</span>
-	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count for that car's incidents that month</span>
-	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this year (&ge;60% of the peak)</span>
-</div>
 </div>
 <div class='ccs-panel-body'>
 <?php
@@ -724,6 +719,12 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
 	<div><canvas id="csrByCar" width="340" height="220"></canvas></div>
 	<div><canvas id="csrByMonth" width="340" height="200"></canvas></div>
+</div>
+
+<div class="stat-legend" style="margin:0 0 8px;">
+	<span><span class="swatch" style="background:#00529B;"></span>Click a car number for its full-year history</span>
+	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count for that car's incidents that month</span>
+	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this year (&ge;60% of the peak)</span>
 </div>
 
 <?php echo $tableHtml; ?>

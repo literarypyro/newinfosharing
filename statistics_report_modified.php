@@ -504,11 +504,6 @@ if($carRS){
 </form>
 
 -->
-<div class="stat-legend">
-	<span><span class="swatch" style="background:#00529B;"></span>Click an equipment name to see which cars had this failure</span>
-	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count to see that month's incident list</span>
-	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this period (&ge;60% of the peak)</span>
-</div>
 </div>
 <?php
 
@@ -1063,14 +1058,16 @@ $tableHtml = ob_get_clean();
 	<div><canvas id="srmByMonth" width="340" height="200"></canvas></div>
 </div>
 
+<div class="stat-legend" style="margin:0 0 8px;">
+	<span><span class="swatch" style="background:#00529B;"></span>Click an equipment name to see which cars had this failure</span>
+	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count to see that month's incident list</span>
+	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this period (&ge;60% of the peak)</span>
+</div>
+
 <?php echo $tableHtml; ?>
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
-	<span style="display:inline-block;width:11px;height:11px;background:#F9D6D6;border:1px solid #7A1F1F;vertical-align:-1px;"></span>
-	Shaded rows are equipment at or above 60% of the highest total (<?php echo round($flagThreshold,1); ?> failures) &mdash; the review threshold.
-	
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
-	Click an equipment name for its per-car breakdown, or a monthly figure for that month's incident log.
 </div>
 
 <script>
