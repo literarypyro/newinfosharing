@@ -1,4 +1,6 @@
 <?php
+/* Whether the console nav renders (see the require further down, in <body>). */
+$NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 	// $_SESSION is used below for the sticky problem selection — nothing
 	// else on this page starts the session, so do it here (guarded in
 	// case an include ever starts one first).
@@ -200,6 +202,17 @@ function phSetMode(v){
 </script>
 <?php include("history_theme.php"); ?>
 <body>
+<?php
+/* Console nav. Tmenu_2.php emits ONLY the header markup and the <ul id="navMenu">
+   -- never <!DOCTYPE>/<html>/<head> -- so it belongs here, inside <body>, and this
+   page keeps whatever document scaffolding it already had.
+
+   Suppressed under embed=1: this page is reached from the menu today, but every
+   report here also loads OTHER pages into slide_panel.php, and edit_ccdr.php
+   already carries an embed flag. Without the guard, the logo, header and nav bar
+   would render inside an 820px iframe. */
+if($NAV_SHOW){ require("Tmenu_2.php"); }
+?>
 <div class="ccs-page">
 
 <div class="ccs-header">

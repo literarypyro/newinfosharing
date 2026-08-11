@@ -59,11 +59,13 @@ if(!defined('DASH_BAND_MAX'))      define('DASH_BAND_MAX',    5);
    Clicking an item opens it in the iframe slide panel instead of
    navigating away.  Three things to confirm against your slide panel:
 
-     DASH_PANEL_FN   the opener from train_operations.php.  NOTE its
-                     signature: openEditIncidentPanel(irId, title) takes
-                     the BARE incident id, not a URL -- it builds
-                     edit_ccdr.php?ir=<id>&embed=1 itself.  The band
-                     therefore passes data-ir, not a path.
+     DASH_PANEL_FN   openSlidePanel(url, title), from the extracted
+                     slide_panel.php.  This is the CURRENT house pattern --
+                     problem_history.php, other_history.php, td_history.php
+                     and car_statistics_report.php all call it exactly this
+                     way.  (train_operations.php still has the older inline
+                     openEditIncidentPanel(irId,title), which took a bare
+                     id; that file predates the extraction.)
      DASH_PANEL_URL  the no-JS fallback href.  {id} is the incident's
                      primary key.  Deliberately identical to the panel's
                      own irFallbackLink (no embed=1), so the keyboard
@@ -80,9 +82,10 @@ if(!defined('DASH_BAND_MAX'))      define('DASH_BAND_MAX',    5);
    dash_panel.php, exactly as it does in train_operations.php.  Nothing
    here listens for it -- two listeners would mean two reloads. ----- */
 if(!defined('DASH_PANEL'))         define('DASH_PANEL',        true);
-if(!defined('DASH_PANEL_FN'))      define('DASH_PANEL_FN',     'openEditIncidentPanel');
+if(!defined('DASH_PANEL_FN'))      define('DASH_PANEL_FN',     'openSlidePanel');
 if(!defined('DASH_PANEL_URL'))     define('DASH_PANEL_URL',    'edit_ccdr.php?ir={id}');
-if(!defined('DASH_PANEL_TITLE'))   define('DASH_PANEL_TITLE',  'Incident Report Details');
+/* Title format matches the other report pages exactly: "Incident - 2026-0812". */
+if(!defined('DASH_PANEL_TITLE'))   define('DASH_PANEL_TITLE',  'Incident');
 
 /* ---- guarded helper loads -------------------------------------- */
 if(file_exists(dirname(__FILE__)."/db_config.php")){
@@ -449,8 +452,13 @@ function dash_panel_attrs($item,$wall=false){
 	if(!isset($item['id']) || $item['id']===''){ return ''; }
 	$title = DASH_PANEL_TITLE;
 	if(isset($item['no']) && $item['no']!==''){ $title .= ' - '.$item['no']; }
-	/* data-ir, not a URL: openEditIncidentPanel() assembles the path. */
-	return ' data-ir="'.dash_h($item['id']).'" data-panel-title="'.dash_h($title).'"';
+	/* The full URL, with embed=1 -- openSlidePanel() takes a path, not an id.
+	   The anchor's href stays embed-less, so the no-JS path gets the standalone
+	   page rather than a chrome-less fragment. */
+	$url = dash_incident_url($item);
+	if($url===''){ return ''; }
+	$sep = (strpos($url,'?')===false) ? '?' : '&';
+	return ' data-panel="'.dash_h($url.$sep.'embed=1').'" data-panel-title="'.dash_h($title).'"';
 }
 
 /* Worst tone across the band's items -- drives the band's colour. */
@@ -703,7 +711,7 @@ function dash_status_band($date,$wall=false){
 						echo ' &middot; <b data-since="'.(int)$it['ts'].'">&mdash;</b>';
 					}
 					if($it['open']){ echo " &middot; unresolved"; }
-					if($url!==''){ echo ' &middot; <span class="ds-band-cta">edit CCDR</span>'; }
+//					if($url!==''){ echo ' &middot; <span class="ds-band-cta">edit CCDR</span>'; }
 				?></span>
 			</<?php echo $el; ?>>
 <?php		}
@@ -721,7 +729,7 @@ function dash_status_band($date,$wall=false){
 
 		function panelNode(n){
 			while(n && n!==band){
-				if(n.getAttribute && n.getAttribute('data-ir')){ return n; }
+				if(n.getAttribute && n.getAttribute('data-panel')){ return n; }
 				n=n.parentNode;
 			}
 			return null;
@@ -736,8 +744,7 @@ function dash_status_band($date,$wall=false){
 			   opens the same record as an ordinary page. */
 			if(typeof open!=='function') return true;
 			if(e.preventDefault) e.preventDefault(); else e.returnValue=false;
-			/* Bare id + title -- the opener builds the &embed=1 URL. */
-			open(a.getAttribute('data-ir'), a.getAttribute('data-panel-title')||'');
+			open(a.getAttribute('data-panel'), a.getAttribute('data-panel-title')||'');
 			return false;
 		};
 	})();

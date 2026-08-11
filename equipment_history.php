@@ -1,4 +1,9 @@
 <?php
+/* Session before ANY output -- the console header calls session_start(). */
+if(session_id()==""){ session_start(); }
+
+/* Whether the console nav renders (see the require further down, in <body>). */
+$NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 // equipment_history.php — same Line 3 console theme as car_history.php,
 // its sibling drill-down page, so the two "further history" views share
 // one visual identity instead of two different half-finished looks.
@@ -152,6 +157,18 @@ $sql="select * from incident_union ".$initialClause." ".$dateClause." ".$levelCl
 
 ?>
 <body>
+<?php
+/* Console nav -- the pattern car_stats.php and equipt_stats.php already use.
+   Tmenu_2.php emits ONLY the header markup and the <ul id="navMenu">, never
+   <!DOCTYPE>/<html>/<head>, so it belongs here inside <body> and this page
+   keeps its own document.
+
+   Suppressed under embed=1. This page is normally reached with target=_top,
+   deliberately breaking OUT of the 820px slide panel into the full window --
+   but car_stats.php links here from inside that panel, so the guard matters
+   the day someone drops the _top. */
+if($NAV_SHOW){ require("Tmenu_2.php"); }
+?>
 <div class="ccs-page">
 
 <div class="ccs-header">

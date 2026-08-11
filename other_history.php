@@ -1,4 +1,8 @@
 <?php
+/* Session before ANY output -- the console header calls session_start(). */
+if(session_id()==""){ session_start(); }
+/* Whether the console nav renders (see the require further down, in <body>). */
+$NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
 // Which periods the console actually holds records for. This log can jump
@@ -67,6 +71,17 @@ $ph = phResolvePeriod($_GET);
 #add_form th:nth-child(6), #add_form td:nth-child(6) { width: 50% !important; }  /* Description */
 </style>
 <body>
+<?php
+/* Console nav. Tmenu_2.php emits ONLY the header markup and the <ul id="navMenu">
+   -- never <!DOCTYPE>/<html>/<head> -- so it belongs here, inside <body>, and this
+   page keeps whatever document scaffolding it already had.
+
+   Suppressed under embed=1: this page is reached from the menu today, but every
+   report here also loads OTHER pages into slide_panel.php, and edit_ccdr.php
+   already carries an embed flag. Without the guard, the logo, header and nav bar
+   would render inside an 820px iframe. */
+if($NAV_SHOW){ require("Tmenu_2.php"); }
+?>
 <div class="ccs-page">
 
 <div class="ccs-header">

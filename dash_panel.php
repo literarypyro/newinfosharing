@@ -130,6 +130,14 @@ function openIncidentPanel(query,title){
 	            title,"Incident Report");
 }
 
+/* Alias matching the extracted slide_panel.php, which is what the dashboard
+   band actually calls.  If the real slide_panel.php is present this whole file
+   is skipped, so this only matters as a fallback. */
+function openSlidePanel(url,title){
+	var bare = url.replace(/[?&]embed=1/,'');
+	irOpenFrame(url, bare, title, "Incident Report");
+}
+
 function irFrameLoaded(){
 	if(!irExpectingLoad) return;   /* ignore the about:blank resets */
 	irExpectingLoad=false;

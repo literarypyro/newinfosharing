@@ -1,4 +1,9 @@
 <?php
+/* Session before ANY output -- the console header calls session_start(). */
+if(session_id()==""){ session_start(); }
+
+/* Whether the console nav renders (see the require further down, in <body>). */
+$NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 // car_history.php — Line 3 colour scheme applied to the live page.
 //
 // FIX (the "Cannot reinitialise DataTable" error):
@@ -87,6 +92,18 @@ else if($ccsYear){
 <?php include("history_theme.php"); ?>
 </head>
 <body>
+<?php
+/* Console nav -- the pattern car_stats.php and equipt_stats.php already use.
+   Tmenu_2.php emits ONLY the header markup and the <ul id="navMenu">, never
+   <!DOCTYPE>/<html>/<head>, so it belongs here inside <body> and this page
+   keeps its own document.
+
+   Suppressed under embed=1. This page is normally reached with target=_top,
+   deliberately breaking OUT of the 820px slide panel into the full window --
+   but car_stats.php links here from inside that panel, so the guard matters
+   the day someone drops the _top. */
+if($NAV_SHOW){ require("Tmenu_2.php"); }
+?>
 <div class="ccs-page">
 
 <div class="ccs-header">

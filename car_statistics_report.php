@@ -1,3 +1,9 @@
+<?php
+/* Session before ANY output -- the console header calls session_start(). */
+if(session_id()==""){ session_start(); }
+/* Whether the console nav renders (see the require further down, in <body>). */
+$NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
+?>
 <!--- Modified by Jun
 //--- Date: 8/7/2014
 //--- Modify: screen layout
@@ -227,6 +233,17 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 
 </head>
 <body>
+<?php
+/* Console nav. Tmenu_2.php emits ONLY the header markup and the <ul id="navMenu">
+   -- never <!DOCTYPE>/<html>/<head> -- so it belongs here, inside <body>, and this
+   page keeps whatever document scaffolding it already had.
+
+   Suppressed under embed=1: this page is reached from the menu today, but every
+   report here also loads OTHER pages into slide_panel.php, and edit_ccdr.php
+   already carries an embed flag. Without the guard, the logo, header and nav bar
+   would render inside an 820px iframe. */
+if($NAV_SHOW){ require("Tmenu_2.php"); }
+?>
 <div class="ccs-page">
 <div class="ccs-header">
 <?php
@@ -509,7 +526,7 @@ else {
 <th class='stat_hover car' onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $i; ?>','Statistics Report','<?php echo $month; ?>','<?php echo $equipment; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><?php echo $i; ?></th>
 <?php
 /**
-<th class='stat_hover'><a href='#' style='text-decoration:none; color:#00529B; font-weight:600;'  onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>",target="_self")' ><?php echo $i; ?></a></th>
+<th class='stat_hover'><a href='car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>' style='text-decoration:none; color:#00529B; font-weight:600;'><?php echo $i; ?></a></th>
 */
 ?>
 <?php
@@ -525,7 +542,7 @@ for($k=1;$k<=$bucketCount;$k++){
 
 
 
-	<td class='stat_hover' role="button" align=center><a href='#' style='text-decoration:none; color:<?php echo $stat>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $mon; ?>",target="_self")' ><?php echo $stat; ?></a></td>
+	<td class='stat_hover' role="button" align=center><a href='car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $mon; ?>' style='text-decoration:none; color:<?php echo $stat>0 ? '#00529B' : '#B4B2A9'; ?>;'><?php echo $stat; ?></a></td>
 <?php
 }
 ?>
@@ -1098,7 +1115,4 @@ document.addEventListener('keydown',function(e){
 </script>
 
 </body>
-</html>
-</html>
-</html>
 </html>
