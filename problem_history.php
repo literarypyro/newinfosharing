@@ -354,7 +354,6 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 	$monthlyVolume=array();               // ["YYYY-MM"] => count
 	$timingGrid=array();                  // [weekday 0=Mon..6=Sun][band 0..3] => count
 	for($d=0;$d<7;$d++){ $timingGrid[$d]=array(0,0,0,0); }
-	$termCounts=array();                  // [token] => number of incidents it appears in
 
 	for($i=0;$i<$nm;$i++){
 		$row=$rs->fetch_assoc();
@@ -378,12 +377,13 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 		else $band=3;                      // evening / night
 		$timingGrid[$dow][$band]++;
 
-		// Document frequency: count a term once per incident it appears
-		// in, so one verbose description can't dominate the ranking.
-		foreach(array_unique(ccsTokenize($row['description'])) as $t){
-			if(!isset($termCounts[$t])) $termCounts[$t]=0;
-			$termCounts[$t]++;
-		}
+		// The recurring-words chart that used to mine $row['description'] here
+		// has been removed on request — the words were not the signal wanted.
+		// Its intended replacement is resolution time (Duration / Time
+		// Resolved), but that field is mostly blank today and resolution-time
+		// tracking is not implemented yet, so there is nothing reliable to put
+		// in that slot. Chart 3 is dropped for now; a commented stub in the
+		// chart block below marks where the resolution-time chart will go.
 	?>	
 		<tr data-mo="<?php echo $mo; ?>">
 			<?php 
@@ -423,8 +423,6 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 	<?php
 	}
 
-	// Rank recurring terms; keep the top 8 that appear in 2+ incidents.
-	arsort($termCounts);
 	// @months -- A month with no incidents has no key at all, so the axis used
 	// to close the gap and print two non-adjacent months side by side. Fill the
 	// span so the x-axis is continuous. Months the coverage table marks missing
@@ -455,12 +453,6 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 		$monthlyVolume=$filled;
 	}
 
-	$topTerms=array();
-	foreach($termCounts as $t=>$c){
-		if($c < 2) break;                  // sorted desc — everything after is rarer
-		$topTerms[]=array($t,(int)$c);
-		if(count($topTerms) >= 8) break;
-	}
 	?>	
 	</tbody>
 </table>
@@ -475,7 +467,8 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 <div id="ccs-print-charts" style="display:none;">
 	<canvas id="pvVolume" width="340" height="160"></canvas>
 	<canvas id="pvTiming" width="340" height="180"></canvas>
-	<canvas id="pvTerms"  width="340" height="180"></canvas>
+<?php /* Chart 3 (recurring words) removed; canvas returns when resolution-time
+         data is available — see the stub in the chart script below. */ ?>
 </div>
 
 <script>
@@ -485,7 +478,6 @@ var pvFilterLabel  = <?php echo json_encode($phLabel); ?>;   /* @period */
 var pvProblemName = <?php echo json_encode($problemName); ?>;
 var pvMonthly = <?php echo json_encode($monthlyVolume, JSON_FORCE_OBJECT); ?>;
 var pvTiming = <?php echo json_encode($timingGrid); ?>;
-var pvTerms = <?php echo json_encode($topTerms); ?>;
 </script>
 
 <!--
@@ -708,47 +700,49 @@ $(function(){
 		});
 	})();
 
-	// ============ Chart 3: recurring description terms ============
-	if(pvTerms.length){
-		new Chart(document.getElementById('pvTerms'), {
-			type: 'bar',
-			data: {
-				labels: pvTerms.map(function(p){ return p[0]; }),
-				datasets: [{ data: pvTerms.map(function(p){ return p[1]; }), backgroundColor: termColor, borderRadius: 3, categoryPercentage: 0.6, barPercentage: 0.9 }]
-			},
-			options: {
-				indexAxis: 'y', responsive: false, animation: false, layout: { padding: { right: 22 } },
-				plugins: {
-					title: { display: true, text: pvProblemName + ' \u2014 recurring words in descriptions', color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 8 } },
-					legend: { display: false },
-					tooltip: { callbacks: { label: function(c){ return 'appears in ' + c.parsed.x + ' incidents'; } } }
-				},
-				scales: {
-					x: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk } },
-					y: { ticks: { color: textInk, font: { size: 11 } }, grid: { display: false } }
-				}
-			},
-			plugins: [{
-				id: 'termValueLabels',
-				afterDatasetsDraw: function(chart){
-					var ctx = chart.ctx, meta = chart.getDatasetMeta(0);
-					ctx.save(); ctx.font = '11px Arial, sans-serif'; ctx.fillStyle = textInk;
-					ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-					meta.data.forEach(function(bar,i){ ctx.fillText(chart.data.datasets[0].data[i], bar.x + 6, bar.y); });
-					ctx.restore();
-				}
-			}]
-		});
-	}
-	else{
-		var cv3 = document.getElementById('pvTerms');
-		var c3 = cv3.getContext('2d');
-		c3.textBaseline = 'middle'; c3.textAlign = 'left';
-		c3.font = '11px Arial, sans-serif'; c3.fillStyle = textInk;
-		c3.fillText(pvProblemName + ' \u2014 recurring words in descriptions', 0, 9);
-		c3.font = '10px Arial, sans-serif'; c3.fillStyle = mutedInk;
-		c3.fillText('Not enough description data to rank recurring terms.', 0, 34);
-	}
+	// ============ Chart 3: RESOLUTION TIME (pending) =============
+	// The recurring-words chart that lived here has been removed. Its
+	// replacement is a resolution-time view — average time to resolve per
+	// month, or a duration distribution — which is the operational question
+	// this page is really for and which works for every category, rolling
+	// included. It is stubbed rather than built because Duration is mostly
+	// blank today and resolution time (Time Resolved) is not implemented yet.
+	//
+	// When it lands, restore the <canvas id="pvTerms"> above (rename to
+	// pvResolution), hand the per-month averages to the JS as pvResolution,
+	// and draw here. Skeleton to fill in:
+	//
+	// if(pvResolution && pvResolution.length){
+	//     new Chart(document.getElementById('pvResolution'), {
+	//         type: 'bar',                       // or 'line' for a trend
+	//         data: {
+	//             labels: pvResolution.map(function(r){ return r[0]; }),   // "YYYY-MM"
+	//             datasets: [{ data: pvResolution.map(function(r){ return r[1]; }),  // avg minutes, null for gap months
+	//                          backgroundColor: termColor, borderRadius: 3, spanGaps: false }]
+	//         },
+	//         options: {
+	//             responsive: false, animation: false,
+	//             plugins: {
+	//                 title: { display: true, text: pvProblemName + ' \u2014 average resolution time by month',
+	//                          color: textInk, font: { size: 11, weight: 'normal' }, padding: { bottom: 8 } },
+	//                 legend: { display: false },
+	//                 tooltip: { callbacks: { label: function(c){ return (c.parsed.y === null ? 'no data' : c.parsed.y + ' min avg'); } } }
+	//             },
+	//             scales: {
+	//                 x: { ticks: { color: mutedInk, font: { size: 9 }, maxRotation: 45 }, grid: { display: false } },
+	//                 y: { ticks: { color: mutedInk, precision: 0, font: { size: 10 } }, grid: { color: gridInk }, beginAtZero: true }
+	//             }
+	//         }
+	//     });
+	// }
+	//
+	// Aggregate it in the PHP loop alongside $monthlyVolume, guarding for the
+	// unresolved sentinel the table already uses:
+	//   if(date("Y-m-d", strtotime($row['resolution_date'])) !== "1970-01-01"){
+	//       $mins = (strtotime($row['resolution_date']) - strtotime($row['incident_date'])) / 60;
+	//       ... accumulate per $mo, average at the end, null for coverage-missing months ...
+	//   }
+	// The layout below now expects TWO charts, not three — see the print block.
 
 	// ============ Intercept the TableTools print button ============
 	var printBtn = $('#add_form_wrapper').find('.DTTT_button_print, .buttons-print');
@@ -824,7 +818,7 @@ $(function(){
 	function pvPrintWithCharts(){
 		var imgVolume = document.getElementById('pvVolume').toDataURL('image/png');
 		var imgTiming = document.getElementById('pvTiming').toDataURL('image/png');
-		var imgTerms  = document.getElementById('pvTerms').toDataURL('image/png');
+		// imgTerms removed with Chart 3; restore alongside the resolution-time chart.
 		var name      = escHtml(pvProblemName);
 		var captured  = pvFullTableHtml();
 		var tableHtml = captured.html;
@@ -913,7 +907,7 @@ $(function(){
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + imgVolume + '">' + '<div class="cap">Figure 1 &mdash; Monthly volume</div></div>' +
 				'<div class="chart"><img src="' + imgTiming + '">' + '<div class="cap">Figure 2 &mdash; When incidents occur</div></div>' +
-				'<div class="chart"><img src="' + imgTerms + '">' + '<div class="cap">Figure 3 &mdash; Recurring words in descriptions</div></div>' +
+				// Figure 3 (recurring words) removed; returns as the resolution-time chart.
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
