@@ -148,19 +148,14 @@ border:1px solid #4ad;
 }
 .stat-toolbar input[type=submit]:hover { background:#E5A50F; }
 
-/* @printbar -- was #FFFACD (lemon chiffon) on a page whose palette is navy and
-   gold; a leftover from the old theme. Neutral, matching the other reports. */
-select { border: 1px solid #D8D2C2; color: #1A2238; background-color: #FFFFFF; border-radius: 4px; }
+select { border: 1px solid rgb(185, 201, 254); color: black; background-color: #FFFACD; } 
 
 /* --- mjun */
 a.two:visited {color:black;}
-/* @printbar -- was font-size:120%, which reflows the row under the cursor
-   every time it passes over a link. Underline instead: same affordance, no
-   layout change. */
-a.two:hover, a.two:active {text-decoration:underline; color:#003E76;}
+a.two:hover, a.two:active {font-size:120%; color:orange;}
 
 a.two2:visited {color:#ca0000;}
-a.two2:hover {text-decoration:underline; color:#8A1F1F;}
+a.two2:hover, a.two:active {font-size:105%; color:orange;}
 h2 { font-size:20px; font-weight:bold; }
 a.LDel:visited {color:red;}
 </style>
@@ -289,29 +284,6 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 	border-color: var(--cf-gold) !important;
 }
 .ta-grid.ta-console .cf-tbtn--primary:hover { background: #E5A50F !important; }
-
-/* @printbar -- The action row under the table. Dark bar so the gold pill reads
-   as the primary action, matching the toolbar above the table rather than
-   floating loose on the page background. */
-.ta-grid.ta-console .cf-printbar {
-	display: flex; align-items: center; justify-content: space-between;
-	flex-wrap: wrap; gap: 8px;
-	background: var(--cf-blue); border-radius: 0 0 6px 6px;
-	padding: 8px 14px; margin: 0 0 14px;
-}
-.ta-grid.ta-console .cf-printbar-label {
-	color: rgba(255,255,255,.85); font-size: 11px; font-weight: 600;
-	text-transform: uppercase; letter-spacing: .06em;
-}
-.ta-grid.ta-console .cf-printbar-range {
-	display: inline-block; margin-left: 8px;
-	color: #FFFFFF; font-weight: 400; text-transform: none; letter-spacing: 0;
-	font-size: 12px;
-}
-.ta-grid.ta-console .cf-printbar-actions { display: flex; flex-wrap: wrap; gap: 0; }
-/* margin-left on .cf-tbtn already spaces these; the first needs none so the
-   group aligns flush when it wraps to its own line. */
-.ta-grid.ta-console .cf-printbar-actions .cf-tbtn:first-child { margin-left: 0 !important; }
 /* -- Data table -- */
 .ta-grid.ta-console table.train_ava {
 	width: 100%;
@@ -554,8 +526,7 @@ function deleteIncident(index){
 }
 
 function reloadPage(ajaxHTML){
-	/* @printbar -- the space was here too; same file, three references. */
-	self.location="incident_summary.php";
+	self.location="incident summary.php";
 	//self.location.reload();
 
 }
@@ -605,7 +576,7 @@ $datenow=date("m/d/Y",strtotime($availability_date));
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
 	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
-		<form action='incident_summary.php' method='post' >
+		<form action='incident summary.php' method='post' >
 <div width="50%" align=left>
 <table>
 
@@ -703,7 +674,7 @@ echo "<h2>".$displayDate."</h2>";
 		</td>
 
 	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
-<form action='incident_summary.php' method='post'>
+<form action='incident summary.php' method='post'>
 Sort By:
 <select name='sort_by' id='sort_by'>
 <option></option>
@@ -720,44 +691,11 @@ Sort By:
 </table>
 
 
-<?php
-/* @printbar -- Was three <a class="two pull-right"> with literal "|" characters
-   between them. pull-right floats each one, so the anchors stacked right in
-   REVERSE source order while the pipes stayed in the text flow -- two orphaned
-   bars sitting wherever the flow left them.
-   Now one flex row, source order preserved, with the pipes gone: the pill
-   borders do the separating that the bars were standing in for.
-
-   The three build different documents from the SAME date range, so the range
-   is stated once above them rather than implied three times. */
-$isPrintFrom = isset($availability_date)  ? $availability_date  : '';
-$isPrintTo   = isset($availability_date2) ? $availability_date2 : '';
-$isPrintQS   = "ccdr=".urlencode($isPrintFrom)."&ccdr2=".urlencode($isPrintTo);
-?>
-<div class="cf-printbar">
-	<span class="cf-printbar-label">Printouts
-		<?php if($isPrintFrom !== ''){ ?><span class="cf-printbar-range"><?php
-			echo htmlspecialchars(date("d M Y", strtotime($isPrintFrom)));
-			if($isPrintTo !== '' && $isPrintTo !== $isPrintFrom){
-				echo ' &ndash; '.htmlspecialchars(date("d M Y", strtotime($isPrintTo)));
-			}
-		?></span><?php } ?>
-	</span>
-	<span class="cf-printbar-actions">
-		<?php /* Primary = the current format. The other two are named for what
-		         they are rather than all three reading "Generate ... Printout",
-		         which said nothing about which to pick. */ ?>
-		<a href="#" class="cf-tbtn cf-tbtn--primary"
-		   onclick='window.open("generate_nis.php?<?php echo $isPrintQS; ?>"); return false;'
-		   title="The current CCDR format">CCDR &mdash; current format</a>
-		<a href="#" class="cf-tbtn"
-		   onclick='window.open("generate_ccdr.php?<?php echo $isPrintQS; ?>"); return false;'
-		   title="The previous CCDR layout, kept for recipients who still expect it">CCDR &mdash; legacy layout</a>
-		<a href="#" class="cf-tbtn"
-		   onclick='window.open("weekly_printout.php?<?php echo $isPrintQS; ?>"); return false;'
-		   title="Weekly roll-up over the same range">Weekly summary</a>
-	</span>
-</div>
+<a href='#' class="two pull-right"  onclick='window.open("generate_ccdr.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate Printout</b></a>
+ | 
+<a href='#' class="two pull-right"  onclick='window.open("generate_nis.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate (New Format) Printout</b></a>
+|
+<a href='#' class="two pull-right"  onclick='window.open("weekly_printout.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate Weekly Printout</b></a>
 
 <!-- header -->
 <table width=95% class='train_ava'>
@@ -987,11 +925,16 @@ if($defectsNM>0){
 ?>
 </table>
 </div>
-<?php /* @printbar -- A second "Generate Printout" lived here, commented out.
-         It called generate_ccdr.php with ccdr= only and no ccdr2=, so it printed
-         a single date where the bar above prints a range -- two identically
-         labelled links doing different things. Already dead; removed so it
-         cannot be uncommented by someone who reads only the label. */ ?>
+<!--
+<?php
+if ($nm<>0) {
+?>
+<br>
+<a href='#' class="two" onclick='window.open("generate_ccdr.php?ccdr=<?php echo $ccdr_date; ?>");'><b>Generate Printout</b></a>
+<?php
+}
+?>
+-->
 <?php require("slide_panel.php"); ?>
 </body>
 
