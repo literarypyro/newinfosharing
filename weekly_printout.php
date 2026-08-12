@@ -542,6 +542,31 @@ function wpCancel(field){
 	var card=document.getElementById('card_'+field);
 	if(card) card.classList.remove('editing');
 }
+
+// Generate the NIS printout WITHOUT opening a window. A hidden iframe hits
+// generate_nis2 with &dl=1, which streams the .xls as a download; the file
+// lands in the browser's downloads and no third window appears. If the download
+// ever needs to be a visible tab again, swap this for window.open on the same
+// URL minus &dl.
+function wpGenerateNIS(){
+	// The date variables are computed further down the page than this script
+	// block, so echoing them here would emit empty strings. Read them at click
+	// time from the button's data-* attributes, which ARE rendered after the
+	// dates are set.
+	var btn = document.getElementById('wpGenBtn');
+	var d1  = btn ? btn.getAttribute('data-ccdr')  : '';
+	var d2  = btn ? btn.getAttribute('data-ccdr2') : '';
+	var url = "generate_nis2.php?ccdr=" + encodeURIComponent(d1) +
+	          "&ccdr2=" + encodeURIComponent(d2) + "&dl=1";
+	var f = document.getElementById('wpNisFrame');
+	if(!f){
+		f = document.createElement('iframe');
+		f.id = 'wpNisFrame';
+		f.style.display = 'none';
+		document.body.appendChild(f);
+	}
+	f.src = url;
+}
 // click the dark backdrop (outside the dialog) to dismiss
 document.addEventListener('DOMContentLoaded', function(){
 	var m=document.getElementById('addModal');
@@ -682,7 +707,7 @@ if(isset($_POST['weekly_id'])){
 		<div class="title">Weekly incident report</div>
 		<div class="range"><?php echo $displayDate; ?></div>
 	</div>
-	<a href='#' class="wp-gen" onclick='window.open("generate_nis2.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'>Generate NIS printout</a>
+	<a href='#' id="wpGenBtn" class="wp-gen" data-ccdr="<?php echo $availability_date; ?>" data-ccdr2="<?php echo $availability_date2; ?>" onclick='wpGenerateNIS(); return false;'>Generate NIS printout</a>
 </div>
 
 <div class="wp-narr">

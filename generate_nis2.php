@@ -1,13 +1,12 @@
 <?php
+// ob_start() so nothing accidentally emitted before the download headers (a
+// stray newline between php tags, a notice) can break the &dl=1 attachment
+// path — "headers already sent" would otherwise corrupt the .xls silently.
+ob_start();
 session_start();
-?>
-<?php
 require_once("phpexcel/Classes/PHPExcel.php");
 require_once("phpexcel/Classes/PHPExcel/IOFactory.php");
 require("excel_functions.php");
-
-?>
-<?php
 ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
 <?php
@@ -661,11 +660,11 @@ $rowCount++;
 			addContent(setRange("L".$rowCount,"L".$rowCount),$excel,"Verified By:","true",$ExWs);
 			
 			$rowCount+=3;
-			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OLIVER S. CASILI","true",$ExWs);
+			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"","true",$ExWs);
 			$excel->getActiveSheet()->getStyle("A".$rowCount.":O".$rowCount)->getFont()->setBold(true);
 			
 			$rowCount++;
-			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OIC, Transport Division","true",$ExWs);
+			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"Chief, Transport Division","true",$ExWs);
 
 			$rowCount+=3;
 			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"Summary and Analysis:","true",$ExWs);
@@ -684,10 +683,10 @@ $rowCount++;
 			
 
 
-			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"JOSE RIC M. INOTORIO","true",$ExWs);
-			addContent(setRange("E".$rowCount,"G".$rowCount),$excel,"OSCAR M. BONGON","true",$ExWs);
-			addContent(setRange("I".$rowCount,"J".$rowCount),$excel,"MICHAEL J. CAPATI","true",$ExWs);
-			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"RODOLFO J. GARCIA","true",$ExWs);
+			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"","true",$ExWs);
+			addContent(setRange("E".$rowCount,"G".$rowCount),$excel,"","true",$ExWs);
+			addContent(setRange("I".$rowCount,"J".$rowCount),$excel,"","true",$ExWs);
+			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"","true",$ExWs);
 			$excel->getActiveSheet()->getStyle("A".$rowCount.":O".$rowCount)->getFont()->setBold(true);
 
 			$rowCount++;
@@ -743,13 +742,11 @@ $rowCount++;
 			addContent(setRange("L".$rowCount,"L".$rowCount),$excel,"Verified By:","true",$ExWs);
 
 			$rowCount+=3;
-//			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OLIVER S. CASILI","true",$ExWs);
+			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"","true",$ExWs);
 			$excel->getActiveSheet()->getStyle("A".$rowCount.":O".$rowCount)->getFont()->setBold(true);
 			
 			$rowCount++;
-//			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OIC, Transport Division","true",$ExWs);
 			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"Chief, Transport Division","true",$ExWs);
-
 			$rowCount+=3;
 			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"Summary and Analysis:","true",$ExWs);
 			addContent(setRange("I".$rowCount,"K".$rowCount),$excel,"Recommended Measures:","true",$ExWs);
@@ -770,12 +767,11 @@ $rowCount++;
 
 			$rowCount+=7;
 	
-/*
-			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"JOSE RIC M. INOTORIO","true",$ExWs);
-			addContent(setRange("E".$rowCount,"G".$rowCount),$excel,"OSCAR M. BONGON","true",$ExWs);
-			addContent(setRange("I".$rowCount,"J".$rowCount),$excel,"MICHAEL J. CAPATI","true",$ExWs);
-			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"RODOLFO J. GARCIA","true",$ExWs);
-*/
+
+			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"","true",$ExWs);
+			addContent(setRange("E".$rowCount,"G".$rowCount),$excel,"","true",$ExWs);
+			addContent(setRange("I".$rowCount,"J".$rowCount),$excel,"","true",$ExWs);
+			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"","true",$ExWs);
 			$excel->getActiveSheet()->getStyle("A".$rowCount.":O".$rowCount)->getFont()->setBold(true);
 
 			$rowCount++;
@@ -795,7 +791,33 @@ $rowCount++;
 	
 	
 	save($ExWb,$excel,$newFilename); 	
+
+	// Delivery. Two modes, so the other window-sprawl options stay open:
+	//   - default (no &dl): the original behaviour — a small confirmation page
+	//     with a Save-As link. Nothing else that calls NIS has to change.
+	//   - &dl=1: stream the just-saved file straight to the browser as a
+	//     download, so the caller can trigger it from a hidden iframe and NO
+	//     visible window opens at all. This is what the weekly Generate button
+	//     uses now.
+	if(isset($_GET['dl']) && $_GET['dl']=="1" && file_exists($newFilename)){
+		// Discard anything buffered (stray whitespace, notices) so the file is
+		// the only thing in the response — otherwise the .xls is prefixed with
+		// junk and Excel rejects it.
+		if(ob_get_length()!==false){ ob_end_clean(); }
+		header("Content-Type: application/vnd.ms-excel");
+		header("Content-Disposition: attachment; filename=\"".basename($newFilename)."\"");
+		header("Content-Length: ".filesize($newFilename));
+		header("Cache-Control: no-cache, must-revalidate");
+		header("Pragma: public");
+		readfile($newFilename);
+		exit;
+	}
+
 	echo "CCDR has been generated!  Press right click and Save As: <a href='".$newFilename."'>Here</a>";
+
+	// Normal (non-download) path: flush the buffer opened at the top so the
+	// confirmation page actually renders.
+	if(ob_get_length()!==false){ ob_end_flush(); }
 
 
 
