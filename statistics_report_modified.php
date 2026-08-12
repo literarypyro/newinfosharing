@@ -220,7 +220,18 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
    otherwise eat width the counts need. */
 #srmMatrix thead th { cursor:pointer; user-select:none; position:relative; padding-right:14px; }
 #srmMatrix.stat-dense thead th { padding-right:10px; }
-#srmMatrix thead th:hover { background:#003E76; }
+/* @sorthover -- was background:#003E76, a DARKER navy, written on the
+   assumption that this header is navy and hover would deepen it. It is not:
+   the header here renders light with dark text, so hovering inverted a single
+   cell to solid navy -- a black hole in the middle of the row, and the label
+   went unreadable wherever the template did not also flip the text colour.
+   A light tint plus a full-strength arrow instead: enough to say "this is the
+   column under the cursor" without repainting it. */
+#srmMatrix thead th:hover { background:#E8F0F9; }
+#srmMatrix thead th:hover::after { opacity:.85; }
+/* The sorted column stays marked once the cursor leaves, which the hover
+   tint alone cannot do. */
+#srmMatrix thead th[aria-sort] { background:#DCE9F6; }
 #srmMatrix thead th::after { content:"\2195"; position:absolute; right:3px; top:50%; margin-top:-6px; opacity:.35; font-size:10px; font-weight:400; }
 #srmMatrix thead th[aria-sort="ascending"]::after  { content:"\25B2"; opacity:1; }
 #srmMatrix thead th[aria-sort="descending"]::after { content:"\25BC"; opacity:1; }
@@ -420,7 +431,7 @@ if($carFilter){ echo " / Car ".$carFilter; }
 <?php /* @buckets -- read $level, not $_POST directly: this warned on a cold
         load and did not reflect the resolved default. */ ?>
 <select name='level'>
-<option></option>
+<option value=''>All Levels</option>
 <option <?php if($level==1){ echo "selected"; } ?> value='1'>1</option>
 <option <?php if($level==2){ echo "selected"; } ?> value='2'>2</option>
 <option <?php if($level==3){ echo "selected"; } ?> value='3'>3</option>
@@ -1123,7 +1134,12 @@ var srmEquiptTotals = <?php echo json_encode($equiptTotals); ?>;
 	Array.prototype.forEach.call(heads, function(th, idx){
 		th.setAttribute('role','button');
 		th.setAttribute('tabindex','0');
-		th.title = 'Sort by ' + (th.textContent||'').replace(/\s+/g,' ').trim();
+		/* @sorthover -- aria-label, NOT title. A title attribute renders as a
+		   native tooltip that parks itself over the first data rows a moment
+		   after the cursor lands, hiding the figures the header is meant to
+		   help you read. aria-label announces the same thing to a screen
+		   reader and draws nothing. */
+		th.setAttribute('aria-label', 'Sort by ' + (th.textContent||'').replace(/\s+/g,' ').trim());
 		function go(){
 			var cur = th.getAttribute('aria-sort');
 			/* Count columns open DESCENDING -- on a failures table the question

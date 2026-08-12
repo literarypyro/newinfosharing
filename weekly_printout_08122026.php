@@ -131,86 +131,6 @@ h2 { font-size:20px; font-weight:bold; }
 a.LDel:visited {color:red;}
 </style>
 -->
-<style type="text/css">
-/* ===========================================================================
-   Line 3 console theme — replaces the old grey/#cccccc + blue-gradient look.
-   Presentation only; every query, fillEdit call, the edit modal and the
-   description builder are untouched.
-   =========================================================================== */
-body { font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-       color:#1A2238; background:#FAFAF6; margin:24px 30px; }
-
-/* masthead */
-.wp-head { background:#00529B; border-bottom:3px solid #FDB813; border-radius:6px 6px 0 0;
-           padding:14px 18px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
-.wp-head .org   { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#BBD6F0; }
-.wp-head .title { font-size:19px; font-weight:600; color:#fff; margin-top:2px; }
-.wp-head .range { font-size:13px; color:#DCEAF7; margin-top:1px; }
-.wp-gen { background:#FDB813; color:#3A2D00; border:none; border-radius:6px; padding:8px 14px;
-          font-size:13px; font-weight:700; white-space:nowrap; cursor:pointer; text-decoration:none; }
-.wp-gen:hover { background:#E5A50F; color:#3A2D00; }
-
-/* narrative panels */
-.wp-narr { display:flex; flex-wrap:wrap; gap:12px; padding:14px 0; }
-.wp-card { flex:1; min-width:260px; background:#FBFAF6; border:1px solid #E5DECC; border-radius:8px; padding:11px 13px; }
-.wp-card.analysis { border-left:3px solid #00529B; }
-.wp-card.measures { border-left:3px solid #FDB813; }
-.wp-card .lbl { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#5A6275;
-                display:flex; align-items:center; justify-content:space-between; }
-.wp-card .lbl a { color:#00529B; text-decoration:none; font-size:12px; }
-.wp-card .val { font-size:13px; line-height:1.5; margin-top:5px; color:#1A2238; }
-.wp-card .wp-empty { color:#8A857A; }
-.wp-card .wp-edit { color:#00529B; text-decoration:none; font-size:12px; }
-.wp-card .wp-inline { display:none; margin-top:7px; }
-.wp-card.editing .val { display:none; }
-.wp-card.editing .wp-inline { display:block; }
-.wp-card .wp-inline textarea { width:100%; min-height:80px; border:1px solid #D8D2C2;
-        border-radius:4px; padding:7px; font:13px/1.5 "Segoe UI",Arial,sans-serif; color:#1A2238; box-sizing:border-box; }
-.wp-inline-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:7px; }
-.wp-btn { border:1px solid #C9C2AE; background:#fff; color:#1A2238; border-radius:5px;
-          padding:5px 13px; font-size:13px; cursor:pointer; text-decoration:none; }
-.wp-btn.primary { background:#00529B; border-color:#00529B; color:#fff; font-weight:600; }
-.wp-btn.primary:hover { background:#003E76; }
-
-/* incident table */
-.train_ava { border-collapse:collapse; width:100%; }
-.train_ava th { background:#00529B; color:#fff; font-weight:600; font-size:12px;
-                border:1px solid #1A66AD; padding:7px 6px; }
-.train_ava tr.rowHeading:nth-child(2) th { background:#1A66AD; font-weight:400; font-size:11px; border-color:#2E76BC; }
-.train_ava td { border:1px solid #E5DECC; padding:6px; font-size:12px; vertical-align:top; }
-.rowClass { background:#F5F2E8; }
-
-/* keep the edit inputs legible without the old gradient */
-input[type="text"]{ height:26px; font-size:13px; border:1px solid #D8D2C2; background:#fff;
-                    color:#1A2238; border-radius:4px; padding:0 6px; }
-
-/* edit dialog — console-theme panel, replacing the Bootstrap modal chrome */
-.wp-modal { display:none; position:fixed; inset:0; z-index:1050;
-            background:rgba(26,34,56,.45); }
-.wp-modal.open { display:flex; align-items:flex-start; justify-content:center; }
-.wp-modal .wp-dialog { background:#fff; border-radius:10px; overflow:hidden;
-            width:520px; max-width:calc(100% - 32px); margin-top:8vh;
-            box-shadow:0 12px 40px rgba(0,0,0,.25); border:1px solid #E5DECC; }
-.wp-modal .wp-mhead { background:#00529B; border-bottom:3px solid #FDB813;
-            padding:11px 16px; display:flex; align-items:center; justify-content:space-between; }
-.wp-modal .wp-mhead h3 { margin:0; font-size:15px; font-weight:600; color:#fff; }
-.wp-modal .wp-mclose { background:none; border:none; color:#DCEAF7; font-size:20px;
-            line-height:1; cursor:pointer; padding:0 2px; }
-.wp-modal .wp-mclose:hover { color:#fff; }
-.wp-modal .wp-mbody { padding:16px; }
-.wp-modal .wp-mbody #add_form { width:100%; }
-.wp-modal .wp-mbody #add_form td { padding:6px 4px; font-size:13px; }
-.wp-modal .wp-mbody textarea { width:100%; min-height:90px; border:1px solid #D8D2C2;
-            border-radius:4px; padding:7px; font:13px/1.5 "Segoe UI",Arial,sans-serif; color:#1A2238; }
-.wp-modal .wp-mbody select { border:1px solid #D8D2C2; border-radius:4px; padding:3px 6px; }
-.wp-modal .wp-mfoot { padding:11px 16px; border-top:1px solid #EDE9DD;
-            display:flex; justify-content:flex-end; gap:8px; background:#FBFAF6; }
-.wp-modal .wp-btn { border:1px solid #C9C2AE; background:#fff; color:#1A2238;
-            border-radius:5px; padding:6px 14px; font-size:13px; cursor:pointer; text-decoration:none; }
-.wp-modal .wp-btn.primary { background:#00529B; border-color:#00529B; color:#fff; font-weight:600; }
-.wp-modal .wp-btn.primary:hover { background:#003E76; }
-.wp-modal .wp-mbody input[type=submit]{ display:none; } /* submit lives in the themed footer now */
-</style>
 <style type='text/css'>
 table{
 	border-collapse:collapse;
@@ -521,32 +441,9 @@ function fillEdit(element,clearance_id){
 	makeajax("processing.php?received_by=Y","fillReceived");			
 	
 	}
-	// console-theme modal: reveal via a class rather than depending on
-	// bootstrap.min.js, so the dialog matches the panels and works even if the
-	// bootstrap JS is not loaded on this page.
-	document.getElementById('addModal').classList.add('open');
+	$('#addModal').modal('show');
+	
 }
-
-function wpCloseModal(){
-	document.getElementById('addModal').classList.remove('open');
-}
-
-// Inline panel editing — replaces the modal for the two narrative fields.
-// The form posts the same weekly_id + formElement the modal did, so the
-// server-side update in weekly_printout is unchanged.
-function wpEdit(field){
-	var card=document.getElementById('card_'+field);
-	if(card){ card.classList.add('editing'); var t=card.querySelector('textarea'); if(t) t.focus(); }
-}
-function wpCancel(field){
-	var card=document.getElementById('card_'+field);
-	if(card) card.classList.remove('editing');
-}
-// click the dark backdrop (outside the dialog) to dismiss
-document.addEventListener('DOMContentLoaded', function(){
-	var m=document.getElementById('addModal');
-	if(m){ m.addEventListener('click', function(e){ if(e.target===m) wpCloseModal(); }); }
-});
 </script>
 
 <body>
@@ -575,7 +472,7 @@ $availability_date=date("Y-m-d",strtotime($_GET['ccdr']));
 $datenow=date("m/d/Y",strtotime($_GET['ccdr']));
 
 
-if(isset($_GET['ccdr2']) && $_GET['ccdr2']!==""){
+if(isset($_GET['ccdr2'])){
 	$availability_date2=date("Y-m-d",strtotime($_GET['ccdr2']));
 //	$datenow=$datenow.=" - ".date("m/d/Y",strtotime($_POST['search_date']));
 	$_SESSION['search_date2']=$_GET['ccdr2'];
@@ -598,7 +495,7 @@ if(isset($_SESSION['search_date'])){
 $availability_date=date("Y-m-d",strtotime($_SESSION['search_date']));
 $datenow=date("m/d/Y",strtotime($_SESSION['search_date']));
 
-if(isset($_SESSION['search_date2']) && $_SESSION['search_date2']!==""){
+if(isset($_SESSION['search_date2'])){
 	$availability_date2=date("Y-m-d",strtotime($_SESSION['search_date2']));
 //	$datenow=$datenow.=" - ".date("m/d/Y",strtotime($_SESSION['search_date']));
 	//$_SESSION['search_date2']=$_POST['search_date'];
@@ -632,7 +529,7 @@ else {
 }
 
 //$timetable=date("Y-m-d",strtotime($_POST['search_date']));
-// masthead is emitted below, once $summary/$measures are loaded
+echo "<h2>".$displayDate."</h2>";
 
 ?>
 <?php
@@ -676,46 +573,16 @@ if(isset($_POST['weekly_id'])){
 	
 }
 ?>
-<div class="wp-head">
-	<div>
-		<div class="org">DOTr &middot; MRT-3 Line 3 &middot; Operations</div>
-		<div class="title">Weekly incident report</div>
-		<div class="range"><?php echo $displayDate; ?></div>
-	</div>
-	<a href='#' class="wp-gen" onclick='window.open("generate_nis2.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'>Generate NIS printout</a>
-</div>
+<a href='#' class="two pull-right"  onclick='window.open("generate_nis2.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>");'><b>Generate Weekly Printout</b></a>
+<br>
+Analysis: <?php echo $summary; ?> <a href='#' onclick="fillEdit('summary_analysis','<?php echo $weekly_id; ?>')">Edit</a>
 
-<div class="wp-narr">
-	<div class="wp-card analysis" id="card_summary_analysis">
-		<div class="lbl">Analysis <a href='#' class="wp-edit" onclick="wpEdit('summary_analysis'); return false;">edit</a></div>
-		<div class="val"><?php echo $summary!=='' ? nl2br(htmlspecialchars($summary)) : '<span class="wp-empty">Not yet entered</span>'; ?></div>
-		<form class="wp-inline" method='post' action='weekly_printout.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>'>
-			<textarea name='summary_analysis'><?php echo htmlspecialchars($summary); ?></textarea>
-			<input type="hidden" name="weekly_id" value="<?php echo $weekly_id; ?>" />
-			<input type="hidden" name="formElement" value="summary_analysis" />
-			<div class="wp-inline-actions">
-				<a href="#" class="wp-btn" onclick="wpCancel('summary_analysis'); return false;">Cancel</a>
-				<button type="submit" class="wp-btn primary">Save</button>
-			</div>
-		</form>
-	</div>
-	<div class="wp-card measures" id="card_recommended">
-		<div class="lbl">Summary and recommended measures <a href='#' class="wp-edit" onclick="wpEdit('recommended'); return false;">edit</a></div>
-		<div class="val"><?php echo $measures!=='' ? nl2br(htmlspecialchars($measures)) : '<span class="wp-empty">Not yet entered</span>'; ?></div>
-		<form class="wp-inline" method='post' action='weekly_printout.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>'>
-			<textarea name='recommended'><?php echo htmlspecialchars($measures); ?></textarea>
-			<input type="hidden" name="weekly_id" value="<?php echo $weekly_id; ?>" />
-			<input type="hidden" name="formElement" value="recommended" />
-			<div class="wp-inline-actions">
-				<a href="#" class="wp-btn" onclick="wpCancel('recommended'); return false;">Cancel</a>
-				<button type="submit" class="wp-btn primary">Save</button>
-			</div>
-		</form>
-	</div>
-</div>
+
+<br>
+Summary and Recommended Measures: <?php echo $measures; ?> <a href='#' onclick="fillEdit('recommended','<?php echo $weekly_id; ?>')">Edit</a>
 
 <!-- header -->
-<table class='train_ava'>
+<table width=95% class='train_ava'>
 <tr class='rowHeading'>
 <th rowspan=2>Incident No.</th>
 <th rowspan=2>Time<br> (H)</th>
@@ -774,31 +641,30 @@ if(isset($_POST['sort_by'])){
 
 
 //$sql="select * from incident_report where incident_date like '".$ccdr_date."%%' order by incident_date";
+$sql="select * from incident_report inner join incident_description on incident_report.id=incident_id where incident_date like '".$ccdr_date."%%'".$clause;
 
-// Shared incident-gathering — same window query and per-incident car lookup as
-// generate_nis2, from one place (incident_report_data.php). $clause carries
-// this page's own sort and any level filter (e.g. " and level='2' order by..."),
-// so passing it as the order/filter argument preserves the sort_by behaviour
-// exactly. Defects below stay on the separate external connection ($db2) —
-// they are deliberately NOT part of the shared core.
-require_once("incident_report_data.php");
-$incidents = isReportWindow($db, $ccdr_date, '', $clause);
-$nm = count($incidents);
+$rs=$db->query($sql);
+
+$nm=$rs->num_rows;
 for($i=0;$i<$nm;$i++){
-	$row=$incidents[$i];
+	$row=$rs->fetch_assoc();
+	
+		$car[0]="";
+		$car[1]="";
+		$car[2]="";
+		$car[3]=""; /* item #2 fix: fourth car was never read here */
 
-		// Cars come pre-fetched as $row['cars'] (all of them) and
-		// $row['cars_label']. Map into the $car[0..3] / $carClause names the
-		// rest of this loop uses. Reading up to four preserves item #2's fix.
-		$car[0]=isset($row['cars'][0])?$row['cars'][0]:"";
-		$car[1]=isset($row['cars'][1])?$row['cars'][1]:"";
-		$car[2]=isset($row['cars'][2])?$row['cars'][2]:"";
-		$car[3]=isset($row['cars'][3])?$row['cars'][3]:"";
-
-		// $carClause is rebuilt from $car[0..3] just below, exactly as before —
-		// $row['cars_label'] would give the same string, but the original
-		// per-car block is kept verbatim to preserve behaviour.
-		{
+		$carClause="";
+		$carSQL="select * from incident_cars where incident_id='".$row['incident_id']."'";
+		$carRS=$db->query($carSQL);
+		$carNM=$carRS->num_rows;
+		
+		if($carNM>0){
+			for($b=0;$b<$carNM;$b++){
+				$carRow=$carRS->fetch_assoc();
+				$car[$b]=$carRow['car_no'];
+			}			
+			
 			$carClause=$car[0];
 			if($car[1]==""){
 			}
@@ -915,22 +781,30 @@ if ($nm<>0) {
 <br>
 <br>
 
-		<div class="wp-modal" id="addModal">
-			<div class="wp-dialog">
-				<div class="wp-mhead">
-					<h3>Edit</h3>
-					<button type="button" class="wp-mclose" onclick="wpCloseModal()" aria-label="Close">&times;</button>
-				</div>
-				<form action='weekly_printout.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>' method='post'>
-					<div class="wp-mbody">
-						<div id='clearance_edit' name='clearance_edit'></div>
-					</div>
-					<div class="wp-mfoot">
-						<a href="#" class="wp-btn" onclick="wpCloseModal(); return false;">Close</a>
-						<button type='submit' class="wp-btn primary" value='Submit'>Submit</button>
-					</div>
-				</form>
+		<div class="modal hide fade" id="addModal">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal">×</button>
+				<h3>Edit</h3>
 			</div>
+			<form action='weekly_printout.php?ccdr=<?php echo $availability_date; ?>&ccdr2=<?php echo $availability_date2; ?>' method='post'>
+
+			<div class="modal-body">	
+				<div id='clearance_edit' name='clearance_edit'>
+
+
+
+
+				</div>
+
+
+				
+			</div>
+						
+			<div class="modal-footer">
+				<a href="#" class="btn" data-dismiss="modal">Close</a>
+				<button type='submit' class="btn btn-primary" value='Submit'>Submit </button>
+			</div>
+			  </form>
 		</div>
 </body>
 

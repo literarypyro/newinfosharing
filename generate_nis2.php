@@ -12,7 +12,13 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
 ?>
 <?php
 if(isset($_GET['ccdr'])){
-	$ccdr_date=$_GET['ccdr'];
+	// Normalise the incoming date exactly as weekly_printout does
+	// (date("Y-m-d", strtotime(...))). NIS previously used the raw $_GET value,
+	// so if the URL carried anything but a bare YYYY-MM-DD the window built from
+	// it could fail to match while weekly's normalised one matched — the
+	// "weekly shows entries, NIS shows none" symptom. Normalising both ends
+	// makes the two windows identical.
+	$ccdr_date=date("Y-m-d", strtotime($_GET['ccdr']));
 
 	$filename="new INCIDENT format.xls";
 
@@ -29,15 +35,31 @@ if(isset($_GET['ccdr'])){
 	$rowCount=0;	
 	
 
-	$ccdr_date2=$_GET['ccdr2'];	
+	// Match weekly: normalise ccdr2 when present, leave empty when absent so the
+	// include falls back to the single-day LIKE window.
+	//
+	// Guard the strtotime-of-empty sentinel: date("Y-m-d", strtotime("")) yields
+	// "1970-01-01", and weekly's Generate button passes that verbatim as ccdr2
+	// on a single-day view. Taken as a real range it makes a BACKWARDS window
+	// (2026 -> 1970) that matches nothing — the "weekly shows 1, NIS shows 0"
+	// bug. Treat it (and any pre-1980 date) as "no second date".
+	$ccdr_date2 = "";
+	if(isset($_GET['ccdr2']) && $_GET['ccdr2']!==""){
+		$try = date("Y-m-d", strtotime($_GET['ccdr2']));
+		if($try > "1980-01-01") $ccdr_date2 = $try;   // else leave empty -> single-day LIKE
+	}
 
 
+// NOTE: $dClause is no longer used to fetch incidents — isReportWindow() in
+// incident_report_data.php now builds the date window itself (correctly ending
+// the day at 23:59:59, not the 23:23:59 that used to live here and silently
+// dropped a 36-minute slice). Kept only in case another block references it;
+// if nothing does, it can be removed.
 if($ccdr_date2==""){
 	 $dClause=" like '".$ccdr_date."%%' ";
-	 	 
 }
 else {
-	$dClause=" between '".$ccdr_date." 00:00:00' and '".$ccdr_date2." 23:23:59' ";
+	$dClause=" between '".$ccdr_date." 00:00:00' and '".$ccdr_date2." 23:59:59' ";
 }
 
 			if($ccdr_date2==""){
@@ -51,27 +73,31 @@ else {
 
 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
-			$sql="select * from weekly_report where from_date like '".$ccdr_date."%%' ".$ccdr_add;
-			$rs=$db->query($sql);
-			$nm=$rs->num_rows;
 
-			if($nm>0){
-				$row=$rs->fetch_assoc();
-				$weekly_id=$row['id'];
-				
-				$summary=$row['summary_analysis'];
-				$measures=$row['recommended'];
-				
+			// Shared: the week's weekly_report row (the analysis/measures the
+			// weekly page saved). Same read as before, from one place.
+			require_once("incident_report_data.php");
+			$weeklyRow = isWeeklyReport($db, $ccdr_date, $ccdr_date2);
+			if($weeklyRow){
+				$weekly_id = $weeklyRow['id'];
+				$summary   = $weeklyRow['summary_analysis'];
+				$measures  = $weeklyRow['recommended'];
 			}
 	
 	
 	
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
-	$sql="select * from incident_report inner join incident_description on incident_report.id=incident_description.incident_id where incident_date ".$dClause." order by substring(incident_no,1,position('' in incident_no))*1 ";
-	$rs=$db->query($sql);
+	// Shared incident-gathering — same window query and per-incident car lookup
+	// the weekly page uses, from one place. Inherits the day-end fix (the old
+	// $dClause above ended at 23:23:59, dropping a 36-minute slice) and the
+	// incident-number sort fix (position('' in ...) always returned 1). The
+	// NIS-only extras below (composition, personnel, signatories, engineering)
+	// are unchanged.
+	require_once("incident_report_data.php");
+	$incidents = isReportWindow($db, $ccdr_date, $ccdr_date2);
 
-	$nm=$rs->num_rows;
+	$nm=count($incidents);
 	
 //	$rowCount+=14;
 
@@ -279,39 +305,17 @@ $rowCount++;
 	
 	
 	for($i=0;$i<$nm;$i++){
-		$row=$rs->fetch_assoc();
+		$row=$incidents[$i];
 
+		// Cars come pre-fetched from the shared include as $row['cars'] (array)
+		// and $row['cars_label'] (the joined string). Map them into the
+		// $car[0..2] / $carClause names the rest of this loop still uses, so
+		// nothing downstream changes.
+		$car[0]=isset($row['cars'][0])?$row['cars'][0]:"";
+		$car[1]=isset($row['cars'][1])?$row['cars'][1]:"";
+		$car[2]=isset($row['cars'][2])?$row['cars'][2]:"";
+		$carClause=$row['cars_label'];
 
-		$car[0]="";
-		$car[1]="";
-		$car[2]="";
-
-		$carClause="";
-		$carSQL="select * from incident_cars where incident_id='".$row['incident_id']."'";
-		$carRS=$db->query($carSQL);
-		$carNM=$carRS->num_rows;
-		
-		if($carNM>0){
-			for($b=0;$b<$carNM;$b++){
-				$carRow=$carRS->fetch_assoc();
-				$car[$b]=$carRow['car_no'];
-			}			
-			
-			$carClause=$car[0];
-			if($car[1]==""){
-			}
-			else {
-				$carClause.=", ".$car[1];
-			}
-			
-			if($car[2]==""){
-			}
-			else {
-				$carClause.=", ".$car[2];
-			}
-			
-		}
-		
 		$newCarClause=$carClause;
 		
 		
@@ -739,11 +743,13 @@ $rowCount++;
 			addContent(setRange("L".$rowCount,"L".$rowCount),$excel,"Verified By:","true",$ExWs);
 
 			$rowCount+=3;
-			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OLIVER S. CASILI","true",$ExWs);
+//			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OLIVER S. CASILI","true",$ExWs);
 			$excel->getActiveSheet()->getStyle("A".$rowCount.":O".$rowCount)->getFont()->setBold(true);
 			
 			$rowCount++;
-			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OIC, Transport Division","true",$ExWs);
+//			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"OIC, Transport Division","true",$ExWs);
+			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"Chief, Transport Division","true",$ExWs);
+
 			$rowCount+=3;
 			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"Summary and Analysis:","true",$ExWs);
 			addContent(setRange("I".$rowCount,"K".$rowCount),$excel,"Recommended Measures:","true",$ExWs);
@@ -764,11 +770,12 @@ $rowCount++;
 
 			$rowCount+=7;
 	
-
+/*
 			addContent(setRange("A".$rowCount,"C".$rowCount),$excel,"JOSE RIC M. INOTORIO","true",$ExWs);
 			addContent(setRange("E".$rowCount,"G".$rowCount),$excel,"OSCAR M. BONGON","true",$ExWs);
 			addContent(setRange("I".$rowCount,"J".$rowCount),$excel,"MICHAEL J. CAPATI","true",$ExWs);
 			addContent(setRange("L".$rowCount,"M".$rowCount),$excel,"RODOLFO J. GARCIA","true",$ExWs);
+*/
 			$excel->getActiveSheet()->getStyle("A".$rowCount.":O".$rowCount)->getFont()->setBold(true);
 
 			$rowCount++;

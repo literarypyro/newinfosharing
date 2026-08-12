@@ -161,7 +161,18 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
    sortable before it is hovered; a control that appears only on hover cannot
    be found by someone looking for it. */
 #csrMatrix thead th { cursor:pointer; user-select:none; position:relative; padding-right:15px; }
-#csrMatrix thead th:hover { background:#003E76; }
+/* @sorthover -- was background:#003E76, a DARKER navy, written on the
+   assumption that this header is navy and hover would deepen it. It is not:
+   the header here renders light with dark text, so hovering inverted a single
+   cell to solid navy -- a black hole in the middle of the row, and the label
+   went unreadable wherever the template did not also flip the text colour.
+   A light tint plus a full-strength arrow instead: enough to say "this is the
+   column under the cursor" without repainting it. */
+#csrMatrix thead th:hover { background:#E8F0F9; }
+#csrMatrix thead th:hover::after { opacity:.85; }
+/* The sorted column stays marked once the cursor leaves, which the hover
+   tint alone cannot do. */
+#csrMatrix thead th[aria-sort] { background:#DCE9F6; }
 #csrMatrix thead th::after { content:"\2195"; position:absolute; right:4px; opacity:.35; font-size:10px; font-weight:400; }
 #csrMatrix thead th[aria-sort="ascending"]::after  { content:"\25B2"; opacity:1; }
 #csrMatrix thead th[aria-sort="descending"]::after { content:"\25BC"; opacity:1; }
@@ -817,7 +828,12 @@ function sortCar($count_a,$count_b){
 	Array.prototype.forEach.call(heads, function(th, idx){
 		th.setAttribute('role','button');
 		th.setAttribute('tabindex','0');
-		th.title = 'Sort by ' + (th.textContent||'').trim();
+		/* @sorthover -- aria-label, NOT title. A title attribute renders as a
+		   native tooltip that parks itself over the first data rows a moment
+		   after the cursor lands, hiding the figures the header is meant to
+		   help you read. aria-label announces the same thing to a screen
+		   reader and draws nothing. */
+		th.setAttribute('aria-label', 'Sort by ' + (th.textContent||'').trim());
 		function go(){
 			var cur = th.getAttribute('aria-sort');
 			/* Count columns open DESCENDING: on a failures table the question is
