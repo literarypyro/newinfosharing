@@ -89,18 +89,6 @@ else if($ccsYear){
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Car #<?php echo $car_id; ?> &mdash; Incident History</title>
 
-<?php
-/* @carfilter -- phFilterCss() only, for the .ph-filters bar below; this page
-   builds its own fields because it filters on y/m/eq/level rather than
-   period_filter's mode/sd/ed scheme.
-   Emitted BEFORE history_theme.php on purpose: the theme carries the margin
-   reset these controls depend on, and it has to come last to beat the
-   Bootstrap rules it links. */
-if(file_exists(dirname(__FILE__)."/period_filter.php")){
-	require_once(dirname(__FILE__)."/period_filter.php");
-	echo "<style type='text/css'>"; phFilterCss(); echo "</style>";
-}
-?>
 <?php include("history_theme.php"); ?>
 </head>
 <body>
@@ -139,97 +127,7 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 </div>
 
 <div class="ccs-panel">
-<div class="ccs-panel-head">
-  <h3>Incident History</h3>
-  <div class="ccs-panel-actions">
-  <?php
-  /* @carfilter -- The page already READ y / m / eq / level -- car_stats.php has
-     been passing them through on its "Full incident history" button -- but
-     there was no way to change them here. Arriving with a filter and being
-     unable to widen or narrow it is the awkward half of a drill-down.
-
-     Same bar as problem_history.php: one row, labelled controls inline, GET so
-     the filtered view is linkable. car_id travels as a hidden field, since it
-     is the page's subject rather than a filter.
-
-     Options come from THIS CAR's own rows, not from the whole fleet: offering
-     a year or an equipment type that yields nothing for car 12 is a dead end
-     the user has to discover by clicking. */
-  $fy = array();
-  $q = $db->query("select distinct year(incident_date) as y
-                     from incident_cars
-                     inner join incident_union on incident_cars.incident_id=incident_union.id
-                    where incident_cars.car_no*1='".$car_id."' and incident_date is not null
-                    order by y desc");
-  if($q){ while($r=$q->fetch_assoc()){ if((int)$r['y']>0) $fy[]=(int)$r['y']; } }
-
-  $fe = array();
-  $q = $db->query("select distinct incident_union.equipt as id, equipment.equipment_name as nm
-                     from incident_cars
-                     inner join incident_union on incident_cars.incident_id=incident_union.id
-                     left  join equipment on equipment.id=incident_union.equipt
-                    where incident_cars.car_no*1='".$car_id."' and incident_union.equipt is not null
-                    order by nm");
-  if($q){ while($r=$q->fetch_assoc()){
-      $id=(int)$r['id']; if($id<=0) continue;
-      $fe[$id] = ($r['nm']!==null && $r['nm']!=='') ? $r['nm'] : 'Equipment #'.$id;
-  } }
-
-  $anyFilter = ($ccsYear || $ccsMonth || $ccsEquipt || $ccsLevel);
-  ?>
-  <form method="get" action="car_history.php" class="ph-filters">
-  <input type="hidden" name="car_id" value="<?php echo (int)$car_id; ?>">
-
-  <div class="ph-field">
-    <label for="chYear">Year</label>
-    <select name="y" id="chYear">
-      <option value="">All years</option>
-      <?php foreach($fy as $yv){ ?>
-      <option value="<?php echo $yv; ?>"<?php echo $ccsYear==$yv?' selected':''; ?>><?php echo $yv; ?></option>
-      <?php } ?>
-    </select>
-  </div>
-
-  <div class="ph-field">
-    <label for="chMonth">Month</label>
-    <select name="m" id="chMonth">
-      <option value="">All months</option>
-      <?php for($mi=1;$mi<=12;$mi++){ ?>
-      <option value="<?php echo $mi; ?>"<?php echo $ccsMonth==$mi?' selected':''; ?>><?php echo date("F", strtotime(sprintf("2000-%02d-01",$mi))); ?></option>
-      <?php } ?>
-    </select>
-  </div>
-
-  <div class="ph-field">
-    <label for="chEq">Equipment</label>
-    <select name="eq" id="chEq">
-      <option value="">All equipment</option>
-      <?php foreach($fe as $eid=>$enm){ ?>
-      <option value="<?php echo $eid; ?>"<?php echo $ccsEquipt==$eid?' selected':''; ?>><?php echo htmlspecialchars($enm); ?></option>
-      <?php } ?>
-    </select>
-  </div>
-
-  <div class="ph-field">
-    <label for="chLevel">Level</label>
-    <select name="level" id="chLevel">
-      <option value="">All levels</option>
-      <?php for($lv=1;$lv<=4;$lv++){ ?>
-      <option value="<?php echo $lv; ?>"<?php echo $ccsLevel==$lv?' selected':''; ?>><?php echo $lv; ?></option>
-      <?php } ?>
-    </select>
-  </div>
-
-  <div class="ph-field ph-field--action">
-    <label aria-hidden="true">&nbsp;</label>
-    <button type="submit">Apply</button>
-  </div>
-  <?php if($anyFilter){ ?>
-  <a class="ph-clear" href="car_history.php?car_id=<?php echo (int)$car_id; ?>">Clear</a>
-  <?php } ?>
-  </form>
-  </div>
-</div>
+<div class="ccs-panel-head"><h3>Incident History</h3></div>
 <div class="ccs-panel-body">
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id="add_form" name="add_form">
     <thead>

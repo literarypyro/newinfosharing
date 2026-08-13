@@ -29,17 +29,6 @@ $coverageNote = ccsCoverageNote($coverage);
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Equipment Incident History</title>
-<?php
-/* @ehfilter -- phFilterCss()/phFilterFields() give this page the same bar the
-   history pages use, including the Year-Month vs Date-range toggle and the
-   datepickers. Emitted BEFORE history_theme.php: the theme carries the margin
-   reset the controls depend on and must come last to beat the Bootstrap rules
-   it links. */
-if(file_exists(dirname(__FILE__)."/period_filter.php")){
-	require_once(dirname(__FILE__)."/period_filter.php");
-	echo "<style type='text/css'>"; phFilterCss(); echo "</style>";
-}
-?>
 <?php include("history_theme.php"); ?>
 
 <link href="css/font-awesome.min.css" rel="stylesheet">
@@ -103,18 +92,6 @@ if(!$ehYear) $ehMonth = 0;   /* a month without a year is not a period */
 
 $ehSd = isset($_GET['sd']) && $_GET['sd'] !== '' ? strtotime($_GET['sd']) : false;
 $ehEd = isset($_GET['ed']) && $_GET['ed'] !== '' ? strtotime($_GET['ed']) : false;
-/* @ehfilter -- mode, mirroring period_filter.php. The bar below keeps BOTH
-   sets of period inputs in the DOM and only hides one, so a stale sd/ed would
-   otherwise still submit and silently win over the year the user just picked.
-   Gating on mode is what makes the toggle mean what it says.
-   Inferred when absent, so existing links without &mode= keep working. */
-$ehMode = isset($_GET['mode']) ? $_GET['mode'] : '';
-if($ehMode !== 'period' && $ehMode !== 'range'){
-	$ehMode = (isset($_GET['sd']) && $_GET['sd'] !== '') ? 'range' : 'period';
-}
-if($ehMode === 'period'){ $ehSd = false; $ehEd = false; }
-else                    { $ehYear = 0;   $ehMonth = 0; }
-
 $ehRange = ($ehSd !== false && $ehEd !== false);
 if($ehRange && $ehEd < $ehSd){ $t=$ehSd; $ehSd=$ehEd; $ehEd=$t; }   // swap, don't clamp
 if($ehRange){ $ehYear = 0; $ehMonth = 0; }                          // one period at a time
@@ -214,74 +191,7 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 	</div>
 </div>
 <div class="ccs-panel">
-<div class="ccs-panel-head">
-  <h3>Incident History</h3>
-  <div class="ccs-panel-actions">
-  <?php
-  /* @ehfilter -- Everything here was already READ from the query string --
-     statistics_report_modified.php passes equipt, car, level and the date
-     range through when it opens the panel -- but the page offered no way to
-     change any of it once you arrived.
-
-     Car and Level are this page's own fields, matching what the report
-     filters on. The period controls come from period_filter.php so the toggle,
-     the datepickers and the styling stay identical to the history pages
-     instead of being a fourth copy that drifts.
-
-     $ph is assembled by hand rather than via phResolvePeriod(), because this
-     page builds its own qualified date clause (incident_union.incident_date --
-     an unqualified column here is ambiguous against the joined tables) and
-     that logic is left untouched. */
-  $ph = array(
-      'mode'    => $ehMode,
-      'year'    => $ehYear,
-      'month'   => $ehMonth,
-      'sd'      => $ehSd,
-      'ed'      => $ehEd,
-      'isRange' => $ehRange,
-      'active'  => ($ehYear || $ehMonth || $ehRange || $ehCar || $ehLevel)
-  );
-
-  /* Cars drawn from THIS equipment's own rows: offering a car this equipment
-     never failed on is a dead end the user finds by clicking. */
-  $ehCars = array();
-  $q = $db->query("select distinct incident_cars.car_no*1 as cn
-                     from incident_report
-                     inner join incident_cars on incident_report.id=incident_cars.incident_id
-                    where incident_report.equipt = ".$ehEquipt."
-                      and incident_cars.car_no*1 > 0
-                    order by cn");
-  if($q){ while($r=$q->fetch_assoc()){ $ehCars[] = (int)$r['cn']; } }
-
-  $ehClearUrl = "equipment_history.php?equipt=".(int)$ehEquipt;
-  ?>
-  <form method="get" action="equipment_history.php" class="ph-filters">
-  <input type="hidden" name="equipt" value="<?php echo (int)$ehEquipt; ?>">
-
-  <div class="ph-field">
-    <label for="ehCarSel">Car</label>
-    <select name="car_id" id="ehCarSel">
-      <option value="">All cars</option>
-      <?php foreach($ehCars as $cn){ ?>
-      <option value="<?php echo $cn; ?>"<?php echo $ehCar==$cn?' selected':''; ?>><?php echo $cn; ?></option>
-      <?php } ?>
-    </select>
-  </div>
-
-  <div class="ph-field">
-    <label for="ehLevelSel">Level</label>
-    <select name="level" id="ehLevelSel">
-      <option value="">All levels</option>
-      <?php for($lv=1;$lv<=4;$lv++){ ?>
-      <option value="<?php echo $lv; ?>"<?php echo $ehLevel==$lv?' selected':''; ?>><?php echo $lv; ?></option>
-      <?php } ?>
-    </select>
-  </div>
-
-  <?php phFilterFields($ph, $db, $ehClearUrl); ?>
-  </form>
-  </div>
-</div>
+<div class="ccs-panel-head"><h3>Incident History</h3></div>
 <div class="ccs-panel-body">
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width=80% id='add_form' name='add_form' >
 	<thead>
@@ -833,7 +743,6 @@ $(function(){
 });
 </script>
 <?php require("slide_panel.php"); ?>
-<?php if(function_exists('phDatepickerJs')) phDatepickerJs(); /* @ehfilter */ ?>
 </body>
 </html>
 <?php
