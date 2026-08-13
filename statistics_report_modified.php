@@ -983,12 +983,26 @@ foreach($equipt as $i => $e){
 		$v  = isset($equipt_count[$key]["Month_".$mk]) ? (int)$equipt_count[$key]["Month_".$mk] : 0;
 		$yy = substr((string)$mk, 0, 4);
 		$mon= substr((string)$mk, 4, 2);
+		/* @dayfix -- in day view $mk is Ymd, so these two substr() calls pulled
+		   the year and month out and the DD was discarded. The link then read
+		   y=2026&m=03 and equipment_history widened the click back to all of
+		   March.
+
+		   Sent as a one-day range rather than a new &d= parameter: this page
+		   already supports sd/ed natively, the bucket carries from/to for exactly
+		   this, and the filter bar can then show and adjust the day. mode=range
+		   is explicit so a stale period pair cannot win over it. */
+		$dayB = ($isDayView && isset($buckets[$mi])) ? $buckets[$mi] : null;
+		$ehQS = $dayB
+		      ? "equipt=".$e['id']."&mode=range&sd=".urlencode($dayB['from']).
+		        "&ed=".urlencode($dayB['to'])."&level=".$level
+		      : "equipt=".$e['id']."&y=".$yy."&m=".$mon."&level=".$level;
 ?>
 <?php
 		if(ccsMonthStatus($coverage, $yy."-".$mon) === 'missing'){ echo ccsCoverageCell('missing'); }
 		else {
 ?>
-	<td class='stat_hover' align=center><a href='#' style='text-decoration:none; color:<?php echo $v>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("equipment_history.php?equipt=<?php echo $e['id']; ?>&y=<?php echo $yy; ?>&m=<?php echo $mon; ?>&level=<?php echo $level; ?>",target="_self")'><?php echo $v; ?></a></td>
+	<td class='stat_hover' align=center><a href='#' style='text-decoration:none; color:<?php echo $v>0 ? '#00529B' : '#B4B2A9'; ?>;' onclick='window.open("equipment_history.php?<?php echo $ehQS; ?>",target="_self")'><?php echo $v; ?></a></td>
 <?php } ?>
 <?php
 	}

@@ -69,9 +69,25 @@ $ccsYear  = isset($_GET['y']) && $_GET['y'] !== '' ? (int)$_GET['y'] : 0;
 $ccsMonth = isset($_GET['m']) && $_GET['m'] !== '' ? (int)$_GET['m'] : 0;
 if($ccsMonth < 1 || $ccsMonth > 12){ $ccsMonth = 0; }
 
+/* @dayfix -- car_statistics_report's day view sent only y and m, so clicking
+   day 7 of March landed here filtered to all of March. The day was simply
+   dropped in transit; this page had no day concept to receive it.
+
+   Validated against the actual month rather than 1..31: checkdate() rejects
+   31 April and 29 Feb in a common year, either of which would otherwise build
+   a LIKE that silently matches nothing and read as "no incidents". A day
+   without a month is not a date, so it needs both. */
+$ccsDay = isset($_GET['d']) && $_GET['d'] !== '' ? (int)$_GET['d'] : 0;
+if(!$ccsYear || !$ccsMonth || !checkdate($ccsMonth, $ccsDay, $ccsYear)){ $ccsDay = 0; }
+
 $dateClause  = "";
 $dateClause2 = "";
-if($ccsYear && $ccsMonth){
+if($ccsYear && $ccsMonth && $ccsDay){
+	$ymd = sprintf("%04d-%02d-%02d", $ccsYear, $ccsMonth, $ccsDay);
+	$dateClause  = " and incident_date like '".$ymd."%%' ";
+	$dateClause2 = " and transport_old.incident_date like '".$ymd."%%' ";
+}
+else if($ccsYear && $ccsMonth){
 	$ym = sprintf("%04d-%02d", $ccsYear, $ccsMonth);
 	$dateClause  = " and incident_date like '".$ym."-%%' ";
 	$dateClause2 = " and transport_old.incident_date like '".$ym."-%%' ";
@@ -127,7 +143,13 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 		   The equipment name is resolved from $causeMap, which is loaded
 		   further down, so this reads it after the fact via a small query
 		   rather than moving the map's load point. */
-		if($ccsYear){ echo " &mdash; ".($ccsMonth ? date("F Y", strtotime(sprintf("%04d-%02d-01",$ccsYear,$ccsMonth))) : "Year ".$ccsYear); }
+		/* @dayfix -- a single day has to name itself, or a one-row page under a
+		   heading that says "March 2026" reads as data loss. */
+		if($ccsYear){
+			if($ccsDay){      echo " &mdash; ".date("d F Y", strtotime(sprintf("%04d-%02d-%02d",$ccsYear,$ccsMonth,$ccsDay))); }
+			else if($ccsMonth){ echo " &mdash; ".date("F Y", strtotime(sprintf("%04d-%02d-01",$ccsYear,$ccsMonth))); }
+			else {            echo " &mdash; Year ".$ccsYear; }
+		}
 		/* @levelfilter -- stated in the heading; a page showing a fraction of a
 		   car's history with nothing saying why reads as missing data. */
 		if($ccsLevel){ echo " &mdash; Level ".$ccsLevel." only"; }
@@ -175,7 +197,7 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
       $fe[$id] = ($r['nm']!==null && $r['nm']!=='') ? $r['nm'] : 'Equipment #'.$id;
   } }
 
-  $anyFilter = ($ccsYear || $ccsMonth || $ccsEquipt || $ccsLevel);
+  $anyFilter = ($ccsYear || $ccsMonth || $ccsDay || $ccsEquipt || $ccsLevel);
   ?>
   <form method="get" action="car_history.php" class="ph-filters">
   <input type="hidden" name="car_id" value="<?php echo (int)$car_id; ?>">
@@ -196,6 +218,21 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
       <option value="">All months</option>
       <?php for($mi=1;$mi<=12;$mi++){ ?>
       <option value="<?php echo $mi; ?>"<?php echo $ccsMonth==$mi?' selected':''; ?>><?php echo date("F", strtotime(sprintf("2000-%02d-01",$mi))); ?></option>
+      <?php } ?>
+    </select>
+  </div>
+
+  <div class="ph-field">
+    <?php /* @dayfix -- arriving on one day with no way to widen back to the
+             month is the awkward half of a drill-down, same reason this bar
+             exists at all. 31 options always: which are valid depends on the
+             month chosen in the SAME submit, so pruning here would need JS to
+             stay honest, and an invalid combination is rejected above. */ ?>
+    <label for="chDay">Day</label>
+    <select name="d" id="chDay">
+      <option value="">All days</option>
+      <?php for($di=1;$di<=31;$di++){ ?>
+      <option value="<?php echo $di; ?>"<?php echo $ccsDay==$di?' selected':''; ?>><?php echo $di; ?></option>
       <?php } ?>
     </select>
   </div>

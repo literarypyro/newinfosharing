@@ -564,12 +564,17 @@ for($k=1;$k<=$bucketCount;$k++){
 
 	$monthTotals[$k]+=$stats["Car_".$i][$bucketKey.$k];
 	$mon = $isDayView ? $monthSel : $k;   /* the drill-down link wants a MONTH */
+	/* @dayfix -- ...and in day view it also wants the DAY. $mon was already
+	   being corrected to the selected month, so the link looked right; the
+	   column's own identity, $k, was the part never sent. Clicking day 7 of
+	   March therefore opened all of March. */
+	$dayQS = $isDayView ? "&d=".(int)$k : "";
 	$stat=$stats["Car_".$i][$bucketKey.$k];
 ?>			
 
 
 
-	<td class='stat_hover' role="button" align=center><a href='car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $mon; ?>' style='text-decoration:none; color:<?php echo $stat>0 ? '#00529B' : '#B4B2A9'; ?>;'><?php echo $stat; ?></a></td>
+	<td class='stat_hover' role="button" align=center><a href='car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>&m=<?php echo $mon; ?><?php echo $dayQS; ?>' style='text-decoration:none; color:<?php echo $stat>0 ? '#00529B' : '#B4B2A9'; ?>;'><?php echo $stat; ?></a></td>
 <?php
 }
 ?>
