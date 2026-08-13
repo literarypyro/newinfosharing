@@ -162,8 +162,6 @@ form.ph-filters input[type=submit]{
 .ph-field > label{white-space:nowrap;line-height:30px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#5A6275;font-weight:600;}
 .ph-field { position:relative; top:10px; }
 
-.ph-clear { position:relative; top:10px; }
-
 .ph-inline{display:flex;align-items:center;gap:6px;}
 .ph-sep{font-size:11px;color:#5A6275;}
 .ph-filters select,
@@ -172,6 +170,22 @@ form.ph-filters input[type=submit]{
 	border:1px solid #D8D2C2;border-radius:4px;
 	font-size:12px;font-family:inherit;background:#FFFFFF;color:#1A2238;
 }
+/* @fieldwidth -- Unsized selects widen to fit their longest option, so Month
+   was sizing itself to "September" and Year to "All years" plus the arrow.
+   Between them they took enough of the line that the row wrapped and Clear
+   dropped to a second line.
+
+   Sized to the content that matters instead: a year is four digits, a month
+   name is read from three or four letters of context, and both stay legible
+   truncated because the selected value is short even when the option list is
+   not. Only the two period selects are touched -- Filter by, Car, Equipment
+   and Level carry names that genuinely need their width. */
+.ph-filters select[name="y"]{width:96px;}
+.ph-filters select[name="m"]{width:116px;}
+/* padding-right leaves room for the arrow so a long month is not drawn under
+   it; -webkit-appearance stays default so the control still looks native. */
+.ph-filters select[name="y"],
+.ph-filters select[name="m"]{padding-right:4px;text-overflow:ellipsis;}
 /* readonly is what turns a date field grey: browsers give readonly inputs
    their DISABLED styling, which leaves the value barely legible. The picker
    still owns the field, but it should not look switched off. WebKit needs
@@ -341,7 +355,12 @@ function phFilterFields($ph, $db, $clearUrl, $clearMode = 'link', $submitLabel =
 	</div>
 	<?php if($ph['active']){
 		if($clearMode === 'reset'){ ?>
-		<a href="#" class="ph-clear" onclick="phClearPeriod(this.form); return false;">Clear</a>
+		<?php /* @clearfix -- this.form was the bug: only FORM CONTROLS carry a
+		         .form property, and this is an <a>. It evaluated to undefined,
+		         phClearPeriod's guard returned early, and Clear did nothing --
+		         silently, which is why it read as a styling problem. Pass the
+		         element and let the function find its own form. */ ?>
+		<a href="#" class="ph-clear" onclick="phClearPeriod(this); return false;">Clear</a>
 	<?php } else { ?>
 		<a href="<?php echo htmlspecialchars($clearUrl); ?>" class="ph-clear">Clear</a>
 	<?php } } ?>
@@ -353,7 +372,15 @@ function phDatepickerJs(){ ?>
    regardless of script load order. '' restores the stylesheet's display
    rather than forcing a hard-coded value. */
 function phClearPeriod(f){
-	if(!f) return;
+	/* @clearfix -- accepts either the form or any element inside it. The call
+	   site passed this.form from an <a>, which is always undefined; rather than
+	   fix the one caller and leave the trap set, resolve it here. */
+	if(f && f.tagName && f.tagName.toUpperCase() !== 'FORM'){
+		var c = f.closest ? f.closest('form') : null;
+		f = c || f.parentNode;
+		while(f && f.tagName && f.tagName.toUpperCase() !== 'FORM') f = f.parentNode;
+	}
+	if(!f || !f.tagName || f.tagName.toUpperCase() !== 'FORM') return;
 	if(f.y)  f.y.value  = '';
 	if(f.m)  f.m.value  = '';
 	if(f.sd) f.sd.value = '';

@@ -707,7 +707,7 @@ if(isset($_POST['weekly_id'])){
 		<div class="title">Weekly incident report</div>
 		<div class="range"><?php echo $displayDate; ?></div>
 	</div>
-	<a href='#' id="wpGenBtn" class="wp-gen" data-ccdr="<?php echo $availability_date; ?>" data-ccdr2="<?php echo $availability_date2; ?>" onclick='wpGenerateNIS(); return false;'>Generate NIS printout</a>
+	<a href='#' id="wpGenBtn" class="wp-gen" data-ccdr="<?php echo $availability_date; ?>" data-ccdr2="<?php echo $availability_date2; ?>" onclick='wpGenerateNIS(); return false;'>Generate Weekly printout</a>
 </div>
 
 <div class="wp-narr">

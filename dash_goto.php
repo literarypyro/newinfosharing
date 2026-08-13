@@ -60,7 +60,7 @@ if(!defined('DASH_DATE_SESSION_FORMAT')){ define('DASH_DATE_SESSION_FORMAT','m/d
    Adjust the filenames and the two session key names below to match.
    --------------------------------------------------------------------- */
 $targets = array(
-	'ops'       => array('page'=>'train_operations_parallel.php',            'scope'=>'day'),
+	'ops'       => array('page'=>'train_operations_admin.php',            'scope'=>'day'),
 	'ava'       => array('page'=>'train_availability.php',          'scope'=>'day'),
 	'incidents' => array('page'=>'incident summary.php',            'scope'=>'day'),
 	'ccdr'      => array('page'=>'ccdr_summary.php',                'scope'=>'day'),

@@ -196,7 +196,7 @@ dash_status_band($view_date,false);
 <?php if(!count($incidents)){ ?>
 			<div class="ds-empty">No incidents recorded for this date.</div>
 <?php } else { ?>
-			<ul class="ds-feed">
+			<ul class="ds-feed" id="ds-inc-feed">
 <?php	$shown=0;
 		foreach($incidents as $r){
 			if($shown>=6){ break; }
@@ -206,11 +206,45 @@ dash_status_band($view_date,false);
 			$desc= trim(preg_replace('/\s+/',' ',strip_tags((string)$desc)));
 			if(strlen($desc)>72){ $desc=substr($desc,0,72)."&hellip;"; }
 			if($desc===""){ $desc=dash_type_label(isset($r['incident_type'])?$r['incident_type']:''); }
+			/* @feedpanel -- the band titles its panel "Incident - <no>"; match it,
+			   falling back to the row id when the register has no number yet. */
+			$incId = dash_incident_id($r);
+			$incNo = (isset($r['incident_no']) && trim((string)$r['incident_no'])!=='')
+			       ? trim((string)$r['incident_no']) : $incId;
 ?>
 				<li><span class="ds-time"><?php echo dash_h(dash_hm($r['incident_date'])); ?></span>
-					<span><?php if($lvl!==""){ ?><span class="ds-badge t-<?php echo dash_level_tone($lvl); ?>"><?php echo dash_h($lvl); ?></span><?php } ?><a class="ds-more" style="font-size:inherit;color:inherit" href="<?php echo dash_h(dash_link('incidents',$view_date,dash_incident_id($r)?('ir-'.dash_incident_id($r)):'')); ?>"><?php echo dash_h($desc); ?></a><?php if($r['open']){ ?> <em style="color:var(--cf-bad)">open</em><?php } ?></span></li>
+					<span><?php if($lvl!==""){ ?><span class="ds-badge t-<?php echo dash_level_tone($lvl); ?>"><?php echo dash_h($lvl); ?></span><?php } ?><?php
+					/* @feedpanel -- same contract as the status band: the anchor keeps
+					   its REAL href to the register, and data-panel carries the embed
+					   URL. The handler below intercepts the click only after confirming
+					   the opener exists, so with slide_panel.php absent, JS blocked, or
+					   a middle-click, the link still goes somewhere useful.
+					   The previous edit called openEditIncidentPanel(): that function
+					   lives in train_operations_parallel.php and is not loaded here, so
+					   even past the parse error it would have thrown ReferenceError. */
+					?><a class="ds-more" style="font-size:inherit;color:inherit" href="<?php echo dash_h(dash_link('incidents',$view_date,$incId?('ir-'.$incId):'')); ?>"<?php if($incId!==""){ ?> data-panel="edit_ccdr.php?ir=<?php echo dash_h($incId); ?>&amp;embed=1" data-panel-title="Incident <?php echo dash_h($incNo); ?>"<?php } ?>><?php echo dash_h($desc); ?></a><?php if($r['open']){ ?> <em style="color:var(--cf-bad)">open</em><?php } ?></span></li>
 <?php	} ?>
 			</ul>
+			<script>
+			/* @feedpanel -- delegated to the list rather than bound per anchor, so it
+			   survives the feed being re-rendered. The opener name comes from
+			   DASH_PANEL_FN when defined, exactly as the band resolves it. */
+			(function(){
+				var list=document.getElementById('ds-inc-feed');
+				if(!list||!list.addEventListener) return;
+				var fn=<?php echo json_encode(defined('DASH_PANEL_FN') ? DASH_PANEL_FN : 'openSlidePanel'); ?>;
+				list.addEventListener('click',function(e){
+					var a=e.target||e.srcElement;
+					while(a && a!==list && !(a.getAttribute && a.getAttribute('data-panel'))) a=a.parentNode;
+					if(!a || a===list) return true;
+					var open=window[fn];
+					if(typeof open!=='function') return true;   /* no panel -> follow the href */
+					if(e.preventDefault) e.preventDefault(); else e.returnValue=false;
+					open(a.getAttribute('data-panel'), a.getAttribute('data-panel-title')||'');
+					return false;
+				},false);
+			})();
+			</script>
 			<div class="ds-note" style="margin-top:9px"><a class="ds-more" href="<?php echo dash_h(dash_link('incidents',$view_date)); ?>">Full register</a> &mdash; showing <?php echo (int)$shown; ?> of <?php echo (int)$inc['total']; ?>.</div>
 <?php } ?>
 		</div>

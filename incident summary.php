@@ -753,11 +753,62 @@ $isPrintQS   = "ccdr=".urlencode($isPrintFrom)."&ccdr2=".urlencode($isPrintTo);
 		<a href="#" class="cf-tbtn"
 		   onclick='window.open("generate_ccdr.php?<?php echo $isPrintQS; ?>"); return false;'
 		   title="The previous CCDR layout, kept for recipients who still expect it">CCDR &mdash; legacy layout</a>
+<?php
+		/* @nisdirect -- ccadmin generates the NIS spreadsheet from here instead of
+		   going to weekly_printout.php and clicking Generate NIS printout there.
+		   That trip was only ever navigation: generate_nis2.php is self-contained
+		   and takes the same ccdr/ccdr2 range this bar already knows, so nothing
+		   on the weekly page contributes to the document.
+
+		   The username is compared case-insensitively and trimmed -- session
+		   values arrive however the login page stored them. Kept as one named
+		   variable so the account list is a one-line change if it grows.
+
+		   isset() matters: the previous form read $_SESSION['username'] directly,
+		   which emits a warning for a logged-out or expired session and, with
+		   display_errors on, prints it into the middle of the print bar. */
+		$isNisUser = (isset($_SESSION['username'])
+		              && strtolower(trim($_SESSION['username'])) === 'ccadmin');
+
+		if($isNisUser && $isPrintFrom !== ''){ ?>
+		<?php /* No range, no button: generate_nis2 with an empty ccdr produces a
+		         spreadsheet for nothing, and the click gives no clue why. */ ?>
+		<a href="#" class="cf-tbtn" id="isNisBtn"
+		   data-ccdr="<?php echo htmlspecialchars($isPrintFrom); ?>"
+		   data-ccdr2="<?php echo htmlspecialchars($isPrintTo); ?>"
+		   onclick='isGenerateNIS(); return false;'
+		   title="Downloads the NIS spreadsheet for this range without leaving the page">Weekly printout</a>
+		<?php } else { ?>
 		<a href="#" class="cf-tbtn"
 		   onclick='window.open("weekly_printout.php?<?php echo $isPrintQS; ?>"); return false;'
 		   title="Weekly roll-up over the same range">Weekly summary</a>
+		<?php } ?>
 	</span>
 </div>
+<?php if($isNisUser && $isPrintFrom !== ''){ ?>
+<script>
+/* @nisdirect -- same mechanism weekly_printout.php uses: a hidden iframe on
+   generate_nis2.php with &dl=1 streams the .xls as a download, so no third
+   window opens. Dates are read from the button's data-* attributes at click
+   time rather than echoed here, matching wpGenerateNIS(). */
+function isGenerateNIS(){
+	var btn = document.getElementById('isNisBtn');
+	if(!btn) return;
+	var d1  = btn.getAttribute('data-ccdr')  || '';
+	var d2  = btn.getAttribute('data-ccdr2') || '';
+	var url = "generate_nis2.php?ccdr=" + encodeURIComponent(d1) +
+	          "&ccdr2=" + encodeURIComponent(d2) + "&dl=1";
+	var f = document.getElementById('isNisFrame');
+	if(!f){
+		f = document.createElement('iframe');
+		f.id = 'isNisFrame';
+		f.style.display = 'none';
+		document.body.appendChild(f);
+	}
+	f.src = url;
+}
+</script>
+<?php } ?>
 
 <!-- header -->
 <table width=95% class='train_ava'>
