@@ -170,7 +170,11 @@ dash_status_band($view_date,false);
 		<div class="ds-card">
 			<div class="ds-card-head">
 				<h2>Latest insertions</h2>
+<?php 
+/**
 				<a class="ds-more" href="<?php echo dash_h(dash_link('depot',$view_date)); ?>">Depot insertion &rarr;</a>
+				*/
+				?>
 			</div>
 <?php if(!count($insertions)){ ?>
 			<div class="ds-empty">No insertions recorded yet.</div>

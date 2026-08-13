@@ -96,13 +96,34 @@ h2 { color:#1A2238; font-size:20px; }
 }
 .stat-toolbar table { border-collapse:collapse; }
 .stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#FFFFFF; font-weight:600; font-size:13px; text-align:left; }
+/* @toolbaralign -- The Submit sat lower than the fields for two reasons at
+   once:
+
+     1. It was 28px while the selects and text inputs were 26px.
+     2. Everything in this bar is inline-level inside table cells, so the
+        default vertical-align is BASELINE. Inline-block boxes of unequal
+        height align on the baseline of their last line box, which for a
+        taller control sits further down the box -- so the mismatch showed as
+        a vertical offset rather than just a size difference.
+
+   Fixed on both counts: one height for every control, and vertical-align
+   middle so the row cannot drift again if a height is ever changed.
+   box-sizing is set explicitly because these rules give the fields a border
+   and the button none; without it the same height value produces two
+   different boxes. */
+.stat-toolbar select,
+.stat-toolbar input[type=text],
+.stat-toolbar input[type=submit] {
+	height:28px; box-sizing:border-box; vertical-align:middle; margin:0;
+	border-radius:4px; font-size:12px; font-family:inherit;
+}
 .stat-toolbar select, .stat-toolbar input[type=text] {
-	height:26px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
-	background:#FFFFFF; color:#1A2238; padding:0 8px; font-size:12px;
+	border:1px solid rgba(255,255,255,.5);
+	background:#FFFFFF; color:#1A2238; padding:0 8px;
 }
 .stat-toolbar input[type=submit] {
-	height:28px; border:none; border-radius:4px; background:#FDB813;
-	color:#3A2D00; font-weight:700; font-size:12px; padding:0 14px; cursor:pointer;
+	border:none; background:#FDB813;
+	color:#3A2D00; font-weight:700; padding:0 14px; cursor:pointer;
 }
 .stat-toolbar input[type=submit]:hover { background:#E5A50F; }
 

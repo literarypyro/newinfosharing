@@ -56,32 +56,13 @@ body { margin:0; background:var(--cf-bg); color:var(--cf-dark); font-family:var(
 .stat-toolbar table { border-collapse:collapse; width:100%; }
 .stat-toolbar th, .stat-toolbar td { border:none !important; padding:4px 8px; color:#fff; font-weight:600; font-size:13px; text-align:left; }
 .stat-toolbar label { color:rgba(255,255,255,.85); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; margin-right:6px; }
-/* @toolbaralign -- Two small corrections, kept deliberately narrow because
-   every report page includes this file.
-
-   1. input[type=submit] was 30px against the fields' 28px. Matched to 28 --
-      shrinking the one odd element rather than growing every field, so the
-      toolbar's overall height does not change on any page.
-
-   2. margin:0 added. bootstrap.min.css is linked at the top of this file, and
-      Bootstrap 2 sets "input, textarea, select { margin-bottom: 9px }" -- on
-      the fields but NOT on a submit or a <button>. That asymmetry is what
-      makes the submit sit low in a centred row, and no alignment property can
-      correct it because the boxes genuinely differ. This is the actual fix;
-      the height was only making it more visible.
-
-   NOT changed, on purpose: no rule is added for a bare <button> in a
-   .stat-toolbar. An earlier draft styled those gold, which would have
-   restyled any non-submit button a page happens to put in its toolbar. */
 .stat-toolbar select, .stat-toolbar input[type=text] {
-	height:28px; margin:0; vertical-align:middle;
-	border:1px solid rgba(255,255,255,.5); border-radius:4px;
+	height:28px; border:1px solid rgba(255,255,255,.5); border-radius:4px;
 	background:#fff !important; color:var(--cf-dark) !important; padding:0 8px; font-size:12px; font-family:var(--cf-sans);
 }
 .stat-toolbar input[type=text]:focus { color:var(--cf-dark) !important; background:#fff !important; }
 .stat-toolbar input[type=submit] {
-	height:28px; margin:0; vertical-align:middle;
-	border:none; border-radius:4px; background:var(--cf-gold);
+	height:30px; border:none; border-radius:4px; background:var(--cf-gold);
 	color:var(--cf-gold-ink); font-weight:700; font-size:12px; padding:0 16px; cursor:pointer;
 }
 .stat-toolbar input[type=submit]:hover { background:#E5A50F; }
@@ -138,18 +119,6 @@ body { margin:0; background:var(--cf-bg); color:var(--cf-dark); font-family:var(
 
 #add_form a       { color:var(--cf-blue); font-weight:600; text-decoration:none; }
 #add_form a:hover { color:var(--cf-blue-dark); text-decoration:underline; }
-
-/* @toolbaralign -- Scoped to form.ph-filters, so it reaches only the three
-   history pages that use that bar and nothing else in the console. Declared
-   here rather than on those pages because this file is included AFTER their
-   own <style>, and at equal specificity the later rule wins -- which is why
-   the same reset written page-side had no effect. */
-form.ph-filters select,
-form.ph-filters input[type=text],
-form.ph-filters input[type=submit],
-form.ph-filters button {
-	margin:0; vertical-align:middle;
-}
 
 @media (max-width:900px){ .ccs-page { padding:16px; } }
 </style>

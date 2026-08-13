@@ -114,9 +114,66 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 /* @filterui -- The controls were a flat row of mismatched heights with no
    labels, so nothing said which select was which. Grouped into labelled
    fields on a common baseline instead. */
-.ph-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;}
-.ph-field{display:flex;flex-direction:column;gap:3px;}
-.ph-field > label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#5A6275;font-weight:600;}
+/* superseded by the grid rule below -- see @toolbaralign */
+/* @toolbaralign -- Reverting the shape, not patching the alignment again.
+
+   Every one of my four attempts tried to make a TWO-ROW bar line up: labels
+   on one line, controls beneath. Flex-end, a spacer label, a fixed-height
+   grid, then a real two-row grid -- each fixed the case I could reason about
+   and broke another, and the last two clipped the labels because row 1 kept
+   being sized wrong for this page's ancestors.
+
+   The two-row shape is the problem, and I introduced it on 06 Aug when I
+   added visible labels to a bar that previously had none. A single row of
+   equal-height controls has no cross-axis question to get wrong: there is one
+   line, everything is centred on it, and no ancestor height can push one item
+   out of step with another.
+
+   So the labels stay -- they were worth adding -- but they sit INLINE before
+   their control instead of above it. */
+/* @toolbaralign -- SPECIFICITY, which is what I should have checked first.
+   This page's own <style> block is emitted BEFORE history_theme.php is
+   included, so any rule the theme carries for button / input / select at the
+   same specificity WINS -- later wins at equal weight. That is consistent with
+   what we have seen for five rounds: the markup is right (button and selects
+   are siblings inside form.ph-filters, confirmed against the parsed DOM), the
+   rules read correctly in the file, and none of them take effect on the
+   control that a shared theme is most likely to style -- the button.
+
+   The alignment-critical declarations are therefore given a tag-qualified
+   selector AND !important. Not a preference, a necessity: without seeing
+   history_theme.php I cannot know its specificity, and this is the only way
+   to be sure these win regardless. */
+/* @toolbaralign -- The !important flags that were here are gone. The real
+   cause turned out to be in history_theme.php: it set the fields to 28px and
+   the submit to 30px, and it links bootstrap.min.css, whose
+   "input, select { margin-bottom:9px }" applies to the fields but not to a
+   <button>. Both are fixed at the root now, so these rules only have to
+   describe the layout. */
+form.ph-filters{
+	display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;
+}
+form.ph-filters div.ph-field{display:flex;align-items:center;gap:6px;}
+/* The theme also zeroes the margin on these (see @toolbaralign there); the
+   height stays 30px here because this bar is its own thing and is not mixed
+   with .stat-toolbar controls on any page. */
+form.ph-filters select,
+form.ph-filters input[type=text],
+form.ph-filters button,
+form.ph-filters input[type=submit]{
+	height:30px;box-sizing:border-box;margin:0;vertical-align:middle;
+}
+/* @toolbaralign -- The labels read a touch high. align-items:center centres
+   the label's BOX, not its glyphs, and at line-height:1 the box hugs the em
+   square -- which reserves descender space that all-caps text never uses, so
+   the letters sit above the box's optical centre.
+
+   Matching the label's line-height to the control height (30px) makes both
+   boxes the same and lets the text centre inside its own line box, which is
+   where the glyphs actually settle correctly. */
+.ph-field > label{white-space:nowrap;line-height:30px;font-size:10px;position:relative; top:5px;text-transform:uppercase;letter-spacing:.06em;color:#5A6275;font-weight:600;}
+
+.ph-field {position:relative; top:10px; }
 .ph-inline{display:flex;align-items:center;gap:6px;}
 .ph-sep{font-size:11px;color:#5A6275;}
 
@@ -143,12 +200,51 @@ $problemName = ($problem!=='') ? getProblemType($db,$problem) : '—';
 .ph-filters input[readonly]:focus{outline:2px solid #00529B;outline-offset:-1px;}
 .ph-filters input::placeholder{color:#8A93A6;opacity:1;}
 
+/* @toolbaralign -- Normalising, not a demonstrated fix. The button and the
+   fields are both 30px here and the row is flex with align-items:flex-end, so
+   on paper the bottoms already line up -- unlike the .stat-toolbar pages,
+   where the offset has a provable cause. These declarations remove the ways a
+   drift could still creep in: box-sizing so 30px means the same thing on a
+   bordered field and a borderless button, align-self so an inherited
+   align-items cannot override the row's, and margin:0 against UA defaults. */
+/* @toolbaralign -- The Apply button sat ~13px below the fields in Firefox,
+   and align-self:flex-end did not help. 13px is the height of a label line,
+   which is the tell: every OTHER control is inside a .ph-field whose first
+   line box is its <label>, and the button had no label at all. Whenever the
+   row falls back to baseline alignment -- which it does if the flex rule is
+   not in force, and Firefox reaches it more readily here -- a flex/inline
+   item's baseline is the baseline of its FIRST line box. The fields' first
+   line is the label; the button's is its own caption. So the button's caption
+   was being lined up with the labels, dropping the whole button by one label
+   height.
+
+   Fixed structurally rather than with more alignment properties: the button
+   now sits in a .ph-field with a spacer label, so it has the same two-line
+   box as every other control. That lines up under flex-end AND under
+   baseline, so it no longer depends on which one wins. */
+/* same 16px/30px template as every other field -- nothing special needed */
+/* @toolbaralign -- one row now, so the action needs no spacer label. */
+.ph-filters .ph-field--action > label{display:none;}
+/* @toolbaralign -- one shared height for everything on the line. */
 .ph-filters button{
-	height:30px;background:#FDB813;color:#3A2D00;border:none;border-radius:4px;
+	height:30px;box-sizing:border-box;margin:0;vertical-align:middle;
+	background:#FDB813;color:#3A2D00;border:none;border-radius:4px;
 	padding:0 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
 }
+/* Some callers submit with an <input> rather than a <button>; it was picking
+   up none of the rules above. */
+.ph-filters input[type=submit]{
+	height:30px;box-sizing:border-box;margin:0;vertical-align:middle;
+	background:#FDB813;color:#3A2D00;border:none;border-radius:4px;
+	padding:0 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;
+}
+.ph-filters input[type=submit]:hover{background:#E5A50F;}
 .ph-filters button:hover{background:#E5A50F;}
-.ph-clear{font-size:11px;color:#5A6275;text-decoration:none;align-self:center;padding-bottom:7px;}
+/* @toolbaralign -- the Clear link is a bare child of the row for the same
+   reason the button was; align-self:center + a padding fudge was guesswork.
+   Bottom-aligned to the control line instead, matching the button's height so
+   its text sits on the same line. */
+.ph-clear{font-size:11px;color:#5A6275;text-decoration:none;}
 .ph-clear:hover{color:#7A1F1F;text-decoration:underline;}
 
 /* @filterui -- The calendar was drawing UNDER the table: jQuery UI ships
@@ -293,7 +389,11 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
     </div>
     </div>
 
+    <div class="ph-field ph-field--action">
+    <?php /* @toolbaralign -- spacer label; see the CSS note. */ ?>
+    <label aria-hidden="true">&nbsp;</label>
     <button type="submit">Apply</button>
+    </div>
     <?php if($phClause!==""){ ?><a href="problem_history.php?problem=<?php echo urlencode($problem); ?>" class="ph-clear">Clear</a><?php } ?>
     </form>
   </div>
