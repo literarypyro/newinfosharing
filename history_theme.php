@@ -151,5 +151,7 @@ form.ph-filters button {
 	margin:0; vertical-align:middle;
 }
 
+.ph-clear { position:relative; top: 10px; }
+
 @media (max-width:900px){ .ccs-page { padding:16px; } }
 </style>

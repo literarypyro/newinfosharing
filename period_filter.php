@@ -159,8 +159,10 @@ form.ph-filters input[type=submit]{
    Matching the label's line-height to the control height (30px) makes both
    boxes the same and lets the text centre inside its own line box, which is
    where the glyphs actually settle correctly. */
-.ph-field > label{white-space:nowrap;line-height:30px;font-size:10px;position:relative; top:2px;text-transform:uppercase;letter-spacing:.06em;color:#5A6275;font-weight:600;}
+.ph-field > label{white-space:nowrap;line-height:30px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#5A6275;font-weight:600;}
 .ph-field { position:relative; top:10px; }
+
+.ph-clear { position:relative; top:10px; }
 
 .ph-inline{display:flex;align-items:center;gap:6px;}
 .ph-sep{font-size:11px;color:#5A6275;}
@@ -225,8 +227,28 @@ form.ph-filters input[type=submit]{
    reason the button was; align-self:center + a padding fudge was guesswork.
    Bottom-aligned to the control line instead, matching the button's height so
    its text sits on the same line. */
-.ph-clear{font-size:11px;color:#5A6275;text-decoration:none;}
-.ph-clear:hover{color:#7A1F1F;text-decoration:underline;}
+/* @clearbtn -- Clear was bare underlined text next to a filled gold button,
+   which read as an afterthought rather than a control. It is given the same
+   30px pill geometry as everything else on the line, but OUTLINED rather than
+   filled: Apply is the primary action and should stay the only solid block of
+   colour in the row. Turning Clear gold too would make the row ask which of
+   two equal buttons you meant.
+
+   The x is drawn from ::before rather than typed into the markup, so the glyph
+   cannot be selected with the label text or read out twice by a screen reader. */
+.ph-clear{
+	display:inline-flex;align-items:center;gap:5px;
+	height:30px;padding:0 12px;box-sizing:border-box;
+	border:1px solid #D8D2C2;border-radius:4px;background:#FFFFFF;
+	color:#5A6275;font-size:11px;font-weight:600;font-family:inherit;
+	text-decoration:none;white-space:nowrap;cursor:pointer;
+	transition:border-color .12s,color .12s,background .12s;
+}
+.ph-clear::before{content:"\00D7";font-size:15px;line-height:1;margin-top:-1px;}
+/* Red only on hover: a permanently red control in a filter bar reads as a
+   warning, when this just widens the view again. */
+.ph-clear:hover{border-color:#C98B8B;color:#7A1F1F;background:#FBF3F3;text-decoration:none;}
+.ph-clear:focus-visible{outline:2px solid #00529B;outline-offset:1px;}
 
 /* jQuery UI ships z-index 1 on .ui-datepicker and the console theme puts the
    table header above that, so the calendar draws UNDER the table. It is
