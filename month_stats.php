@@ -309,6 +309,28 @@ ksort($periodBuckets);
 $peakPeriodCount = count($periodBuckets) ? max($periodBuckets) : 0;
 $periodThreshold = $peakPeriodCount * 0.60;
 $periodHeading   = ($grain === 'day') ? 'By day' : (($grain === 'year') ? 'By year' : 'By month');
+$periodHeading  .= ' (highest first)';
+
+/* @rankdays -- The table below now ranks by count, matching the by-car /
+   by-equipment table above it, which the SQL already orders by c desc. Reading
+   one table ranked and the next chronological meant re-scanning the second one
+   by eye to find the worst day, which is the question this page exists to
+   answer.
+
+   Ranked into a SEPARATE array rather than re-sorting $periodBuckets: the
+   chronological key order is still what $labelWithYear scans below, and
+   leaving the source array alone keeps that independent of presentation.
+
+   Ties break chronologically, so three days at 4 failures each still read
+   oldest to newest rather than in hash order. Comparing counts by subtraction
+   is safe here -- they are ints from a COUNT(). */
+$periodRanked = $periodBuckets;
+uksort($periodRanked, function($a, $b) use ($periodBuckets){
+	if($periodBuckets[$a] !== $periodBuckets[$b]){
+		return $periodBuckets[$b] - $periodBuckets[$a];   /* highest first */
+	}
+	return ($a < $b) ? -1 : (($a > $b) ? 1 : 0);          /* then oldest first */
+});
 
 /* Year shown on a month row whenever the table spans more than one, so two
    Marches can never appear as identical labels. */
@@ -683,9 +705,10 @@ if(count($periodBuckets) > 1){
 </thead>
 <tbody>
 <?php
-/* Chronological, not ranked: on a period page read top to bottom this is a
-   timeline, and the red rows already carry which was worst. */
-foreach($periodBuckets as $pk => $pCount){
+/* @rankdays -- Ranked, not chronological. The red rows flag everything at or
+   above 60% of the peak, but they do not order those rows against each other;
+   finding the single worst day still meant scanning the column. */
+foreach($periodRanked as $pk => $pCount){
 	$isFlagged = ($peakPeriodCount > 0 && $pCount >= $periodThreshold);
 ?>
 <tr<?php if($isFlagged){ echo " class='eq-flag'"; } ?>>
