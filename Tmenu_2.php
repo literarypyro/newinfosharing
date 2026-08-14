@@ -285,7 +285,7 @@ body { height: 100%; overflow: hidden; }
 		<li><a href='#'>Train Operations</a>	
 	<ul>
 		<?php
-		if(($_SESSION['username']=="demo2")||($_SESSION['username']=="ccadmin")){
+		if(($_SESSION['username']=="demo2")||($_SESSION['username']=="ccadmin")||($_SESSION['username']=="admin")){
 			?>
 		<li><a style='text-decoration:none;' href='train_operations_parallel.php'>Train Availability</a></li>  
 		<?php

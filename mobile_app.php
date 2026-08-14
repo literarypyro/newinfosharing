@@ -209,7 +209,7 @@ if($NAV_SHOW && file_exists(dirname(__FILE__)."/Tmenu_2.php")){ require("Tmenu_2
 				<b style="color:var(--cf-ink)">Trouble installing?</b>
 				If the download will not open, the phone may be blocking unknown apps entirely &mdash;
 				Settings &rarr; Apps &rarr; Special access &rarr; Install unknown apps &rarr; Chrome &rarr; Allow.
-				Contact the Transport Division IT staff if it still refuses.
+				Contact Support Division if it still refuses.
 			</div>
 		</div>
 

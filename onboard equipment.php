@@ -422,17 +422,27 @@ $(function() {
 <input type=submit value='Access Monitoring' />
 </form>
 <?php
-if(isset($_POST['search_date'])){
+if((isset($_POST['search_date']))||(isset($_SESSION['search_date']))){
 
 ?>
 <?php
+
+if(isset($_POST['search_date'])){
+$ccdr_date=date("Y-m-d",strtotime($_POST['search_date']));
+$ccdr_label=date("F d, Y",strtotime($ccdr_date));
+	
+	
+}
+else if(isset($_SESSION['search_date'])){
+$ccdr_date=date("Y-m-d",strtotime($_SESSION['search_date']));
+$ccdr_label=date("F d, Y",strtotime($ccdr_date));
+	
+}
 
 //$month=$_POST['month'];
 //$day=$_POST['day'];
 //$year=$_POST['year'];
 
-$ccdr_date=date("Y-m-d",strtotime($_POST['search_date']));
-$ccdr_label=date("F d, Y",strtotime($ccdr_date));
 
 	$db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport");
 
