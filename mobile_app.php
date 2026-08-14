@@ -181,7 +181,9 @@ if($NAV_SHOW && file_exists(dirname(__FILE__)."/Tmenu_2.php")){ require("Tmenu_2
 					<em>Android asks once per browser: "Allow from this source". This is normal for apps that do not come from the Play Store.</em></li>
 				<li><b>If Play Protect warns, choose "Install anyway".</b>
 					<em>It flags every app it has not seen before, which includes any in-house app.</em></li>
+<!--
 				<li><b>Sign in with your usual ISS username and password.</b></li>
+				-->
 			</ol>
 			<div class="ma-note">
 				<b>Updating later</b>
