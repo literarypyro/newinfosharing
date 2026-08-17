@@ -58,18 +58,60 @@ foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dashboard &mdash; Line 3 Operations Console</title>
 <?php dash_styles('console'); ?>
+<!-- @dashdate -- structural CSS for the date widget. Not optional: jQuery UI
+     relies on its stylesheet for the datepicker's display:none and width, so
+     without this link the calendar renders inline and permanently open at the
+     top of the page. datepicker_theme.php repaints it in console colours and
+     is pulled in further down by dash_datepicker.php -- after this link, which
+     is the order that makes the repaint win.
+
+     The matching SCRIPT tags are NOT here. See the note below Tmenu_2.php. -->
+<link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+
 </head>
 <body>
 <?php require("Tmenu_2.php"); ?>
+<?php
+
+/* @dashdate -- console skin for the date control. Deliberately AFTER the nav
+
+   include: if Tmenu_2.php links a jQuery UI stylesheet, anything emitted
+
+   earlier loses to it on source order. Guarded so a station that has not
+
+   received the file yet keeps the plain native field. */
+
+if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FILE__)."/dash_datepicker.php"); }
+?>
+<!-- @dashdate -- jQuery UI loads HERE, after Tmenu_2.php, and this ordering is
+     the whole fix. Tmenu_2.php emits its own <script> for jQuery 1.10.2. In the
+     first attempt these two tags sat up in <head>: jquery-ui.js ran, attached
+     .datepicker to the jQuery instance that existed at that moment, and then
+     Tmenu_2's tag replaced window.jQuery with a fresh 1.10.2 that had never
+     heard of it. The console said it plainly -- "jQuery 1.10.2 loaded but
+     jquery-ui.js did not" -- which was true from where the check was standing.
+
+     So: no jquery.js tag of our own. The page already has jQuery, loading a
+     second copy is what caused this, and jQuery UI 1.11.1 is happy on 1.6+.
+     Anything that loads jQuery again after this point will break it the same
+     way, so this include stays last. -->
+<script src="jquery-ui-1.11.1/jquery-ui.js"></script>
+<?php
+
+?>
+
+
 <div class="ds-wrap">
 
 	<div class="ds-bar">
 		<div>
 			<h1>Operations dashboard</h1>
-			<div class="ds-sub"><?php echo dash_h(date("l, d F Y",strtotime($view_date))); ?><?php if($is_today){ echo " &middot; ".dash_h(date("H:i")); } ?></div>
+		<div class="ds-sub"><?php echo dash_h(date("l, d F Y",strtotime($view_date))); ?><?php if($is_today){ echo " &middot; ".dash_h(date("H:i")); } ?></div>
+
 		</div>
 		<form method="get" action="dashboard.php">
-			<input type="date" name="d" value="<?php echo dash_h($view_date); ?>">
+		<input class="ds-date" type="date" name="d" value="<?php echo dash_h($view_date); ?>">
+
 			<button type="submit">Show</button>
 			<?php if(!$is_today){ ?><a class="ds-today" href="dashboard.php">Today</a><?php } ?>
 		</form>

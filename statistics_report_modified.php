@@ -266,6 +266,14 @@ a.two:hover, a.two:active {color:#003E76; text-decoration:underline;}
 <?php include("history_theme.php"); ?>
 
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<?php
+/* @filterui -- console re-skin for the From/To calendars. MUST come after the
+   smoothness <link> above: most of its rules tie with smoothness on
+   specificity and win on source order alone, so moving this line up silently
+   restores the grey stock widget. Guarded so a server that has not received
+   datepicker_theme.php yet keeps the old look instead of warning. */
+if(file_exists(dirname(__FILE__)."/datepicker_theme.php")){ include(dirname(__FILE__)."/datepicker_theme.php"); }
+?>
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>
 <script language='javascript' src='ajax.js'></script>

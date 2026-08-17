@@ -243,6 +243,9 @@ if(isset($_POST['edit_car'])){
 <?php $selfPage = basename(__FILE__); /* form action / reload target — rename-safe */ ?>
 
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<?php
+if(file_exists(dirname(__FILE__)."/datepicker_theme.php")){ include(dirname(__FILE__)."/datepicker_theme.php"); }
+?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.11.0/dist/tabler-icons.min.css">
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>

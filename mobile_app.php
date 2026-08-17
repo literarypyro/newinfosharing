@@ -127,7 +127,7 @@ if($NAV_SHOW && file_exists(dirname(__FILE__)."/Tmenu_2.php")){ require("Tmenu_2
 <div class="ma-wrap">
 
 	<div class="ma-bar">
-		<h1>ISS Mobile App</h1>
+		<h1>ISS Dashboard App</h1>
 		<p>Android &middot; for Transport Division staff</p>
 	</div>
 

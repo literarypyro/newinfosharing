@@ -23,6 +23,17 @@ require_once("db_config.php"); /* centralized credentials -- see db_config.php *
 -->	
 
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<?php
+/* @filterui -- the silent file_exists guard is right for a rollout, but it is
+   also indistinguishable from "the file loaded and did nothing". The else
+   branch prints the directory PHP actually searched, so View Source answers
+   the question outright instead of by inference. Harmless to leave in. */
+if(file_exists(dirname(__FILE__)."/datepicker_theme.php")){
+	include(dirname(__FILE__)."/datepicker_theme.php");
+} else {
+	echo "<!-- ccs-datepicker-theme MISSING: looked in ".dirname(__FILE__)." -->\n";
+}
+?>
 <script src="jquery-ui-1.11.1/external/jquery/jquery.js"></script>
 <script src="jquery-ui-1.11.1/jquery-ui.js"></script>	
 	
