@@ -27,6 +27,18 @@ $NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 // reasonably take the silence for "nothing happened" rather than "the records
 // are missing". See data_coverage.php.
 require_once("data_coverage.php");
+/* @insight -- Analysis layer, guarded so a missing file cannot blank the page. */
+if(file_exists(dirname(__FILE__)."/iss_insight.php")){
+	require_once(dirname(__FILE__)."/iss_insight.php");
+	if(file_exists(dirname(__FILE__)."/iss_insight_analytics.php")){
+		require_once(dirname(__FILE__)."/iss_insight_analytics.php");
+	}
+	/* @insight -- Executive/technical toggle. Optional like the rest: without
+	   this file the page renders the technical block alone, exactly as before. */
+	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
+		require_once(dirname(__FILE__)."/iss_insight_audience.php");
+	}
+}
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
 
@@ -518,6 +530,180 @@ usort($repeatRows, function($a,$b){
 });
 $repeatRows = array_slice($repeatRows, 0, 6);
 ?>
+<?php
+/* ==========================================================================
+   @insight -- Analysis block for the per-car drill-down.
+
+   Almost no new SQL: the row loop above already built $monthlyCounts
+   (month x equipment), $sevGrid (equipment x severity) and $repeatDates
+   (timestamps per equipment). Those are exactly the three inputs the
+   analytics layer wants, so it reads what the charts read and cannot drift
+   from them.
+
+   Two boundaries carried over deliberately from how this page already
+   reasons:
+     - $repeatDates holds RECORDED equipment only. A repeat is a claim that
+       the same component failed twice, and a classifier guess is not strong
+       enough to carry it -- so recurrence sees the same subset the repeat
+       chart does, and $repeatExcluded is reported as a caveat.
+     - $sevGrid DOES include suggested equipment, because the severity on
+       those rows is recorded even where the equipment was inferred.
+   ========================================================================== */
+if(function_exists('iss_insight') && count($monthlyCounts) >= 3){
+
+	/* month x equipment -> rows = equipment, buckets = month */
+	$issMonths = array_keys($monthlyCounts); sort($issMonths);
+	$issBuckets = array(); $issUncov = array();
+	foreach($issMonths as $mk){
+		$ymDash = substr($mk,0,4).'-'.substr($mk,4,2);
+		$lbl = date('F Y', strtotime($ymDash.'-01'));
+		$issBuckets[] = $lbl;
+		if(ccsMonthStatus($coverage, $ymDash) === 'missing') $issUncov[] = $lbl;
+	}
+
+	$issRows = array(); $issByBucket = array_fill(0, count($issMonths), 0); $issGrand = 0;
+	foreach($problemCounts as $pt => $tot){
+		/* The blank bucket is a data-quality fact, not an equipment type.
+		   Left in, it becomes the top "row" and every concentration and
+		   residual figure describes the absence of a label. */
+		if($pt === '') continue;
+		$vals = array();
+		foreach($issMonths as $mi => $mk){
+			$v = isset($monthlyCounts[$mk][$pt]) ? (int)$monthlyCounts[$mk][$pt] : 0;
+			$vals[] = $v; $issByBucket[$mi] += $v; $issGrand += $v;
+		}
+		$issRows[] = array('key'=>$pt, 'label'=>$pt, 'values'=>$vals, 'total'=>(int)$tot);
+	}
+
+	/* equipment x severity, straight from $sevGrid */
+	$issCross = array();
+	$lvCols = array();
+	foreach($sevGrid as $eq => $lvs){ foreach($lvs as $lv => $c){ $lvCols[$lv] = true; } }
+	unset($lvCols['None']);
+	$lvCols = array_keys($lvCols); sort($lvCols);
+	if(count($lvCols) >= 2){
+		$rl = array(); $m = array(); $ctT = 0;
+		foreach($sevGrid as $eq => $lvs){
+			if($eq === 'Unspecified') continue;
+			$rv = array(); $any = 0;
+			foreach($lvCols as $lv){
+				$v = isset($lvs[$lv]) ? (int)$lvs[$lv] : 0; $rv[] = $v; $any += $v;
+			}
+			if($any === 0) continue;
+			$rl[] = $eq; $m[] = $rv; $ctT += $any;
+		}
+		if(count($rl) >= 2){
+			$issCross = array('row_label'=>'Equipment', 'col_label'=>'Severity',
+			                  'rows'=>$rl, 'cols'=>$lvCols, 'matrix'=>$m,
+			                  'expect_grand'=>$ctT);
+		}
+	}
+
+	/* recurrence, from the timestamps the repeat chart already collected */
+	$issEvents = array();
+	foreach($repeatDates as $pt => $tsList){
+		foreach($tsList as $ts){
+			$issEvents[] = array('date'=>date('Y-m-d', $ts),
+			                     'unit_key'=>'car'.$car_id, 'unit_label'=>'Car '.$car_id,
+			                     'fault_key'=>$pt, 'fault_label'=>$pt);
+		}
+	}
+
+	/* seasonal baseline -- date clause dropped on purpose, equipment and
+	   level clauses kept, so it is the same slice over a longer span */
+	$issHistory = array();
+	$sql = "select date_format(incident_date,'%Y-%m') as ym, count(1) as c
+	          from incident_cars
+	          inner join incident_union on incident_cars.incident_id=incident_union.id
+	         where incident_cars.car_no*1='".$car_id."' ".$equiptClause." ".$levelClause."
+	         group by ym order by ym";
+	$hrs = $db->query($sql);
+	$hb = array(); $hv = array();
+	if($hrs){
+		while($hr = $hrs->fetch_assoc()){
+			if(ccsMonthStatus($coverage, $hr['ym']) === 'missing') continue;
+			$hb[] = $hr['ym']; $hv[] = (int)$hr['c'];
+		}
+	}
+	if(count($hb) >= 24) $issHistory = array('buckets'=>$hb, 'values'=>$hv);
+
+	$issQuality = array();
+	if($suggestedTotal > 0) $issQuality['suggested_rows'] = (int)$suggestedTotal;
+	if($blankTotal > 0)     $issQuality['uncategorized_rows'] = (int)$blankTotal;
+	if($repeatExcluded > 0){
+		$issQuality['notes'] = array($repeatExcluded.' rows are excluded from the repeat analysis because their equipment was suggested rather than recorded');
+	}
+
+	$issFil = array();
+	if($ccsEquipt) $issFil['equipment'] = $ccsEquiptName;
+	if($ccsLevel)  $issFil['level']     = $ccsLevel;
+
+	$issCtx = array(
+		'schema' => 'iss.report.v1',
+		'report' => array('id'=>'car_history',
+		                  'title'=>'Car '.$car_id.' - failures by equipment',
+		                  'unit'=>'recorded failures'),
+		'period' => array(
+			'from'=>substr($issMonths[0],0,4).'-'.substr($issMonths[0],4,2).'-01',
+			'to'  =>date('Y-m-t', strtotime(substr(end($issMonths),0,4).'-'.substr(end($issMonths),4,2).'-01')),
+			'grain'=>'month'),
+		'filters' => $issFil,
+		'dimensions' => array('row'=>array('key'=>'equipt','label'=>'Equipment'),
+		                      'col'=>array('key'=>'month','label'=>'Month')),
+		'buckets'  => $issBuckets,
+		'rows'     => $issRows,
+		'coverage' => array('uncovered_buckets'=>$issUncov),
+		'totals'   => array('by_bucket'=>$issByBucket, 'grand'=>$issGrand),
+		'quality'  => $issQuality,
+	);
+	if(count($issCross))   $issCtx['crosstab'] = $issCross;
+	if(count($issHistory)) $issCtx['history']  = $issHistory;
+	if(count($issEvents))  $issCtx['events']   = $issEvents;
+
+	if(count($issRows) >= 2 && $issGrand >= 8){
+		$issN = iss_insight_normalize($issCtx);
+		$issF = iss_insight_findings($issN);
+		if(function_exists('iss_insight_findings_advanced')){
+			$issF = iss_insight_findings_advanced($issCtx, $issN, $issF);
+		}
+		echo iss_insight_css();
+		/* @insight -- Both readings are computed here and shipped together,
+		   so switching is instant and works with no provider configured. The
+		   reader's choice persists via localStorage; the print stylesheet
+		   prints whichever is on screen. */
+		$issRendered = iss_insight_render_offline($issN, $issF);
+		if(function_exists('iss_insight_html_dual')){
+			/* Each helper is guarded on ITS OWN name, not on a sibling's.
+			   These live in one file that gets copied station by station with
+			   no version control, so a box can easily end up with a page that
+			   is newer than its iss_insight_audience.php. Guarding the whole
+			   group on iss_insight_html_dual() meant an older helper file threw
+			   'Call to undefined function' and killed the page mid-render --
+			   taking every chart, sort and print script below it with it. */
+			if(function_exists('iss_insight_audience_css')) echo iss_insight_audience_css();
+			if(function_exists('iss_insight_audience_js'))  echo iss_insight_audience_js();
+			echo '<div id="issInsight">'
+			   . iss_insight_html_dual($issN, $issF, $issRendered)
+			   . '</div>';
+		} else {
+			echo '<div id="issInsight">'.iss_insight_html($issRendered).'</div>';
+		}
+
+		$issCfg = iss_insight_config();
+		if(!empty($issCfg['enabled']) && $issCfg['provider'] !== 'none'
+		   && file_exists(dirname(__FILE__)."/insight_ajax.php")){
+			$issKey = iss_insight_stash($issCtx);
+			echo '<script>(function(){var b=document.getElementById("issInsight");'
+			   . 'if(!b||!window.XMLHttpRequest)return;var x=new XMLHttpRequest();'
+			   . 'x.open("GET","insight_ajax.php?k='.$issKey.'",true);'
+			   . 'x.onreadystatechange=function(){if(x.readyState===4&&x.status===200'
+			   . '&&x.responseText&&x.responseText.indexOf("ins-block")!==-1){'
+			   . 'b.innerHTML=x.responseText;if(window.issInsightApplyView)window.issInsightApplyView();}};x.send();})();</script>';
+		}
+	}
+}
+?>
+
 <div id="ccs-print-charts" style="display:none;">
 	<canvas id="ccsChartMonthly" width="340" height="230"></canvas>
 	<canvas id="ccsChartPareto"  width="340" height="200"></canvas>

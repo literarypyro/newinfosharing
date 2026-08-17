@@ -20,6 +20,18 @@ $NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 // reasonably take the silence for "nothing happened" rather than "the records
 // are missing". See data_coverage.php.
 require_once("data_coverage.php");
+/* @insight -- Analysis layer, guarded so a missing file cannot blank the page. */
+if(file_exists(dirname(__FILE__)."/iss_insight.php")){
+	require_once(dirname(__FILE__)."/iss_insight.php");
+	if(file_exists(dirname(__FILE__)."/iss_insight_analytics.php")){
+		require_once(dirname(__FILE__)."/iss_insight_analytics.php");
+	}
+	/* @insight -- Executive/technical toggle. Optional like the rest: without
+	   this file the page renders the technical block alone, exactly as before. */
+	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
+		require_once(dirname(__FILE__)."/iss_insight_audience.php");
+	}
+}
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
 ?>
@@ -456,9 +468,15 @@ $carRows = array();
 $carSql = "select incident_cars.car_no as car_no, count(*) as cnt
            from incident_cars
            inner join incident_union on incident_cars.incident_id = incident_union.id
-           where incident_union.equipt = '".$ehEquipt."' ".$chartDateClause." ".$carClause."
+           where incident_union.equipt = '".$ehEquipt."' ".$chartDateClause."
+                 ".$levelClause." ".$carClause."
            group by incident_cars.car_no
            order by cnt desc";
+/* @insight -- $levelClause added. The severity queries above leave it out on
+   purpose (a severity breakdown narrowed to one severity is a single bar), but
+   this chart had no such reason: with Level 3 selected the header counted
+   level 3 pairs while the bars underneath counted every level. Revert this one
+   clause if the unfiltered spread was deliberate. */
 $carRs = $db->query($carSql);
 if($carRs){ while($cr = $carRs->fetch_assoc()){ $carRows[] = array($cr['car_no'], (int)$cr['cnt']); } }
 ?>
@@ -466,6 +484,227 @@ if($carRs){ while($cr = $carRs->fetch_assoc()){ $carRows[] = array($cr['car_no']
 <!-- Print-only chart summary. Hidden on screen; the two canvases are
      flattened to images and injected into the TableTools print window.
      Landscape, and the by-car canvas is tall enough to space its bars. -->
+<?php
+/* ==========================================================================
+   @insight -- Analysis block for the drill-down layer.
+
+   Scope follows the page: $dateClause is empty until a filter is applied, so
+   the analysis runs on everything this equipment has on record and narrows as
+   the reader narrows. The one deliberate exception is the seasonal baseline,
+   which drops the date clause on purpose -- judging March against other
+   Marches is impossible from inside a one-year window.
+
+   Counting basis is car-level failures ($ehPairs), matching
+   statistics_report_modified.php, so the two pages can be read side by side.
+   External defects carry no car mapping and are therefore outside every
+   figure here -- $ehIncidents, which does include them, is the larger number
+   shown in the header.
+   ========================================================================== */
+$issOut2 = null;
+if(function_exists('iss_insight') && $ehEquipt > 0){
+
+	/* -- (a) car x month, the breakdown this page is really about ---------- */
+	$sql = "select incident_cars.car_no*1 as cn,
+	               date_format(incident_date,'%Y-%m') as mo, count(*) as c
+	          from incident_cars
+	          inner join incident_union on incident_cars.incident_id = incident_union.id
+	         where incident_union.equipt = '".$ehEquipt."' ".$dateClause."
+	               ".$levelClause." ".$carClause."
+	         group by cn, mo";
+	$rs = $db->query($sql);
+	$cell = array(); $moSeen = array(); $carTot = array(); $issGrand = 0;
+	if($rs){
+		while($r = $rs->fetch_assoc()){
+			$cn = (int)$r['cn']; if($cn <= 0) continue;
+			$cell[$cn][$r['mo']] = (int)$r['c'];
+			$moSeen[$r['mo']] = true;
+			$carTot[$cn] = (isset($carTot[$cn]) ? $carTot[$cn] : 0) + (int)$r['c'];
+			$issGrand += (int)$r['c'];
+		}
+	}
+	$months = array_keys($moSeen); sort($months);
+
+	if(count($months) >= 3 && count($cell) >= 1 && $issGrand >= 8){
+
+		/* Gap months are handed over as their own list. Left as zeros they
+		   would drag every car's baseline down and turn ordinary months into
+		   spikes -- the same trap the coverage table exists to prevent. */
+		$issBuckets = array(); $issUncov = array();
+		foreach($months as $mo){
+			$lbl = date('F Y', strtotime($mo.'-01'));
+			$issBuckets[] = $lbl;
+			if(ccsMonthStatus($coverage, $mo) === 'missing') $issUncov[] = $lbl;
+		}
+
+		$issRows = array(); $carNos = array_keys($cell); sort($carNos, SORT_NUMERIC);
+		foreach($carNos as $cn){
+			$vals = array();
+			foreach($months as $mo){ $vals[] = isset($cell[$cn][$mo]) ? $cell[$cn][$mo] : 0; }
+			$issRows[] = array('key'=>(string)$cn, 'label'=>'Car '.$cn,
+			                   'values'=>$vals, 'total'=>(int)$carTot[$cn]);
+		}
+		$issByBucket = array();
+		foreach($months as $mi => $mo){
+			$t = 0; foreach($carNos as $cn){ $t += isset($cell[$cn][$mo]) ? $cell[$cn][$mo] : 0; }
+			$issByBucket[] = $t;
+		}
+
+		/* -- (b) car x severity. The page charts severity over time and cars
+		      over time, but never crosses them -- so "one car produces most of
+		      the serious ones" is invisible on this screen. */
+		$issCross2 = array();
+		$sql = "select incident_cars.car_no*1 as cn, incident_union.level as lv, count(*) as c
+		          from incident_cars
+		          inner join incident_union on incident_cars.incident_id = incident_union.id
+		         where incident_union.equipt = '".$ehEquipt."' ".$dateClause." ".$carClause."
+		           and incident_union.level is not null and incident_union.level <> ''
+		         group by cn, lv";
+		$rs = $db->query($sql);
+		$lvCell = array(); $lvSeen = array(); $lvGrand = 0;
+		if($rs){
+			while($r = $rs->fetch_assoc()){
+				$cn = (int)$r['cn']; if($cn <= 0) continue;
+				$lvCell[$cn][$r['lv']] = (int)$r['c'];
+				$lvSeen[$r['lv']] = true; $lvGrand += (int)$r['c'];
+			}
+		}
+		$lvList = array_keys($lvSeen); sort($lvList);
+		if(count($lvList) >= 2 && count($lvCell) >= 2){
+			$m = array(); $rl = array();
+			foreach(array_keys($lvCell) as $cn){ $rl[] = 'Car '.$cn; }
+			foreach(array_keys($lvCell) as $cn){
+				$rv = array();
+				foreach($lvList as $lv){ $rv[] = isset($lvCell[$cn][$lv]) ? $lvCell[$cn][$lv] : 0; }
+				$m[] = $rv;
+			}
+			$lvLabels = array();
+			foreach($lvList as $lv){ $lvLabels[] = 'Level '.$lv; }
+			$issCross2 = array('row_label'=>'Car', 'col_label'=>'Severity',
+			                   'rows'=>$rl, 'cols'=>$lvLabels, 'matrix'=>$m,
+			                   'expect_grand'=>$lvGrand);
+		}
+
+		/* -- (c) seasonal baseline: date clause deliberately dropped -------- */
+		$issHist2 = array();
+		$sql = "select date_format(incident_date,'%Y-%m') as mo, count(*) as c
+		          from incident_cars
+		          inner join incident_union on incident_cars.incident_id = incident_union.id
+		         where incident_union.equipt = '".$ehEquipt."' ".$levelClause." ".$carClause."
+		         group by mo order by mo";
+		$rs = $db->query($sql);
+		$hb = array(); $hv = array();
+		if($rs){
+			while($r = $rs->fetch_assoc()){
+				if(ccsMonthStatus($coverage, $r['mo']) === 'missing') continue;
+				$hb[] = $r['mo']; $hv[] = (int)$r['c'];
+			}
+		}
+		if(count($hb) >= 24) $issHist2 = array('buckets'=>$hb, 'values'=>$hv);
+
+		/* -- (d) incident-level rows: did the repair hold? ------------------
+		   The most useful question on a per-equipment page, and the one the
+		   incident list cannot answer by eye. */
+		$issEv2 = array();
+		$sql = "select incident_date as d, incident_cars.car_no*1 as cn
+		          from incident_cars
+		          inner join incident_union on incident_cars.incident_id = incident_union.id
+		         where incident_union.equipt = '".$ehEquipt."' ".$dateClause."
+		               ".$levelClause." ".$carClause."
+		         order by incident_date limit 6000";
+		$rs = $db->query($sql);
+		if($rs){
+			while($r = $rs->fetch_assoc()){
+				$cn = (int)$r['cn']; if($cn <= 0) continue;
+				$issEv2[] = array('date'=>substr($r['d'],0,10),
+				                  'unit_key'=>'car'.$cn, 'unit_label'=>'Car '.$cn,
+				                  'fault_key'=>'eq'.$ehEquipt, 'fault_label'=>$equipment_name);
+			}
+		}
+
+		/* -- (e) severity over time, reshaped from what the charts already use */
+		$issSev2 = null;
+		if(count($monthlyByLevel)){
+			$series = array();
+			foreach(array_keys($levelSet) as $lv){
+				$row = array();
+				foreach($months as $mo){
+					$row[] = isset($monthlyByLevel[$mo][$lv]) ? (int)$monthlyByLevel[$mo][$lv] : 0;
+				}
+				$series['Level '.$lv] = $row;
+			}
+			if(count($series)) $issSev2 = array('buckets'=>$issBuckets, 'series'=>$series);
+		}
+
+		$issFil2 = array();
+		if($ehLevel) $issFil2['level'] = $ehLevel;
+		if($ehCar)   $issFil2['car']   = 'Car '.$ehCar;
+
+		$issCtx2 = array(
+			'schema' => 'iss.report.v1',
+			'report' => array('id'=>'equipment_history',
+			                  'title'=>$equipment_name.' - failures by car',
+			                  'unit'=>'car-level failures'),
+			'period' => array('from'=>(count($months) ? $months[0].'-01' : ''),
+			                  'to'  =>(count($months) ? date('Y-m-t', strtotime(end($months).'-01')) : ''),
+			                  'grain'=>'month'),
+			'filters' => $issFil2,
+			'dimensions' => array('row'=>array('key'=>'car','label'=>'Car'),
+			                      'col'=>array('key'=>'month','label'=>'Month')),
+			'buckets' => $issBuckets,
+			'rows'    => $issRows,
+			'coverage'=> array('uncovered_buckets'=>$issUncov),
+			'totals'  => array('by_bucket'=>$issByBucket, 'grand'=>$issGrand),
+		);
+		if(count($issCross2)) $issCtx2['crosstab']   = $issCross2;
+		if(count($issHist2))  $issCtx2['history']    = $issHist2;
+		if(count($issEv2))    $issCtx2['events']     = $issEv2;
+		if($issSev2 !== null) $issCtx2['breakdowns'] = array('severity'=>$issSev2);
+
+		$issN2 = iss_insight_normalize($issCtx2);
+		$issF2 = iss_insight_findings($issN2);
+		if(function_exists('iss_insight_findings_advanced')){
+			$issF2 = iss_insight_findings_advanced($issCtx2, $issN2, $issF2);
+		}
+		$issOut2 = iss_insight_render_offline($issN2, $issF2);
+
+		echo iss_insight_css();
+		/* @insight -- Both readings are computed here and shipped together,
+		   so switching is instant and works with no provider configured. The
+		   reader's choice persists via localStorage; the print stylesheet
+		   prints whichever is on screen. */
+		$issRendered = $issOut2;
+		if(function_exists('iss_insight_html_dual')){
+			/* Each helper is guarded on ITS OWN name, not on a sibling's.
+			   These live in one file that gets copied station by station with
+			   no version control, so a box can easily end up with a page that
+			   is newer than its iss_insight_audience.php. Guarding the whole
+			   group on iss_insight_html_dual() meant an older helper file threw
+			   'Call to undefined function' and killed the page mid-render --
+			   taking every chart, sort and print script below it with it. */
+			if(function_exists('iss_insight_audience_css')) echo iss_insight_audience_css();
+			if(function_exists('iss_insight_audience_js'))  echo iss_insight_audience_js();
+			echo '<div id="issInsight2">'
+			   . iss_insight_html_dual($issN2, $issF2, $issRendered)
+			   . '</div>';
+		} else {
+			echo '<div id="issInsight2">'.iss_insight_html($issRendered).'</div>';
+		}
+
+		$issCfg2 = iss_insight_config();
+		if(!empty($issCfg2['enabled']) && $issCfg2['provider'] !== 'none'
+		   && file_exists(dirname(__FILE__)."/insight_ajax.php")){
+			$issKey2 = iss_insight_stash($issCtx2);
+			echo '<script>(function(){var b=document.getElementById("issInsight2");'
+			   . 'if(!b||!window.XMLHttpRequest)return;var x=new XMLHttpRequest();'
+			   . 'x.open("GET","insight_ajax.php?k='.$issKey2.'",true);'
+			   . 'x.onreadystatechange=function(){if(x.readyState===4&&x.status===200'
+			   . '&&x.responseText&&x.responseText.indexOf("ins-block")!==-1){'
+			   . 'b.innerHTML=x.responseText;if(window.issInsightApplyView)window.issInsightApplyView();}};x.send();})();</script>';
+		}
+	}
+}
+?>
+
 <div id="ccs-print-charts" style="display:none;">
 	<canvas id="ehCars"  width="440" height="230"></canvas>
 	<canvas id="ehTrend" width="440" height="150"></canvas>

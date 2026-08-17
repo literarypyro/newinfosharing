@@ -73,6 +73,20 @@ $NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 if(file_exists(dirname(__FILE__)."/data_coverage.php")){
 	require_once(dirname(__FILE__)."/data_coverage.php");
 }
+// @insight -- Analysis layer, guarded like data_coverage.php above: a missing
+// file must leave the page rendering exactly as it did before.
+if(file_exists(dirname(__FILE__)."/iss_insight.php")){
+	require_once(dirname(__FILE__)."/iss_insight.php");
+	if(file_exists(dirname(__FILE__)."/iss_insight_analytics.php")){
+		require_once(dirname(__FILE__)."/iss_insight_analytics.php");
+	}
+	/* @insight -- Executive/technical toggle. Optional like the rest: without
+	   this file the page renders the technical block alone, exactly as before. */
+	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
+		require_once(dirname(__FILE__)."/iss_insight_audience.php");
+	}
+}
+
 if(!function_exists('ccsLoadCoverage')){
 	function ccsLoadCoverage($db){ return array(); }
 	function ccsMonthStatus($coverage,$ym){ return 'covered'; }
@@ -385,7 +399,7 @@ for($i=0;$i<=$nm;$i++){
 // the table has run, so buffer the table and emit the summary above it.
 ob_start();
 ?>
-<table id="csrMatrix" class='table table-striped table-bordered bootstrap-datatable datatable2' border=1 style='border-collapse:collapse;' width=100%>
+<table id="csrMatrix" class='table table-striped table-bordered bootstrap-datatable datatable2 ccs-rows-with' border=1 style='border-collapse:collapse;' width=100%>
 <thead>
 
 
@@ -536,7 +550,7 @@ if($nm>0){
 for($i=1;$i<=73;$i++){
 	$isFlagged=(($highestCount*0.60)<$stats["Car_".$i]["total"]);
 ?>
-<tr 
+<tr class="<?php echo ($stats["Car_".$i]["total"] == 0) ? 'ccs-zero' : 'ccs-nonzero'; ?>"
 <?php 
 if($isFlagged){
 //		echo "style='background-color:#F9D6D6; color:#7A1F1F;'";
@@ -609,6 +623,126 @@ for($k=1;$k<=$bucketCount;$k++){
 <?php
 $tableHtml = ob_get_clean();
 
+/* ==========================================================================
+   @insight -- Supplementary pulls for the analysis layer. Each reuses
+   $equiptClause and the page's own year/month window so the panel describes
+   exactly the slice the table describes.
+
+   This page has no level filter (see the note under the table), so none of
+   these carry one either -- adding one here would make the panel narrower
+   than the figures above it.
+   ========================================================================== */
+$issCross = array(); $issHistory = array(); $issEvents = array();
+
+if(function_exists('iss_insight')){
+
+	$issWindow = $isDayView
+	           ? " and incident_date like '".$viewYm."-%' "
+	           : " and incident_date like '".$year."-%%' ";
+
+	/* -- (a) car x equipment. The page groups by car and bucket only, so this
+	      axis exists nowhere on screen -- and it is the one that separates a
+	      car with a single recurring fault from a car that is failing on
+	      everything. Those want different responses and look identical in a
+	      by-car table. */
+	$sql = "select incident_cars.car_no*1 as cn, incident_report.equipt as eq,
+	               count(1) as c
+	          from incident_cars
+	          inner join incident_report on incident_cars.incident_id=incident_report.id
+	         where 1=1 ".$issWindow." ".$equiptClause."
+	         group by cn, eq";
+	$rs = $db->query($sql);
+	$cell = array(); $eqSeen = array(); $crossGrand = 0;
+	if($rs){
+		while($r = $rs->fetch_assoc()){
+			$cn = (int)$r['cn'];
+			if($cn < 1 || $cn > $CAR_MAX) continue;   /* same fleet range the table uses */
+			$eq = $r['eq'];
+			if($eq === null || $eq === '') $eq = '__blank';
+			$cell[$cn][$eq] = (isset($cell[$cn][$eq]) ? $cell[$cn][$eq] : 0) + (int)$r['c'];
+			$eqSeen[$eq] = true; $crossGrand += (int)$r['c'];
+		}
+	}
+	/* Rows with no equipment recorded are dropped from the cross-tab -- an
+	   "Unspecified" column would dominate the residuals and say nothing about
+	   any component. They stay in $grandTotal, so expect_grand is the
+	   cross-tab's own total, not the page's. */
+	unset($eqSeen['__blank']);
+	if(count($eqSeen) >= 2 && count($cell) >= 2){
+		$eqIds = array_keys($eqSeen);
+		$eqNames = array();
+		$nmq = $db->query("select id, equipment_name from equipment");
+		if($nmq){ while($x = $nmq->fetch_assoc()){ $eqNames[$x['id']] = $x['equipment_name']; } }
+		$cols = array(); $keep = array();
+		foreach($eqIds as $eid){
+			$cols[] = isset($eqNames[$eid]) ? $eqNames[$eid] : ('Equipment '.$eid);
+			$keep[] = $eid;
+		}
+		$rowsL = array(); $matrix = array(); $ctTotal = 0;
+		$carNos = array_keys($cell); sort($carNos, SORT_NUMERIC);
+		foreach($carNos as $cn){
+			$rv = array(); $any = 0;
+			foreach($keep as $eid){
+				$v = isset($cell[$cn][$eid]) ? $cell[$cn][$eid] : 0;
+				$rv[] = $v; $any += $v;
+			}
+			if($any === 0) continue;            /* a roster of 73 mostly-empty rows
+			                                       flattens every residual */
+			$rowsL[] = 'Car '.$cn; $matrix[] = $rv; $ctTotal += $any;
+		}
+		if(count($rowsL) >= 2){
+			$issCross = array('row_label'=>'Car', 'col_label'=>'Equipment',
+			                  'rows'=>$rowsL, 'cols'=>$cols, 'matrix'=>$matrix,
+			                  'expect_grand'=>$ctTotal);
+		}
+	}
+
+	/* -- (b) seasonal baseline. Year restriction dropped on purpose: a single
+	      March can only be judged against other Marches. */
+	if(!$isDayView){
+		$sql = "select date_format(incident_date,'%Y-%m') as ym, count(1) as c
+		          from incident_cars
+		          inner join incident_report on incident_cars.incident_id=incident_report.id
+		         where 1=1 ".$equiptClause."
+		         group by ym order by ym";
+		$rs = $db->query($sql);
+		$hb = array(); $hv = array();
+		if($rs){
+			while($r = $rs->fetch_assoc()){
+				if(ccsMonthStatus($coverage, $r['ym']) === 'missing') continue;
+				$hb[] = $r['ym']; $hv[] = (int)$r['c'];
+			}
+		}
+		if(count($hb) >= 24) $issHistory = array('buckets'=>$hb, 'values'=>$hv);
+	}
+
+	/* -- (c) incident-level rows: same car, same equipment, again, soon. */
+	$sql = "select incident_date as d, incident_cars.car_no*1 as cn,
+	               incident_report.equipt as eq
+	          from incident_cars
+	          inner join incident_report on incident_cars.incident_id=incident_report.id
+	         where 1=1 ".$issWindow." ".$equiptClause."
+	           and incident_report.equipt is not null and incident_report.equipt <> ''
+	         order by incident_date limit 6000";
+	$rs = $db->query($sql);
+	if($rs){
+		if(!isset($eqNames)){
+			$eqNames = array();
+			$nmq = $db->query("select id, equipment_name from equipment");
+			if($nmq){ while($x = $nmq->fetch_assoc()){ $eqNames[$x['id']] = $x['equipment_name']; } }
+		}
+		while($r = $rs->fetch_assoc()){
+			$cn = (int)$r['cn'];
+			if($cn < 1 || $cn > $CAR_MAX) continue;
+			$issEvents[] = array(
+				'date'=>substr($r['d'],0,10),
+				'unit_key'=>'car'.$cn, 'unit_label'=>'Car '.$cn,
+				'fault_key'=>$r['eq'],
+				'fault_label'=>isset($eqNames[$r['eq']]) ? $eqNames[$r['eq']] : ('Equipment '.$r['eq']));
+		}
+	}
+}
+
 // ---- Derived figures for the summary strip and charts --------------------
 // This page counts CAR-LEVEL FAILURES: it joins incident_cars, so an incident
 // affecting three cars counts once against each. Same basis as
@@ -618,12 +752,14 @@ $tableHtml = ob_get_clean();
 $grandTotal2 = $grandTotal;   // already accumulated above
 $carTotals = array();
 $carsWithFailures=0;
+$zeroRows = 0; $totalRows = $CAR_MAX;   /* @zerorows */
 for($i=1;$i<=$CAR_MAX;$i++){
 	if($stats["Car_".$i]["total"] > 0){
 		$carTotals[] = array($i, (int)$stats["Car_".$i]["total"]);
 		$carsWithFailures++;
 	
 	}
+	else { $zeroRows++; }
 }
 usort($carTotals, function($a,$b){ return $b[1]-$a[1]; });
 
@@ -764,7 +900,218 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this year (&ge;60% of the peak)</span>
 </div>
 
+<?php /* @zerorows -- Deliberately OUT here, below the buffered table.
+   $zeroRows is accumulated by the aggregation loop, which runs INSIDE
+   ob_start()..ob_get_clean(); emitting the control above the <table>
+   tag tested the counter before it existed, so `$zeroRows > 0` was a
+   comparison against an undefined variable and the whole control
+   silently never rendered. */ ?>
+<style>
+/* @zerorows -- Display only, three states. Rows always stay in the DOM, so
+   sorting, the print clone and every total keep seeing the full roster; only
+   visibility changes. Nothing is filtered server-side.
+
+   Both classes are written out explicitly rather than using :not(.ccs-zero).
+   The totals row and any header row carry neither class, so they survive all
+   three views -- a totals line that vanished on one tab would be worse than
+   the noise this control exists to remove. */
+.ccs-rowtabs{font-size:12px;color:#5A6275;margin:0 0 6px;display:flex;
+  align-items:center;gap:10px;flex-wrap:wrap;}
+.ccs-rowtabs .ccs-seg{display:inline-flex;border:1px solid #C9CFDA;border-radius:4px;
+  overflow:hidden;background:#fff;}
+.ccs-rowtabs button{-webkit-appearance:none;appearance:none;border:0;background:#fff;
+  color:#4A5666;font:inherit;font-size:12px;padding:3px 11px;cursor:pointer;line-height:1.6;}
+.ccs-rowtabs button + button{border-left:1px solid #C9CFDA;}
+.ccs-rowtabs button:hover{background:#F2F5F9;}
+.ccs-rowtabs button.is-on{background:#00529B;color:#fff;}
+table.ccs-rows-with tr.ccs-zero{display:none;}
+table.ccs-rows-none tr.ccs-nonzero{display:none;}
+@media print{.ccs-rowtabs .ccs-seg{display:none;}}
+</style>
+<?php if($zeroRows > 0){ ?>
+<div class="ccs-rowtabs" id="csrMatrix-rowtabs">
+  <span class="ccs-seg" role="group" aria-label="Which rows to show">
+    <button type="button" data-rows="all">All</button>
+    <button type="button" data-rows="with">With records</button>
+    <button type="button" data-rows="none">No records</button>
+  </span>
+  <span class="ccs-rowcount"></span>
+</div>
+<script>
+/* @zerorows -- A zero here is ambiguous: it can mean the unit ran all period
+   without failing, or that it never ran at all. The console holds no
+   service-day denominator to tell those apart, so these rows default to
+   hidden as uninterpretable rather than as uninteresting -- and they get
+   their own tab, because "which cars have nothing recorded?" is a real
+   question to put to the depot's service log. The count is stated in every
+   view so two printouts of the same period always explain their row count.
+
+   Binding is DEFERRED. This control is printed above `echo $tableHtml`, so at
+   parse time the table it governs does not exist yet -- binding inline made
+   getElementById return null and the whole thing bailed silently, leaving
+   tabs that rendered but did nothing. Every bail path now names itself under
+   [ccs-rowtabs] rather than returning quietly. */
+(function(){
+	var TAG="[ccs-rowtabs csrMatrix]", bound=false;
+	function init(){
+		if(bound) return;
+		var t=document.getElementById("csrMatrix");
+		if(!t){ if(window.console&&console.info) console.info(TAG,"table not in the DOM yet"); return; }
+		var bar=document.getElementById("csrMatrix-rowtabs");
+		if(!bar){ if(window.console&&console.info) console.info(TAG,"control markup missing"); return; }
+		var btns=bar.getElementsByTagName("button");
+		if(!btns.length){ if(window.console&&console.info) console.info(TAG,"no buttons found"); return; }
+		var lbl=bar.getElementsByTagName("span")[1];
+		if(!lbl){ if(window.console&&console.info) console.info(TAG,"count label missing"); return; }
+		bound=true;
+		t.setAttribute("data-ccs-rowtabs","bound");
+
+		var zero=<?php echo (int)$zeroRows; ?>, total=<?php echo (int)$totalRows; ?>,
+		    KEY="ccsRowView-csrMatrix";
+		lbl.appendChild(document.createTextNode(""));
+		function set(v){
+			t.className = t.className.replace(/ *ccs-rows-(all|with|none)/g,"") + " ccs-rows-" + v;
+			for(var i=0;i<btns.length;i++){
+				var on = btns[i].getAttribute("data-rows")===v;
+				btns[i].className = on ? "is-on" : "";
+				btns[i].setAttribute("aria-pressed", on?"true":"false");
+			}
+			var shown = (v==="all") ? total : (v==="with" ? total-zero : zero);
+			lbl.firstChild.nodeValue =
+				"Showing "+shown+" of "+total+" cars. "+zero+" have no records this period.";
+			try{ localStorage.setItem(KEY,v); }catch(e){}
+		}
+		for(var i=0;i<btns.length;i++){
+			(function(b){ b.onclick=function(){ set(b.getAttribute("data-rows")); return false; }; })(btns[i]);
+		}
+		var start="with";
+		try{ var s=localStorage.getItem(KEY);
+		     if(s==="all"||s==="with"||s==="none") start=s; }catch(e){}
+		set(start);
+	}
+	if(document.readyState==="complete"||document.readyState==="interactive"){ init(); }
+	if(document.addEventListener){ document.addEventListener("DOMContentLoaded",init,false); }
+	else if(document.attachEvent){ document.attachEvent("onreadystatechange",init); }
+	if(window.addEventListener){ window.addEventListener("load",init,false); }
+	/* Last resort: a short poll, same shape as the dashboard datepicker fix.
+	   Costs nothing once bound and covers any template that rewrites the body. */
+	var tries=0, poll=setInterval(function(){
+		init(); if(bound||++tries>30) clearInterval(poll);
+	},100);
+})();
+</script>
+<?php } ?>
 <?php echo $tableHtml; ?>
+
+<?php
+/* @insight -- Panel sits under the table and above the counting note, so the
+   interpretation is read while the figures are still on screen. */
+if(function_exists('iss_insight')){
+
+	/* Bucket labels the narrative can quote. The table's columns are 1..12 or
+	   1..31; "spiked in bucket 4" is not a sentence for a printed report. */
+	$issBuckets = array(); $issUncov = array();
+	for($k=1; $k<=$bucketCount; $k++){
+		if($isDayView){
+			$lbl = date('j M Y', strtotime($viewYm.'-'.sprintf('%02d',$k)));
+			$ym  = $viewYm;
+		} else {
+			$lbl = date('F Y', strtotime(sprintf('%04d-%02d-01', $year, $k)));
+			$ym  = sprintf('%04d-%02d', $year, $k);
+		}
+		$issBuckets[] = $lbl;
+		if(ccsMonthStatus($coverage, $ym) === 'missing') $issUncov[] = $lbl;
+	}
+
+	/* Only cars that actually appear. The roster is 73 fixed slots and most
+	   are empty in any one year -- listing all of them as "recorded none at
+	   all" is noise, and it drags every concentration figure toward zero. */
+	$issRows = array();
+	for($i=1; $i<=$CAR_MAX; $i++){
+		$t = isset($stats["Car_".$i]["total"]) ? (int)$stats["Car_".$i]["total"] : 0;
+		if($t === 0) continue;
+		$vals = array();
+		for($k=1; $k<=$bucketCount; $k++){
+			$vals[] = isset($stats["Car_".$i][$bucketKey.$k]) ? (int)$stats["Car_".$i][$bucketKey.$k] : 0;
+		}
+		$issRows[] = array('key'=>(string)$i, 'label'=>'Car '.$i,
+		                   'values'=>$vals, 'total'=>$t);
+	}
+
+	$issFilters = array();
+	if(isset($_POST['equipt_car']) && $_POST['equipt_car'] !== ''){
+		$issFilters['equipment'] = getEquipt($_POST['equipt_car'], $db);
+	}
+
+	$issCtx = array(
+		'schema' => 'iss.report.v1',
+		'report' => array('id'=>'car_statistics_report',
+		                  'title'=>'Rolling Stock - Failures by Car',
+		                  'unit'=>'car-level failures'),
+		'period' => array(
+			'from'  => $isDayView ? $viewYm.'-01' : $year.'-01-01',
+			'to'    => $isDayView ? date('Y-m-t', strtotime($viewYm.'-01')) : $year.'-12-31',
+			'grain' => $bucketWord),
+		'filters' => $issFilters,
+		'dimensions' => array('row'=>array('key'=>'car','label'=>'Car'),
+		                      'col'=>array('key'=>$bucketWord,
+		                                   'label'=>$isDayView ? 'Day' : 'Month')),
+		'buckets'  => $issBuckets,
+		'rows'     => $issRows,
+		'coverage' => array('uncovered_buckets'=>$issUncov),
+		/* $monthTotals is 1-indexed on this page (array_fill(1,...)), unlike
+		   the equipment report. Reindexed, or every bucket would be offset by
+		   one against its label and the peak month would name the wrong month. */
+		'totals'   => array('by_bucket'=>array_values($monthTotals),
+		                    'grand'=>(int)$grandTotal),
+	);
+	if(count($issCross))   $issCtx['crosstab'] = $issCross;
+	if(count($issHistory)) $issCtx['history']  = $issHistory;
+	if(count($issEvents))  $issCtx['events']   = $issEvents;
+
+	if(count($issRows) >= 2){
+		$issN = iss_insight_normalize($issCtx);
+		$issF = iss_insight_findings($issN);
+		if(function_exists('iss_insight_findings_advanced')){
+			$issF = iss_insight_findings_advanced($issCtx, $issN, $issF);
+		}
+		echo iss_insight_css();
+		/* @insight -- Both readings are computed here and shipped together,
+		   so switching is instant and works with no provider configured. The
+		   reader's choice persists via localStorage; the print stylesheet
+		   prints whichever is on screen. */
+		$issRendered = iss_insight_render_offline($issN, $issF);
+		if(function_exists('iss_insight_html_dual')){
+			/* Each helper is guarded on ITS OWN name, not on a sibling's.
+			   These live in one file that gets copied station by station with
+			   no version control, so a box can easily end up with a page that
+			   is newer than its iss_insight_audience.php. Guarding the whole
+			   group on iss_insight_html_dual() meant an older helper file threw
+			   'Call to undefined function' and killed the page mid-render --
+			   taking every chart, sort and print script below it with it. */
+			if(function_exists('iss_insight_audience_css')) echo iss_insight_audience_css();
+			if(function_exists('iss_insight_audience_js'))  echo iss_insight_audience_js();
+			echo '<div id="issInsight">'
+			   . iss_insight_html_dual($issN, $issF, $issRendered)
+			   . '</div>';
+		} else {
+			echo '<div id="issInsight">'.iss_insight_html($issRendered).'</div>';
+		}
+
+		$issCfg = iss_insight_config();
+		if(!empty($issCfg['enabled']) && $issCfg['provider'] !== 'none'
+		   && file_exists(dirname(__FILE__)."/insight_ajax.php")){
+			$issKey = iss_insight_stash($issCtx);
+			echo '<script>(function(){var b=document.getElementById("issInsight");'
+			   . 'if(!b||!window.XMLHttpRequest)return;var x=new XMLHttpRequest();'
+			   . 'x.open("GET","insight_ajax.php?k='.$issKey.'",true);'
+			   . 'x.onreadystatechange=function(){if(x.readyState===4&&x.status===200'
+			   . '&&x.responseText&&x.responseText.indexOf("ins-block")!==-1){'
+			   . 'b.innerHTML=x.responseText;if(window.issInsightApplyView)window.issInsightApplyView();}};x.send();})();</script>';
+		}
+	}
+}
+?>
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This matches the basis used by the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure.
@@ -1111,6 +1458,12 @@ document.addEventListener('keydown',function(e){
 				'.chart img{ display:block; width:100%; height:auto; border:1px solid #e5e7eb; }' +
 				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
+				/* @zerorows -- the clone carries whichever ccs-rows-* class the
+				   table had on screen; without these rules the hidden rows all
+				   reappear on paper and the printout stops matching what was
+				   printed from. */
+				'table.ccs-rows-with tr.ccs-zero{ display:none; }' +
+				'table.ccs-rows-none tr.ccs-nonzero{ display:none; }' +
 				'table{ width:100%; border-collapse:collapse; font-size:8.5px; }' +
 				'thead{ display:table-header-group; }' +
 				// Navy fill applies to the HEADER ROW only. Each data row's first
@@ -1143,7 +1496,7 @@ document.addEventListener('keydown',function(e){
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgCar+'"><div class="cap">Figure 1 &mdash; Car-level failures by car</div></div>' +
 				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by '+csrBucketWord+', whole fleet</div></div>' +
-				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+csrIncidents+' incidents produce '+csrGrandTotal+' car-level failures. This matches the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure. Covers all severity levels. Shaded rows are cars at or above 60% of the worst car total.</p>' +
+				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+csrIncidents+' incidents produce '+csrGrandTotal+' car-level failures. This matches the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure. Covers all severity levels. Shaded rows are cars at or above 60% of the worst car total.' + (function(){var t=document.getElementById("csrMatrix");if(!t||!t.getElementsByClassName) return '';var z=t.getElementsByClassName('ccs-zero').length;if(!z) return '';var c=t.className;if(c.indexOf('ccs-rows-none')!==-1) return ' This view lists ONLY the '+z+' cars with no records this period; the totals above cover the full roster.';if(c.indexOf('ccs-rows-with')!==-1) return ' '+z+' cars with no records this period are omitted from this table; they remain included in the totals above.';return ' Includes '+z+' cars with no records this period.';})() + '</p>' +
 			'</div>' +
 			'<h2 class="sec">Monthly Breakdown by Car</h2>' +
 			tableHtml +
