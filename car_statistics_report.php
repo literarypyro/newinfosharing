@@ -885,6 +885,139 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 <?php } ?>	</div>
 </div>
 
+<?php
+/* @insight -- COMPUTED here, PRINTED further down.
+   The panel itself still belongs beside the table: an interpretation a
+   reader cannot check against the figures is harder to trust. But the
+   conclusion has to clear the fold, and the band below needs the
+   findings, which are only available once the aggregation above has
+   run. So the block runs here into a buffer and prints unchanged in its
+   old position, with just the bottom line hoisted into the tile strip.
+   Buffering it verbatim rather than refactoring it keeps its raw HTML,
+   its <script> and its echoes exactly as they were. */
+$issPanelHtml = ''; $issBandHtml = '';
+ob_start();
+/* @insight -- Panel sits under the table and above the counting note, so the
+   interpretation is read while the figures are still on screen. */
+if(function_exists('iss_insight')){
+
+	/* Bucket labels the narrative can quote. The table's columns are 1..12 or
+	   1..31; "spiked in bucket 4" is not a sentence for a printed report. */
+	$issBuckets = array(); $issUncov = array();
+	for($k=1; $k<=$bucketCount; $k++){
+		if($isDayView){
+			$lbl = date('j M Y', strtotime($viewYm.'-'.sprintf('%02d',$k)));
+			$ym  = $viewYm;
+		} else {
+			$lbl = date('F Y', strtotime(sprintf('%04d-%02d-01', $year, $k)));
+			$ym  = sprintf('%04d-%02d', $year, $k);
+		}
+		$issBuckets[] = $lbl;
+		if(ccsMonthStatus($coverage, $ym) === 'missing') $issUncov[] = $lbl;
+	}
+
+	/* Only cars that actually appear. The roster is 73 fixed slots and most
+	   are empty in any one year -- listing all of them as "recorded none at
+	   all" is noise, and it drags every concentration figure toward zero. */
+	$issRows = array();
+	for($i=1; $i<=$CAR_MAX; $i++){
+		$t = isset($stats["Car_".$i]["total"]) ? (int)$stats["Car_".$i]["total"] : 0;
+		if($t === 0) continue;
+		$vals = array();
+		for($k=1; $k<=$bucketCount; $k++){
+			$vals[] = isset($stats["Car_".$i][$bucketKey.$k]) ? (int)$stats["Car_".$i][$bucketKey.$k] : 0;
+		}
+		$issRows[] = array('key'=>(string)$i, 'label'=>'Car '.$i,
+		                   'values'=>$vals, 'total'=>$t);
+	}
+
+	$issFilters = array();
+	if(isset($_POST['equipt_car']) && $_POST['equipt_car'] !== ''){
+		$issFilters['equipment'] = getEquipt($_POST['equipt_car'], $db);
+	}
+
+	$issCtx = array(
+		'schema' => 'iss.report.v1',
+		'report' => array('id'=>'car_statistics_report',
+		                  'title'=>'Rolling Stock - Failures by Car',
+		                  'unit'=>'car-level failures'),
+		'period' => array(
+			'from'  => $isDayView ? $viewYm.'-01' : $year.'-01-01',
+			'to'    => $isDayView ? date('Y-m-t', strtotime($viewYm.'-01')) : $year.'-12-31',
+			'grain' => $bucketWord),
+		'filters' => $issFilters,
+		'dimensions' => array('row'=>array('key'=>'car','label'=>'Car'),
+		                      'col'=>array('key'=>$bucketWord,
+		                                   'label'=>$isDayView ? 'Day' : 'Month')),
+		'buckets'  => $issBuckets,
+		'rows'     => $issRows,
+		'coverage' => array('uncovered_buckets'=>$issUncov),
+		/* $monthTotals is 1-indexed on this page (array_fill(1,...)), unlike
+		   the equipment report. Reindexed, or every bucket would be offset by
+		   one against its label and the peak month would name the wrong month. */
+		'totals'   => array('by_bucket'=>array_values($monthTotals),
+		                    'grand'=>(int)$grandTotal),
+	);
+	if(count($issCross))   $issCtx['crosstab'] = $issCross;
+	if(count($issHistory)) $issCtx['history']  = $issHistory;
+	if(count($issEvents))  $issCtx['events']   = $issEvents;
+
+	/* @insight -- see the note in the history pages: per-finding minimums do
+	   the filtering, so a narrow selection thins the analysis rather than
+	   deleting it. */
+	if(count($issRows) >= 1){
+		$issN = iss_insight_normalize($issCtx);
+		$issF = iss_insight_findings($issN);
+		if(function_exists('iss_insight_findings_advanced')){
+			$issF = iss_insight_findings_advanced($issCtx, $issN, $issF);
+		}
+		echo iss_insight_css();
+		/* @insight -- Both readings are computed here and shipped together,
+		   so switching is instant and works with no provider configured. The
+		   reader's choice persists via localStorage; the print stylesheet
+		   prints whichever is on screen. */
+		$issRendered = iss_insight_render_offline($issN, $issF);
+		if(function_exists('iss_insight_html_dual')){
+			/* Each helper is guarded on ITS OWN name, not on a sibling's.
+			   These live in one file that gets copied station by station with
+			   no version control, so a box can easily end up with a page that
+			   is newer than its iss_insight_audience.php. Guarding the whole
+			   group on iss_insight_html_dual() meant an older helper file threw
+			   'Call to undefined function' and killed the page mid-render --
+			   taking every chart, sort and print script below it with it. */
+			if(function_exists('iss_insight_audience_css')) echo iss_insight_audience_css();
+			if(function_exists('iss_insight_audience_js'))  echo iss_insight_audience_js();
+			echo '<div id="issInsight">'
+			   . iss_insight_html_dual($issN, $issF, $issRendered)
+			   . '</div>';
+		} else {
+			echo '<div id="issInsight">'.iss_insight_html($issRendered).'</div>';
+		}
+
+		$issCfg = iss_insight_config();
+		if(!empty($issCfg['enabled']) && $issCfg['provider'] !== 'none'
+		   && file_exists(dirname(__FILE__)."/insight_ajax.php")){
+			$issKey = iss_insight_stash($issCtx);
+			echo '<script>(function(){var b=document.getElementById("issInsight");'
+			   . 'if(!b||!window.XMLHttpRequest)return;var x=new XMLHttpRequest();'
+			   . 'x.open("GET","insight_ajax.php?k='.$issKey.'",true);'
+			   . 'x.onreadystatechange=function(){if(x.readyState===4&&x.status===200'
+			   . '&&x.responseText&&x.responseText.indexOf("ins-block")!==-1){'
+			   . 'b.innerHTML=x.responseText;if(window.issInsightApplyView)window.issInsightApplyView();}};x.send();})();</script>';
+		}
+	}
+}
+$issPanelHtml = ob_get_clean();
+/* This page names its normalized context $issN, not $issCtxN as the equipment
+   report does. Guarded on the name that actually exists here -- the other
+   spelling would simply never be set and the band would silently not appear,
+   which is exactly the failure mode that has cost time twice already. */
+if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
+	if(function_exists('iss_insight_band_css')) $issBandHtml = iss_insight_band_css();
+	$issBandHtml .= iss_insight_summary_band($issN, $issF, "issInsight");
+}
+?>
+<?php echo $issBandHtml; ?>
 <div style="margin-bottom:14px;">
 	<button type="button" onclick="csrPrintReport()" style="padding:6px 14px;border:1px solid #00529B;background:#00529B;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">Print report</button>
 </div>
@@ -1003,115 +1136,7 @@ table.ccs-rows-none tr.ccs-nonzero{display:none;}
 <?php } ?>
 <?php echo $tableHtml; ?>
 
-<?php
-/* @insight -- Panel sits under the table and above the counting note, so the
-   interpretation is read while the figures are still on screen. */
-if(function_exists('iss_insight')){
-
-	/* Bucket labels the narrative can quote. The table's columns are 1..12 or
-	   1..31; "spiked in bucket 4" is not a sentence for a printed report. */
-	$issBuckets = array(); $issUncov = array();
-	for($k=1; $k<=$bucketCount; $k++){
-		if($isDayView){
-			$lbl = date('j M Y', strtotime($viewYm.'-'.sprintf('%02d',$k)));
-			$ym  = $viewYm;
-		} else {
-			$lbl = date('F Y', strtotime(sprintf('%04d-%02d-01', $year, $k)));
-			$ym  = sprintf('%04d-%02d', $year, $k);
-		}
-		$issBuckets[] = $lbl;
-		if(ccsMonthStatus($coverage, $ym) === 'missing') $issUncov[] = $lbl;
-	}
-
-	/* Only cars that actually appear. The roster is 73 fixed slots and most
-	   are empty in any one year -- listing all of them as "recorded none at
-	   all" is noise, and it drags every concentration figure toward zero. */
-	$issRows = array();
-	for($i=1; $i<=$CAR_MAX; $i++){
-		$t = isset($stats["Car_".$i]["total"]) ? (int)$stats["Car_".$i]["total"] : 0;
-		if($t === 0) continue;
-		$vals = array();
-		for($k=1; $k<=$bucketCount; $k++){
-			$vals[] = isset($stats["Car_".$i][$bucketKey.$k]) ? (int)$stats["Car_".$i][$bucketKey.$k] : 0;
-		}
-		$issRows[] = array('key'=>(string)$i, 'label'=>'Car '.$i,
-		                   'values'=>$vals, 'total'=>$t);
-	}
-
-	$issFilters = array();
-	if(isset($_POST['equipt_car']) && $_POST['equipt_car'] !== ''){
-		$issFilters['equipment'] = getEquipt($_POST['equipt_car'], $db);
-	}
-
-	$issCtx = array(
-		'schema' => 'iss.report.v1',
-		'report' => array('id'=>'car_statistics_report',
-		                  'title'=>'Rolling Stock - Failures by Car',
-		                  'unit'=>'car-level failures'),
-		'period' => array(
-			'from'  => $isDayView ? $viewYm.'-01' : $year.'-01-01',
-			'to'    => $isDayView ? date('Y-m-t', strtotime($viewYm.'-01')) : $year.'-12-31',
-			'grain' => $bucketWord),
-		'filters' => $issFilters,
-		'dimensions' => array('row'=>array('key'=>'car','label'=>'Car'),
-		                      'col'=>array('key'=>$bucketWord,
-		                                   'label'=>$isDayView ? 'Day' : 'Month')),
-		'buckets'  => $issBuckets,
-		'rows'     => $issRows,
-		'coverage' => array('uncovered_buckets'=>$issUncov),
-		/* $monthTotals is 1-indexed on this page (array_fill(1,...)), unlike
-		   the equipment report. Reindexed, or every bucket would be offset by
-		   one against its label and the peak month would name the wrong month. */
-		'totals'   => array('by_bucket'=>array_values($monthTotals),
-		                    'grand'=>(int)$grandTotal),
-	);
-	if(count($issCross))   $issCtx['crosstab'] = $issCross;
-	if(count($issHistory)) $issCtx['history']  = $issHistory;
-	if(count($issEvents))  $issCtx['events']   = $issEvents;
-
-	if(count($issRows) >= 2){
-		$issN = iss_insight_normalize($issCtx);
-		$issF = iss_insight_findings($issN);
-		if(function_exists('iss_insight_findings_advanced')){
-			$issF = iss_insight_findings_advanced($issCtx, $issN, $issF);
-		}
-		echo iss_insight_css();
-		/* @insight -- Both readings are computed here and shipped together,
-		   so switching is instant and works with no provider configured. The
-		   reader's choice persists via localStorage; the print stylesheet
-		   prints whichever is on screen. */
-		$issRendered = iss_insight_render_offline($issN, $issF);
-		if(function_exists('iss_insight_html_dual')){
-			/* Each helper is guarded on ITS OWN name, not on a sibling's.
-			   These live in one file that gets copied station by station with
-			   no version control, so a box can easily end up with a page that
-			   is newer than its iss_insight_audience.php. Guarding the whole
-			   group on iss_insight_html_dual() meant an older helper file threw
-			   'Call to undefined function' and killed the page mid-render --
-			   taking every chart, sort and print script below it with it. */
-			if(function_exists('iss_insight_audience_css')) echo iss_insight_audience_css();
-			if(function_exists('iss_insight_audience_js'))  echo iss_insight_audience_js();
-			echo '<div id="issInsight">'
-			   . iss_insight_html_dual($issN, $issF, $issRendered)
-			   . '</div>';
-		} else {
-			echo '<div id="issInsight">'.iss_insight_html($issRendered).'</div>';
-		}
-
-		$issCfg = iss_insight_config();
-		if(!empty($issCfg['enabled']) && $issCfg['provider'] !== 'none'
-		   && file_exists(dirname(__FILE__)."/insight_ajax.php")){
-			$issKey = iss_insight_stash($issCtx);
-			echo '<script>(function(){var b=document.getElementById("issInsight");'
-			   . 'if(!b||!window.XMLHttpRequest)return;var x=new XMLHttpRequest();'
-			   . 'x.open("GET","insight_ajax.php?k='.$issKey.'",true);'
-			   . 'x.onreadystatechange=function(){if(x.readyState===4&&x.status===200'
-			   . '&&x.responseText&&x.responseText.indexOf("ins-block")!==-1){'
-			   . 'b.innerHTML=x.responseText;if(window.issInsightApplyView)window.issInsightApplyView();}};x.send();})();</script>';
-		}
-	}
-}
-?>
+<?php echo $issPanelHtml; ?>
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This matches the basis used by the equipment summary and per-car reports; the incident history logs count one row per incident and show the smaller figure.

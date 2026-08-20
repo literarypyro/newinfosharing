@@ -1235,125 +1235,18 @@ $tableHtml = ob_get_clean();
 <?php } ?>	</div>
 </div>
 
-<div style="margin-bottom:14px;">
-	<button type="button" onclick="srmPrintReport()" style="padding:6px 14px;border:1px solid #00529B;background:#00529B;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">Print report</button>
-</div>
-
-<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
-	<div><canvas id="srmByEquipt" width="340" height="230"></canvas></div>
-	<div><canvas id="srmByMonth" width="340" height="200"></canvas></div>
-</div>
-
-<div class="stat-legend" style="margin:0 0 8px;">
-	<span><span class="swatch" style="background:#00529B;"></span>Click an equipment name to see which cars had this failure</span>
-	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count to see that month's incident list</span>
-	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this period (&ge;60% of the peak)</span>
-</div>
-
-<?php /* @zerorows -- Deliberately OUT here, below the buffered table.
-   $zeroRows is accumulated by the aggregation loop, which runs INSIDE
-   ob_start()..ob_get_clean(); emitting the control above the <table>
-   tag tested the counter before it existed, so `$zeroRows > 0` was a
-   comparison against an undefined variable and the whole control
-   silently never rendered. */ ?>
-<style>
-/* @zerorows -- Display only, three states. Rows always stay in the DOM, so
-   sorting, the print clone and every total keep seeing the full roster; only
-   visibility changes. Nothing is filtered server-side.
-
-   Both classes are written out explicitly rather than using :not(.ccs-zero).
-   The totals row and any header row carry neither class, so they survive all
-   three views -- a totals line that vanished on one tab would be worse than
-   the noise this control exists to remove. */
-.ccs-rowtabs{font-size:12px;color:#5A6275;margin:0 0 6px;display:flex;
-  align-items:center;gap:10px;flex-wrap:wrap;}
-.ccs-rowtabs .ccs-seg{display:inline-flex;border:1px solid #C9CFDA;border-radius:4px;
-  overflow:hidden;background:#fff;}
-.ccs-rowtabs button{-webkit-appearance:none;appearance:none;border:0;background:#fff;
-  color:#4A5666;font:inherit;font-size:12px;padding:3px 11px;cursor:pointer;line-height:1.6;}
-.ccs-rowtabs button + button{border-left:1px solid #C9CFDA;}
-.ccs-rowtabs button:hover{background:#F2F5F9;}
-.ccs-rowtabs button.is-on{background:#00529B;color:#fff;}
-table.ccs-rows-with tr.ccs-zero{display:none;}
-table.ccs-rows-none tr.ccs-nonzero{display:none;}
-@media print{.ccs-rowtabs .ccs-seg{display:none;}}
-</style>
-<?php if($zeroRows > 0){ ?>
-<div class="ccs-rowtabs" id="srmMatrix-rowtabs">
-  <span class="ccs-seg" role="group" aria-label="Which rows to show">
-    <button type="button" data-rows="all">All</button>
-    <button type="button" data-rows="with">With records</button>
-    <button type="button" data-rows="none">No records</button>
-  </span>
-  <span class="ccs-rowcount"></span>
-</div>
-<script>
-/* @zerorows -- A zero here is ambiguous: it can mean the unit ran all period
-   without failing, or that it never ran at all. The console holds no
-   service-day denominator to tell those apart, so these rows default to
-   hidden as uninterpretable rather than as uninteresting -- and they get
-   their own tab, because "which equipment types have nothing recorded?" is a real
-   question to put to the depot's service log. The count is stated in every
-   view so two printouts of the same period always explain their row count.
-
-   Binding is DEFERRED. This control is printed above `echo $tableHtml`, so at
-   parse time the table it governs does not exist yet -- binding inline made
-   getElementById return null and the whole thing bailed silently, leaving
-   tabs that rendered but did nothing. Every bail path now names itself under
-   [ccs-rowtabs] rather than returning quietly. */
-(function(){
-	var TAG="[ccs-rowtabs srmMatrix]", bound=false;
-	function init(){
-		if(bound) return;
-		var t=document.getElementById("srmMatrix");
-		if(!t){ if(window.console&&console.info) console.info(TAG,"table not in the DOM yet"); return; }
-		var bar=document.getElementById("srmMatrix-rowtabs");
-		if(!bar){ if(window.console&&console.info) console.info(TAG,"control markup missing"); return; }
-		var btns=bar.getElementsByTagName("button");
-		if(!btns.length){ if(window.console&&console.info) console.info(TAG,"no buttons found"); return; }
-		var lbl=bar.getElementsByTagName("span")[1];
-		if(!lbl){ if(window.console&&console.info) console.info(TAG,"count label missing"); return; }
-		bound=true;
-		t.setAttribute("data-ccs-rowtabs","bound");
-
-		var zero=<?php echo (int)$zeroRows; ?>, total=<?php echo (int)$totalRows; ?>,
-		    KEY="ccsRowView-srmMatrix";
-		lbl.appendChild(document.createTextNode(""));
-		function set(v){
-			t.className = t.className.replace(/ *ccs-rows-(all|with|none)/g,"") + " ccs-rows-" + v;
-			for(var i=0;i<btns.length;i++){
-				var on = btns[i].getAttribute("data-rows")===v;
-				btns[i].className = on ? "is-on" : "";
-				btns[i].setAttribute("aria-pressed", on?"true":"false");
-			}
-			var shown = (v==="all") ? total : (v==="with" ? total-zero : zero);
-			lbl.firstChild.nodeValue =
-				"Showing "+shown+" of "+total+" equipment types. "+zero+" have no records this period.";
-			try{ localStorage.setItem(KEY,v); }catch(e){}
-		}
-		for(var i=0;i<btns.length;i++){
-			(function(b){ b.onclick=function(){ set(b.getAttribute("data-rows")); return false; }; })(btns[i]);
-		}
-		var start="with";
-		try{ var s=localStorage.getItem(KEY);
-		     if(s==="all"||s==="with"||s==="none") start=s; }catch(e){}
-		set(start);
-	}
-	if(document.readyState==="complete"||document.readyState==="interactive"){ init(); }
-	if(document.addEventListener){ document.addEventListener("DOMContentLoaded",init,false); }
-	else if(document.attachEvent){ document.attachEvent("onreadystatechange",init); }
-	if(window.addEventListener){ window.addEventListener("load",init,false); }
-	/* Last resort: a short poll, same shape as the dashboard datepicker fix.
-	   Costs nothing once bound and covers any template that rewrites the body. */
-	var tries=0, poll=setInterval(function(){
-		init(); if(bound||++tries>30) clearInterval(poll);
-	},100);
-})();
-</script>
-<?php } ?>
-<?php echo $tableHtml; ?>
-
 <?php
+/* @insight -- COMPUTED here, PRINTED further down.
+   The panel itself still belongs beside the table: an interpretation a
+   reader cannot check against the figures is harder to trust. But the
+   conclusion has to clear the fold, and the band below needs the
+   findings, which are only available once the aggregation above has
+   run. So the block runs here into a buffer and prints unchanged in its
+   old position, with just the bottom line hoisted into the tile strip.
+   Buffering it verbatim rather than refactoring it keeps its raw HTML,
+   its <script> and its echoes exactly as they were. */
+$issPanelHtml = ''; $issBandHtml = '';
+ob_start();
 /* @insight -- The panel sits directly under the table and above the counting
    note, so a reader meets the interpretation while the figures are still on
    screen. Rendered only when the module is present; a missing file leaves the
@@ -1495,7 +1388,132 @@ if(function_exists('iss_insight')){
 <?php
 	}
 }
+$issPanelHtml = ob_get_clean();
+if(isset($issF) && isset($issCtxN) && function_exists('iss_insight_summary_band')){
+	if(function_exists('iss_insight_band_css')) $issBandHtml = iss_insight_band_css();
+	$issBandHtml .= iss_insight_summary_band($issCtxN, $issF, "issInsight");
+}
 ?>
+<?php echo $issBandHtml; ?>
+<div style="margin-bottom:14px;">
+	<button type="button" onclick="srmPrintReport()" style="padding:6px 14px;border:1px solid #00529B;background:#00529B;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">Print report</button>
+</div>
+
+<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
+	<div><canvas id="srmByEquipt" width="340" height="230"></canvas></div>
+	<div><canvas id="srmByMonth" width="340" height="200"></canvas></div>
+</div>
+
+<div class="stat-legend" style="margin:0 0 8px;">
+	<span><span class="swatch" style="background:#00529B;"></span>Click an equipment name to see which cars had this failure</span>
+	<span><span class="swatch" style="background:#FDB813;"></span>Click a monthly count to see that month's incident list</span>
+	<span><span class="swatch" style="background:#F9D6D6; border:1px solid #E3A9A9;"></span>Highlighted row = among the highest incident counts this period (&ge;60% of the peak)</span>
+</div>
+
+<?php /* @zerorows -- Deliberately OUT here, below the buffered table.
+   $zeroRows is accumulated by the aggregation loop, which runs INSIDE
+   ob_start()..ob_get_clean(); emitting the control above the <table>
+   tag tested the counter before it existed, so `$zeroRows > 0` was a
+   comparison against an undefined variable and the whole control
+   silently never rendered. */ ?>
+<style>
+/* @zerorows -- Display only, three states. Rows always stay in the DOM, so
+   sorting, the print clone and every total keep seeing the full roster; only
+   visibility changes. Nothing is filtered server-side.
+
+   Both classes are written out explicitly rather than using :not(.ccs-zero).
+   The totals row and any header row carry neither class, so they survive all
+   three views -- a totals line that vanished on one tab would be worse than
+   the noise this control exists to remove. */
+.ccs-rowtabs{font-size:12px;color:#5A6275;margin:0 0 6px;display:flex;
+  align-items:center;gap:10px;flex-wrap:wrap;}
+.ccs-rowtabs .ccs-seg{display:inline-flex;border:1px solid #C9CFDA;border-radius:4px;
+  overflow:hidden;background:#fff;}
+.ccs-rowtabs button{-webkit-appearance:none;appearance:none;border:0;background:#fff;
+  color:#4A5666;font:inherit;font-size:12px;padding:3px 11px;cursor:pointer;line-height:1.6;}
+.ccs-rowtabs button + button{border-left:1px solid #C9CFDA;}
+.ccs-rowtabs button:hover{background:#F2F5F9;}
+.ccs-rowtabs button.is-on{background:#00529B;color:#fff;}
+table.ccs-rows-with tr.ccs-zero{display:none;}
+table.ccs-rows-none tr.ccs-nonzero{display:none;}
+@media print{.ccs-rowtabs .ccs-seg{display:none;}}
+</style>
+<?php if($zeroRows > 0){ ?>
+<div class="ccs-rowtabs" id="srmMatrix-rowtabs">
+  <span class="ccs-seg" role="group" aria-label="Which rows to show">
+    <button type="button" data-rows="all">All</button>
+    <button type="button" data-rows="with">With records</button>
+    <button type="button" data-rows="none">No records</button>
+  </span>
+  <span class="ccs-rowcount"></span>
+</div>
+<script>
+/* @zerorows -- A zero here is ambiguous: it can mean the unit ran all period
+   without failing, or that it never ran at all. The console holds no
+   service-day denominator to tell those apart, so these rows default to
+   hidden as uninterpretable rather than as uninteresting -- and they get
+   their own tab, because "which equipment types have nothing recorded?" is a real
+   question to put to the depot's service log. The count is stated in every
+   view so two printouts of the same period always explain their row count.
+
+   Binding is DEFERRED. This control is printed above `echo $tableHtml`, so at
+   parse time the table it governs does not exist yet -- binding inline made
+   getElementById return null and the whole thing bailed silently, leaving
+   tabs that rendered but did nothing. Every bail path now names itself under
+   [ccs-rowtabs] rather than returning quietly. */
+(function(){
+	var TAG="[ccs-rowtabs srmMatrix]", bound=false;
+	function init(){
+		if(bound) return;
+		var t=document.getElementById("srmMatrix");
+		if(!t){ if(window.console&&console.info) console.info(TAG,"table not in the DOM yet"); return; }
+		var bar=document.getElementById("srmMatrix-rowtabs");
+		if(!bar){ if(window.console&&console.info) console.info(TAG,"control markup missing"); return; }
+		var btns=bar.getElementsByTagName("button");
+		if(!btns.length){ if(window.console&&console.info) console.info(TAG,"no buttons found"); return; }
+		var lbl=bar.getElementsByTagName("span")[1];
+		if(!lbl){ if(window.console&&console.info) console.info(TAG,"count label missing"); return; }
+		bound=true;
+		t.setAttribute("data-ccs-rowtabs","bound");
+
+		var zero=<?php echo (int)$zeroRows; ?>, total=<?php echo (int)$totalRows; ?>,
+		    KEY="ccsRowView-srmMatrix";
+		lbl.appendChild(document.createTextNode(""));
+		function set(v){
+			t.className = t.className.replace(/ *ccs-rows-(all|with|none)/g,"") + " ccs-rows-" + v;
+			for(var i=0;i<btns.length;i++){
+				var on = btns[i].getAttribute("data-rows")===v;
+				btns[i].className = on ? "is-on" : "";
+				btns[i].setAttribute("aria-pressed", on?"true":"false");
+			}
+			var shown = (v==="all") ? total : (v==="with" ? total-zero : zero);
+			lbl.firstChild.nodeValue =
+				"Showing "+shown+" of "+total+" equipment types. "+zero+" have no records this period.";
+			try{ localStorage.setItem(KEY,v); }catch(e){}
+		}
+		for(var i=0;i<btns.length;i++){
+			(function(b){ b.onclick=function(){ set(b.getAttribute("data-rows")); return false; }; })(btns[i]);
+		}
+		var start="with";
+		try{ var s=localStorage.getItem(KEY);
+		     if(s==="all"||s==="with"||s==="none") start=s; }catch(e){}
+		set(start);
+	}
+	if(document.readyState==="complete"||document.readyState==="interactive"){ init(); }
+	if(document.addEventListener){ document.addEventListener("DOMContentLoaded",init,false); }
+	else if(document.attachEvent){ document.attachEvent("onreadystatechange",init); }
+	if(window.addEventListener){ window.addEventListener("load",init,false); }
+	/* Last resort: a short poll, same shape as the dashboard datepicker fix.
+	   Costs nothing once bound and covers any template that rewrites the body. */
+	var tries=0, poll=setInterval(function(){
+		init(); if(bound||++tries>30) clearInterval(poll);
+	},100);
+})();
+</script>
+<?php } ?>
+<?php echo $tableHtml; ?>
+
+<?php echo $issPanelHtml; ?>
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.

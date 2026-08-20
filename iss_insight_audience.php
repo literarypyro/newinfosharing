@@ -23,7 +23,7 @@ define('ISS_INSIGHT_AUDIENCE', 1);
 /* Bump on every change a PAGE depends on. Stations are updated by hand and
    drift out of step, so the version has to be visible from view-source rather
    than only discoverable by a page dying half-rendered. */
-define('ISS_INSIGHT_AUDIENCE_V', '2');
+define('ISS_INSIGHT_AUDIENCE_V', '4');
 
 /* Statistical confidence, said the way a person says it. Deliberately
    conservative: a z of 4 is not "certain", it is "clearly". */
@@ -57,9 +57,16 @@ function iss_ins_plain($f, $c) {
     switch ($f['kind']) {
 
     case 'volume':
-        return sprintf('%s %s were recorded over %d %s, averaging about %s a %s.',
-               number_format($F['total']), $unit, $F['buckets_covered'],
-               iss_ins_colword($c, $F['buckets_covered']),
+        /* No "averaging about N a month" when there is only one month -- the
+           average and the total are the same number, and printing both makes
+           a thin window look like it has more in it than it does. */
+        if ($F['buckets_covered'] <= 1) {
+            return sprintf('This window holds %s %s.',
+                   number_format($F['total']), iss_ins_unit($c, $F['total']));
+        }
+        return sprintf('This window holds %s %s across %d %s, averaging about %s a %s.',
+               number_format($F['total']), iss_ins_unit($c, $F['total']),
+               $F['buckets_covered'], iss_ins_colword($c, $F['buckets_covered']),
                iss_aud_n($F['mean_per_bucket']), $col);
 
     case 'vs_prior':
@@ -116,9 +123,11 @@ function iss_ins_plain($f, $c) {
         foreach (array_slice($F['hot'], 0, 3) as $h) {
             $who[] = $h['row'] . ' (' . $h['ratio'] . ' times its fair share)';
         }
-        return sprintf('%s is not a fleet-wide problem. It is %s concentrated on %s. That points at %s in particular rather than at the equipment itself, so the fix is likely to be on those units.',
+        $nhot = min(3, count($F['hot']));
+        return sprintf('%s is not a fleet-wide problem. It is %s concentrated on %s. That points at %s in particular rather than at the equipment itself, so the fix is likely to be on %s.',
                $F['column'], iss_aud_conf($F['hot'][0]['z']), iss_aud_list($who, 3),
-               iss_aud_list(array_map('iss_aud_rowname', $F['hot']), 3));
+               iss_aud_list(array_map('iss_aud_rowname', $F['hot']), 3),
+               ($nhot === 1 ? 'that ' . $rows : 'those ' . $rowp));
 
     case 'fleet_wide':
         if (!empty($F['row_label'])) {
@@ -351,6 +360,89 @@ if(document.readyState==="loading" && document.addEventListener){
   document.addEventListener("DOMContentLoaded",apply,false);
 } else { apply(); }
 })();</script>';
+}
+
+/* --------------------------------------------------------------------------
+ * SUMMARY BAND  --  the one sentence, placed where the eye already is.
+ *
+ * The full panel belongs beside the table: an interpretation the reader
+ * cannot check against the figures is harder to trust, and ground staff read
+ * the two together. But an executive reads the top of the page and stops, so
+ * the conclusion has to survive above the fold on its own.
+ *
+ * This hoists the bottom line ONLY, never a second copy of the analysis --
+ * two blocks saying the same thing would have to be kept in agreement, and a
+ * printout would carry the text twice. It is built from the same findings as
+ * the panel, so it cannot drift from it.
+ * ------------------------------------------------------------------------*/
+function iss_insight_summary_band($c, $F, $anchor) {
+    $e   = 'iss_ins_esc';
+    $exe = iss_insight_executive($c, $F);
+
+    /* A narrow filter -- one month, or a car with only a couple of records in
+       the chosen year -- leaves nothing for the pattern findings to work on,
+       and the band used to return empty. To the reader that is indistinguish-
+       able from the feature being broken. Say what the window holds and say
+       why there is no pattern read, rather than disappearing. */
+    $thin = false;
+    if ($exe['bottom'] === '' && !count($exe['points'])) {
+        if (!count($exe['context'])) { return ''; }   /* genuinely no data */
+        $line = implode(' ', $exe['context']);
+        $thin = true;
+    } else {
+        $line = ($exe['bottom'] !== '') ? $exe['bottom'] : $exe['points'][0];
+    }
+
+    $alert = 0; $watch = 0; $cav = 0;
+    foreach ($F as $f) {
+        if ($f['severity'] === 'alert')  { $alert++; }
+        elseif ($f['severity'] === 'watch')  { $watch++; }
+        elseif ($f['severity'] === 'caveat') { $cav++; }
+    }
+    $bits = array();
+    if ($thin) {
+        $cov = 0;
+        foreach ($c['totals']['by_bucket'] as $v) { if ($v !== null && is_numeric($v)) { $cov++; } }
+        $bits[] = 'too few ' . iss_ins_colword($c, 2)
+                . ' in this filter for a trend or pattern read'
+                . ($cov <= 1 ? ' -- widen the range to compare against others' : '');
+    }
+    if ($alert) { $bits[] = $alert . ' needing attention'; }
+    if ($watch) { $bits[] = $watch . ' to watch'; }
+    /* Caveats are counted in the band too. A reader who only ever sees this
+       strip still needs to know the figures come with conditions attached. */
+    if ($cav)   { $bits[] = $cav . ' data caveat' . ($cav === 1 ? '' : 's'); }
+
+    $h  = '<div class="ins-band">';
+    $h .= '<div class="ins-band-key">Bottom line</div>';
+    $h .= '<div class="ins-band-body"><p class="ins-band-line">' . $e($line) . '</p>';
+    if (count($bits)) {
+        $safe = array();
+        foreach ($bits as $x) { $safe[] = $e($x); }
+        $h .= '<p class="ins-band-meta">' . implode(' &middot; ', $safe) . '</p>';
+    }
+    $h .= '</div>';
+    $h .= '<a class="ins-band-jump" href="#' . $e($anchor) . '">Full analysis &darr;</a>';
+    return $h . '</div>';
+}
+
+function iss_insight_band_css() {
+    return '<style>
+.ins-band{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;
+  border:1px solid #E5DECC;border-left:4px solid var(--cf-gold,#c8a028);
+  border-radius:6px;background:#FBFAF6;padding:11px 14px;margin:0 0 14px;}
+.ins-band-key{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+  color:#5A6275;padding-top:2px;white-space:nowrap;}
+.ins-band-body{flex:1;min-width:240px;}
+.ins-band-line{margin:0;font-size:14.5px;line-height:1.5;color:#1c2431;}
+.ins-band-meta{margin:4px 0 0;font-size:11.5px;color:#5A6275;}
+.ins-band-jump{font-size:12px;color:var(--cf-blue,#00529B);white-space:nowrap;
+  padding-top:2px;text-decoration:none;}
+.ins-band-jump:hover{text-decoration:underline;}
+/* On paper the link points nowhere, but the sentence still leads the report. */
+@media print{.ins-band-jump{display:none;}
+  .ins-band{break-inside:avoid;background:none;}}
+</style>';
 }
 
 function iss_insight_audience_css() {

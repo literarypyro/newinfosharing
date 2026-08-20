@@ -280,6 +280,17 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
   </div>
 </div>
 <div class="ccs-panel-body">
+<?php
+/* @insight -- Everything from here to the analysis block is buffered.
+   On these drill-down pages the aggregates the analysis needs ($monthlyCounts,
+   $sevGrid, $repeatDates on the car page; the per-car queries on the equipment
+   page) are only complete AFTER the table has been walked, so the bottom line
+   cannot be printed at the top without capturing the middle first. The table,
+   its closing markup and the panel itself all come back out below, unchanged
+   and in their original order -- only the one-sentence band is added ahead of
+   them. */
+ob_start();
+?>
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id="add_form" name="add_form">
     <thead>
     <tr>
@@ -549,7 +560,15 @@ $repeatRows = array_slice($repeatRows, 0, 6);
      - $sevGrid DOES include suggested equipment, because the severity on
        those rows is recorded even where the equipment was inferred.
    ========================================================================== */
-if(function_exists('iss_insight') && count($monthlyCounts) >= 3){
+/* @insight -- Deliberately permissive. Every finding already carries its own
+   minimum -- trend wants four covered buckets, change-point eight, seasonality
+   two years of history, concentration three rows, the cross-tab thirty
+   records, recurrence twenty events -- so a thin window self-suppresses
+   finding by finding and still yields the volume line and the data caveats.
+   Gating the WHOLE block on a bucket count instead meant that filtering to a
+   single month, or to a year in which this unit had records in only one or
+   two months, silently removed the band and the panel together. */
+if(function_exists('iss_insight') && count($monthlyCounts) >= 1){
 
 	/* month x equipment -> rows = equipment, buckets = month */
 	$issMonths = array_keys($monthlyCounts); sort($issMonths);
@@ -660,7 +679,7 @@ if(function_exists('iss_insight') && count($monthlyCounts) >= 3){
 	if(count($issHistory)) $issCtx['history']  = $issHistory;
 	if(count($issEvents))  $issCtx['events']   = $issEvents;
 
-	if(count($issRows) >= 2 && $issGrand >= 8){
+	if(count($issRows) >= 1 && $issGrand >= 1){
 		$issN = iss_insight_normalize($issCtx);
 		$issF = iss_insight_findings($issN);
 		if(function_exists('iss_insight_findings_advanced')){
@@ -702,6 +721,19 @@ if(function_exists('iss_insight') && count($monthlyCounts) >= 3){
 		}
 	}
 }
+?>
+
+<?php
+/* @insight -- Close the buffer, then print the band ahead of everything it
+   was computed from. Guarded on the variable names THIS page actually uses:
+   the two layer-2 pages spell their normalized context differently, and a
+   wrong name here would not error, it would just silently produce no band. */
+$issL2Body = ob_get_clean();
+if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
+	if(function_exists('iss_insight_band_css')) echo iss_insight_band_css();
+	echo iss_insight_summary_band($issN, $issF, "issInsight");
+}
+echo $issL2Body;
 ?>
 
 <div id="ccs-print-charts" style="display:none;">

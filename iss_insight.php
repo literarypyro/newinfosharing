@@ -197,6 +197,14 @@ function iss_ins_plural($w, $n) {
     return $w . 's';
 }
 function iss_ins_rowword($c, $n) { return strtolower(iss_ins_plural($c['dimensions']['row'], $n)); }
+/* The unit is a caller-supplied plural ("car-level failures", "incidents").
+   At a count of one it has to lose the 's', or a one-record window reads
+   "1 recorded failures". */
+function iss_ins_unit($c, $n) {
+    $u = $c['report']['unit'];
+    if ($n == 1 && substr($u, -1) === 's') { return substr($u, 0, -1); }
+    return $u;
+}
 function iss_ins_colword($c, $n) { return strtolower(iss_ins_plural($c['dimensions']['col'], $n)); }
 function iss_ins_pct($part, $whole) {
     if (!$whole) { return 0.0; }
@@ -235,9 +243,12 @@ function iss_insight_findings($c) {
     $per = $ncov ? round(array_sum($covered) / $ncov, 1) : 0;
     $F[] = array(
         'id' => 'F' . $n, 'kind' => 'volume', 'severity' => 'info',
-        'text' => sprintf('%s %s across %d recorded %s (%s per %s).',
-                  number_format($grand), $unit, $ncov, iss_ins_colword($c, $ncov),
-                  $per, iss_ins_colword($c, 1)),
+        'text' => ($ncov <= 1
+                  ? sprintf('%s %s in %s.', number_format($grand), iss_ins_unit($c, $grand),
+                            (count($buckets) ? $buckets[0] : 'this window'))
+                  : sprintf('%s %s across %d recorded %s (%s per %s).',
+                    number_format($grand), iss_ins_unit($c, $grand), $ncov,
+                    iss_ins_colword($c, $ncov), $per, iss_ins_colword($c, 1))),
         'facts' => array('total' => $grand, 'buckets_covered' => $ncov, 'mean_per_bucket' => $per),
     );
 
