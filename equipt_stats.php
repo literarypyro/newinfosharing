@@ -314,9 +314,19 @@ if($periodsOmitted < 0) $periodsOmitted = 0;
 $peakPeriodCount = count($periodBuckets) ? max($periodBuckets) : 0;
 $periodThreshold = $peakPeriodCount * 0.60;
 
-if($grain === 'year')       $periodHeading = 'By year';
-else if($grain === 'month') $periodHeading = 'By month &mdash; '.($hasRange ? htmlspecialchars($period) : $year);
-else                        $periodHeading = 'By day &mdash; '.($hasRange && $start_date1 !== date("Y-m-01", strtotime($start_date1))
+/* @scope -- The equipment belongs in this heading. The h1 names it, but that
+   is three sections up; the table being read here said only "By month — 2026",
+   which is indistinguishable from month_stats.php's fleet-wide "By month" when
+   the two are compared. This page is hard-scoped to one equipment -- $whereOwn
+   opens `incident_report.equipt = $equipt` and no branch drops it -- so its
+   ranking is that equipment's worst months, not the fleet's. Saying so is what
+   stops the two tables reading as a contradiction.
+   $equiptName is escaped here because this heading is echoed raw (it carries
+   its own &mdash;), unlike the sibling page's which is escaped at output. */
+$psSubject = $equipt > 0 ? htmlspecialchars($equiptName) : 'All equipment';
+if($grain === 'year')       $periodHeading = 'By year &mdash; '.$psSubject;
+else if($grain === 'month') $periodHeading = 'By month &mdash; '.$psSubject.', '.($hasRange ? htmlspecialchars($period) : $year);
+else                        $periodHeading = 'By day &mdash; '.$psSubject.', '.($hasRange && $start_date1 !== date("Y-m-01", strtotime($start_date1))
                                                                 ? htmlspecialchars($period)
                                                                 : date("F Y", strtotime($start_date1)));
 

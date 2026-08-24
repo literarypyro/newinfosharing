@@ -342,6 +342,16 @@ $peakPeriodCount = count($periodBuckets) ? max($periodBuckets) : 0;
 $periodThreshold = $peakPeriodCount * 0.60;
 $periodHeading   = ($grain === 'day') ? 'By day' : (($grain === 'year') ? 'By year' : 'By month');
 $periodHeading  .= ' (highest first)';
+/* @scope -- The heading carries the population and the span. This table gets
+   compared against equipt_stats.php's "By month", and a bare "By month" on
+   both invites reading them as the same ranking. Two things separate them and
+   neither was visible: WHAT is counted (all equipment here unless narrowed,
+   one equipment there) and OVER WHAT (whichever months the calling tile named
+   here -- often just the peak one -- against the report's whole range there).
+   A one-month table cannot rank months at all, which is worth being able to
+   see at a glance. */
+$phScope = count($msNarrow) ? implode(', ', $msNarrow) : 'all equipment';
+$periodHeading .= ' — '.$phScope.', '.$period;
 
 /* @rankdays -- The table below now ranks by count, matching the by-car /
    by-equipment table above it, which the SQL already orders by c desc. Reading
@@ -567,13 +577,52 @@ if($level)  $msNarrow[] = 'Level '.$level;
    narrowing than a car or a level. Not listed when a single equipt= is also
    in force -- that names one type, which is narrower and already stated. */
 if(count($equipts) && !$equipt) $msNarrow[] = count($equipts).' equipment types';
+
+/* @scope -- The fleet-wide case, stated. Every NARROWING above prints; the
+   absence of one printed nothing, so a panel covering one equipment and a
+   panel covering all of them had identical headers and the only way to tell
+   which you were in was to remember which tile you clicked.
+
+   That is how two "By month" tables can be read side by side as though they
+   answered the same question. equipt_stats.php is hard-scoped to a single
+   equipment -- its where clause opens `incident_report.equipt = $equipt` and
+   nothing drops it -- while this page is fleet-wide unless a caller narrows
+   it. "May is the worst month" and "March is the worst month" are then both
+   true, of different populations, and neither page said which. */
+$msScope = count($msNarrow)
+	? 'Filtered to '.implode(' &middot; ', array_map('htmlspecialchars', $msNarrow))
+	: 'All equipment, all cars, all levels';
+
+/* @scope -- What the counts are OF. This read "for this car" in three fixed
+   places -- the legend, the figures note, and the printout note -- copied from
+   car_stats.php, where a car is always in scope. On this page it usually is
+   not: opened from the month tile there is no car and no equipment, so the
+   panel counted the whole fleet while telling the reader it counted one car.
+
+   Worth being exact about, because the sentence these feed is the one that
+   reconciles this page against the equipment summary and the incident logs.
+   A reconciliation note naming the wrong population is worse than none: it
+   invites the reader to compare two figures that were never comparable, which
+   is the whole shape of the equipt_stats/month_stats confusion.
+
+   Kept in the counting-unit voice, not the filter voice -- the header above
+   already states the filters, and saying it twice in different words is how
+   the two drift apart. */
+$msUnitOf = 'for this car';
+if(!$car){
+	if($equipt)              $msUnitOf = 'for this equipment';
+	elseif(count($equipts))  $msUnitOf = 'across '.count($equipts).' equipment types';
+	else                     $msUnitOf = 'across all equipment';
+}
 ?>
 <h1><?php echo htmlspecialchars($period); ?></h1>
-<?php if(count($msNarrow)){ ?>
-<div class='sub' style="color:#FDB813;">Filtered to <?php /* @entity -- see equipt_stats.php: escape the parts, then join,
-        or htmlspecialchars() escapes the separator's own ampersand. */
-     echo implode(' &middot; ', array_map('htmlspecialchars', $msNarrow)); ?></div>
-<?php } ?>
+<?php /* @scope -- always printed now, narrowed or not. The unfiltered wording
+         is deliberately grey rather than gold: it is a statement of scope, not
+         a filter in force, and colouring it like one would read as a warning.
+         @entity -- $msScope escaped its parts before joining, or
+         htmlspecialchars() over the whole string would escape the separator's
+         own ampersand. */ ?>
+<div class='sub' style="color:<?php echo count($msNarrow) ? '#FDB813' : '#5A6275'; ?>;"><?php echo $msScope; ?></div>
 <?php
 /* @dupperiod -- This said the period again, directly under an <h1> that had
    just said it. Harmless over "March and July 2025", absurd over a single
@@ -627,7 +676,7 @@ if($msContiguous && $start_date1 !== '' && $end_date1 !== ''){
 <?php } ?>
 </div>
 <div class="stat-legend">
-	<span><span class="swatch" style="background:#00529B;"></span>Counts are car-level failures for this car</span>
+	<span><span class="swatch" style="background:#00529B;"></span>Counts are car-level failures <?php echo htmlspecialchars($msUnitOf); ?></span>
 	<span><span class="swatch" style="background:#7A1F1F;"></span>Red row = among the highest counts in this period (&ge;60% of the peak)</span>
 </div>
 </div>
@@ -785,7 +834,7 @@ foreach($periodRanked as $pk => $pCount){
 	</div>
 <?php } ?>
 	<div style="margin-top:6px;">
-		Figures count <b>car-level failures</b> for this car: an incident affecting three cars counts once against each, so
+		Figures count <b>car-level failures</b> <?php echo htmlspecialchars($msUnitOf); ?>: an incident affecting three cars counts once against each, so
 		<?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?>
 		produce <?php echo $equipt_count; ?> car-level failure<?php echo $equipt_count==1?'':'s'; ?>.
 		This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
@@ -1007,7 +1056,7 @@ function csPrintReport(){
 		(csUnlevelled ? '<p class="note">'+csUnlevelled+' of '+csTotal+' failures have no severity level recorded; shares above are of the '+csLevelled+' that do.</p>' : '') +
 		tableHtml +
 		'<p class="note">Rows in red are equipment at or above 60% of the highest total ('+esc(csThreshold)+' failures) \u2014 the review threshold.</p>' +
-		'<p class="note">Figures count car-level failures for this car: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
+		'<p class="note">Figures count car-level failures <?php echo addslashes($msUnitOf); ?>: an incident affecting several cars counts once against each, so '+csIncidents+' incident(s) produce '+csTotal+' car-level failure(s). This is the basis the equipment summary and per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.</p>' +
 		'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 		'</body></html>'
 	);
