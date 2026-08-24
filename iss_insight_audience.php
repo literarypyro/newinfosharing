@@ -23,7 +23,7 @@ define('ISS_INSIGHT_AUDIENCE', 1);
 /* Bump on every change a PAGE depends on. Stations are updated by hand and
    drift out of step, so the version has to be visible from view-source rather
    than only discoverable by a page dying half-rendered. */
-define('ISS_INSIGHT_AUDIENCE_V', '4');
+define('ISS_INSIGHT_AUDIENCE_V', '5');
 
 /* Statistical confidence, said the way a person says it. Deliberately
    conservative: a z of 4 is not "certain", it is "clearly". */
@@ -168,6 +168,11 @@ function iss_ins_plain($f, $c) {
         return sprintf('Some repairs are not holding. %s %s failing again far sooner than %s own history would explain, which usually means the first fix did not address the cause.',
                iss_aud_list($l, 2), (count($l) === 1 ? 'is' : 'are'),
                (count($l) === 1 ? 'its' : 'their'));
+
+    case 'time_of_day':
+        $pk = $F['peaks'][0];
+        return sprintf('These cluster at particular times of day rather than spreading across the service day -- heaviest around %02d:00, running about %s times what an even spread would give. Whether that is when the failures happen or when they get written up is worth checking against the shift pattern.',
+               $pk['hour'], $pk['ratio']);
 
     case 'seasonality':
         return sprintf('There is a repeating yearly pattern in this data, visible across %d years. Any single %s should be compared with the same %s in other years, not with the annual average.',

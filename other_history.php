@@ -34,6 +34,17 @@ $coverageNote = ccsCoverageNote($coverage);
 // the script's folder -- that fails, and a failed require is a fatal, which
 // is a bare 500 with nothing on the page.
 require_once(dirname(__FILE__)."/period_filter.php");
+/* @insight -- Analysis layer, guarded per file so a stale or missing helper
+   skips a feature instead of fataling the page mid-render. */
+if(file_exists(dirname(__FILE__)."/iss_insight.php")){
+	require_once(dirname(__FILE__)."/iss_insight.php");
+	if(file_exists(dirname(__FILE__)."/iss_insight_analytics.php")){
+		require_once(dirname(__FILE__)."/iss_insight_analytics.php");
+	}
+	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
+		require_once(dirname(__FILE__)."/iss_insight_audience.php");
+	}
+}
 $ph = phResolvePeriod($_GET);
 ?>
 <style type='text/css'>
@@ -98,6 +109,12 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
   </div>
 </div>
 <div class="ccs-panel-body">
+<?php
+/* @insight -- Buffered to here so the bottom line can print above the table.
+   The aggregates the analysis needs are only complete after the rows have
+   been walked, so the middle is captured and re-emitted unchanged below. */
+ob_start();
+?>
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id='add_form' name='add_form' >
 	<thead>
 	<tr>
@@ -282,6 +299,116 @@ foreach($allRows as $row){
 
 		<script src="js/additional.js"></script>
 -->
+<?php
+/* ==========================================================================
+   @insight -- Analysis for the Others history.
+
+   Structurally this is the same drill-down as car_history: rows are causes,
+   columns are months. Two differences worth naming:
+
+   - $monthlyCounts is keyed by a DISPLAY label ("March 2025"), so the keys
+     are rebuilt chronologically here. Sorting those strings would order the
+     year April, August, December and every trend finding would be nonsense.
+   - The page records an incident hour, which none of the pages wired so far
+     do. That feeds the time-of-day analyzer, and it is the one question this
+     page can answer that the monthly table cannot.
+   ========================================================================== */
+$issPanelHtml = '';
+if(function_exists('iss_insight') && count($monthlyCounts) >= 1){
+
+	$issOrder = array();
+	foreach(array_keys($monthlyCounts) as $lbl){
+		$ts = strtotime('1 '.$lbl);
+		if($ts === false) continue;
+		$issOrder[date('Y-m', $ts)] = $lbl;
+	}
+	ksort($issOrder);
+
+	/* end(array_keys(...)) passes a temporary by reference, which emits a
+	   notice on every page load. Take the endpoints from the sorted key list
+	   held in a real variable instead. */
+	$issYms = array_keys($issOrder);
+	$issFromYm = count($issYms) ? $issYms[0] : '';
+	$issToYm   = count($issYms) ? date('Y-m-t', strtotime($issYms[count($issYms)-1].'-01')) : '';
+
+	$issBuckets = array(); $issUncov = array();
+	foreach($issOrder as $ym => $lbl){
+		$issBuckets[] = $lbl;
+		if(ccsMonthStatus($coverage, $ym) === 'missing') $issUncov[] = $lbl;
+	}
+
+	$issRows = array(); $issByBucket = array_fill(0, count($issOrder), 0); $issGrand = 0;
+	foreach($problemCounts as $cause => $tot){
+		/* "Uncategorized" is a data-quality fact, not a cause. Left in the row
+		   list it becomes a top row and every concentration figure describes
+		   the absence of a label rather than anything that happened. */
+		if($cause === '' || $cause === 'Uncategorized') continue;
+		$vals = array();
+		foreach($issOrder as $ym => $lbl){
+			$v = isset($monthlyCounts[$lbl][$cause]) ? (int)$monthlyCounts[$lbl][$cause] : 0;
+			$vals[] = $v; $issGrand += $v;
+		}
+		$i = 0;
+		foreach($vals as $v){ $issByBucket[$i] += $v; $i++; }
+		$issRows[] = array('key'=>$cause, 'label'=>$cause, 'values'=>$vals, 'total'=>(int)$tot);
+	}
+
+	$issQuality = array();
+	if(!empty($suggestedTotal)) $issQuality['suggested_rows'] = (int)$suggestedTotal;
+	if(!empty($problemCounts['Uncategorized'])) $issQuality['uncategorized_rows'] = (int)$problemCounts['Uncategorized'];
+	if(!empty($hourUnknown)) $issQuality['notes'] = array($hourUnknown.' rows carry no usable time and are outside the time-of-day figures');
+
+	if(count($issRows) >= 1 && $issGrand >= 1){
+		$issCtx = array(
+			'schema' => 'iss.report.v1',
+			'report' => array('id'=>'other_history',
+			                  'title'=>'Other Recorded Incidents - by cause',
+			                  'unit'=>'recorded incidents'),
+			/* period_filter exposes only 'clause' and 'label' -- there is no
+			   'from'/'to' on $ph, so the range is derived from the buckets
+			   that actually carry data, the same way the history pages do. */
+			'period' => array('from'=>$issFromYm.'-01', 'to'=>$issToYm, 'grain'=>'month'),
+			'filters'=> array(),
+			'dimensions' => array('row'=>array('key'=>'cause','label'=>'Cause'),
+			                      'col'=>array('key'=>'month','label'=>'Month')),
+			'buckets'  => $issBuckets,
+			'rows'     => $issRows,
+			'coverage' => array('uncovered_buckets'=>$issUncov),
+			'totals'   => array('by_bucket'=>$issByBucket, 'grand'=>$issGrand),
+			'quality'  => $issQuality,
+		);
+		if(!empty($hourTotal)) $issCtx['timing'] = array('hours'=>$hourCounts);
+
+		$issN = iss_insight_normalize($issCtx);
+		$issF = iss_insight_findings($issN);
+		if(function_exists('iss_insight_findings_advanced')){
+			$issF = iss_insight_findings_advanced($issCtx, $issN, $issF);
+		}
+		$issRendered = iss_insight_render_offline($issN, $issF);
+
+		echo iss_insight_css();
+		if(function_exists('iss_insight_html_dual')){
+			if(function_exists('iss_insight_audience_css')) echo iss_insight_audience_css();
+			if(function_exists('iss_insight_audience_js'))  echo iss_insight_audience_js();
+			echo '<div id="issInsight">'.iss_insight_html_dual($issN, $issF, $issRendered).'</div>';
+		} else {
+			echo '<div id="issInsight">'.iss_insight_html($issRendered).'</div>';
+		}
+	}
+}
+?>
+
+<?php
+/* @insight -- Close the buffer and print the band ahead of everything it was
+   computed from. */
+$issL2Body = ob_get_clean();
+if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
+	if(function_exists('iss_insight_band_css')) echo iss_insight_band_css();
+	echo iss_insight_summary_band($issN, $issF, "issInsight");
+}
+echo $issL2Body;
+?>
+
 <div id="ccs-print-charts" style="display:none;">
 	<div style="display:flex; flex-direction:column; gap:16px;">
 		<canvas id="ccsHeatmap" width="560" height="220"></canvas>

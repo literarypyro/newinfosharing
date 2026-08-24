@@ -13,6 +13,16 @@ $NAV_SHOW = !(isset($_GET['embed']) && $_GET['embed']!='');
 // reasonably take the silence for "nothing happened" rather than "the records
 // are missing". See data_coverage.php.
 require_once("data_coverage.php");
+/* @insight -- Analysis layer, guarded per file. */
+if(file_exists(dirname(__FILE__)."/iss_insight.php")){
+	require_once(dirname(__FILE__)."/iss_insight.php");
+	if(file_exists(dirname(__FILE__)."/iss_insight_analytics.php")){
+		require_once(dirname(__FILE__)."/iss_insight_analytics.php");
+	}
+	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
+		require_once(dirname(__FILE__)."/iss_insight_audience.php");
+	}
+}
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
 // @period -- Existing request variables on this page were 'problem' (sticky,
@@ -436,6 +446,10 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
   </h2>
   
 </div><div class="ccs-panel-body">
+<?php
+/* @insight -- Buffered so the bottom line can print above the table. */
+ob_start();
+?>
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id='add_form' name='add_form' >
 	<thead>
 	<tr>
@@ -584,6 +598,113 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
      flattened to images and injected into the TableTools print window.
      Chart titles carry the selected problem name so a printout is
      self-identifying even after the dropdown changes. -->
+<?php
+/* ==========================================================================
+   @insight -- Analysis for the By-Category history.
+
+   This page is SHAPED DIFFERENTLY from the other drill-downs and gets a
+   thinner panel as a result, by design rather than by omission. The category
+   IS the page filter, so there is no second dimension to break the counts
+   down by -- no equipment axis, no car axis. Duration and Time Resolved are
+   blank here, as the chart comment above already notes.
+
+   So the row-based findings have nothing to work on and self-suppress:
+   concentration, per-row spikes, emerging/receding and the cross-tab all sit
+   out. What remains is genuinely answerable from one series plus a clock:
+   volume, trend, peak, change-point, seasonality against the category's own
+   history, and the weekday x time-band shape. That last one is fed through
+   the cross-tab analyzer -- Day x Band is a contingency table like any other,
+   and its residuals answer "does this category cluster into particular
+   shifts?", which no chart on this page shows.
+   ========================================================================== */
+$issPanelHtml = '';
+if(function_exists('iss_insight') && isset($monthlyVolume) && count($monthlyVolume) >= 1){
+
+	ksort($monthlyVolume);
+	$issYms = array_keys($monthlyVolume);
+	$issBuckets = array(); $issUncov = array(); $issSeries = array(); $issGrand = 0;
+	foreach($issYms as $ym){
+		$issBuckets[] = date('F Y', strtotime($ym.'-01'));
+		$issSeries[]  = (int)$monthlyVolume[$ym];
+		$issGrand    += (int)$monthlyVolume[$ym];
+		if(ccsMonthStatus($coverage, $ym) === 'missing'){
+			$issUncov[] = date('F Y', strtotime($ym.'-01'));
+		}
+	}
+
+	$issCatName = (isset($problemName) && $problemName !== '') ? $problemName : 'This category';
+
+	if($issGrand >= 1){
+		$issCtx = array(
+			'schema' => 'iss.report.v1',
+			'report' => array('id'=>'problem_history',
+			                  'title'=>$issCatName.' - incidents over time',
+			                  'unit'=>'recorded incidents'),
+			'period' => array('from'=>$issYms[0].'-01',
+			                  'to'=>date('Y-m-t', strtotime($issYms[count($issYms)-1].'-01')),
+			                  'grain'=>'month'),
+			'filters'=> array('category'=>$issCatName),
+			'dimensions' => array('row'=>array('key'=>'category','label'=>'Category'),
+			                      'col'=>array('key'=>'month','label'=>'Month')),
+			'buckets'  => $issBuckets,
+			'rows'     => array(array('key'=>'cat', 'label'=>$issCatName,
+			                          'values'=>$issSeries, 'total'=>$issGrand)),
+			'coverage' => array('uncovered_buckets'=>$issUncov),
+			'totals'   => array('by_bucket'=>$issSeries, 'grand'=>$issGrand),
+		);
+
+		/* Day x Band as a contingency table. Only offered when there is enough
+		   in it to survive the analyzer's own 30-record floor -- below that the
+		   residuals are noise wearing a z-score. */
+		if(isset($timingGrid) && is_array($timingGrid)){
+			$issDays = array('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday');
+			$issBands = array('AM peak','Midday','PM peak','Evening/night');
+			$issM = array(); $issRL = array(); $issT = 0;
+			for($d=0; $d<7; $d++){
+				if(!isset($timingGrid[$d])) continue;
+				$rv = array(); $any = 0;
+				foreach($issBands as $bi => $bn){
+					$v = isset($timingGrid[$d][$bi]) ? (int)$timingGrid[$d][$bi] : 0;
+					$rv[] = $v; $any += $v;
+				}
+				if($any === 0) continue;
+				$issRL[] = $issDays[$d]; $issM[] = $rv; $issT += $any;
+			}
+			if(count($issRL) >= 2 && $issT >= 30){
+				$issCtx['crosstab'] = array('row_label'=>'Day', 'col_label'=>'Time band',
+				                            'rows'=>$issRL, 'cols'=>$issBands,
+				                            'matrix'=>$issM, 'expect_grand'=>$issT);
+			}
+		}
+
+		$issN = iss_insight_normalize($issCtx);
+		$issF = iss_insight_findings($issN);
+		if(function_exists('iss_insight_findings_advanced')){
+			$issF = iss_insight_findings_advanced($issCtx, $issN, $issF);
+		}
+		$issRendered = iss_insight_render_offline($issN, $issF);
+
+		echo iss_insight_css();
+		if(function_exists('iss_insight_html_dual')){
+			if(function_exists('iss_insight_audience_css')) echo iss_insight_audience_css();
+			if(function_exists('iss_insight_audience_js'))  echo iss_insight_audience_js();
+			echo '<div id="issInsight">'.iss_insight_html_dual($issN, $issF, $issRendered).'</div>';
+		} else {
+			echo '<div id="issInsight">'.iss_insight_html($issRendered).'</div>';
+		}
+	}
+}
+?>
+
+<?php
+$issL2Body = ob_get_clean();
+if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
+	if(function_exists('iss_insight_band_css')) echo iss_insight_band_css();
+	echo iss_insight_summary_band($issN, $issF, "issInsight");
+}
+echo $issL2Body;
+?>
+
 <div id="ccs-print-charts" style="display:none;">
 	<canvas id="pvVolume" width="340" height="160"></canvas>
 	<canvas id="pvTiming" width="340" height="180"></canvas>

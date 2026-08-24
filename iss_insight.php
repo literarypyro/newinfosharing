@@ -366,6 +366,8 @@ function iss_insight_findings($c) {
         );
     }
 
+    $nrows = count($rows);
+
     /* -- F: per-row spikes -- the finding ops actually acts on ------------ */
     $spikes = array();
     foreach ($rows as $r) {
@@ -402,8 +404,11 @@ function iss_insight_findings($c) {
     }
 
     /* -- F: emerging / receding rows -------------------------------------- */
+    /* With one row the row IS the total, so emerging/receding would repeat the
+       trend finding back in different words -- as on the by-category history,
+       where the category is the page filter and there is no second dimension. */
     $emerging = array(); $receding = array();
-    foreach ($rows as $r) {
+    foreach (($nrows > 1 ? $rows : array()) as $r) {
         if ($r['total'] < 6) { continue; }
         $hh = iss_ins_halves($r['values']);
         if ($hh === null) { continue; }

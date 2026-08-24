@@ -506,6 +506,58 @@ function iss_ana_cmp_t($a, $b) { return ($a['t'] == $b['t']) ? 0 : (($a['t'] < $
 function iss_ana_cmp_repeats($a, $b) { return ($b['repeats'] == $a['repeats']) ? 0 : (($b['repeats'] < $a['repeats']) ? -1 : 1); }
 
 /* ==========================================================================
+ * 7. TIME OF DAY  --  when, within the operating day, does this happen?
+ *
+ * The history pages record an incident time, and clustering in it separates
+ * load-driven failures (peak ridership, peak headway) from ones that fall
+ * wherever the clock happens to be. Neither the monthly table nor any chart
+ * on those pages can show it.
+ *
+ * Baseline is the observed operating window, NOT a flat 24 hours -- the line
+ * does not run at 02:00, so measuring against a 24-hour uniform would make
+ * every service hour look like a spike.
+ * ======================================================================== */
+function iss_ana_timing($hours, $unit) {
+    if (!is_array($hours) || count($hours) < 24) { return array(); }
+    $total = 0; $lo = null; $hi = null;
+    for ($h = 0; $h < 24; $h++) {
+        $v = (int)$hours[$h]; $total += $v;
+        if ($v > 0) { if ($lo === null) { $lo = $h; } $hi = $h; }
+    }
+    if ($total < 40 || $lo === null || ($hi - $lo) < 5) { return array(); }
+
+    $span = ($hi - $lo) + 1;
+    $exp  = $total / $span;
+    if ($exp <= 0) { return array(); }
+
+    $hot = array();
+    for ($h = $lo; $h <= $hi; $h++) {
+        $v = (int)$hours[$h];
+        if ($v < 5) { continue; }
+        $z = ($v - $exp) / sqrt($exp);          /* Poisson: variance = mean */
+        if ($z >= 2.5) {
+            $hot[] = array('hour' => $h, 'count' => $v, 'expected' => round($exp, 1),
+                           'z' => round($z, 1), 'ratio' => round($v / $exp, 1));
+        }
+    }
+    if (!count($hot)) { return array(); }
+    usort($hot, 'iss_ana_cmp_z');
+
+    $lbl = array();
+    foreach (array_slice($hot, 0, 3) as $x) {
+        $lbl[] = sprintf('%02d:00-%02d:59 (%d against %s expected, %sx)',
+                 $x['hour'], $x['hour'], $x['count'], $x['expected'], $x['ratio']);
+    }
+    return array(array(
+        'kind' => 'time_of_day', 'severity' => 'watch',
+        'text' => sprintf('Within the %02d:00-%02d:59 operating window these %s do not fall evenly by hour: %s. Recorded times are when the entry was logged, so a peak can mean the failures cluster there or that the logging does -- worth checking against the shift pattern before reading it as load.',
+                  $lo, $hi, $unit, implode('; ', $lbl)),
+        'facts' => array('window_start' => $lo, 'window_end' => $hi,
+                         'expected_per_hour' => round($exp, 1), 'peaks' => array_slice($hot, 0, 3)),
+    ));
+}
+
+/* ==========================================================================
  * ENTRY  --  append advanced findings and renumber the whole list.
  * ======================================================================== */
 function iss_insight_findings_advanced($ctx, $c, $F) {
@@ -526,6 +578,7 @@ function iss_insight_findings_advanced($ctx, $c, $F) {
                 iss_ins_get($ctx, array('comparison','rows'), null), $rowword,
                 iss_ins_get($ctx, array('comparison','label'), 'the prior period')));
     $adv = array_merge($adv, iss_ana_recurrence(iss_ins_get($ctx, array('events'), null), 30, $unit));
+    $adv = array_merge($adv, iss_ana_timing(iss_ins_get($ctx, array('timing','hours'), null), $unit));
 
     /* insight before description: caveats stay last, advanced findings ride
        just under the volume line so the reader meets them first. */
