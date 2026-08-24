@@ -48,7 +48,26 @@ if(!defined('DASH_DATE_SESSION_FORMAT')){ define('DASH_DATE_SESSION_FORMAT','m/d
 
    'scope' is what kind of period the target page works in, because they
    are NOT all the same:
-     'day'    daily pages -- write DASH_DATE_SESSION_KEY (search_date)
+     'day'    daily pages -- write the target's own date key(s)
+
+   'from' / 'to' -- WHICH session keys this target reads, because
+   DASH_DATE_SESSION_KEY is not universal. incident_summary.php holds a
+   RANGE: search_date2 is the start and search_date is the END. Writing
+   search_date on the way there therefore set the end of an existing
+   range to the day that was clicked and left the start alone, so a user
+   who had picked 01-21 Aug and then clicked a dashboard day landed on
+   "01 Aug to that day" -- the range retained and quietly rewritten.
+
+   On a fresh session it did nothing at all: with search_date2 unset,
+   incident_summary falls through to date("Y-m-d") and never reads the
+   key this file wrote. That is why the first click always looked
+   correct -- it agreed with today by coincidence, not because the
+   handoff worked.
+
+   'from' defaults to DASH_DATE_SESSION_KEY for the single-date pages.
+   'to', when named, is CLEARED -- an explicit date from the dashboard
+   means one day, so any range previously chosen on the target is
+   discarded rather than half-overwritten.
      'none'   the page keeps NO period in the session; write nothing
               rather than mutate a key it will never read. The statistics
               reports are this case: they are POST-only, driven by a
@@ -62,7 +81,9 @@ if(!defined('DASH_DATE_SESSION_FORMAT')){ define('DASH_DATE_SESSION_FORMAT','m/d
 $targets = array(
 	'ops'       => array('page'=>'train_operations_admin.php',            'scope'=>'day'),
 	'ava'       => array('page'=>'train_availability.php',          'scope'=>'day'),
-	'incidents' => array('page'=>'incident_summary.php',            'scope'=>'day'),
+	/* @rangekeys -- reads a From/To pair, not a single date. */
+	'incidents' => array('page'=>'incident_summary.php',            'scope'=>'day',
+	                     'from'=>'search_date2', 'to'=>'search_date'),
 	'ccdr'      => array('page'=>'ccdr_summary.php',                'scope'=>'day'),
 	'daily'     => array('page'=>'daily_report.php',                'scope'=>'day'),
 	'depot'     => array('page'=>'depot_insertion.php',             'scope'=>'day'),
@@ -74,11 +95,16 @@ $targets = array(
 
 $key = isset($_GET['to']) ? (string)$_GET['to'] : '';
 if(isset($targets[$key])){
-	$page  = $targets[$key]['page'];
-	$scope = $targets[$key]['scope'];
+	$page     = $targets[$key]['page'];
+	$scope    = $targets[$key]['scope'];
+	/* @rangekeys -- see the note on the map above. */
+	$dateKey  = isset($targets[$key]['from']) ? $targets[$key]['from'] : DASH_DATE_SESSION_KEY;
+	$clearKey = isset($targets[$key]['to'])   ? $targets[$key]['to']   : '';
 } else {
-	$page  = 'dashboard.php';
-	$scope = 'none';
+	$page     = 'dashboard.php';
+	$scope    = 'none';
+	$dateKey  = DASH_DATE_SESSION_KEY;
+	$clearKey = '';
 }
 
 $date = dash_date(isset($_GET['d']) ? $_GET['d'] : date("Y-m-d"));
@@ -89,7 +115,13 @@ $ts   = strtotime($date);
    monthly report would leave a stale date behind for the next daily
    page the user opens, from a link that never meant to set one. */
 if($scope==='day'){
-	$_SESSION[DASH_DATE_SESSION_KEY] = date(DASH_DATE_SESSION_FORMAT, $ts);
+	$_SESSION[$dateKey] = date(DASH_DATE_SESSION_FORMAT, $ts);
+	/* Clearing rather than leaving alone: the dashboard link names ONE day,
+	   and a surviving end-date would turn it back into a range the user did
+	   not ask for on this navigation. Empty string, not unset -- the target
+	   tests isset(), and an unset key would fall through to whichever branch
+	   runs when nothing is stored. */
+	if($clearKey !== ''){ $_SESSION[$clearKey] = ''; }
 }
 
 /* ---------------------------------------------------------------------
@@ -100,7 +132,11 @@ if($scope==='day'){
    arbitrary query data into a target page.
    --------------------------------------------------------------------- */
 $fwd = array();
-foreach(array('sd','ed','range') as $k){
+/* @rangekeys -- 'd' forwarded as well. incident_summary.php now honours a
+   ?d= date directly (see its @dashlink block), which makes the resulting URL
+   shareable, survives a refresh, and means either half of this fix works on
+   its own. Targets that ignore 'd' are unaffected by receiving it. */
+foreach(array('d','sd','ed','range') as $k){
 	if(isset($_GET[$k]) && $_GET[$k]!==''){
 		$fwd[] = rawurlencode($k).'='.rawurlencode((string)$_GET[$k]);
 	}

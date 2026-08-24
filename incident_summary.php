@@ -1,5 +1,54 @@
 <?php 
 session_start();
+
+/* ==========================================================================
+   @dashlink -- A date in the URL is an instruction, not a suggestion.
+
+   This page had no $_GET handling at all: the displayed window came only from
+   its own From/To form and from $_SESSION['search_date2'] / ['search_date'].
+   dashboard.php links here with dash_link('incidents', $view_date), which
+   carries the operating date the user was looking at -- and that date was
+   discarded on arrival.
+
+   It LOOKED like it worked. On a fresh session the fall-through default is
+   date("Y-m-d"), which matches the dashboard's own default view date, so the
+   two agreed by coincidence. Choose a range once and the session holds it, and
+   every later arrival from the dashboard renders that range instead of the day
+   that was clicked. Viewing any non-today date on the dashboard and clicking
+   Incidents never worked either.
+
+   Arriving with an explicit date CLEARS a previously chosen range. You clicked
+   one day on one dashboard; silently showing three weeks instead is the
+   surprise this fixes, and a range that survives navigation is the mechanism
+   that caused it.
+
+   Writing THROUGH to the session rather than bypassing it matters: the sort
+   form, the printout bar and the From/To boxes all read the session, so a
+   parallel "GET wins" variable would leave them disagreeing with the table.
+   It also means refreshing after arriving from the dashboard shows the same
+   thing, and the URL can be shared.
+
+   Parameter names match dashboard.php's own convention -- it reads $_GET['d']
+   for its view date at the top of that file. 'to' is accepted so a future
+   caller can hand over a real range; nothing sends it today.
+   ======================================================================== */
+$dlFrom = (isset($_GET['d'])  && trim((string)$_GET['d'])  !== '') ? strtotime(trim((string)$_GET['d']))  : false;
+$dlTo   = (isset($_GET['to']) && trim((string)$_GET['to']) !== '') ? strtotime(trim((string)$_GET['to'])) : false;
+
+if($dlFrom !== false){
+	/* Stored in m/d/Y because that is what the From/To inputs post and what
+	   every strtotime() below already expects. A "to" earlier than "from" is
+	   treated as no range rather than silently inverted -- an inverted BETWEEN
+	   returns nothing, which reads as "no incidents" instead of as a bad link. */
+	$_SESSION['search_date2'] = date("m/d/Y", $dlFrom);
+	/* UNSET, not "". isset("") is TRUE, so an empty string still satisfies the
+	   isset() guards further down; strtotime("") is false and date() coerces
+	   that to 0, giving a To date of 1970-01-01 and a BETWEEN that matches
+	   nothing. Removing the key is the only way to say "no To date" that those
+	   guards actually hear. */
+	if($dlTo !== false && $dlTo >= $dlFrom){ $_SESSION['search_date'] = date("m/d/Y", $dlTo); }
+	else                                   { unset($_SESSION['search_date']); }
+}
 ?>
 <?php
 require("Tmenu.php");
@@ -600,7 +649,17 @@ $aa=date("a");
 
 $datenow=date("m/d/Y");
 $availability_date=date("Y-m-d");
+/* @dashlink -- Only ever assigned inside conditional branches, then read
+   unconditionally at the $availability_date2=="" test below. On any path that
+   set neither, that read was an undefined-variable notice -- and with
+   display_errors on, the warning HTML lands mid-page. */
+$availability_date2="";
 
+/* @dashlink -- Dead, and a trap. This assigns search_date -- the TO date --
+   into $availability_date, which is the FROM date everywhere else. It is
+   harmless today only because all three branches of the chain further down
+   overwrite both variables before either is read. Left commented rather than
+   deleted: if it is ever reinstated it must read search_date2.
 if(isset($_SESSION['search_date'])){
 //$month=$_SESSION['month'];
 //$day=$_SESSION['day'];
@@ -610,6 +669,7 @@ $availability_date=$_SESSION['search_date'];
 
 $datenow=date("m/d/Y",strtotime($availability_date));
 }
+*/
 ?>
 <div class="ta-grid ta-console">
 
@@ -658,7 +718,12 @@ if(isset($_POST['search_date'])){
 	
 }
 else {
-	$_SESSION['search_date']="";
+	/* @dashlink -- was $_SESSION['search_date']="". Survivable on THIS request
+	   because $availability_date2 is blanked on the next line, but the key
+	   stays set for the next one, where isset() passes and the To date resolves
+	   to 1970-01-01. Submitting a From with no To and then navigating away and
+	   back was enough to trigger it. */
+	unset($_SESSION['search_date']);
 	$availability_date2="";
 }
 
@@ -673,10 +738,23 @@ if(isset($_SESSION['search_date2'])){
 $availability_date=date("Y-m-d",strtotime($_SESSION['search_date2']));
 $datenow=date("m/d/Y",strtotime($_SESSION['search_date2']));
 
-if(isset($_SESSION['search_date'])){
-	$availability_date2=date("Y-m-d",strtotime($_SESSION['search_date']));
+/* @dashlink -- was isset(). A blank or unparseable value passed that test and
+   produced 1970-01-01, which is not "" and so opened the range branch below
+   with a To date decades in the past -- a BETWEEN matching nothing, presented
+   as "no incidents". Guarding on a value that actually parses means no future
+   writer can reopen the hole by storing "". */
+$ssTo = isset($_SESSION['search_date']) ? trim((string)$_SESSION['search_date']) : '';
+if($ssTo !== '' && strtotime($ssTo) !== false){
+	$availability_date2=date("Y-m-d",strtotime($ssTo));
 //	$datenow=$datenow.=" - ".date("m/d/Y",strtotime($_SESSION['search_date']));
+	/* @dashlink -- This branch is the NO-POST path, so $_POST['search_date']
+	   does not exist here. The assignment raised an undefined-index notice and
+	   wrote null into the session; isset(null) is false, so the To date erased
+	   itself and the range silently decayed to a single open-ended day on the
+	   next request. The line had no purpose even when it worked -- it assigned
+	   the session value back to itself.
 	$_SESSION['search_date']=$_POST['search_date'];
+	*/
 	
 	
 }

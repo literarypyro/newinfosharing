@@ -30,6 +30,37 @@ if(!function_exists('dash_trains')){
 $view_date = dash_date(isset($_GET['d']) ? $_GET['d'] : (isset($_POST['d']) ? $_POST['d'] : date("Y-m-d")));
 $is_today  = ($view_date === date("Y-m-d"));
 
+/* ==========================================================================
+   @dashlink -- Force the operating date onto the incident-summary links.
+
+   incident_summary.php now honours ?d=<date> and clears any previously chosen
+   range when it sees one. It only fires if the parameter actually arrives, and
+   what dash_link() emits for the 'incidents' key is decided in dash_data.php,
+   not here. Rather than depend on that, the date is appended at the call site.
+
+   Safe if dash_link() already sends d=: PHP takes the LAST occurrence of a
+   repeated query parameter, and both copies carry the same value. Safe if it
+   sends some other name too -- that one is simply ignored downstream.
+
+   The fragment has to be preserved. dash_link()'s third argument is an anchor
+   (the per-incident links pass 'ir-<id>'), and naively concatenating would
+   produce "#ir-12&d=..." -- the date swallowed into the fragment, never sent
+   to the server. So the hash is split off, the parameter appended to the path
+   and query, and the hash put back.
+
+   Guarded on its own name so a later dash_data.php that defines the same
+   helper wins without a redeclare fatal. */
+if(!function_exists('dash_force_date')){
+	function dash_force_date($url, $d){
+		$url  = (string)$url;
+		$hash = '';
+		$h    = strpos($url, '#');
+		if($h !== false){ $hash = substr($url, $h); $url = substr($url, 0, $h); }
+		$url .= (strpos($url, '?') === false ? '?' : '&').'d='.rawurlencode($d);
+		return $url.$hash;
+	}
+}
+
 /* ---- data -------------------------------------------------------- */
 $trains      = dash_trains($view_date);
 $fleet       = dash_fleet_counts($view_date);
@@ -142,7 +173,7 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 			<div class="ds-meter"><i class="f-info" style="width:<?php echo dash_pct($fleet['removed'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('incidents',$view_date)); ?>" title="Open the incident summary for this date"><span class="ds-rail <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>" title="Open the incident summary for this date"><span class="ds-rail <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span>Incidents</div>
 			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span><span class="ds-den"><?php echo (int)$inc['failures']; ?> L2+</span><?php echo dash_delta_chip($d_inc); ?></div>
 			<?php echo dash_sparkline($sp_inc); ?>
@@ -233,7 +264,7 @@ dash_status_band($view_date,false);
 		<div class="ds-card">
 			<div class="ds-card-head">
 				<h2>Incidents today</h2>
-				<a class="ds-more" href="<?php echo dash_h(dash_link('incidents',$view_date)); ?>"><?php if($inc['worst']!==""){ echo "highest ".dash_h($inc['worst'])." &rarr;"; } else { echo "no service failures &rarr;"; } ?></a>
+				<a class="ds-more" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>"><?php if($inc['worst']!==""){ echo "highest ".dash_h($inc['worst'])." &rarr;"; } else { echo "no service failures &rarr;"; } ?></a>
 			</div>
 <?php if(!count($incidents)){ ?>
 			<div class="ds-empty">No incidents recorded for this date.</div>
@@ -264,7 +295,7 @@ dash_status_band($view_date,false);
 					   The previous edit called openEditIncidentPanel(): that function
 					   lives in train_operations_parallel.php and is not loaded here, so
 					   even past the parse error it would have thrown ReferenceError. */
-					?><a class="ds-more" style="font-size:inherit;color:inherit" href="<?php echo dash_h(dash_link('incidents',$view_date,$incId?('ir-'.$incId):'')); ?>"<?php if($incId!==""){ ?> data-panel="edit_ccdr.php?ir=<?php echo dash_h($incId); ?>&amp;embed=1" data-panel-title="Incident <?php echo dash_h($incNo); ?>"<?php } ?>><?php echo dash_h($desc); ?></a><?php if($r['open']){ ?> <em style="color:var(--cf-bad)">open</em><?php } ?></span></li>
+					?><a class="ds-more" style="font-size:inherit;color:inherit" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date,$incId?('ir-'.$incId):''),$view_date)); ?>"<?php if($incId!==""){ ?> data-panel="edit_ccdr.php?ir=<?php echo dash_h($incId); ?>&amp;embed=1" data-panel-title="Incident <?php echo dash_h($incNo); ?>"<?php } ?>><?php echo dash_h($desc); ?></a><?php if($r['open']){ ?> <em style="color:var(--cf-bad)">open</em><?php } ?></span></li>
 <?php	} ?>
 			</ul>
 			<script>
@@ -287,7 +318,7 @@ dash_status_band($view_date,false);
 				},false);
 			})();
 			</script>
-			<div class="ds-note" style="margin-top:9px"><a class="ds-more" href="<?php echo dash_h(dash_link('incidents',$view_date)); ?>">Full register</a> &mdash; showing <?php echo (int)$shown; ?> of <?php echo (int)$inc['total']; ?>.</div>
+			<div class="ds-note" style="margin-top:9px"><a class="ds-more" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>">Full register</a> &mdash; showing <?php echo (int)$shown; ?> of <?php echo (int)$inc['total']; ?>.</div>
 <?php } ?>
 		</div>
 
