@@ -62,7 +62,7 @@ if(!defined('DASH_DATE_SESSION_FORMAT')){ define('DASH_DATE_SESSION_FORMAT','m/d
 $targets = array(
 	'ops'       => array('page'=>'train_operations_admin.php',            'scope'=>'day'),
 	'ava'       => array('page'=>'train_availability.php',          'scope'=>'day'),
-	'incidents' => array('page'=>'incident summary.php',            'scope'=>'day'),
+	'incidents' => array('page'=>'incident_summary.php',            'scope'=>'day'),
 	'ccdr'      => array('page'=>'ccdr_summary.php',                'scope'=>'day'),
 	'daily'     => array('page'=>'daily_report.php',                'scope'=>'day'),
 	'depot'     => array('page'=>'depot_insertion.php',             'scope'=>'day'),
