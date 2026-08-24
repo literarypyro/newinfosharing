@@ -616,7 +616,7 @@ $datenow=date("m/d/Y",strtotime($availability_date));
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
 	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
-		<form action='incident_summary.php' method='post' >
+		<form action='incident summary.php' method='post' >
 <div width="50%" align=left>
 <table>
 
