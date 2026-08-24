@@ -31,12 +31,6 @@ if(file_exists(dirname(__FILE__)."/iss_insight.php")){
 	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
 		require_once(dirname(__FILE__)."/iss_insight_audience.php");
 	}
-	/* @insight -- The panel on paper. Guarded on its own file like every
-	   other helper here: a station that has not received iss_insight_print.php
-	   prints exactly what it printed before. */
-	if(file_exists(dirname(__FILE__)."/iss_insight_print.php")){
-		require_once(dirname(__FILE__)."/iss_insight_print.php");
-	}
 }
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
@@ -741,10 +735,6 @@ if(isset($issF2) && isset($issN2) && function_exists('iss_insight_summary_band')
 	echo iss_insight_summary_band($issN2, $issF2, "issInsight2");
 }
 echo $issL2Body;
-/* @insight -- Defines issInsightPrintBlock()/issInsightPrintLead() for
-   ehPrintWithCharts() below. Emitted after the panel so the element it clones
-   is already in the document. */
-if(function_exists('iss_insight_print_js')) echo iss_insight_print_js();
 ?>
 
 <div id="ccs-print-charts" style="display:none;">
@@ -989,10 +979,6 @@ $(function(){
 		var captured  = ehFullTableHtml();
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
-		/* @insight -- read at press time: the model refinement XHR replaces the
-		   panel's innerHTML after load, so the DOM outranks any server-side copy. */
-		var ehIns  = (typeof issInsightPrintBlock === 'function') ? issInsightPrintBlock('issInsight2') : '';
-		var ehLead = (typeof issInsightPrintLead  === 'function') ? issInsightPrintLead('issInsight2')  : '';
 
 		var win = window.open('', '_blank');
 		win.document.write(
@@ -1038,12 +1024,6 @@ $(function(){
 					' object-fit:contain; border:1px solid #e5e7eb; }' +
 				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
-				/* @insight -- Portrait has vertical room but no spare column, so the
-				   analysis runs full width above the figures rather than beside
-				   them. It sits OUTSIDE .charts deliberately: that container sets
-				   font-size:0 to kill inline-block whitespace, which would collapse
-				   every unstyled node in the panel. */
-				'.rpt-insight{ display:block; width:100%; margin:0 0 12px; }' +
 
 				// --- table ------------------------------------------------
 				'.tbl-head{ margin-bottom:6px; }' +
@@ -1069,17 +1049,12 @@ $(function(){
 				// --- footer -----------------------------------------------
 				'.rpt-foot{ margin-top:14px; border-top:1px solid #d1d5db; padding-top:6px;' +
 					' font-size:8.5px; color:#6b7280; }' +
-				/* @insight -- Panel CSS does not cross into the popup with the markup,
-				   so it is pulled in from the shared helper rather than copied into
-				   four print blocks. */
-				<?php echo function_exists("iss_insight_print_css") ? json_encode(iss_insight_print_css()) : "''"; ?> +
 			'</style></head><body>' +
 
 			'<div class="rpt-head">' +
 				'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
 				'<h1 class="rpt-title">Equipment Incident History</h1>' +
 				'<p class="rpt-subject"><?php echo htmlspecialchars($equipment_name); ?></p>' +
-				(ehLead ? '<p class="rpt-lead">'+ehLead.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>' : '') +
 			'</div>' +
 			'<div class="rpt-meta">' +
 				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
@@ -1095,7 +1070,6 @@ $(function(){
 			'</div>' +
 
 			'<h2 class="sec">Summary</h2>' +
-			ehIns +
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + imgCars + '">' +
 					'<div class="cap">Figure 1 &mdash; Car-level failures by car (counts each affected car)</div></div>' +
@@ -1106,16 +1080,8 @@ $(function(){
 				   undefined variable raises a PHP warning, and with display_errors
 				   on that warning HTML lands INSIDE this JS string and breaks the
 				   whole block. The claim was also out of date -- the charts used
-				   to run on a wider window than the table, and now share one.
-
-				   @insight -- and now dropped from the printout, because it restates
-				   the meta line word for word: Report period, Severity and Car are
-				   already printed as labelled fields directly above it. The height
-				   it was using pays for most of the analysis block. Left here rather
-				   than deleted -- if the charts ever diverge from the table window
-				   again, this sentence is the one that has to come back.
+				   to run on a wider window than the table, and now share one. */
 				'<p class="note">Charts and table cover the same window: <?php echo htmlspecialchars($ehPeriodLabel); ?><?php echo $ehCar ? ", car ".$ehCar." only" : ""; ?><?php echo $ehLevel ? ", level ".$ehLevel : ""; ?>.</p>' +
-				*/
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
@@ -1125,8 +1091,7 @@ $(function(){
 			'</div>' +
 			tableHtml +
 
-			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use' +
-				(ehIns ? ' &middot; analysis computed from the figures in this report; wording generated automatically' : '') + '</div>' +
+			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 			'</body></html>'
 		);
 		win.document.close();

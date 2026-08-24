@@ -55,12 +55,6 @@ if(file_exists(dirname(__FILE__)."/iss_insight.php")){
 	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
 		require_once(dirname(__FILE__)."/iss_insight_audience.php");
 	}
-	/* @insight -- The panel on paper. Guarded on its own file like every
-	   other helper here: a station that has not received iss_insight_print.php
-	   prints exactly what it printed before. */
-	if(file_exists(dirname(__FILE__)."/iss_insight_print.php")){
-		require_once(dirname(__FILE__)."/iss_insight_print.php");
-	}
 }
 
 if(!function_exists('ccsLoadCoverage')){
@@ -1520,13 +1514,6 @@ table.ccs-rows-none tr.ccs-nonzero{display:none;}
 <?php echo $tableHtml; ?>
 
 <?php echo $issPanelHtml; ?>
-<?php
-/* @insight -- Defines issInsightPrintBlock()/issInsightPrintLead() for
-   srmPrintReport() below. Emitted after the panel so the element it clones is
-   already in the document; the functions themselves are not called until the
-   button is pressed, so ordering beyond that does not matter. */
-if(function_exists('iss_insight_print_js')) echo iss_insight_print_js();
-?>
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
@@ -1706,12 +1693,6 @@ var srmPanelLevel   = <?php echo json_encode($level !== '' ? (string)$level : ''
 		var imgMonth = document.getElementById('srmByMonth').toDataURL('image/png');
 		var tbl = document.querySelector('.ccs-panel-body table');
 		var tableHtml = tbl ? tbl.outerHTML : '';
-		/* @insight -- read at press time, not from $issPanelHtml: if the model
-		   refinement XHR has landed, the DOM is the newer of the two. */
-		var srmIns  = (typeof issInsightPrintBlock === 'function') ? issInsightPrintBlock('issInsight') : '';
-		var srmLead = (typeof issInsightPrintLead  === 'function') ? issInsightPrintLead('issInsight')  : '';
-		var srmRows = tbl ? tbl.getElementsByTagName('tr').length : 0;
-		var srmBrk  = (srmRows > 14) ? ' brk' : '';
 		function esc(x){ return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 		var win = window.open('', '_blank');
@@ -1732,18 +1713,7 @@ var srmPanelLevel   = <?php echo json_encode($level !== '' ? (string)$level : ''
 				'h2.sec{ font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:#1f4e79;' +
 					' border-bottom:1px solid #d1d5db; padding-bottom:4px; margin:18px 0 10px; font-weight:600; }' +
 				'.charts{ margin-bottom:4px; }' +
-				/* @insight -- was width:40% with a 2% margin, so the two figures took
-				   84% and the remaining 16% of the line was dead. Narrowed to 29%+2%
-				   to open a column for the analysis block; a ranked bar chart with a
-				   handful of labels still reads at ~80mm. */
-				'.chart{ display:inline-block; vertical-align:top; width:29%; margin:0 2% 10px 0; page-break-inside:avoid; }' +
-				'.rpt-insight{ display:inline-block; vertical-align:top; width:35%; margin:0 0 10px; }' +
-				/* @insight -- Page 1 was already a summary page with an orphaned stub
-				   of table glued underneath. Break before the grid so it starts clean
-				   with its repeating thead -- but only when there is enough table to
-				   be worth a page of its own, or a short filtered view would print a
-				   near-empty second sheet. srmPrintReport decides and adds .brk. */
-				'h2.sec.brk{ page-break-before:always; margin-top:0; }' +
+				'.chart{ display:inline-block; vertical-align:top; width:40%; margin:0 2% 10px 0; page-break-inside:avoid; }' +
 				'.chart img{ display:block; width:100%; height:auto; border:1px solid #e5e7eb; }' +
 				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
@@ -1769,18 +1739,11 @@ var srmPanelLevel   = <?php echo json_encode($level !== '' ? (string)$level : ''
 				// colours, which would otherwise win over this rule.
 				'a{ color:inherit !important; text-decoration:none !important; pointer-events:none; }' +
 				'.rpt-foot{ margin-top:12px; border-top:1px solid #d1d5db; padding-top:6px; font-size:8.5px; color:#6b7280; }' +
-				/* @insight -- Panel CSS does not cross into the popup with the markup,
-				   so it is pulled in from the shared helper rather than copied into
-				   four print blocks. json_encode emits a quoted JS string literal;
-				   the '' fallback keeps the concatenation valid when the helper is
-				   not deployed. */
-				<?php echo function_exists("iss_insight_print_css") ? json_encode(iss_insight_print_css()) : "''"; ?> +
 			'</style></head><body>' +
 			'<div class="rpt-head">' +
 				'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
 				'<h1 class="rpt-title">Equipment Failures Summary</h1>' +
 				'<p class="rpt-subject">'+esc(srmPeriod)+'</p>' +
-				(srmLead ? '<p class="rpt-lead">'+esc(srmLead)+'</p>' : '') +
 			'</div>' +
 			'<div class="rpt-meta">' +
 				'<span><b>Period:</b> '+esc(srmPeriod)+'</span>' +
@@ -1794,13 +1757,11 @@ var srmPanelLevel   = <?php echo json_encode($level !== '' ? (string)$level : ''
 			'<div class="charts">' +
 				'<div class="chart"><img src="'+imgEq+'"><div class="cap">Figure 1 &mdash; Car-level failures by equipment</div></div>' +
 				'<div class="chart"><img src="'+imgMonth+'"><div class="cap">Figure 2 &mdash; Car-level failures by '+srmBucketWord+', all equipment</div></div>' +
-				srmIns +
 				'<p class="note">Figures count car-level failures: an incident affecting several cars counts once against each car, so '+srmIncidents+' incidents produce '+srmGrandTotal+' car-level failures. This matches the per-car reports; the incident history logs count one row per incident and show the smaller figure. Shaded rows are equipment at or above 60% of the highest total.' + (function(){var t=document.getElementById("srmMatrix");if(!t||!t.getElementsByClassName) return '';var z=t.getElementsByClassName('ccs-zero').length;if(!z) return '';var c=t.className;if(c.indexOf('ccs-rows-none')!==-1) return ' This view lists ONLY the '+z+' equipment types with no records this period; the totals above cover the full roster.';if(c.indexOf('ccs-rows-with')!==-1) return ' '+z+' equipment types with no records this period are omitted from this table; they remain included in the totals above.';return ' Includes '+z+' equipment types with no records this period.';})() + '</p>' +
 			'</div>' +
-			'<h2 class="sec'+srmBrk+'">Monthly Breakdown by Equipment</h2>' +
+			'<h2 class="sec">Monthly Breakdown by Equipment</h2>' +
 			tableHtml +
-			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use' +
-				(srmIns ? ' &middot; analysis computed from the figures in this report; wording generated automatically' : '') + '</div>' +
+			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 			'</body></html>'
 		);
 		win.document.close();

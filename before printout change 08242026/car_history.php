@@ -38,12 +38,6 @@ if(file_exists(dirname(__FILE__)."/iss_insight.php")){
 	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
 		require_once(dirname(__FILE__)."/iss_insight_audience.php");
 	}
-	/* @insight -- The panel on paper. Guarded on its own file like every
-	   other helper here: a station that has not received iss_insight_print.php
-	   prints exactly what it printed before. */
-	if(file_exists(dirname(__FILE__)."/iss_insight_print.php")){
-		require_once(dirname(__FILE__)."/iss_insight_print.php");
-	}
 }
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
@@ -740,10 +734,6 @@ if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
 	echo iss_insight_summary_band($issN, $issF, "issInsight");
 }
 echo $issL2Body;
-/* @insight -- Defines issInsightPrintBlock()/issInsightPrintLead() for
-   ccsPrintWithCharts() below. Emitted after the panel so the element it clones
-   is already in the document. */
-if(function_exists('iss_insight_print_js')) echo iss_insight_print_js();
 ?>
 
 <div id="ccs-print-charts" style="display:none;">
@@ -1286,10 +1276,6 @@ $(function(){
 		var captured  = ccsFullTableHtml();
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
-		/* @insight -- read at press time: the model refinement XHR replaces the
-		   panel's innerHTML after load, so the DOM outranks any server-side copy. */
-		var ccsIns  = (typeof issInsightPrintBlock === 'function') ? issInsightPrintBlock('issInsight') : '';
-		var ccsLead = (typeof issInsightPrintLead  === 'function') ? issInsightPrintLead('issInsight')  : '';
 
 		var win = window.open('', '_blank');
 		win.document.write(
@@ -1317,11 +1303,6 @@ $(function(){
 				'.chart img{ display:block; width:100%; height:auto; border:1px solid #e5e7eb; }' +
 				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
-				/* @insight -- Portrait has vertical room but no spare column, so the
-				   analysis runs full width above the figures rather than beside
-				   them. Placed before .charts so it reads as the lead, not a
-				   caption. */
-				'.rpt-insight{ display:block; width:100%; margin:0 0 12px; }' +
 				'.tbl-head{ margin-bottom:6px; }' +
 				'.tbl-head h3{ font-size:13px; font-weight:600; margin:0; display:inline-block; }' +
 				'.tbl-head .count{ font-size:9.5px; color:#6b7280; margin-left:8px; }' +
@@ -1336,16 +1317,11 @@ $(function(){
 				'a{ color:inherit; text-decoration:none; pointer-events:none; }' +
 				'.rpt-foot{ margin-top:14px; border-top:1px solid #d1d5db; padding-top:6px;' +
 					' font-size:8.5px; color:#6b7280; }' +
-				/* @insight -- Panel CSS does not cross into the popup with the markup,
-				   so it is pulled in from the shared helper rather than copied into
-				   four print blocks. */
-				<?php echo function_exists("iss_insight_print_css") ? json_encode(iss_insight_print_css()) : "''"; ?> +
 			'</style></head><body>' +
 			'<div class="rpt-head">' +
 				'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
 				'<h1 class="rpt-title">Rolling Stock Incident History</h1>' +
 				'<p class="rpt-subject">Car #<?php echo htmlspecialchars($car_id); ?></p>' +
-				(ccsLead ? '<p class="rpt-lead">'+ccsLead.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>' : '') +
 			'</div>' +
 			'<div class="rpt-meta">' +
 			'<span><b>Report period:</b> <?php
@@ -1365,24 +1341,12 @@ $(function(){
 			'</div>' +
 
 			'<h2 class="sec">Summary</h2>' +
-			ccsIns +
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + chartMonthlyImg + '">' + '<div class="cap">Figure 1 &mdash; Incidents by month, by equipment</div></div>' +
 				'<div class="chart"><img src="' + chartParetoImg + '">' + '<div class="cap">Figure 2 &mdash; Leading equipment by incident count</div></div>' +
 				'<div class="chart"><img src="' + severityImg + '">' + '<div class="cap">Figure 3 &mdash; Equipment by severity level' + (ccsLevelOnly ? ' (Level ' + ccsLevelOnly + ' only)' : '') + '</div></div>' +
-				/* @insight -- Figure 4 retired from the PRINTOUT (not from the page:
-				   the ccsRepeat canvas and its Chart.js block are untouched, and
-				   repeatImg above still renders, so restoring this is uncommenting
-				   one line). "Equipment that failed more than once" IS the recurrence
-				   finding, and the analysis block now states it in words carrying the
-				   same caveat -- that a suggested equipment is not strong enough to
-				   carry a claim about the same component failing twice. Cutting it
-				   frees a whole row of the 2x2 grid, which is more than the analysis
-				   block needs, and the four figures were pushing the table's first
-				   rows into an orphan at the foot of page 1.
 				'<div class="chart"><img src="' + repeatImg + '">' + '<div class="cap">Figure 4 &mdash; Equipment that failed more than once</div></div>' +
-				*/
-				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
+				'<p class="note">Equipment is the recorded value where one exists. Where none was recorded, an equipment is auto-suggested from the description text when the match is confident &mdash; shown italic in the log and as lighter segments in Figure 2, and indicative only. Incidents the suggestion could not place remain unspecified. Figure 4 lists equipment that failed more than once, using recorded values only &mdash; a repeat is a claim about the same component failing twice, which a suggestion is not strong enough to carry. Figure 3 crosses equipment against recorded severity, so an equipment with few incidents but several at the highest level stands out &mdash; severity is a recorded value throughout, including on rows whose equipment was suggested.</p>' +
 			'</div>' +
 
 			'<h2 class="sec">Incident Records</h2>' +
@@ -1392,8 +1356,7 @@ $(function(){
 			'</div>' +
 			tableHtml +
 
-			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use' +
-				(ccsIns ? ' &middot; analysis computed from the figures in this report; wording generated automatically' : '') + '</div>' +
+			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
 			'</body></html>'
 		);
 		win.document.close();
