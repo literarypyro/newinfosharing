@@ -368,32 +368,7 @@ if(!$SRM_EMBED){ require("Tmenu_2.php"); }
 	else { $db=new mysqli("localhost","psssilva","!D40nkC2azXg$","is_transport"); }
 $coverage = ccsLoadCoverage($db);
 $selfPage = basename(__FILE__);   /* @equiptpanel -- reload target, rename-safe */
-
-/* ==========================================================================
-   @roster -- THE population this report covers. One definition, read by every
-   consumer below.
-
-   It used to be the same literal pasted into four separate queries, and the
-   list at line 371 carried 41 entries for 27 ids because it had been hand
-   edited. Three of the four consumers agreed; the incident count in the KPI
-   strip and the month_stats.php handoff never had it at all, which is how the
-   strip came to read "27 car-level failures from 44 incidents" -- two figures
-   drawn from different populations -- and how the day tile came to rank days
-   over 27 equipment types while the panel it opens ranked them over all of
-   them. Adding a consumer without the filter is the failure mode; there is now
-   one place to look.
-
-   The commented type='RS' query below is what this list appears to be a
-   snapshot of. If the equipment table has gained a rolling-stock row since it
-   was taken, this roster is already stale -- worth checking, and worth
-   switching to if the two agree, because a query cannot go out of date the way
-   a copied list can.
-   ======================================================================== */
-$rsEquiptIds = array(114,102,110,11,113,104,108,109,103,124,67,111,112,105,81,
-                     118,119,64,115,89,120,123,121,116,2,122,117);
-$rsEquiptIn  = "('".implode("','", $rsEquiptIds)."')";
-
-$sql="select * from equipment where id in ".$rsEquiptIn." order by equipment_name";
+$sql="select * from equipment where id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117','105','81','118','119','64','115','89','120','123','121','116','2','122','117') order by equipment_name";
 
 //$sql="select * from equipment where type='RS' order by equipment_name";
 
@@ -854,7 +829,7 @@ foreach($buckets as $b){
 	       from incident_report
 	       inner join incident_cars on incident_report.id=incident_cars.incident_id
 		   where ".$levelClause." incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
-	         and incident_report.equipt in ".$rsEquiptIn."
+	         and incident_report.equipt in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
 	         ".$carClause."
 	       group by incident_report.equipt";
 	$rs=$db->query($sql);
@@ -875,7 +850,7 @@ foreach($buckets as $b){
 	       inner join is_external.incident_defects on incident_report.id=is_external.incident_defects.incident_id
 	       inner join incident_cars on incident_report.id=incident_cars.incident_id
 	       where ".$levelClause." incident_date between '".$start_date1." 00:00:00' and '".$end_date1." 23:59:59'
-	         and is_external.incident_defects.equipt_id in ".$rsEquiptIn."
+	         and is_external.incident_defects.equipt_id in ('114','102','110','11','113','104','108','109','103','124','67','111','112','105','81','118','119','64','115','89','120','123','121','116','2','122','117')
 	         ".$carClause."
 	       group by is_external.incident_defects.equipt_id";
 	$rs=$db->query($sql);
@@ -937,7 +912,9 @@ $issEvents  = array();   /* incident-level rows -- repeat-failure detection */
 
 if(function_exists('iss_insight')){
 
-	$eqIn = $rsEquiptIn;   /* @roster -- was a fourth copy of the literal */
+	$eqIn = "('114','102','110','11','113','104','108','109','103','124','67',
+	          '111','112','105','81','118','119','64','115','89','120','123',
+	          '121','116','2','122','117')";
 
 	/* -- (a) the cross-tab. The page's own per-bucket query with car_no added
 	      to the GROUP BY: same joins, same clauses, same counting basis, so
@@ -1111,42 +1088,13 @@ $coverageNote = ccsCoverageNote($coverage);
 // Distinct incidents behind these car-level failures, on the same scope as the
 // aggregation above — stated so the relationship to the incident logs is
 // visible rather than inferred.
-/* @roster -- This had NO equipment condition while $grandTotal had one, so the
-   tile printed a rostered pair count beside an unrostered incident count. The
-   two are then not comparable, and the pairing is arithmetically impossible:
-   every incident in the pair count joins at least one car, so pairs can never
-   be fewer than incidents. The strip read "27 car-level failures from 44
-   incidents". Same population on both sides now. */
 $distinctIncidents = 0;
 $dq = $db->query("select count(distinct incident_report.id) as c
                   from incident_report
                   inner join incident_cars on incident_report.id=incident_cars.incident_id
                   where ".$levelClause." incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'
-                    and incident_report.equipt in ".$rsEquiptIn."
                   ".$carClause);
 if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
-
-/* @roster -- What the roster leaves out, counted rather than hidden.
-   Narrowing the report to 27 equipment types is a deliberate scope, but blank
-   and out-of-roster equipment is not rare in this system -- the description
-   classifier exists because of it -- so a reader has no way to know whether
-   the grand total is the whole picture unless the page says so. Same basis as
-   the aggregation above (incident-car pairs, same window, same level and car
-   filters), differing only in the equipment condition, so the two figures add
-   up to the period's unrestricted total.
-
-   Deliberately NOT broken down by type: naming what is missing would need a
-   row per unrostered equipment, which is the wider report this page is not.
-   The volume is enough to tell a reader whether to go and look. */
-$excludedPairs = 0;
-$xq = $db->query("select count(1) as c
-                  from incident_report
-                  inner join incident_cars on incident_report.id=incident_cars.incident_id
-                  where ".$levelClause." incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'
-                    and (incident_report.equipt is null
-                         or incident_report.equipt not in ".$rsEquiptIn.")
-                  ".$carClause);
-if($xq && ($xr = $xq->fetch_assoc())) $excludedPairs = (int)$xr['c'];
 
 // ---- Rows -----------------------------------------------------------------
 // Iterates the canonical $equipt list, so a row's label and its figures always
@@ -1582,12 +1530,6 @@ if(function_exists('iss_insight_print_js')) echo iss_insight_print_js();
 
 <div style="font-size:12px;color:#5A6275;margin-top:8px;">
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each car, so <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?> produce <?php echo $grandTotal; ?> car-level failure<?php echo $grandTotal==1?'':'s'; ?>. This is the same basis the per-car reports use, so they reconcile; the incident history logs count one row per incident and show the smaller figure.
-<?php /* @roster -- The scope, stated rather than left to be inferred. Printed
-         only when something was actually excluded, so a clean period does not
-         carry a caveat about nothing. */
-if($excludedPairs > 0){ ?>
-	<br><span style="color:#7A1F1F;">This report covers <?php echo count($rsEquiptIds); ?> rolling-stock equipment types. A further <?php echo $excludedPairs; ?> car-level failure<?php echo $excludedPairs==1?'':'s'; ?> in this period <?php echo $excludedPairs==1?'was':'were'; ?> recorded against equipment outside that list, or with no equipment recorded, and <?php echo $excludedPairs==1?'is':'are'; ?> not counted above.</span>
-<?php } ?>
 </div>
 
 <script>
@@ -1681,14 +1623,6 @@ var srmPanelFrom    = <?php echo json_encode($panelFrom); ?>;    /* @monthpanel 
 var srmPanelTo      = <?php echo json_encode($panelTo); ?>;
 var srmPanelCar     = <?php echo json_encode($panelCar ? (string)$panelCar : ''); ?>;
 var srmPanelLevel   = <?php echo json_encode($level !== '' ? (string)$level : ''); ?>;   /* @levelfilter */
-/* @roster -- The panel inherits this report's population the same way it
-   inherits level and car. Without it the day tile ranked days over the 27
-   rostered types while the panel it opens ranked the same days over every
-   equipment type, so a "4-way tie at 3" opened onto 7, 4, 3, 3.
-   month_stats.php applies it only when sent, so car_statistics_report.php --
-   which counts every incident_cars row by design and sends nothing -- keeps
-   reconciling exactly as before. */
-var srmPanelEquipts = <?php echo json_encode(implode(',', $rsEquiptIds)); ?>;
 </script>
 </div>
 <br>
@@ -1930,10 +1864,6 @@ function openMonthPanel(year, csv, dayMonth, title, multiYear){
 	   The tiles inside the panel still work there -- the filter is simply
 	   panel-local rather than inherited. */
 	if(srmPanelLevel) q += "&level=" + encodeURIComponent(srmPanelLevel);
-	/* @roster -- see srmPanelEquipts. Sent on the period panel only: the
-	   equipment panel below is already narrowed to ONE rostered type, so a
-	   roster list there would be redundant. */
-	if(srmPanelEquipts) q += "&equipts=" + encodeURIComponent(srmPanelEquipts);
 
 	document.getElementById('ir-panel-title').textContent = title;
 	document.getElementById('irFallbackLink').href = "month_stats.php?" + q;

@@ -90,32 +90,6 @@ function msList($raw, $lo, $hi){
 }
 $months = isset($_GET['months']) ? msList($_GET['months'], 1, 12) : array();
 $days   = isset($_GET['days'])   ? msList($_GET['days'],   1, 31) : array();
-
-/* @roster -- OPTIONAL equipment population, sent by a caller whose own report
-   covers a defined subset rather than everything.
-
-   See the @tally note below: the hardcoded 27-id IN() list was removed from
-   this page so its totals would reconcile with car_statistics_report.php's
-   most-fault-prone-car tile, which counts every incident_cars row regardless
-   of equipment. That decision stands and this does not reverse it -- the
-   filter applies ONLY when a caller sends equipts=, so a caller that sends
-   nothing behaves exactly as it does today.
-
-   statistics_report_modified.php does send it. Its grid is 27 rolling-stock
-   equipment types and its day tile ranks days within that population; without
-   the list this page ranked the same days over all equipment and the two
-   disagreed on which day was the peak.
-
-   Ids are cast to int and rebuilt, so nothing from the query string reaches
-   the SQL as text. An empty or all-junk list is treated as absent rather than
-   as "match nothing", which would render a blank panel with no explanation. */
-$equipts = array();
-if(isset($_GET['equipts']) && $_GET['equipts'] !== ''){
-	foreach(explode(',', (string)$_GET['equipts']) as $v){
-		$v = (int)trim($v);
-		if($v > 0 && !in_array($v, $equipts, true)) $equipts[] = $v;
-	}
-}
 if($month && !count($months)) $months = array($month);
 
 $sd = isset($_GET['sd']) && $_GET['sd'] !== '' ? strtotime($_GET['sd']) : false;
@@ -222,12 +196,6 @@ $carHistoryTarget = $IR_EMBED ? "_top" : "_self";
 $where = "1=1".$dateClause;
 if($car)    $where .= " and incident_cars.car_no*1 = ".$car." ";
 if($equipt) $where .= " and incident_report.equipt = ".$equipt." ";
-/* @roster -- Applied AFTER the single-equipment filter, so an explicit equipt=
-   still wins on its own terms; the two together simply intersect. Every query
-   on this page builds off $where or $whereAllLevels, so the breakdown, the
-   period table, the incident count and the severity tiles all narrow together
-   and the page stays internally consistent. */
-if(count($equipts)) $where .= " and incident_report.equipt in (".implode(',', $equipts).") ";
 
 /* @levelfilter -- TWO clauses, deliberately. The severity tiles have to keep
    counting EVERY level: filtering them would leave one tile with a figure and
@@ -561,12 +529,6 @@ if($equipt){
 	$msNarrow[] = ($enm !== '' ? $enm : 'Equipment #'.$equipt);
 }
 if($level)  $msNarrow[] = 'Level '.$level;
-/* @roster -- Named alongside the other inherited filters. A panel showing a
-   fraction of a day's failures with nothing saying why is the problem this
-   whole block exists to prevent, and an equipment roster is a bigger silent
-   narrowing than a car or a level. Not listed when a single equipt= is also
-   in force -- that names one type, which is narrower and already stated. */
-if(count($equipts) && !$equipt) $msNarrow[] = count($equipts).' equipment types';
 ?>
 <h1><?php echo htmlspecialchars($period); ?></h1>
 <?php if(count($msNarrow)){ ?>
