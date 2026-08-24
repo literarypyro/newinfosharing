@@ -22,6 +22,12 @@ if(file_exists(dirname(__FILE__)."/iss_insight.php")){
 	if(file_exists(dirname(__FILE__)."/iss_insight_audience.php")){
 		require_once(dirname(__FILE__)."/iss_insight_audience.php");
 	}
+	/* @insight -- The panel on paper. Guarded on its own file like every
+	   other helper here: a station that has not received iss_insight_print.php
+	   prints exactly what it printed before. */
+	if(file_exists(dirname(__FILE__)."/iss_insight_print.php")){
+		require_once(dirname(__FILE__)."/iss_insight_print.php");
+	}
 }
 $coverage = ccsLoadCoverage($db);
 $coverageNote = ccsCoverageNote($coverage);
@@ -703,6 +709,10 @@ if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
 	echo iss_insight_summary_band($issN, $issF, "issInsight");
 }
 echo $issL2Body;
+/* @insight -- Defines issInsightPrintBlock()/issInsightPrintLead() for
+   pvPrintWithCharts() below. Emitted after the panel so the element it clones
+   is already in the document. */
+if(function_exists('iss_insight_print_js')) echo iss_insight_print_js();
 ?>
 
 <div id="ccs-print-charts" style="display:none;">
@@ -1065,6 +1075,11 @@ $(function(){
 		var tableHtml = captured.html;
 		var rowCount  = captured.count;
 		var omitted   = captured.omitted;
+		/* @insight -- read at press time, not from a server-side copy: the model
+		   refinement XHR replaces the panel's innerHTML after load, so the DOM is
+		   the only capture that cannot disagree with the screen. */
+		var pvIns  = (typeof issInsightPrintBlock === 'function') ? issInsightPrintBlock('issInsight') : '';
+		var pvLead = (typeof issInsightPrintLead  === 'function') ? issInsightPrintLead('issInsight')  : '';
 		/* @period -- name the filter that produced the rows, not just the span
 		   the chart happens to cover. With a filter active the two differ, and
 		   the printout was reporting the second as though it were the first. */
@@ -1100,6 +1115,11 @@ $(function(){
 				'.chart img{ display:block; width:100%; height:auto; border:1px solid #e5e7eb; }' +
 				'.chart .cap{ font-size:9px; color:#6b7280; margin-top:3px; }' +
 				'.note{ font-size:9px; color:#6b7280; font-style:italic; margin:2px 0 0; }' +
+				/* @insight -- Portrait has vertical room but no spare column, so the
+				   analysis runs full width above the figures rather than beside
+				   them. With only two figures on one row there is no pressure here:
+				   nothing had to be cut to make space. */
+				'.rpt-insight{ display:block; width:100%; margin:0 0 12px; }' +
 				'.tbl-head{ margin-bottom:6px; }' +
 				'.tbl-head h3{ font-size:13px; font-weight:600; margin:0; display:inline-block; }' +
 				'.tbl-head .count{ font-size:9.5px; color:#6b7280; margin-left:8px; }' +
@@ -1131,11 +1151,18 @@ $(function(){
 				'a{ color:inherit; text-decoration:none; pointer-events:none; }' +
 				'.rpt-foot{ margin-top:14px; border-top:1px solid #d1d5db; padding-top:6px;' +
 					' font-size:8.5px; color:#6b7280; }' +
+				/* @insight -- Panel CSS does not cross into the popup with the markup,
+				   so it is pulled in from the shared helper rather than copied into
+				   every print block. json_encode emits a quoted JS string literal;
+				   the '' fallback keeps the concatenation valid when the helper is
+				   not deployed. */
+				<?php echo function_exists("iss_insight_print_css") ? json_encode(iss_insight_print_css()) : "''"; ?> +
 			'</style></head><body>' +
 			'<div class="rpt-head">' +
 				'<div class="rpt-org">DOTr &middot; MRT-3 Line 3 &middot; Operations Control</div>' +
 				'<h1 class="rpt-title">Incident History by Problem Category</h1>' +
 				'<p class="rpt-subject">' + name + '</p>' +
+				(pvLead ? '<p class="rpt-lead">' + escHtml(pvLead) + '</p>' : '') +
 			'</div>' +
 			'<div class="rpt-meta">' +
 				'<span><b>Problem category:</b> ' + name + '</span>' +
@@ -1145,6 +1172,7 @@ $(function(){
 			'</div>' +
 
 			'<h2 class="sec">Summary</h2>' +
+			pvIns +
 			'<div class="charts">' +
 				'<div class="chart"><img src="' + imgVolume + '">' + '<div class="cap">Figure 1 &mdash; Monthly volume</div></div>' +
 				'<div class="chart"><img src="' + imgTiming + '">' + '<div class="cap">Figure 2 &mdash; When incidents occur</div></div>' +
@@ -1159,7 +1187,8 @@ $(function(){
 			'</div>' +
 			tableHtml +
 
-			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use</div>' +
+			'<div class="rpt-foot">MRT-3 Information Sharing System &middot; generated <?php echo date("d M Y, H:i"); ?> &middot; for internal operational use' +
+				(pvIns ? ' &middot; analysis computed from the figures in this report; wording generated automatically' : '') + '</div>' +
 			'</body></html>'
 		);
 		win.document.close();
