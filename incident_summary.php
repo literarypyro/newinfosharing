@@ -676,7 +676,7 @@ $datenow=date("m/d/Y",strtotime($availability_date));
 <table cellspacing="0" cellpadding="0" class='stat-toolbar'>
 <tr>
 	<td style="padding:8px 14px;vertical-align:middle;white-space:nowrap;width:1%;border:none">
-		<form action='incident summary.php' method='post' >
+		<form action='incident summary.php?tt=2a7b85131d93ffbaacc73f7ff024b55a' method='post' >
 <div width="50%" align=left>
 <table>
 
@@ -792,7 +792,7 @@ echo "<h2>".$displayDate."</h2>";
 		</td>
 
 	<td style="padding:8px 14px;vertical-align:middle;text-align:right;white-space:nowrap;border:none">
-<form action='incident_summary.php' method='post'>
+<form action='incident_summary.php?tt=2a7b85131d93ffbaacc73f7ff024b55a' method='post'>
 Sort By:
 <select name='sort_by' id='sort_by'>
 <option></option>
