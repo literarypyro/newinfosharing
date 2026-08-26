@@ -820,6 +820,7 @@ function openCarPanel(year,car,title,month,equipt=null){
 	title = title || "Car with Most Failures";
 	//var q = "year="       + encodeURIComponent(year)
 	var q=  "&car_id="    + encodeURIComponent(car); 
+		q+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 	     // + "&equipt="     + encodeURIComponent(equipt);
 
 	      //+ "&month="     + encodeURIComponent(month)
