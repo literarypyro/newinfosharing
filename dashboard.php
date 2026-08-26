@@ -162,8 +162,15 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 		</div></a>
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-warn"></span><div class="ds-tile-body">
-			<div class="ds-tile-label"><span class="ds-dot f-warn"></span>At boundary</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['boundary']; ?></span><span class="ds-den">prepped</span></div>
+			<div class="ds-tile-label"><span class="ds-dot f-warn"></span>Reserve</div>
+			<div><span class="ds-val"><?php echo (int)$fleet['boundary']; ?></span>
+			</div>
+			<?php 
+
+			/**
+			<span class="ds-den">prepped</span>
+			*/
+			?>
 			<div class="ds-meter"><i class="f-warn" style="width:<?php echo dash_pct($fleet['boundary'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
@@ -228,7 +235,7 @@ dash_status_band($view_date,false);
 		</div>
 		<div class="ds-legend">
 			<span><i class="ds-key f-ok"></i>Inserted <?php echo (int)$fleet['online']; ?></span>
-			<span><i class="ds-key f-warn"></i>At boundary <?php echo (int)$fleet['boundary']; ?></span>
+			<span><i class="ds-key f-warn"></i>Reserve <?php echo (int)$fleet['boundary']; ?></span>
 			<span><i class="ds-key f-info"></i>Removed <?php echo (int)$fleet['removed']; ?></span>
 			<span><i class="ds-key f-bad"></i>Cancelled <?php echo (int)$fleet['cancelled']; ?></span>
 			<span><i class="ds-key f-mute"></i>Non-revenue <?php echo (int)$fleet['nonrevenue']; ?></span>

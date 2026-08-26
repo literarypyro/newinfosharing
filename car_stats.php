@@ -102,6 +102,7 @@ if($equipt){ $carHistoryUrl .= "&eq=".$equipt; }
    this, filtering to Level 2 here and clicking through gave a history showing
    every level: two answers to the same question, one click apart. */
 if($level){ $carHistoryUrl .= "&level=".$level; }
+$carHistoryUrl.="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 
 
 // Inside the slide panel this page is an iframe, so a plain link would load

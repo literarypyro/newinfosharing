@@ -1127,13 +1127,17 @@ for($i=0; $i<$nm; $i++){
 	$row2 = $row;
 
 	/* ── Row status class + filter status (branches verbatim) ── */
+	$inserted=$row2['insert_time']!="";
+
+	$boundary=$row2['boundary_time']!="";
+
 	$removed = ($row2['remove_time']!="" && $row2['remove_time']!="0000-00-00 00:00:00");
 	if($row['status']=="cancelled"){
 		$rowClass = "row--cancelled";   $dataStatus = "cancelled";
-	} elseif(!$removed && $row['status']=="active"){
+	} elseif(!$removed && $inserted && $row['status']=="active"){
 		$rowClass = ($i%2>0) ? "row--service row--alt" : "row--service";
 		$dataStatus = "service";
-	} elseif(!$removed){
+	} elseif(!$removed && !$inserted && $boundary && $row['status']=="active"){
 		$rowClass = "row--reserve";     $dataStatus = "reserve";
 	} else {
 		$rowClass = "row--removed";     $dataStatus = "removed";
@@ -1146,7 +1150,7 @@ for($i=0; $i<$nm; $i++){
 		$pill = '<span class="status-pill pill--removed"><span class="led"></span>Removed</span>';
 	} elseif($row['status']=="active"){
 		$pill = '<span class="status-pill pill--service"><span class="led"></span>In service</span>';
-	} else {
+	} elseif($boundary){
 		$pill = '<span class="status-pill pill--reserve"><span class="led"></span>Reserve</span>';
 	}
 

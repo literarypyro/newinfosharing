@@ -28,17 +28,17 @@ body {
    first element -- no position/z-index needed.          */
 .header-wrapper {
     position: static !important;
-    height: 60px !important;
+    height: auto !important;          /* was 60px — the fixed cap was the problem */
+    min-height: 100px !important;
     background: var(--hdr-bg) !important;
     border-bottom: 3px solid var(--hdr-stripe) !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
     display: flex !important;
     align-items: center !important;
-    padding: 0 10px 0 6px !important;
+    padding: 6px 10px 6px 6px !important;   /* vertical padding was 0 */
     box-sizing: border-box !important;
     overflow: visible !important;
 }
-
 /* Logo + title table (flex-shrink so it stays compact) -- overrides the
    legacy width=100% HTML attribute still on this <table> in
    trans_menu_2.php, which (harmless in block layout, where each table
@@ -53,10 +53,12 @@ body {
     width: auto !important;
 }
 .exception td {
-    padding: 0 6px 0 0 !important;
+    padding: 0 8px 0 0  !important;
     vertical-align: middle !important;
     border: none !important;
     white-space: nowrap !important;
+		font-size:40% !important;
+
 }
 /* The old width=5% / width=100% attributes on these two <td>s (summing
    to 105%) had a definite table width to resolve against before; now
@@ -65,21 +67,28 @@ body {
    to near-zero to satisfy the title column's "100%" demand -- that's
    what squeezed the logo down to a sliver. Explicit fixed widths here
    remove the ambiguity entirely. */
-.exception td:first-child {
-    width: 46px !important;
-}
+
 .exception td:last-child {
     width: auto !important;
 }
+
+
+
+.exception td:first-child {
+    width: 90px !important;        /* explicit, not shrink-to-fit */
+}
+
 .exception img {
-    height: 40px !important;
+    height: 80px !important;
     width: auto !important;
+    max-width: none !important;    /* defeats an img{max-width:100%} reset */
+    min-width: 0 !important;
     vertical-align: middle !important;
     display: inline-block !important;
 }
 h0 {
     display: inline !important;
-    font-size: 15px !important;
+    font-size: 27px !important;
     font-weight: 700 !important;
     color: #FFFFFF !important;
     text-shadow: none !important;
@@ -87,6 +96,7 @@ h0 {
     vertical-align: middle !important;
     letter-spacing: 0.02em !important;
     white-space: nowrap !important;
+    font-family: Segoe UI, sans-serif !important;
 }
 
 /* Logout / Hello table — pushed to right edge. Same width=100% override
@@ -171,7 +181,7 @@ ul#navMenu > li > a:link,
 ul#navMenu > li > a:visited {
     display: inline-block !important;
     padding: 6px 12px !important;
-    font-size: 12px !important;
+    font-size: 15px !important;
     font-weight: 600 !important;
     color: rgba(255,255,255,0.9) !important;
     text-decoration: none !important;
@@ -182,7 +192,7 @@ ul#navMenu > li > a:visited {
     float: none !important;
     width: auto !important;
     box-sizing: border-box !important;
-    font-family: Verdana, sans-serif !important;
+    font-family: Segoe UI, sans-serif !important;
     transition: color 0.15s, background 0.15s !important;
 }
 ul#navMenu > li > a:hover,
@@ -239,7 +249,7 @@ ul#navMenu ul a:visited {
     float: none !important;
     white-space: nowrap !important;
     box-sizing: border-box !important;
-    font-family: Verdana, sans-serif !important;
+    font-family: Segoe UI, sans-serif !important;
     text-decoration: none !important;
 }
 ul#navMenu ul a:hover {
@@ -267,7 +277,7 @@ ul#navMenu ul li.ta-nav-divider span {
 	letter-spacing: .04em !important;
 	text-transform: uppercase !important;
 	color: #8A95A6 !important;
-	font-family: Verdana, sans-serif !important;
+	font-family: Segoe UI, sans-serif !important;
 }
 
 /* Level-3 sub-menu opens to the right */

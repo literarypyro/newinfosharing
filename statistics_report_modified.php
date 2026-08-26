@@ -1935,6 +1935,8 @@ function openMonthPanel(year, csv, dayMonth, title, multiYear){
 	   roster list there would be redundant. */
 	if(srmPanelEquipts) q += "&equipts=" + encodeURIComponent(srmPanelEquipts);
 
+	q+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
+
 	document.getElementById('ir-panel-title').textContent = title;
 	document.getElementById('irFallbackLink').href = "month_stats.php?" + q;
 	var frame = document.getElementById('irFrame');
@@ -1969,6 +1971,7 @@ function openEquiptPanel(sd, ed, equipt, title, car){
 	   it, filtering the report to level 2 and opening a panel gave two
 	   different answers to the same question, one click apart. */
 	if(srmPanelLevel){ q += "&level=" + encodeURIComponent(srmPanelLevel); }
+	q+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 
 	document.getElementById('ir-panel-title').textContent=title;
 	document.getElementById('irFallbackLink').href="equipt_stats.php?"+q; /* no embed=1: full standalone page */

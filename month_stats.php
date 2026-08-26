@@ -195,6 +195,9 @@ else if($equipt) $carHistoryUrl = "equipment_history.php?equipt=".$equipt;
 if($carHistoryUrl !== "" && $year){
 	$carHistoryUrl .= "&y=".$year.($month ? "&m=".$month : "");
 }
+
+$carHistoryUrl.="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
+
 // Inside the slide panel this page is an iframe, so a plain link would load
 // car_history INSIDE the 820px panel. _top breaks it out into the full window.
 // Change to "_blank" for a new tab, or "_self" to keep it in the panel.

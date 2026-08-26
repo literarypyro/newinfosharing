@@ -1300,6 +1300,7 @@ function openMonthPanel(year, csv, dayMonth, title){
 	          ? "&month=" + encodeURIComponent(dayMonth) + "&days=" + encodeURIComponent(csv)
 	          : "&months=" + encodeURIComponent(csv))
 	      + "&title=" + encodeURIComponent(title);
+	q+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 
 	document.getElementById('ir-panel-title').textContent = title;
 	document.getElementById('irFallbackLink').href = "month_stats.php?" + q;
@@ -1332,6 +1333,7 @@ function openEditIncidentPanel(year,car,title,month,equipt=null){
 	      + "&month="     + encodeURIComponent(month)
 	      + "&title="     + encodeURIComponent(title)
 	      + "&equipt="     + encodeURIComponent(equipt);
+	q+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 
 	document.getElementById('ir-panel-title').textContent=title;
 	document.getElementById('irFallbackLink').href="car_stats.php?"+q; /* no embed=1: full standalone page */

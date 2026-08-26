@@ -311,10 +311,10 @@ body { height: 100%; overflow: hidden; }
 		
 		<li><a href='#'>Statistics Report</a>
 		<ul>
-			<li><a href='problem_history.php'>Problems by Category</a>
+			<li><a href='problem_history.php?tt=2a7b85131d93ffbaacc73f7ff024b55a'>Problems by Category</a>
 			</li>
 
-			<li><a href='car_statistics_report.php'>Car Incidents By Year</a></li>
+			<li><a href='car_statistics_report.php?tt=2a7b85131d93ffbaacc73f7ff024b55a'>Car Incidents By Year</a></li>
 
 			<!-- Renamed from "Train Equipment": this page groups incidents by
 			     equipment/subsystem type (a curated list, not the full
@@ -332,11 +332,11 @@ body { height: 100%; overflow: hidden; }
 			     All five reports below now carry the nav, so all five are same-tab.
 			     Printout links (generate_statistics_report.php and friends) keep
 			     window.open -- those are output, not pages. -->
-			<li><a href='statistics_report_modified.php'>Equipment Failures By Range</a></li>
+			<li><a href='statistics_report_modified.php?tt=2a7b85131d93ffbaacc73f7ff024b55a'>Equipment Failures By Range</a></li>
 
-			<li><a href='other_history.php'>Other Incidents</a></li>
+			<li><a href='other_history.php?tt=2a7b85131d93ffbaacc73f7ff024b55a'>Other Incidents</a></li>
 
-			<li><a href='td_history.php'>Personnel</a></li>
+			<li><a href='td_history.php?tt=2a7b85131d93ffbaacc73f7ff024b55a'>Personnel</a></li>
 
 			</ul>
 			

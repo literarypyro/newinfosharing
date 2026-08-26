@@ -144,6 +144,7 @@ if($hasRange){
 else if($hasYear){
 	$carHistoryUrl .= "&y=".$year.($month ? "&m=".$month : "");
 }
+$carHistoryUrl.="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 
 
 // Inside the slide panel this page is an iframe, so a plain link would load

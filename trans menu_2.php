@@ -123,6 +123,8 @@ h1 {
 table.exception {
 	margin-bottom: 0;
 }
+
+
 .header-wrapper table:not(.exception) {
 	margin: 0;
 }
@@ -131,7 +133,22 @@ table.exception {
 }
 
 #addModal { display: none; }
-
+.header-wrapper .site-logo {
+	height: 80px;
+	width: auto;
+	display: block;
+}
+.tag {
+    font-size: 18px !important;
+    font-weight: 400 !important;
+    color: #FFFFFF !important;
+    text-shadow: none !important;
+    vertical-align: middle !important;
+    letter-spacing: 0.02em !important;
+    white-space: nowrap !important;
+    font-family: Segoe UI, sans-serif !important;
+	
+}
 </style>
 
 
@@ -139,8 +156,9 @@ table.exception {
 <div class="header-wrapper">
 <table class='exception' width=100%>
 <tr>
-<td width=5%>
-<img src='mrt-logo.png' align="center" valign="center" width="100%" height="100" />
+<td style='width:1%;white-space:nowrap;'>
+<img src='mrt-logo.png' align="center" valign="center" class="site-logo"
+ />
 </td><td valign="middle" align="left" width=100% ><h0>Information Sharing System</h0></td>
 
 <!-- </td><td valign="center" width=55%><font face="Century" size="5"><h1><b>Control Center Operation</b></h1></font> 
@@ -155,16 +173,26 @@ table.exception {
 
 <table width=100%>
 	<tr>	
+		<td class='tag' align="right" width=50%>	
+			<b>
+			<?php
+
+			if(isset($_SESSION['name'])){
+			echo "Hello, ".$_SESSION['name']."!";
+			}
+			else {
+				
+				echo "Good day!";
+			}
+
+			?>
+			</b>
+		</td>
 		<td>
 			<a class="ex1 grow" href='logout.php'><font color="white" face="Century" size="4">Log Out</font></a> 
 			<!-- <a class="float" href='../index.php'><font face="Century" size="4">Log Out</font></a> -->
 		</td>
 		
-		<td style='' align="right" width=50%>	
-			<font style='font-size:20px;'><b>
-			<?php echo "Hello, ".$_SESSION['name']."!"; ?>
-			</b></font>
-		</td>
 	</tr>
 </table>
 </div>
