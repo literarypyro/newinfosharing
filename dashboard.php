@@ -339,7 +339,6 @@ dash_status_band($view_date,false);
 				<span class="ds-n"><?php echo (int)$n; ?></span>
 <?php	} ?>
 			</div>
-			<div class="ds-note" style="margin-top:10px">Resolved through <code>equipment_type</code>; unmapped codes show as recorded.</div>
 <?php } ?>
 		</div>
 
@@ -368,7 +367,6 @@ dash_status_band($view_date,false);
 				<span><?php echo dash_h(date("M",strtotime($ym."-01"))); ?></span>
 <?php	} ?>
 			</div>
-			<div class="ds-note" style="margin-top:10px">Window sits entirely inside covered data. Widen it past Dec 2024 and the 2021&ndash;2024 gap needs <code>data_coverage.php</code> wired in first, or those months read as zero rather than missing.</div>
 		</div>
 
 	</div>

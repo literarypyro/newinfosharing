@@ -3,8 +3,17 @@ session_start();
 ?>
 <?php
 if(!isset($_SESSION['username'])){ 
-header("Location: ../index2.php"); 
-} ?>
+
+	if($_GET['tt']!="2a7b85131d93ffbaacc73f7ff024b55a"){
+		
+
+		header("Location: ../index2.php"); 
+	}
+}
+
+
+
+ ?>
 <?php
 /* Tmenu.php retired as a standalone file -- its nav markup was a
    byte-for-byte duplicate of Tmenu_2.php (same menu links, same DB

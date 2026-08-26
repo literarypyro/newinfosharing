@@ -705,6 +705,8 @@ function setPreset(check){
 		remarksHTML+="<option>AM Off-Peak Removal</option><option>PM Off-Peak Removal</option>";
 		remarksHTML+="<option>Normal Removal</option><option>Emergency Removal</option>";
 		remarksHTML+="<option>Give Way for Test Train</option><option>Give Way for Schooling Train</option>";
+		remarksHTML+="<option>Give Way for Dalian Train</option><option>No Good Train Available</option>";
+
 		remarksHTML+="</select>";
 	} else {
 		remarksHTML="<textarea name='remarks' cols=50></textarea>";

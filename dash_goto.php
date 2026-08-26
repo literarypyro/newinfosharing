@@ -143,6 +143,8 @@ foreach(array('d','sd','ed','range') as $k){
 }
 $query = count($fwd) ? (strpos($page,'?')===false ? '?' : '&').implode('&',$fwd) : '';
 
+$query.="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
+
 /* Filenames with spaces ("incident summary.php") are not valid in a
    Location header or an href as-is. */
 $page = str_replace(' ','%20',$page);

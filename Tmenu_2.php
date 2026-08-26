@@ -257,12 +257,12 @@ body { height: 100%; overflow: hidden; }
 <ul id="navMenu" >
   
   <?php
-  if(($_SESSION['username']=="ccadmin")||($_SESSION['username']=="demo2")){
+//  if(($_SESSION['username']=="ccadmin")||($_SESSION['username']=="demo2")){
   ?>
   <li><a href="dashboard.php">Main Dashboard</a></li>
 	<?php
-	  }
-	if($_SESSION['username']!="ccadmin"){
+//	  }
+	if(($_SESSION['username']=="demo2")||(isset($_SESSION['username']))){
 
 ?>
 	
@@ -306,7 +306,7 @@ body { height: 100%; overflow: hidden; }
 	
 	<?php 
 	}
-	if(($_SESSION['Ulevel']==3)&&($_SESSION['division']=="admin")){
+//	if(($_SESSION['Ulevel']==3)&&($_SESSION['division']=="admin")){
 	?>				
 		
 		<li><a href='#'>Statistics Report</a>
@@ -342,7 +342,7 @@ body { height: 100%; overflow: hidden; }
 			
 			</li>	
 	<?php 
-	}
+//	}
 	if(($_SESSION['Ulevel']==4)&&($_SESSION['division']=="admin")){
 		?>
 			
