@@ -117,6 +117,7 @@ function irOpenFrame(url,fallbackUrl,title,defaultTitle){
 /* Signature matches train_operations.php exactly: the BARE incident id,
    not a URL.  The dashboard band calls this. */
 function openEditIncidentPanel(query,title){
+	query+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 	irOpenFrame("edit_ccdr.php?ir="+query+"&embed=1",
 	            "edit_ccdr.php?ir="+query,
 	            title,"Incident Report Details");
@@ -125,6 +126,7 @@ function openEditIncidentPanel(query,title){
 /* Kept for parity, so a future "add incident" action on the dashboard
    has the same door available. */
 function openIncidentPanel(query,title){
+		query+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 	irOpenFrame("incident report.php?"+query+"&embed=1",
 	            "incident report.php?"+query,
 	            title,"Incident Report");
@@ -135,6 +137,10 @@ function openIncidentPanel(query,title){
    is skipped, so this only matters as a fallback. */
 function openSlidePanel(url,title){
 	var bare = url.replace(/[?&]embed=1/,'');
+
+	bare+="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
+
+
 	irOpenFrame(url, bare, title, "Incident Report");
 }
 

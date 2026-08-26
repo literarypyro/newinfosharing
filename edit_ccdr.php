@@ -4,7 +4,7 @@ session_start();
 <?php
 $IR_EMBED = isset($_GET['embed']);
 if($IR_EMBED){ ob_start(); }
-require("Tmenu.php");
+//require("Tmenu.php");
 if($IR_EMBED){ ob_end_clean(); }
 require_once("db_config.php"); /* centralized credentials -- see db_config.php */
 	
