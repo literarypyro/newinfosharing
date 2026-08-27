@@ -385,7 +385,7 @@ dash_status_band($view_date,false);
 			         is built to sit BEFORE text; this one sits after everything. */ ?>
 			<style>
 .ds-feed .ds-skip{margin-right:0;flex:none;
-	text-transform:uppercase;letter-spacing:.05em;font-size:10px}
+	font-weight:600;font-size:11px}
 			</style>
 			<div class="ds-scroll">
 			<ul class="ds-feed">
@@ -396,7 +396,7 @@ dash_status_band($view_date,false);
 				         the escaping mattered to the comparison. */ ?>
 				<li><span class="ds-time"><?php echo dash_h(date("H:i",$i['ts'])); ?></span>
 					<span>Index <?php echo dash_h($i['index_no']); ?> &middot; <?php echo dash_h($i['point']); ?></span><?php
-					if($i['point'] !== "North Ave."){ ?><span class="ds-badge t-warn ds-skip" title="Inserted at Quezon Ave. &mdash; skips the North Ave. segment">Skipping</span><?php } ?></li>
+					if($i['point'] !== "North Ave."){ ?><span class="ds-badge t-warn ds-skip">Skipping</span><?php } ?></li>
 <?php	} ?>
 			</ul>
 			</div>
