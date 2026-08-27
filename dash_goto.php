@@ -79,7 +79,14 @@ if(!defined('DASH_DATE_SESSION_FORMAT')){ define('DASH_DATE_SESSION_FORMAT','m/d
    Adjust the filenames and the two session key names below to match.
    --------------------------------------------------------------------- */
 $targets = array(
-	'ops'       => array('page'=>'train_operations_admin.php',            'scope'=>'day'),
+	'ops'       => array('page'=>'train_operations_admin.php',      'scope'=>'day'),
+	/* @lfilter -- dashboard.php's four fleet tiles link with the key 'opsline',
+	   which was never in this map. An unknown key is not an error here: the
+	   else branch below quietly redirects to dashboard.php, so every fleet
+	   tile bounced straight back to the page it was clicked on. Registered as
+	   an alias of 'ops' rather than changing the four call sites, because
+	   anything else already linking with 'opsline' is fixed by the same line. */
+	'opsline'   => array('page'=>'train_operations_admin.php',      'scope'=>'day'),
 	'ava'       => array('page'=>'train_availability.php',          'scope'=>'day'),
 	/* @rangekeys -- reads a From/To pair, not a single date. */
 	'incidents' => array('page'=>'incident_summary.php',            'scope'=>'day',
@@ -141,7 +148,11 @@ $fwd = array();
    ?d= date directly (see its @dashlink block), which makes the resulting URL
    shareable, survives a refresh, and means either half of this fix works on
    its own. Targets that ignore 'd' are unaffected by receiving it. */
-foreach(array('d','sd','ed','range') as $k){
+/* @lfilter -- 'lfilter' added. The whitelist is what makes this file safe --
+   nothing outside it reaches a target page -- which also means a parameter
+   that is not listed is silently dropped rather than rejected. The fleet
+   tiles were sending lfilter=removed and it never arrived. */
+foreach(array('d','sd','ed','range','lfilter') as $k){
 	if(isset($_GET[$k]) && $_GET[$k]!==''){
 		$fwd[] = rawurlencode($k).'='.rawurlencode((string)$_GET[$k]);
 	}

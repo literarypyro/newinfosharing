@@ -66,22 +66,12 @@ $trains      = dash_trains($view_date);
 $fleet       = dash_fleet_counts($view_date);
 $inc         = dash_incident_counts($view_date);
 $incidents   = dash_incidents($view_date);
-$insertions  = dash_recent_insertions($view_date,5);
+/* @insertions -- No limit. The card scrolls instead of truncating, so the
+   figure it shows is the day's whole insertion log rather than its first
+   five. A 0 limit means "all" in dash_recent_insertions(). */
+$insertions  = dash_recent_insertions($view_date,0);
 $types       = dash_type_breakdown($view_date,6);
 $months      = dash_month_series($view_date,DASH_TREND_MONTHS);
-/* @grain -- The trend card's bucket size, from ?g=. dash_trend_grain() falls
-   back to months for anything unrecognised, so a stale bookmark still renders. */
-$trend_grain = dash_trend_grain(isset($_GET['g']) ? $_GET['g'] : 'month');
-$trend       = dash_trend_series($view_date,$trend_grain);
-/* @selfpage -- The two places this file names itself, resolved from the actual
-   filename. Both are self-references: the date form posts back here and Today
-   returns here. A renamed copy -- a test build beside the live console --
-   would otherwise submit INTO the live dashboard, which makes the copy
-   untestable in the one way that matters. Same pattern as $selfPage in
-   statistics_report_modified.php and $ohSelf in other_history.php.
-   The grain selector already uses a bare "?d=..." href, which resolves
-   against whatever page is serving it, so it needed nothing. */
-$dsSelf      = basename(__FILE__);
 
 $sp_trains   = dash_spark_trains($view_date);
 $sp_inc      = dash_spark_incidents($view_date);
@@ -93,10 +83,6 @@ $d_cancel    = dash_delta($sp_cancel,$view_date);
 
 $max_month   = 0;
 foreach($months as $v){ if($v>$max_month){ $max_month=$v; } }
-/* @grain -- Scaled over real counts only. A null bucket has no height to
-   contribute and must not drag the top of the scale down to zero. */
-$max_trend   = 0;
-foreach($trend['counts'] as $v){ if($v!==null && $v>$max_trend){ $max_trend=$v; } }
 $max_type    = 0;
 foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 ?><!DOCTYPE html>
@@ -157,19 +143,25 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 		<div class="ds-sub"><?php echo dash_h(date("l, d F Y",strtotime($view_date))); ?><?php if($is_today){ echo " &middot; ".dash_h(date("H:i")); } ?></div>
 
 		</div>
+		<?php /* @selfpage -- Transplanted from the test build. Both of these named
+		         dashboard.php outright, so a renamed copy submitted INTO the live
+		         console and Today jumped away from it -- which made a side-by-side
+		         test build untestable in the one way that matters. Resolved from
+		         the actual filename now, the same pattern as $selfPage in
+		         statistics_report_modified.php and $ohSelf in other_history.php. */
+		   $dsSelf = basename(__FILE__);
+		   /* @grain -- The trend card's bucket size, when this file has one. Guarded
+		      with isset() so the same markup is correct before and after the trend
+		      selector is merged: without it the form submits d alone, $_GET['g'] is
+		      dropped and the card snaps back to Monthly on every date change. */
+		   $dsGrain = isset($trend_grain) ? $trend_grain : ''; ?>
 		<form method="get" action="<?php echo dash_h($dsSelf); ?>">
 		<input class="ds-date" type="date" name="d" value="<?php echo dash_h($view_date); ?>">
-			<?php /* @grain -- Carry the bucket size through a date change. Without
-			         this the form submits d alone, $_GET['g'] disappears and the
-			         trend card silently snaps back to Monthly every time someone
-			         picks a different day -- which is not a rename problem, it
-			         was there the moment the selector was added. */ ?>
-			<input type="hidden" name="g" value="<?php echo dash_h($trend_grain); ?>">
+			<?php if($dsGrain!==''){ ?><input type="hidden" name="g" value="<?php echo dash_h($dsGrain); ?>"><?php } ?>
 
 			<button type="submit">Show</button>
-			<?php /* Today keeps the grain too: it means "same view, today", not
-			         "reset everything". */ ?>
-			<?php if(!$is_today){ ?><a class="ds-today" href="<?php echo dash_h($dsSelf); ?>?g=<?php echo dash_h($trend_grain); ?>">Today</a><?php } ?>
+			<?php /* Today means "same view, today", not "reset everything". */ ?>
+			<?php if(!$is_today){ ?><a class="ds-today" href="<?php echo dash_h($dsSelf).($dsGrain!==''?'?g='.dash_h($dsGrain):''); ?>">Today</a><?php } ?>
 		</form>
 	</div>
 
@@ -180,13 +172,15 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 	<!-- ============================ TILES ============================ -->
 	<div class="ds-tiles">
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'service'))); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>Inserted</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span><?php echo dash_delta_chip($d_trains); ?></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span>
+			
+			</div>
 			<?php echo dash_sparkline($sp_trains); ?>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-warn"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'reserve'))); ?>" title="Open train operations for this date"><span class="ds-rail f-warn"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-warn"></span>Reserve</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['boundary']; ?></span>
 			</div>
@@ -199,21 +193,21 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 			<div class="ds-meter"><i class="f-warn" style="width:<?php echo dash_pct($fleet['boundary'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'removed'))); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-info"></span>Removed</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span></div>
 			<div class="ds-meter"><i class="f-info" style="width:<?php echo dash_pct($fleet['removed'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>" title="Open the incident summary for this date"><span class="ds-rail <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span>Incidents</div>
-			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span><span class="ds-den"><?php echo (int)$inc['failures']; ?> L2+</span><?php echo dash_delta_chip($d_inc); ?></div>
+			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span></div>
 			<?php echo dash_sparkline($sp_inc); ?>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'cancelled'))); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span>Cancelled</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span><span class="ds-den">trainsets</span><?php echo dash_delta_chip($d_cancel); ?></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span></div>
 			<?php echo dash_sparkline($sp_cancel); ?>
 		</div></a>
 
@@ -273,7 +267,7 @@ dash_status_band($view_date,false);
 
 		<div class="ds-card">
 			<div class="ds-card-head">
-				<h2>Latest insertions</h2>
+				<h2>Insertions<?php if(count($insertions)){ echo ' <span class="ds-count">'.count($insertions).'</span>'; } ?></h2>
 <?php 
 /**
 				<a class="ds-more" href="<?php echo dash_h(dash_link('depot',$view_date)); ?>">Depot insertion &rarr;</a>
@@ -283,12 +277,18 @@ dash_status_band($view_date,false);
 <?php if(!count($insertions)){ ?>
 			<div class="ds-empty">No insertions recorded yet.</div>
 <?php } else { ?>
+			<?php /* @insertions -- Every insertion for the day, in a scroller rather
+			         than a truncated list. The count sits in the heading because a
+			         scrolled list hides its own length: without it there is no way
+			         to tell eleven insertions from forty without dragging. */ ?>
+			<div class="ds-scroll">
 			<ul class="ds-feed">
 <?php	foreach($insertions as $i){ ?>
 				<li><span class="ds-time"><?php echo dash_h(date("H:i",$i['ts'])); ?></span>
-					<span>Index <?php echo dash_h($i['index_no']); ?> &middot; <?php echo dash_h($i['point']); ?></span></li>
+					<span>Index <?php echo dash_h($i['index_no']); ?> &middot; <?php echo dash_h($i['point']); ?><?php if(dash_h($i['point'])!="North Ave."){ echo "&middot; Skipping"; } ?></span></li>
 <?php	} ?>
 			</ul>
+			</div>
 <?php } ?>
 		</div>
 
@@ -375,58 +375,28 @@ dash_status_band($view_date,false);
 
 		<div class="ds-card">
 			<div class="ds-card-head">
-				<h2><?php echo dash_h($trend['head']); ?></h2>
-				<?php /* @grain -- Bucket-size selector. Anchors rather than a <select>,
-				         so the state lives in the URL: the wall display reloads into the
-				         same view, and the choice can be bookmarked. $view_date rides
-				         along so switching grain never silently jumps to today. */ ?>
-				<span class="ds-seg">
-<?php	foreach(array('year'=>'Yearly','month'=>'Monthly','week'=>'Weekly') as $gk=>$glabel){ ?>
-					<a class="<?php echo $trend_grain===$gk?'on':''; ?>" href="?d=<?php echo dash_h($view_date); ?>&amp;g=<?php echo $gk; ?>"><?php echo $glabel; ?></a>
-<?php	} ?>
-				</span>
+				<h2>Last <?php echo (int)DASH_TREND_MONTHS; ?> months</h2>
+				<a class="ds-more" href="<?php
+					/* Hand the report the same window this chart is showing, so the
+					   drill-down opens on the range the user was just looking at
+					   rather than the report's year-to-date default. */
+					$ym_keys = array_keys($months);
+					echo dash_h(dash_link('stats',$view_date,'',array(
+						'sd'    => (count($ym_keys) ? $ym_keys[0]."-01" : $view_date),
+						'ed'    => $view_date,
+						'range' => 'custom'
+					)));
+				?>">Statistics report &rarr;</a>
 			</div>
 			<div class="ds-months">
-<?php	foreach($trend['keys'] as $k){
-			$n = $trend['counts'][$k];
-			if($n === null){ ?>
-				<i class="is-gap" title="<?php echo dash_h($trend['full'][$k]); ?>: no records"></i>
-<?php		} else { ?>
-				<i style="height:<?php echo dash_pct($n,$max_trend>0?$max_trend:1); ?>%" title="<?php echo dash_h($trend['full'][$k].": ".$n); ?>"></i>
-<?php		}
-		} ?>
-			</div>
-			<div class="ds-months-x">
-<?php	foreach($trend['keys'] as $k){ ?>
-				<span class="<?php echo $trend['counts'][$k]===null?'is-gap':''; ?>"><?php echo dash_h($trend['labels'][$k]); ?></span>
+<?php	foreach($months as $ym=>$n){ ?>
+				<i style="height:<?php echo dash_pct($n,$max_month>0?$max_month:1); ?>%" title="<?php echo dash_h($ym.": ".$n); ?>"></i>
 <?php	} ?>
 			</div>
-			<div class="ds-card-head" style="margin:9px 0 0">
-				<span style="font-size:11px;color:var(--cf-ink-3)"><?php
-					/* @grain -- Absence, counted. A hatched bar is easy to miss in a
-					   glance across the room; a number is not. */
-					$ngap = 0; foreach($trend['counts'] as $v){ if($v===null) $ngap++; }
-					echo $ngap ? dash_h($ngap.' bucket'.($ngap==1?'':'s').' have no records') : '&nbsp;';
-				?></span>
-				<a class="ds-more" href="<?php
-					/* Hand the drill-down the same window this chart is showing, so it
-					   opens on the range the user was just looking at rather than the
-					   report's year-to-date default.
-
-					   @grain -- Yearly goes to year_stats.php instead. A six-year span
-					   pushed into the statistics report as sd/ed would render one
-					   enormous flat table; year_stats is the page built for that
-					   question, and it derives its own range anyway. */
-					if($trend_grain === 'year'){
-						echo dash_h(dash_link('years',$view_date));
-					} else {
-						echo dash_h(dash_link('stats',$view_date,'',array(
-							'sd'    => $trend['sd'],
-							'ed'    => $trend['ed'],
-							'range' => 'custom'
-						)));
-					}
-				?>"><?php echo $trend_grain==='year' ? 'Year comparison &rarr;' : 'Statistics report &rarr;'; ?></a>
+			<div class="ds-months-x">
+<?php	foreach($months as $ym=>$n){ ?>
+				<span><?php echo dash_h(date("M",strtotime($ym."-01"))); ?></span>
+<?php	} ?>
 			</div>
 		</div>
 

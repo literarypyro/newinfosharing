@@ -172,7 +172,7 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 	<!-- ============================ TILES ============================ -->
 	<div class="ds-tiles">
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'service'))); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>Inserted</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span>
 			
@@ -180,7 +180,7 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 			<?php echo dash_sparkline($sp_trains); ?>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'reserve'))); ?>" title="Open train operations for this date"><span class="ds-rail f-warn"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-warn"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-warn"></span>Reserve</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['boundary']; ?></span>
 			</div>
@@ -193,7 +193,7 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 			<div class="ds-meter"><i class="f-warn" style="width:<?php echo dash_pct($fleet['boundary'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'removed'))); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-info"></span>Removed</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span></div>
 			<div class="ds-meter"><i class="f-info" style="width:<?php echo dash_pct($fleet['removed'],$fleet['target']); ?>%"></i></div>
@@ -205,7 +205,7 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 			<?php echo dash_sparkline($sp_inc); ?>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'cancelled'))); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="<?php echo dash_h(dash_link('ops',$view_date)); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span>Cancelled</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span></div>
 			<?php echo dash_sparkline($sp_cancel); ?>

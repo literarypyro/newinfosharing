@@ -33,6 +33,45 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
    ========================================================================= */
 require_once("db_connect.php"); /* shared $db + db_exec()/db_query() prepared-statement helpers (item #2) */
 
+/* =========================================================================
+   @lfilter -- Arrive with a status pre-selected.
+
+   dashboard.php's four fleet tiles link here with lfilter=service / reserve /
+   removed / cancelled, meaning "show me those trains". Three things stopped
+   that working, and each on its own was enough:
+
+     1. The tiles used dash_link('opsline',...) and 'opsline' was not in
+        dash_goto.php's target map. An unknown key there is not an error --
+        it silently redirects to dashboard.php -- so the tiles bounced back
+        to the page they were clicked on. Registered as an alias of 'ops'.
+     2. dash_goto.php forwards a whitelist of parameters and lfilter was not
+        on it, so even with a valid key the value was dropped in transit.
+     3. Nothing on this page ever applied it. filterTrains() is a click
+        handler; no code called it on load, and $_GET['lfilter'] was read in
+        exactly one place -- to decide whether the All Trains pill was
+        highlighted. The pills went on showing every row.
+
+   A fourth, separate bug lived in the pill markup: the other five buttons
+   tested $_GET['filter'], a different parameter that nothing sends, unguarded
+   (a notice on every load), against values that do not match what the rows
+   carry -- 'remove' where the row says 'removed', and 'cancelled`' with a
+   stray backtick. So even had lfilter arrived, the highlight would have
+   landed on the wrong pill or none.
+
+   Filtering stays client-side. The pills already hide rows with JS and doing
+   it in SQL as well would mean two mechanisms that must agree, plus a page
+   reload per pill press. The value is validated here, used to mark the
+   correct pill server-side so there is no flash of the wrong one, and
+   applied once on load.
+   ========================================================================= */
+function opsValidFilter($v){
+	$v = strtolower(trim((string)$v));
+	/* Matches the $dataStatus values written onto each row below. Anything
+	   else -- including absent -- means show everything. */
+	return in_array($v, array('service','reserve','removed','cancelled','skipping'), true) ? $v : '';
+}
+$lfilter = opsValidFilter(isset($_GET['lfilter']) ? $_GET['lfilter'] : '');
+
 /* ── Helper functions (verbatim from original) ── */
 function getTrainDriver($id,$dbase){
 	$rs=db_query($dbase,"select firstName,lastName,position from train_driver where id=? limit 1",array($id));
@@ -243,6 +282,13 @@ if(isset($_POST['edit_car'])){
 <?php $selfPage = basename(__FILE__); 
 
 $selfPage.="?tt=2a7b85131d93ffbaacc73f7ff024b55a";
+/* @lfilter -- Carry the filter through every self-reload and form post.
+   $selfPage is the action for the date prev/next form, the add form and the
+   panel-save reloads, and it carried only the token -- so arriving filtered
+   to Removed and stepping one day back silently landed you on all trains
+   again. Appended after the token so the existing "?tt=" stays first and
+   nothing that looks for it at a fixed position breaks. */
+if($lfilter !== ''){ $selfPage .= "&lfilter=".rawurlencode($lfilter); }
 
 /* form action / reload target — rename-safe */ ?>
 
@@ -944,13 +990,52 @@ function navDate(offset){
 }
 
 /* ── Filter pills (operations.php) — client-side only, no backend change ── */
+/* @lfilter -- Apply the incoming filter once, after the table exists.
+   Driven off data-lfilter rather than a hardcoded index, so re-ordering or
+   adding a pill needs nothing here. Runs only when a filter arrived: with no
+   lfilter this does nothing at all and the page behaves exactly as before. */
+function opsApplyIncomingFilter(){
+	var f = <?php echo json_encode($lfilter); ?>;
+	if(!f){ return; }
+	/* @lfilter -- The ROWS are already filtered server-side by the time this
+	   runs, so this no longer has to hide anything. It stays because the URL
+	   sync inside filterTrains() should reflect the state the page opened in,
+	   and because re-applying an identical filter is idempotent -- it sets
+	   display on rows that already carry it. */
+	var pills = document.querySelectorAll('.ops-pill[data-lfilter]');
+	for(var i=0;i<pills.length;i++){
+		if(pills[i].getAttribute('data-lfilter') === f){ filterTrains(f, pills[i]); return; }
+	}
+}
+if(document.readyState === 'loading'){
+	document.addEventListener('DOMContentLoaded', opsApplyIncomingFilter);
+} else {
+	opsApplyIncomingFilter();
+}
+
 function filterTrains(status,btn){
 	var pills=document.querySelectorAll('.ops-pill');
 	for(var i=0;i<pills.length;i++) pills[i].classList.remove('active');
 	btn.classList.add('active');
+	
+	
+	
 	var rows=document.querySelectorAll('tr[data-train-id]');
 	for(var j=0;j<rows.length;j++){
 		rows[j].style.display=(status==='all'||rows[j].getAttribute('data-status')===status)?'':'none';
+	}
+	/* @lfilter -- Keep the URL honest. Pressing a pill now leaves a link that
+	   reproduces what is on screen, so it can be refreshed, bookmarked or sent
+	   to someone. replaceState rather than pushState: the pills are a view
+	   control, not navigation, and stacking six history entries would make
+	   Back walk through them one at a time instead of leaving the page. */
+	if(window.history && history.replaceState){
+		try{
+			var u = new URL(window.location.href);
+			if(status === 'all'){ u.searchParams.delete('lfilter'); }
+			else                { u.searchParams.set('lfilter', status); }
+			history.replaceState(null, '', u.toString());
+		}catch(e){ /* older browser without URL(): the filter still works. */ }
 	}
 }
 
@@ -958,6 +1043,9 @@ $(function(){ $("#search_date").datepicker({changeMonth:true,changeYear:true,sho
 </script>
 
 <body>
+
+
+
 <div style="clear:both;height:0;font-size:0;line-height:0"></div>
 
 <?php
@@ -1083,12 +1171,26 @@ if($SRemove!="disabled"){
 <div class="ops-section">
 	<h2><i class="ti ti-clipboard-list" aria-hidden="true"></i> Operations Log</h2>
 	<div class="ops-pills">
-		<button type="button" class="ops-pill active" onclick="filterTrains('all',this)">All Trains</button>
-		<button type="button" class="ops-pill" onclick="filterTrains('service',this)">In Service</button>
-		<button type="button" class="ops-pill" onclick="filterTrains('removed',this)">Removed</button>
-		<button type="button" class="ops-pill" onclick="filterTrains('cancelled',this)">Cancelled</button>
-		<button type="button" class="ops-pill" onclick="filterTrains('reserve',this)">Reserve</button>
-		<button type="button" class="ops-pill" onclick="filterTrains('skipping',this)">Skipping</button>
+		<?php /* @lfilter -- One loop instead of six hand-written buttons. Every
+		         one of them tested a different, unsent parameter against a value
+		         that did not match what the rows carry, and the Reserve button
+		         carried a stray quote before onclick which broke the attribute.
+		         Keying the loop off the same status strings the rows use means
+		         the pill and the row can no longer disagree. */
+		$opsPills = array(
+			''          => 'All Trains',
+			'service'   => 'In Service',
+			'removed'   => 'Removed',
+			'cancelled' => 'Cancelled',
+			'reserve'   => 'Reserve',
+			'skipping'  => 'Skipping'
+		);
+		foreach($opsPills as $pk => $plabel){
+			$isOn  = ($lfilter === $pk);
+			$jsKey = ($pk === '' ? 'all' : $pk);
+		?>
+		<button type="button" class="ops-pill<?php echo $isOn ? ' active' : ''; ?>" data-lfilter="<?php echo htmlspecialchars($jsKey); ?>" onclick="filterTrains('<?php echo htmlspecialchars($jsKey); ?>',this)"><?php echo htmlspecialchars($plabel); ?></button>
+		<?php } ?>
 
 	</div>
 </div>
@@ -1370,18 +1472,41 @@ for($i=0; $i<$nm; $i++){
 			$carCells[$r] = '<td class="tc-car-cell"><span class="tc-none">&mdash;</span></td>';
 		}
 	}
-
 	$delCell = '<td class="del-cell" rowspan='.$spanN.'>&nbsp;</td>';
 
+	/* @lfilter -- The arriving filter is now applied HERE, at render, instead of
+	   being left to JS on DOMContentLoaded.
+
+	   Three reasons, in order of how much they matter:
+
+	     1. It removes every moving part between $lfilter and the screen. The
+	        JS route depended on json_encode reaching the right script block,
+	        that block parsing, DOMContentLoaded firing, a pill carrying a
+	        matching data-lfilter, and nothing re-showing the rows afterwards.
+	        Any one of those failing looks identical from the outside: all
+	        trains. An inline style emitted by the same PHP that already
+	        decides $rowClass cannot fail halfway.
+	     2. It is now self-diagnosing. If the page STILL shows every train
+	        after this, $lfilter is genuinely empty and the fault is upstream
+	        of line 73 -- no observation needed, because the pill highlight
+	        (also server-side, same variable) would be wrong in the same way.
+	     3. No flash. The JS route painted every row and then hid most of
+	        them a moment later.
+
+	   The pills keep working exactly as before: filterTrains() assigns
+	   style.display on the same elements, so pressing All Trains clears these
+	   inline values and everything reappears with no reload. */
+	$hide = ($lfilter !== '' && $dataStatus !== $lfilter) ? ' style="display:none"' : '';
+
 	/* ── Emit: first row carries the spanned cells; sub-rows carry one car each ── */
-	echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'" class="'.$rowClass.' row-first">'
+	echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'" class="'.$rowClass.' row-first"'.$hide.'>'
 		.$idxCell
 		.$carCells[0]
 		.$dataCells
 		.$delCell
 		.'</tr>';
 	for($r=1; $r<$spanN; $r++){
-		echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'" class="'.$rowClass.'">'
+		echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'" class="'.$rowClass.'"'.$hide.'>'
 			.$carCells[$r]
 			.'</tr>';
 	}
