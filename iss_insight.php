@@ -25,7 +25,7 @@ if (defined('ISS_INSIGHT_LOADED')) { return; }
 define('ISS_INSIGHT_LOADED', 1);
 
 define('ISS_INSIGHT_SCHEMA',  'iss.report.v1');
-define('ISS_INSIGHT_PROMPT_V', '3');   /* bump to invalidate every cached narrative */
+define('ISS_INSIGHT_PROMPT_V', '4');   /* bump to invalidate every cached narrative */
 
 /* ---------------------------------------------------------------------------
  * 0. CONFIG
@@ -210,6 +210,54 @@ function iss_ins_pct($part, $whole) {
     if (!$whole) { return 0.0; }
     return round(($part / $whole) * 100, 1);
 }
+
+/* ---------------------------------------------------------------------------
+ * RELATIVE SIZE AS A PERCENTAGE, never as a multiplier.
+ *
+ * "2.1x expected" is a statistic; "107% above expected" is a fact, and every
+ * other figure this report puts in front of a reader is already a percentage.
+ * The raw counts always stay in the sentence alongside it, so nothing is lost
+ * -- the percentage replaces the multiplier, not the evidence.
+ *
+ * iss_ins_relpct() returns the signed whole number for `facts` (positive is
+ * above, negative below, null if there is no baseline to compare against);
+ * iss_ins_relword() returns it as words for the sentence. They are separate
+ * so a caller storing the figure never has to parse a sentence to get it.
+ * -------------------------------------------------------------------------*/
+function iss_ins_relpct($ratio) {
+    $r = (float)$ratio;
+    if ($r <= 0) { return null; }
+    return (int)round(($r - 1) * 100);
+}
+function iss_ins_relword($ratio) {
+    $p = iss_ins_relpct($ratio);
+    if ($p === null) { return ''; }
+    if ($p === 0)    { return 'level with expected'; }
+    return abs($p) . '% ' . ($p > 0 ? 'above' : 'below');
+}
+/* A row's total OVER THE COVERED BUCKETS ONLY.
+ *
+ * $r['total'] is whatever the page handed in, and normalize() fixes it BEFORE
+ * it masks the gap months to null. So on any window overlapping a recording
+ * gap -- which, with June 2021 to December 2024 missing, is most of them --
+ * the row totals count months the grand total does not, and a share built
+ * from the two is wrong. It showed up as Doors 96.7% and Air Conditioning
+ * 34.7% of the same grand: 131% between two rows.
+ *
+ * Anything expressing a row as a PERCENTAGE OF THE GRAND uses this. Threshold
+ * tests that only ask "is this row big enough to bother analysing" keep using
+ * $r['total'], where the difference cannot produce a contradiction.
+ */
+function iss_ins_row_total($r) {
+    if (!isset($r['values']) || !is_array($r['values'])) {
+        return isset($r['total']) ? (int)$r['total'] : 0;
+    }
+    $t = 0;
+    foreach ($r['values'] as $v) { if ($v !== null && is_numeric($v)) { $t += $v; } }
+    return $t;
+}
+function iss_ins_relpct_xy($obs, $exp)  { return ($exp > 0) ? iss_ins_relpct($obs / $exp) : null; }
+function iss_ins_relword_xy($obs, $exp) { return ($exp > 0) ? iss_ins_relword($obs / $exp) : ''; }
 function iss_ins_halves($a) {
     $idx = array();
     foreach ($a as $i => $v) { if ($v !== null && is_numeric($v)) { $idx[] = $i; } }
@@ -341,7 +389,11 @@ function iss_insight_findings($c) {
     /* -- F: concentration (60% -- same threshold the tables highlight at) -- */
     $rows = $c['rows'];
     if (count($rows) >= 3 && $grand > 0) {
-        $sorted = $rows;
+        /* Covered-only totals, so the share and the grand are counting the
+           same months -- see iss_ins_row_total. Sorted on the same figure it
+           reports, or the ranking and the numbers could disagree. */
+        $sorted = array();
+        foreach ($rows as $r) { $r['total'] = iss_ins_row_total($r); $sorted[] = $r; }
         usort($sorted, 'iss_ins_cmp_total');
         $cum = 0; $k = 0; $top = array();
         foreach ($sorted as $r) {
@@ -516,6 +568,129 @@ function iss_ins_cmp_chg_desc($a, $b)  { return ($b['change_pct'] == $a['change_
 function iss_ins_cmp_chg_asc($a, $b)   { return ($a['change_pct'] == $b['change_pct']) ? 0 : (($a['change_pct'] < $b['change_pct']) ? -1 : 1); }
 
 /* ---------------------------------------------------------------------------
+ * 3b. SCORE LINE  --  the size of the thing, before the pattern.
+ *
+ * A summary that opens on a pattern before it has said how big the thing is
+ * reads as commentary without a subject. So one line runs ahead of the
+ * findings in the executive block.
+ *
+ * A short paragraph, not a strip of label/value pairs. The pages carrying this
+ * panel already have a KPI tile row above the table, and a second tile row
+ * inside the panel reads as the same furniture twice; prose sentences at
+ * reading size do not compete with it.
+ *
+ * It states the total, the top few rows with their counts AND their shares,
+ * and the heaviest period -- plus the three things no tile carries: the rate,
+ * how many periods actually hold records, and the change against last year.
+ * The shares are the part that earns its place next to the tiles: a tile
+ * naming the highest row never says whether that row is 39% of everything or
+ * 3%, and those mean opposite things.
+ *
+ * Computed straight from the normalised context rather than lifted out of the
+ * findings, which matters twice over. It cannot disagree with the tiles above
+ * it, and it survives a filter narrow enough that no pattern finding fires at
+ * all -- the case that previously left the reader with an empty panel and no
+ * way to tell that from the feature being broken.
+ *
+ * Returns '' when it has nothing the tiles do not already say.
+ * -------------------------------------------------------------------------*/
+function iss_insight_scoreboard($c, $F) {
+    $grand   = (int)$c['totals']['grand'];
+    if ($grand <= 0) { return ''; }
+    $bt      = $c['totals']['by_bucket'];
+    $covered = iss_ins_clean($bt);
+    $ncov    = count($covered);
+    $parts   = array();
+
+    /* -- rate, coverage and the year-on-year change ------------------------
+       The bare total is on a tile already. What is NOT on any tile is the
+       rate, the number of months that actually hold records, and the change
+       against last year -- and the middle one is what stops a recording gap
+       being read as a quiet year. */
+    $rate = ''; $yoy = '';
+    if ($ncov > 1) {
+        $rate = sprintf('%s %s over %d recorded %s, about %s a %s',
+                number_format($grand), iss_ins_unit($c, $grand), $ncov,
+                iss_ins_colword($c, $ncov),
+                round(array_sum($covered) / $ncov, 1), iss_ins_colword($c, 1));
+    }
+    /* Folded in ONLY when the two totals are comparable. When they are not,
+       the vs_prior sentence carries it with its warning attached; a bare
+       "6% up on last year" at the top of a summary is exactly the figure that
+       gets quoted without the fact that one side is short two months. */
+    foreach ($F as $f) {
+        if ($f['kind'] !== 'vs_prior' || empty($f['facts']['totals_comparable'])) { continue; }
+        $d = $f['facts']['change_pct'];
+        $yoy = sprintf('%s%% %s %s', abs($d),
+               ($d > 0 ? 'more than' : ($d < 0 ? 'fewer than' : 'level with')),
+               $f['facts']['previous_label']);
+    }
+    if ($rate !== '' || $yoy !== '') {
+        if ($rate === '') {
+            $rate = number_format($grand) . ' ' . iss_ins_unit($c, $grand);
+        }
+        $parts[] = $rate . ($yoy !== '' ? ' -- ' . $yoy : '') . '.';
+    }
+
+    /* -- the top rows, with counts AND shares -----------------------------
+       Skipped on a single-row page (the row IS the total) and under ten
+       records (nothing to rank). */
+    $rows = is_array($c['rows']) ? $c['rows'] : array();
+    if (count($rows) > 1 && $grand >= 10) {
+        $sorted = array(); $live = 0;
+        foreach ($rows as $r) {
+            $r['total'] = iss_ins_row_total($r);
+            if ($r['total'] > 0) { $live++; }
+            $sorted[] = $r;
+        }
+        usort($sorted, 'iss_ins_cmp_total');
+        if ($live > 1 && $sorted[0]['total'] > 0) {
+            $top = array();
+            foreach (array_slice($sorted, 0, 3) as $r) {
+                if ($r['total'] <= 0) { continue; }
+                /* Count inside the brackets: a label ending in a digit
+                   ("Car 52") ran straight into a count placed outside them. */
+                $top[] = $r['label'] . ' (' . number_format($r['total'])
+                       . ', ' . iss_ins_pct($r['total'], $grand) . '%)';
+            }
+            $lead = iss_ins_pct($sorted[0]['total'], $grand);
+            /* Twice an even split is the right test at seventy rows and an
+               impossible one at two, where an even split is already 50%.
+               Capped: a row holding over 40% of everything stands out
+               whatever it is measured against. A tie for first is flat
+               however high it sits.
+
+               The names are listed either way -- he asked for them -- but the
+               lead-in changes, because on the live by-car report the top three
+               came out tied at 2.9% apiece and printing them under "most of
+               them" invites reading a coin-flip as the worst offender. */
+            $bar  = min(2 * (100 / $live), 40);
+            $tied = (isset($sorted[2]) && $sorted[2]['total'] == $sorted[0]['total']);
+            if (count($top)) {
+                $parts[] = ($lead < $bar || $tied)
+                    ? sprintf('No single %s dominates -- the highest are %s.',
+                      iss_ins_rowword($c, 1), implode(', ', $top))
+                    : sprintf('Most of them: %s.', implode(', ', $top));
+            }
+        }
+    }
+
+    /* -- heaviest period ---------------------------------------------------
+       On the by-car report this is also a tile. On the equipment report it is
+       not -- that slot holds the average per affected type -- so leaving it
+       out cost the summary a figure on one of the two pages. */
+    if ($ncov >= 2) {
+        $max = max($covered); $mi = null;
+        foreach ($bt as $i => $v) { if ($v !== null && $v == $max) { $mi = $i; break; } }
+        if ($mi !== null && $max > 0) {
+            $parts[] = sprintf('Heaviest %s: %s (%d).', iss_ins_colword($c, 1),
+                       (isset($c['buckets'][$mi]) ? $c['buckets'][$mi] : '?'), (int)$max);
+        }
+    }
+    return implode(' ', $parts);
+}
+
+/* ---------------------------------------------------------------------------
  * 4. DETERMINISTIC RENDERER  --  same output shape as the model
  * -------------------------------------------------------------------------*/
 function iss_insight_render_offline($c, $F) {
@@ -576,10 +751,14 @@ function iss_insight_system_prompt() {
 "4. Never assert a cause. You may raise at most one hypothesis, and it must be worded as a question or as 'worth checking whether'.\n" .
 "5. Categories described as machine-suggested are suggestions, not records. Say so if you use them.\n" .
 "6. Do not recommend engineering actions or maintenance interventions. Point to what merits a look; the engineers decide.\n" .
-"7. If the findings are thin, say so plainly and write less. Do not pad.\n\n" .
+"7. If the findings are thin, say so plainly and write less. Do not pad.\n" .
+"8. Express every comparison as a PERCENTAGE, never as a multiplier or a ratio. Write '107% above expected', not '2.1x expected', 'twice as many' or 'a ratio of 2.1'. Keep the raw counts beside it.\n" .
+"9. Statistical notation may appear only in parentheses at the END of a sentence, never as the sentence's claim. Say what it means in ordinary words first: 'clearly beyond normal variation (z=4.6)', not 'z=4.6, which is significant'. The same goes for correlation and confidence figures.\n\n" .
 "Tone: factual, direct, no marketing language, no exclamation marks. Filipino English conventions are fine. This text is printed in an official report.\n\n" .
 "This report is read by two audiences, so write BOTH in a single reply.\n" .
-"  technical  -- for the engineers and controllers who see the table. Keep the statistics.\n" .
+"  technical  -- for the engineers and controllers who see the table. Keep every figure and\n" .
+"                every statistic, but say what each one MEANS before quoting it. Detail is\n" .
+"                wanted here; notation standing in place of a sentence is not.\n" .
 "  executive  -- for readers who will see only your words. No z-scores, no p-values, no\n" .
 "                jargon, no equipment codes. Short sentences. Say what it means and what\n" .
 "                it implies for the fleet.\n\n" .
@@ -589,12 +768,20 @@ function iss_insight_system_prompt() {
 "who cannot see the table. Carry every caveat into the executive text in plain words, and\n" .
 "turn statistical hedges into English ones ('clearly', 'probably', 'possibly') rather than\n" .
 "deleting them. Never state something in the executive text that the technical text hedges.\n\n" .
+"The executive text must OPEN WITH THE SCORE LINE supplied under SCOREBOARD below. It is\n" .
+"already computed -- quote it, do not recompute it, do not expand it. Only after it does the\n" .
+"executive text say what the pattern is. A summary that opens on a pattern before it has\n" .
+"said the size of the thing reads as commentary without a subject.\n\n" .
+"Do NOT restate the plain total, the highest row's raw count, or the heaviest period as\n" .
+"figures of their own. The report page already shows those on tiles above the table and in\n" .
+"the printout's Key Figures block; a third copy is padding. The score line carries the rate,\n" .
+"the coverage and the shares precisely because no tile does.\n\n" .
 "Reply with ONE JSON object and nothing else -- no markdown fence, no preamble:\n" .
 '{"headline":"<=100 chars","summary":"2-4 sentences","findings":[{"title":"short","detail":"1-3 sentences","priority":"high|medium|low","evidence":["F1"]}],"watchlist":[{"subject":"","why":""}],"caveats":["..."],"questions":["..."],"executive":{"bottom_line":"one sentence, the single most consequential thing","summary":"2-3 plain sentences","points":["..."],"caveats":["..."]}}' . "\n\n" .
 "Every findings[] entry must cite at least one real finding id in evidence. Maximum 6 findings, 4 watchlist items, 3 questions, 5 executive points.";
 }
 
-function iss_insight_user_prompt($c, $F) {
+function iss_insight_user_prompt($c, $F, $rev = null) {
     $p  = "REPORT: " . $c['report']['title'] . "\n";
     $p .= "COUNTING UNIT: " . $c['report']['unit'] . "\n";
     $p .= "PERIOD: " . $c['period']['from'] . " to " . $c['period']['to'] . " by " . $c['period']['grain'] . "\n";
@@ -604,6 +791,23 @@ function iss_insight_user_prompt($c, $F) {
         foreach ($c['filters'] as $k => $v) { if ($v !== null && $v !== '' && $v !== 'all') { $fl[] = $k . '=' . $v; } }
         if (count($fl)) { $p .= "ACTIVE FILTERS: " . implode(', ', $fl) . "\n"; }
     }
+    /* Row labels are aliased out of the findings before they leave the network
+       on a sensitive report (td_history, where a row is a named person). The
+       scoreboard is built from $c, which is NOT aliased, so it has to go
+       through the same map or it would hand straight back the names the
+       aliasing just removed. $rev is token => real, so it inverts. */
+    $sb = iss_insight_scoreboard($c, $F);
+    if ($sb !== '') {
+        $map = array();
+        if (is_array($rev)) {
+            foreach ($rev as $tok => $real) { $map[$real] = $tok; }
+            uksort($map, 'iss_ins_cmp_len');
+        }
+        foreach ($map as $real => $tok) { $sb = str_replace($real, $tok, $sb); }
+        $p .= "\nSCOREBOARD -- already computed. The executive text opens with this line:\n"
+            . '  ' . $sb . "\n";
+    }
+
     $p .= "\nFINDINGS:\n";
     foreach ($F as $f) {
         $p .= $f['id'] . ' [' . $f['kind'] . '/' . $f['severity'] . '] ' . $f['text'] . "\n";
@@ -703,10 +907,20 @@ function iss_insight_parse($txt) {
 
 /* Pull every number the findings legitimately contain, so anything the model
    states that is not in this set can be flagged rather than trusted. */
-function iss_insight_allowed_numbers($F) {
+function iss_insight_allowed_numbers($F, $c = null) {
     $set = array();
     $collect = array();
+    /* The scoreboard is handed to the model in the prompt and the executive
+       text is REQUIRED to open with it, so its figures have to be allowed
+       here too. They are computed in PHP exactly like the findings are; they
+       are simply not stored in $F. Without this the audit would flag the very
+       numbers the prompt asked for and every model executive block would fail
+       it silently, falling back to the deterministic one -- which looks, from
+       the page, like the model quietly stopped working. */
     $stack = array($F);
+    if (is_array($c) && function_exists('iss_insight_scoreboard')) {
+        $stack[] = iss_insight_scoreboard($c, $F);
+    }
     while (count($stack)) {
         $cur = array_pop($stack);
         if (is_array($cur)) { foreach ($cur as $v) { $stack[] = $v; } continue; }
@@ -726,10 +940,10 @@ function iss_insight_allowed_numbers($F) {
     return $set;
 }
 
-function iss_insight_audit($out, $F) {
+function iss_insight_audit($out, $F, $c = null) {
     $ids = array();
     foreach ($F as $f) { $ids[$f['id']] = true; }
-    $allowed = iss_insight_allowed_numbers($F);
+    $allowed = iss_insight_allowed_numbers($F, $c);
     $flags = array();
 
     if (isset($out['findings']) && is_array($out['findings'])) {
@@ -864,7 +1078,7 @@ function iss_insight($ctx, $overrides = array()) {
     }
 
     list($txt, $err) = iss_insight_call(iss_insight_system_prompt(),
-                                        iss_insight_user_prompt($c, $Fsend), $cfg);
+                                        iss_insight_user_prompt($c, $Fsend, $rev), $cfg);
     if ($txt === null) {
         iss_insight_log('provider failed: ' . $err, $cfg);
         $offline['source'] = 'deterministic (provider unavailable)';
@@ -876,7 +1090,7 @@ function iss_insight($ctx, $overrides = array()) {
         $offline['source'] = 'deterministic (unparseable model output)';
         return $offline;
     }
-    $out = iss_insight_audit($out, $Fsend);
+    $out = iss_insight_audit($out, $Fsend, $c);
     if ($rev !== null) { $out = iss_insight_unalias($out, $rev); }
     $out['source'] = 'model:' . $cfg['model'];
     $out['generated_at'] = date('c');

@@ -23,7 +23,25 @@ define('ISS_INSIGHT_AUDIENCE', 1);
 /* Bump on every change a PAGE depends on. Stations are updated by hand and
    drift out of step, so the version has to be visible from view-source rather
    than only discoverable by a page dying half-rendered. */
-define('ISS_INSIGHT_AUDIENCE_V', '5');
+define('ISS_INSIGHT_AUDIENCE_V', '6');
+
+/* Guarded on each own name -- a station may receive this file before it
+   receives the new iss_insight.php. See the same block in the analytics. */
+if (!function_exists('iss_ins_relpct')) {
+    function iss_ins_relpct($ratio) {
+        $r = (float)$ratio;
+        if ($r <= 0) { return null; }
+        return (int)round(($r - 1) * 100);
+    }
+}
+if (!function_exists('iss_ins_relword')) {
+    function iss_ins_relword($ratio) {
+        $p = iss_ins_relpct($ratio);
+        if ($p === null) { return ''; }
+        if ($p === 0)    { return 'level with expected'; }
+        return abs($p) . '% ' . ($p > 0 ? 'above' : 'below');
+    }
+}
 
 /* Statistical confidence, said the way a person says it. Deliberately
    conservative: a z of 4 is not "certain", it is "clearly". */
@@ -47,7 +65,11 @@ function iss_aud_list($a, $max) {
  * The translator. One case per finding kind, reading `facts`.
  * Returns '' for findings that should not reach an executive at all.
  * ------------------------------------------------------------------------*/
-function iss_ins_plain($f, $c) {
+/* $opts is unused today. It stays in the signature because the two callers
+   already pass it and the next register-specific tweak will want it; removing
+   and re-adding a parameter across hand-copied stations is the churn worth
+   avoiding. */
+function iss_ins_plain($f, $c, $opts = array()) {
     $F    = isset($f['facts']) && is_array($f['facts']) ? $f['facts'] : array();
     $unit = $c['report']['unit'];
     $col  = iss_ins_colword($c, 1);
@@ -91,21 +113,45 @@ function iss_ins_plain($f, $c) {
                abs($F['change_pct']));
 
     case 'changepoint':
-        return sprintf('This was a step change rather than normal ups and downs. The level moved %s in %s and stayed there -- roughly %s a %s before, %s a %s after. The pattern is %s%% unlikely to be chance.',
+        return sprintf('This was a step change rather than normal ups and downs. The level moved %s in %s and stayed there -- roughly %s a %s before, %s a %s after, a change of %s%%. There is only about a %s%% chance of a shift this clean turning up in data with no real change in it.',
                ($F['change_pct'] > 0 ? 'up' : 'down'), $F['at'],
                iss_aud_n($F['mean_before']), $col, iss_aud_n($F['mean_after']), $col,
-               $F['confidence_pct']);
+               abs($F['change_pct']), max(1, 100 - (int)$F['confidence_pct']));
 
     case 'peak':
+        /* The score line names the heaviest period and its count, so when it
+           is present this keeps only what it ADDS -- whether the peak is
+           unusual, or just what that month always does. That judgement is on
+           no tile and in no other sentence, so it must not be dropped
+           wholesale; only the restatement in front of it goes. */
+        $seasonal = (isset($F['seasonal_index']) && $F['seasonal_index'] >= 1.25);
+        $sp = isset($F['seasonal_pct']) ? $F['seasonal_pct']
+            : (isset($F['seasonal_index']) ? iss_ins_relpct($F['seasonal_index']) : null);
+        if (!empty($opts['have_score'])) {
+            if ($seasonal) {
+                return sprintf('That peak is not unusual though: this %s always runs about %s%% above average.',
+                       $col, $sp);
+            }
+            if (!empty($F['is_outlier'])) {
+                return 'That peak is well above the usual level for this period.';
+            }
+            return '';
+        }
         $s = sprintf('The heaviest %s was %s, with %s.', $col, $F['bucket'], $F['value']);
-        if (isset($F['seasonal_index']) && $F['seasonal_index'] >= 1.25) {
-            $s .= ' That month is always heavy though, so this is the usual seasonal pattern rather than something new.';
+        if ($seasonal) {
+            $s .= sprintf(' That month always runs about %s%% above average though, so this is the usual seasonal pattern rather than something new.', $sp);
         } elseif (!empty($F['is_outlier'])) {
             $s .= ' That is well above the usual level for this period.';
         }
         return $s;
 
     case 'concentration':
+        /* "60% sits with just 27 of the 70 cars" is not concentration -- on a
+           wide report the 60% cut lands most of the way down the list and the
+           sentence says the opposite of what it means. Kept only where the top
+           really is a short list; the same threshold the finding itself uses
+           to decide between watch and info. */
+        if ($F['n_rows_to_60pct'] > max(2, $F['n_rows_total'] * 0.2)) { return ''; }
         return sprintf('The problem is not spread thin: %s%% of everything sits with just %d of the %d %s -- %s.',
                $F['share_pct'], $F['n_rows_to_60pct'], $F['n_rows_total'], $rowp,
                iss_aud_list($F['top'], 3));
@@ -121,7 +167,15 @@ function iss_ins_plain($f, $c) {
         }
         $who = array();
         foreach (array_slice($F['hot'], 0, 3) as $h) {
-            $who[] = $h['row'] . ' (' . $h['ratio'] . ' times its fair share)';
+            /* Its share of this equipment's failures, against the share its
+               own activity predicts. Both are bounded, so neither runs to
+               four digits on a report with seventy rows. The fallback keeps
+               the sentence readable against an older analytics file that
+               emits only the multiplier. */
+            $who[] = isset($h['share_pct'])
+                   ? ($h['row'] . ' (' . $h['share_pct'] . '% of them, against '
+                      . $h['expect_share_pct'] . '% expected)')
+                   : ($h['row'] . ' (' . $h['obs'] . ' against ' . $h['exp'] . ' expected)');
         }
         $nhot = min(3, count($F['hot']));
         return sprintf('%s is not a fleet-wide problem. It is %s concentrated on %s. That points at %s in particular rather than at the equipment itself, so the fix is likely to be on %s.',
@@ -138,7 +192,11 @@ function iss_ins_plain($f, $c) {
                $F['column'], $rows, $rowp);
 
     case 'spike':
-        $s = sprintf('%s jumped to %s in %s, against a usual %s.',
+        /* "against a usual 0" reads as a typo. Say it in words instead. */
+        $s = ((float)$F['baseline'] <= 0)
+           ? sprintf('%s had %s in %s and none in a typical %s.',
+             $F['row'], $F['value'], $F['bucket'], $col)
+           : sprintf('%s jumped to %s in %s, against a usual %s.',
              $F['row'], $F['value'], $F['bucket'], iss_aud_n($F['baseline']));
         if (isset($F['seasonal_index'])) { $s .= ' Some of that is seasonal, but not all of it.'; }
         return $s;
@@ -171,8 +229,9 @@ function iss_ins_plain($f, $c) {
 
     case 'time_of_day':
         $pk = $F['peaks'][0];
-        return sprintf('These cluster at particular times of day rather than spreading across the service day -- heaviest around %02d:00, running about %s times what an even spread would give. Whether that is when the failures happen or when they get written up is worth checking against the shift pattern.',
-               $pk['hour'], $pk['ratio']);
+        $op = isset($pk['over_pct']) ? $pk['over_pct'] : iss_ins_relpct($pk['ratio']);
+        return sprintf('These cluster at particular times of day rather than spreading across the service day -- heaviest around %02d:00, running %s%% above what an even spread would give. Whether that is when the failures happen or when they get written up is worth checking against the shift pattern.',
+               $pk['hour'], $op);
 
     case 'seasonality':
         return sprintf('There is a repeating yearly pattern in this data, visible across %d years. Any single %s should be compared with the same %s in other years, not with the annual average.',
@@ -215,19 +274,85 @@ function iss_ins_plain($f, $c) {
 function iss_aud_rowname($h) { return $h['row']; }
 
 /* --------------------------------------------------------------------------
+ * Three equipment types concentrated on a few cars produced three bullets to
+ * the same template, differing only in the names -- the reader meets the same
+ * sentence three times and stops reading it. One bullet, every name kept, and
+ * the shared conclusion said once at the end where it belongs.
+ * ------------------------------------------------------------------------*/
+function iss_aud_merge_concentrated($items, $c) {
+    /* Strongest first. The analytics emits these in column-total order, which
+       on a wide cross-tab put two marginal ones ahead of the flagrant one --
+       the reader met the weakest evidence first and the sentence read as
+       hedging. `hot` is already sorted by strength within each finding. */
+    usort($items, 'iss_aud_cmp_hotz');
+    $names = array(); $bits = array(); $rowp = iss_ins_rowword($c, 2); $first = true;
+    foreach ($items as $f) {
+        $F = isset($f['facts']) && is_array($f['facts']) ? $f['facts'] : array();
+        if (empty($F['hot']) || empty($F['column'])) { continue; }
+        if (!empty($F['row_label'])) { $rowp = strtolower(iss_ins_plural($F['row_label'], 2)); }
+        $names[] = $F['column'];
+        $who = array();
+        foreach (array_slice($F['hot'], 0, 3) as $h) { $who[] = $h['row']; }
+        $b = $F['column'] . ' on ' . iss_aud_list($who, 3);
+        /* The combined share is carried for the worst one only. Repeating it
+           for each is how three bullets became three paragraphs. */
+        if ($first && isset($F['share_pct'])) {
+            $b .= sprintf(' (together %s%% of them)', $F['share_pct']);
+            $first = false;
+        }
+        $bits[] = $b;
+    }
+    if (count($bits) < 2) { return ''; }
+    return sprintf('%s are each landing on a handful of %s rather than across the fleet: %s. The fix for these is on the %s, not the equipment type.',
+           iss_aud_list($names, 4), $rowp, implode('; ', $bits), $rowp);
+}
+function iss_aud_cmp_hotz($a, $b) {
+    $x = isset($a['facts']['hot'][0]['z']) ? $a['facts']['hot'][0]['z'] : 0;
+    $y = isset($b['facts']['hot'][0]['z']) ? $b['facts']['hot'][0]['z'] : 0;
+    return ($x == $y) ? 0 : (($x < $y) ? 1 : -1);
+}
+
+/* --------------------------------------------------------------------------
  * Executive block: bottom line, then at most five points, then the caveats.
  * ------------------------------------------------------------------------*/
 function iss_insight_executive($c, $F) {
     $rank = array('alert' => 0, 'watch' => 1, 'info' => 2);
     $head = array(); $body = array(); $cav = array();
 
+    /* The score leads. Guarded because a station may hold an older
+       iss_insight.php, in which case the block simply reads as it did before
+       rather than dying. */
+    $score = function_exists('iss_insight_scoreboard')
+             ? iss_insight_scoreboard($c, $F) : '';
+
+    /* Collected first so the loop below knows whether to skip them. */
+    $conc = array();
+    foreach ($F as $f) { if ($f['kind'] === 'concentrated_on_units') { $conc[] = $f; } }
+    $merged = (count($conc) >= 2) ? iss_aud_merge_concentrated($conc, $c) : '';
+
     foreach ($F as $f) {
-        $p = iss_ins_plain($f, $c);
+        if ($merged !== '' && $f['kind'] === 'concentrated_on_units') { continue; }
+        $p = iss_ins_plain($f, $c, array('have_score' => ($score !== '')));
         if ($p === '') { continue; }
         if ($f['severity'] === 'caveat') { $cav[] = $p; continue; }
-        if (in_array($f['kind'], array('volume', 'vs_prior'), true)) { $head[] = $p; continue; }
+        if (in_array($f['kind'], array('volume', 'vs_prior'), true)) {
+            /* The score already states the total, and the change too WHERE
+               THE TWO PERIODS ARE COMPARABLE. Saying it again in prose is
+               padding. The non-comparable vs_prior sentence is never dropped:
+               its entire content is the warning that the totals cannot be set
+               against each other, and the score deliberately leaves that
+               figure out for exactly that reason. */
+            if ($score !== '') {
+                if ($f['kind'] === 'volume') { continue; }
+                if ($f['kind'] === 'vs_prior' && !empty($f['facts']['totals_comparable'])) { continue; }
+            }
+            $head[] = $p; continue;
+        }
         $body[] = array('sev' => isset($rank[$f['severity']]) ? $rank[$f['severity']] : 3,
                         'kind' => $f['kind'], 'text' => $p);
+    }
+    if ($merged !== '') {
+        $body[] = array('sev' => 0, 'kind' => 'concentrated_on_units', 'text' => $merged);
     }
     usort($body, 'iss_aud_cmp');
 
@@ -241,16 +366,49 @@ function iss_insight_executive($c, $F) {
     }
 
     /* Whatever became the bottom line does not also lead the bullet list --
-       a summary that opens by saying the same thing twice reads as padding. */
-    $keep = array();
+       a summary that opens by saying the same thing twice reads as padding.
+       And no more than two of any one kind: on the by-car report five of the
+       five points were single-car spikes to the same template, which is how a
+       summary comes to look padded even though every line in it is true. The
+       full set stays in the technical view; this is the executive read. */
+    $keep = array(); $perKind = array();
     foreach ($body as $b) {
         if ($b['text'] === $bottom) { continue; }
+        $k = $b['kind'];
+        if (!isset($perKind[$k])) { $perKind[$k] = 0; }
+        if ($perKind[$k] >= 2) { continue; }
+        $perKind[$k]++;
         $keep[] = $b['text'];
         if (count($keep) >= 5) { break; }
     }
 
-    return array('bottom' => $bottom, 'context' => $head,
+    return array('score' => $score, 'bottom' => $bottom, 'context' => $head,
                  'points' => $keep, 'caveats' => $cav);
+}
+
+/* The score as markup, above both registers.
+ *
+ * The figures are bolded so the block can be scanned rather than read, which
+ * is what it is for -- at a flat weight and caption size it read as a footnote
+ * to the bottom line instead of the summary of the report.
+ *
+ * Done by splitting the RAW text on number tokens and escaping each fragment
+ * separately. Running the regex over already-escaped text would match the
+ * digits inside entities -- htmlspecialchars with ENT_QUOTES turns an
+ * apostrophe into &#039; -- and bolding "039" would tear the entity in half.
+ */
+function iss_insight_score_html($score) {
+    if (!is_string($score) || $score === '') { return ''; }
+    /* A comma counts as a thousands separator only when three digits follow
+       it, or "(34, 5.6%)" bolds the comma along with the 34. */
+    $parts = preg_split('/(\d+(?:,\d{3})*(?:\.\d+)?%?)/', $score, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if (!is_array($parts)) { return '<p class="ins-score">' . iss_ins_esc($score) . '</p>'; }
+    $h = '';
+    foreach ($parts as $i => $p) {
+        if ($p === '') { continue; }
+        $h .= ($i % 2) ? '<b>' . iss_ins_esc($p) . '</b>' : iss_ins_esc($p);
+    }
+    return '<p class="ins-score">' . $h . '</p>';
 }
 function iss_aud_cmp($a, $b) { return ($a['sev'] == $b['sev']) ? 0 : (($a['sev'] < $b['sev']) ? -1 : 1); }
 
@@ -270,6 +428,10 @@ function iss_insight_html_dual($c, $F, $tech, $showAudit = false) {
         $m = $tech['executive'];
         $mine = $exe['caveats'];
         $exe = array(
+            /* The score is computed, never model-written, so it survives the
+               override untouched -- there is nothing here for a model to get
+               wrong and nothing for the audit to catch. */
+            'score'   => $exe['score'],
             'bottom'  => isset($m['bottom_line']) ? $m['bottom_line'] : $exe['bottom'],
             'context' => isset($m['summary']) ? array($m['summary']) : $exe['context'],
             'points'  => (!empty($m['points']) && is_array($m['points']))
@@ -287,8 +449,11 @@ function iss_insight_html_dual($c, $F, $tech, $showAudit = false) {
     $h .= '<button type="button" class="ins-tab is-on" data-v="tech" aria-pressed="true">Technical detail</button>';
     $h .= '</span></div>';
 
+    $score = iss_insight_score_html($exe['score']);
+
     /* ---- executive ---- */
     $h .= '<div class="ins-view ins-exec">';
+    $h .= $score;
     if ($exe['bottom'] !== '') {
         $h .= '<p class="ins-head">' . $e($exe['bottom']) . '</p>';
     }
@@ -303,8 +468,12 @@ function iss_insight_html_dual($c, $F, $tech, $showAudit = false) {
     foreach ($exe['caveats'] as $cv) { $h .= '<p class="ins-caveat">' . $e($cv) . '</p>'; }
     $h .= '</div>';
 
-    /* ---- technical: the existing block, unchanged ---- */
+    /* ---- technical: the existing block, with the same score above it ----
+       An engineer wants the totals as much as an executive does, and putting
+       it in both registers means the printout carries it whichever way the
+       toggle was left. */
     $h .= '<div class="ins-view ins-tech">';
+    $h .= $score;
     $inner = iss_insight_html($tech, $showAudit);
     /* strip the outer section and its heading; this wrapper supplies both */
     $inner = preg_replace('#^<section class="ins-block">#', '', $inner);
@@ -391,8 +560,14 @@ function iss_insight_summary_band($c, $F, $anchor) {
        why there is no pattern read, rather than disappearing. */
     $thin = false;
     if ($exe['bottom'] === '' && !count($exe['points'])) {
-        if (!count($exe['context'])) { return ''; }   /* genuinely no data */
-        $line = implode(' ', $exe['context']);
+        /* The volume sentence no longer lands in `context` once the score is
+           carrying the total, so a thin window would otherwise fall straight
+           through to the empty return -- the exact disappearing-band failure
+           this branch was written to stop. Fall back to the score's own total
+           line, which is present whenever there is any data at all. */
+        if (count($exe['context'])) { $line = implode(' ', $exe['context']); }
+        elseif ($exe['score'] !== '') { $line = $exe['score']; }
+        else { return ''; }                           /* genuinely no data */
         $thin = true;
     } else {
         $line = ($exe['bottom'] !== '') ? $exe['bottom'] : $exe['points'][0];
@@ -420,6 +595,12 @@ function iss_insight_summary_band($c, $F, $anchor) {
 
     $h  = '<div class="ins-band">';
     $h .= '<div class="ins-band-key">Bottom line</div>';
+    /* The score is NOT repeated here. This band exists to hoist the bottom
+       line above the fold and nothing else; the panel a few hundred pixels
+       below already carries the score, and on the live page the two together
+       read as the same three lines printed twice. The thin-filter branch
+       above is the one exception, and there the panel has nothing else in it
+       to duplicate. */
     $h .= '<div class="ins-band-body"><p class="ins-band-line">' . $e($line) . '</p>';
     if (count($bits)) {
         $safe = array();
@@ -466,6 +647,17 @@ function iss_insight_audience_css() {
 .ins-block[data-view="exec"] .ins-exec{display:block;}
 .ins-block[data-view="tech"] .ins-tech{display:block;}
 .ins-exec .ins-head{font-size:15.5px;}
+/* The score block. A tinted panel at reading size, not an indented caption:
+   at 13.5px with a bare rule beside it, the summary of the whole report was
+   set smaller and lighter than the bullets underneath it. Palette matches the
+   summary band so the two read as the same kind of object.
+   No label column, so nothing here can collide the way the old fixed-width
+   one did. */
+.ins-score{margin:0 0 13px;padding:10px 14px;
+  background:#FBFAF6;border:1px solid #E5DECC;
+  border-left:4px solid var(--cf-gold,#c8a028);border-radius:4px;
+  font-size:14.5px;line-height:1.65;color:#1c2431;}
+.ins-score b{font-weight:600;color:var(--cf-blue,#1f4e79);}
 .ins-exec .ins-findings li{margin-bottom:7px;}
 /* Print what is on screen, and drop the control itself. */
 @media print{

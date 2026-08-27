@@ -68,6 +68,16 @@ function iss_insight_print_css(){
 
 	. '.rpt-insight .ins-head{ font-size:10.5px; font-weight:600; color:#1a1a1a;'
 	. ' margin:0 0 5px; line-height:1.4; }'
+
+	/* The score block, above whichever register printed. Prose on a tinted
+	   panel rather than a tile row -- the printout already carries a Key
+	   Figures block, and two rows of boxes on one sheet compete. Bolded
+	   figures give it the same scannability without the second grid. */
+	. '.rpt-insight .ins-score{ margin:0 0 6px; padding:5px 7px;'
+	. ' background:#FBFAF6; border:1px solid #E5DECC;'
+	. ' border-left:3px solid #BA7517; font-size:9px; line-height:1.5;'
+	. ' color:#1a1a1a; page-break-inside:avoid; break-inside:avoid; }'
+	. '.rpt-insight .ins-score b{ font-weight:700; color:#1f4e79; }'
 	. '.rpt-insight .ins-summary{ font-size:9px; color:#374151; margin:0 0 5px; }'
 	. '.rpt-insight p{ margin:0 0 5px; font-size:9px; line-height:1.45; }'
 	. '.rpt-insight ul, .rpt-insight ol{ margin:0 0 5px; padding-left:13px; }'
@@ -145,6 +155,12 @@ function iss_insight_print_js(){
 			for(var j = 0; j < ids.length; j++){ ids[j].removeAttribute('id'); }
 		}
 
+		/* The masthead carries the bottom line and nothing else. Leading it
+		   with the score line was tried and dropped: the printout already
+		   opens with a Key Figures block, so the masthead would have restated
+		   figures the reader meets twice more on the same sheet. The score
+		   line still prints, inside the panel, where it reads as a note on
+		   those figures rather than a competing headline. */
 		var lead = '';
 		if(c.querySelector){
 			var h = c.querySelector('.ins-exec .ins-head') || c.querySelector('.ins-head');

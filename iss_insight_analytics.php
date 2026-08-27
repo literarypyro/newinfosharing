@@ -27,6 +27,57 @@
 if (defined('ISS_INSIGHT_ANALYTICS')) { return; }
 define('ISS_INSIGHT_ANALYTICS', 1);
 
+/* ---- percentage helpers ---------------------------------------------------
+ * These live in iss_insight.php. They are re-declared here, each guarded on
+ * its OWN name, because stations are updated by hand: a station that receives
+ * this file before it receives the new iss_insight.php would otherwise fatal
+ * on the first percentage rather than degrade. Same rule as every other
+ * helper in this suite.
+ * -------------------------------------------------------------------------*/
+if (!function_exists('iss_ins_relpct')) {
+    function iss_ins_relpct($ratio) {
+        $r = (float)$ratio;
+        if ($r <= 0) { return null; }
+        return (int)round(($r - 1) * 100);
+    }
+}
+if (!function_exists('iss_ins_relword')) {
+    function iss_ins_relword($ratio) {
+        $p = iss_ins_relpct($ratio);
+        if ($p === null) { return ''; }
+        if ($p === 0)    { return 'level with expected'; }
+        return abs($p) . '% ' . ($p > 0 ? 'above' : 'below');
+    }
+}
+if (!function_exists('iss_ins_relpct_xy')) {
+    function iss_ins_relpct_xy($obs, $exp) { return ($exp > 0) ? iss_ins_relpct($obs / $exp) : null; }
+}
+if (!function_exists('iss_ins_relword_xy')) {
+    function iss_ins_relword_xy($obs, $exp) { return ($exp > 0) ? iss_ins_relword($obs / $exp) : ''; }
+}
+
+/* ---- saying what a statistic MEANS, before quoting it ---------------------
+ * The technical register is for engineers and controllers, and they want the
+ * figures kept. What they do not want -- and what made this panel read as a
+ * stats dump to everyone else who opened it -- is notation standing in the
+ * place where a sentence should be. So every statistic now arrives as a plain
+ * claim with the number parked behind it in brackets, where an engineer can
+ * still find it and nobody else has to decode it to read the finding.
+ * -------------------------------------------------------------------------*/
+function iss_ana_strength($z) {
+    $a = abs((float)$z);
+    if ($a >= 4.0) { $w = 'far beyond'; }
+    elseif ($a >= 3.0) { $w = 'well beyond'; }
+    elseif ($a >= 2.0) { $w = 'beyond'; }
+    else { $w = 'within'; }
+    return $w . ' normal variation (z=' . $z . '; 2 is notable, 3 strong, 4 decisive)';
+}
+function iss_ana_rword($r) {
+    $a = abs((float)$r);
+    $w = ($a >= 0.85) ? 'very closely' : (($a >= 0.7) ? 'closely' : 'loosely');
+    return $w . ' (correlation ' . $r . ', where 1.00 is lockstep)';
+}
+
 /* ---- normal CDF (Abramowitz & Stegun 7.1.26) for residual significance --- */
 function iss_ana_erf($x) {
     $s = ($x < 0) ? -1 : 1; $x = abs($x);
@@ -89,9 +140,28 @@ function iss_ana_crosstab($ct, $unit) {
             $z = ((int)$M[$i][$j] - $exp) / $den;
             if ($z > $maxz) { $maxz = $z; }
             if ($z >= 2.0 && (int)$M[$i][$j] >= 3) {
+                /* `ratio` is kept alongside `over_pct` on purpose: a station
+                   running an older iss_insight_audience.php still reads it,
+                   and dropping it would blank that sentence rather than just
+                   phrase it the old way. over_pct is computed from the
+                   unrounded expectation, so it does not inherit the rounding
+                   in `exp`. */
+                /* share_pct and expect_share_pct are the pair that gets
+                   REPORTED. "% above expected" is unbounded -- it is a ratio
+                   with a percent sign on it -- and expected falls as the row
+                   count rises, so the same real pattern reads as 106% on the
+                   7-row equipment report and 5744% on the 70-car one. Two
+                   shares of the same column cannot leave 0-100 and mean the
+                   same thing at either size. exp/colTotal reduces to this
+                   row's share of all activity, which is exactly the "fair
+                   share" the old phrasing was reaching for.
+                   over_pct and ratio stay in facts for older callers. */
                 $hot[] = array('row' => isset($rl[$i]) ? $rl[$i] : ('#' . $i),
                                'obs' => (int)$M[$i][$j], 'exp' => round($exp, 1),
-                               'z' => round($z, 1), 'ratio' => round($M[$i][$j] / $exp, 1));
+                               'z' => round($z, 1), 'ratio' => round($M[$i][$j] / $exp, 1),
+                               'over_pct' => iss_ins_relpct_xy($M[$i][$j], $exp),
+                               'share_pct' => iss_ins_pct($M[$i][$j], $ctot[$j]),
+                               'expect_share_pct' => iss_ins_pct($rt[$i], $N));
             }
         }
         usort($hot, 'iss_ana_cmp_z');
@@ -110,18 +180,19 @@ function iss_ana_crosstab($ct, $unit) {
     foreach (array_slice($conc, 0, 3) as $c) {
         $who = array();
         foreach (array_slice($c['hot'], 0, 3) as $h) {
-            $who[] = $h['row'] . ' (' . $h['obs'] . ' vs ' . $h['exp'] . ' expected, ' . $h['ratio'] . 'x)';
+            $who[] = $h['row'] . ' (' . $h['obs'] . ', ' . $h['share_pct']
+                   . '% against ' . $h['expect_share_pct'] . '% expected)';
         }
         $out[] = array(
             'kind' => 'concentrated_on_units', 'severity' => 'alert',
             /* Phrasing is driven by the actual column label. This runs over
                Car x Equipment on the report page and Car x Severity on the
                drill-down, and "fleet-wide" is only meaningful for the first. */
-            'text' => sprintf('%s concentrates on particular %s rather than spreading across them: %s%% of its %d %s sit on %d of %d -- %s. Well outside chance (z=%s).',
+            'text' => sprintf('%s concentrates on particular %s rather than spreading across them: %s%% of its %d %s sit on %d of %d -- %s. That is %s, so it is not chance clustering.',
                       $c['col'], strtolower(iss_ins_plural($ct['row_label'], 2)),
                       $c['share_in_hot'], $c['total'], $unit,
                       count($c['hot']), $nr,
-                      implode(', ', $who), $c['hot'][0]['z']),
+                      implode(', ', $who), iss_ana_strength($c['hot'][0]['z'])),
             'facts' => array('column' => $c['col'], 'total' => $c['total'],
                              'hot' => array_slice($c['hot'], 0, 3),
                              'share_pct' => $c['share_in_hot'], 'n_rows' => $nr,
@@ -131,9 +202,10 @@ function iss_ana_crosstab($ct, $unit) {
     foreach (array_slice($spread, 0, 1) as $c) {
         $out[] = array(
             'kind' => 'fleet_wide', 'severity' => 'watch',
-            'text' => sprintf('%s is spread evenly across %s: %d %s with no %s above what its share of activity predicts (highest z=%s). Points at the %s as a whole rather than at particular %s.',
+            'text' => sprintf('%s is spread evenly across %s: %d %s with no %s above what its share of activity predicts -- the furthest any one of them strays is %s. Points at the %s as a whole rather than at particular %s.',
                       $c['col'], strtolower(iss_ins_plural($ct['row_label'], 2)),
-                      $c['total'], $unit, strtolower($ct['row_label']), $c['maxz'],
+                      $c['total'], $unit, strtolower($ct['row_label']),
+                      iss_ana_strength($c['maxz']),
                       strtolower($ct['col_label']),
                       strtolower(iss_ins_plural($ct['row_label'], 2))),
             'facts' => array('column' => $c['col'], 'total' => $c['total'], 'max_z' => $c['maxz'],
@@ -184,10 +256,10 @@ function iss_ana_changepoint($series, $buckets, $colword) {
 
     return array(array(
         'kind' => 'changepoint', 'severity' => ($chg > 0 ? 'alert' : 'info'),
-        'text' => sprintf('The level shifted rather than just fluctuating: a step %s at %s that did not revert -- averaging %s per %s across the %d %ss before, %s across the %d after (%s%%, confidence %s%%).',
+        'text' => sprintf('The level shifted rather than just fluctuating: a step %s at %s that did not revert -- averaging %s per %s across the %d %ss before, %s across the %d after, a change of %s%%. Repeating the test on reshuffled data puts the odds of seeing a step this clean by chance at under %s in 100.',
                   ($chg > 0 ? 'up' : 'down'), $b[$k + 1], round($mb, 1), $colword,
                   count($before), $colword, round($ma, 1), count($after),
-                  ($chg >= 0 ? '+' : '') . $chg, round($conf * 100)),
+                  ($chg >= 0 ? '+' : '') . $chg, max(1, 100 - round($conf * 100))),
         'facts' => array('at' => $b[$k + 1], 'mean_before' => round($mb, 1),
                          'mean_after' => round($ma, 1), 'change_pct' => $chg,
                          'confidence_pct' => round($conf * 100)),
@@ -233,13 +305,13 @@ function iss_ana_seasonality($hist, $peakBucket, &$F, $colword) {
     $high = array(); $low = array();
     foreach ($idx as $mth => $r) {
         $nm = date('F', mktime(0, 0, 0, $mth, 1, 2000));
-        if ($r >= 1.25) { $high[] = $nm . ' ' . round($r, 2) . 'x'; }
-        if ($r <= 0.75) { $low[]  = $nm . ' ' . round($r, 2) . 'x'; }
+        if ($r >= 1.25) { $high[] = $nm . ' (' . iss_ins_relword($r) . ')'; }
+        if ($r <= 0.75) { $low[]  = $nm . ' (' . iss_ins_relword($r) . ')'; }
     }
     if (count($high) || count($low)) {
         $out[] = array(
             'kind' => 'seasonality', 'severity' => 'info',
-            'text' => sprintf('There is a repeating annual shape across %d years of history: %s%s. Judge any single %s against its own month, not against the annual average.',
+            'text' => sprintf('There is a repeating annual shape across %d years of history, measured against the all-year average: %s%s. Judge any single %s against its own month, not against the annual average.',
                       (int)round(count($all) / 12),
                       (count($high) ? 'consistently heavy in ' . implode(', ', $high) : ''),
                       (count($low) ? (count($high) ? '; light in ' : 'consistently light in ') . implode(', ', $low) : ''),
@@ -258,22 +330,25 @@ function iss_ana_seasonality($hist, $peakBucket, &$F, $colword) {
                 if ($r >= 1.25) {
                     $F[$k]['severity'] = 'info';
                     $F[$k]['text'] = rtrim($F[$k]['text'], '.') .
-                        sprintf(' -- but %s historically runs at %sx the annual average, so this peak is consistent with the seasonal pattern rather than an anomaly.',
-                                date('F', mktime(0, 0, 0, $pmi, 1, 2000)), $r);
+                        sprintf(' -- but %s historically runs %s the annual average, so this peak is consistent with the seasonal pattern rather than an anomaly.',
+                                date('F', mktime(0, 0, 0, $pmi, 1, 2000)), iss_ins_relword($r));
                     $F[$k]['facts']['seasonal_index'] = $r;
+                    $F[$k]['facts']['seasonal_pct'] = iss_ins_relpct($r);
                     $F[$k]['facts']['is_outlier'] = false;
                     foreach ($F as $k2 => $f2) {
                         if ($f2['kind'] !== 'spike') { continue; }
                         if (empty($f2['facts']['bucket']) || $f2['facts']['bucket'] !== $peakBucket) { continue; }
                         $F[$k2]['severity'] = 'watch';
                         $F[$k2]['text'] = rtrim($F[$k2]['text'], '.') .
-                            sprintf(', in a month that historically carries %sx the annual load -- so part of this is seasonal, though the size of the jump is not.', $r);
+                            sprintf(', in a month that historically runs %s the annual load -- so part of this is seasonal, though the size of the jump is not.', iss_ins_relword($r));
                         $F[$k2]['facts']['seasonal_index'] = $r;
+                        $F[$k2]['facts']['seasonal_pct'] = iss_ins_relpct($r);
                     }
                 } elseif ($r <= 0.9 && !empty($f['facts']['is_outlier'])) {
+                    $F[$k]['facts']['seasonal_pct'] = iss_ins_relpct($r);
                     $F[$k]['text'] = rtrim($F[$k]['text'], '.') .
-                        sprintf(' -- and %s is normally a QUIET month (%sx the annual average), so the peak lands where it is least expected.',
-                                date('F', mktime(0, 0, 0, $pmi, 1, 2000)), $r);
+                        sprintf(' -- and %s is normally a QUIET month (%s the annual average), so the peak lands where it is least expected.',
+                                date('F', mktime(0, 0, 0, $pmi, 1, 2000)), iss_ins_relword($r));
                     $F[$k]['facts']['seasonal_index'] = $r;
                 }
             }
@@ -308,8 +383,8 @@ function iss_ana_comovement($rows, $rowword) {
     $p = $pairs[0];
     $out[] = array(
         'kind' => 'co_movement', 'severity' => 'watch',
-        'text' => sprintf('%s and %s move together month to month (r=%s). Worth checking whether they share a subsystem, a maintenance window, or simply a reporting habit -- correlation over this few points is a lead, not a finding.',
-                  $p['a'], $p['b'], $p['r']),
+        'text' => sprintf('%s and %s rise and fall together month to month, and they track each other %s. Worth checking whether they share a subsystem, a maintenance window, or simply a reporting habit -- a pattern this shape over this few points is a lead, not a finding.',
+                  $p['a'], $p['b'], iss_ana_rword($p['r'])),
         'facts' => array('pairs' => array_slice($pairs, 0, 3)),
     );
     return $out;
@@ -420,7 +495,8 @@ function iss_ana_recurrence($events, $windowDays, $unit) {
             if ($z >= 2.0) {
                 $hot[] = array('pair' => $list[0]['unit'] . ' / ' . $list[0]['fault'],
                                'repeats' => $o, 'expected' => round($e, 1), 'n' => $n,
-                               'z' => round($z, 1), 'median_gap_days' => iss_ins_median($gaps));
+                               'z' => round($z, 1), 'median_gap_days' => iss_ins_median($gaps),
+                               'over_pct' => iss_ins_relpct_xy($o, $e));
             }
         }
     }
@@ -462,8 +538,9 @@ function iss_ana_recurrence($events, $windowDays, $unit) {
         if ($already) { continue; }
         $hot[] = array('pair' => $list[0]['unit'] . ' / ' . $list[0]['fault'],
                        'repeats' => $tight, 'expected' => round($eT, 1),
-                       'n' => $n2, 'z' => round($zT, 1), 'bursty' => true,
-                       'window' => round($w), 'median_gap_days' => iss_ins_median($gaps));
+                       'n' => $n2, 'intervals' => $ng, 'z' => round($zT, 1), 'bursty' => true,
+                       'window' => round($w), 'median_gap_days' => iss_ins_median($gaps),
+                       'over_pct' => iss_ins_relpct_xy($tight, $eT));
     }
 
     if ($total < 20 || (($obs < 3 || $exp <= 0) && !count($hot))) { return array(); }
@@ -475,30 +552,36 @@ function iss_ana_recurrence($events, $windowDays, $unit) {
         if ($ratio < 1.25) { return array(); }   /* nothing worth saying */
         return array(array(
             'kind' => 'recurrence', 'severity' => 'watch',
-            'text' => sprintf('Repeat failures run %sx above the Poisson baseline overall (%d observed against %s expected at the same per-unit rates), but no single unit-and-fault pair accounts for it -- the clustering is broad rather than a few bad repairs.',
-                      $ratio, $obs, round($exp, 1)),
+            'text' => sprintf('Repeat failures run %s%% above what these units\' own failure rates would produce: %d came back inside %d days against %s expected. No single unit-and-fault pair accounts for it, so the clustering is broad rather than a few bad repairs.',
+                      iss_ins_relpct($ratio), $obs, $windowDays, round($exp, 1)),
             'facts' => array('observed' => $obs, 'expected' => round($exp, 1), 'ratio' => $ratio,
+                             'over_pct' => iss_ins_relpct($ratio),
                              'window_days' => $windowDays),
         ));
     }
     $lst = array();
     foreach (array_slice($hot, 0, 3) as $w) {
         if (!empty($w['bursty'])) {
-            $lst[] = sprintf('%s (%d of its %d intervals fall within %s days of the previous failure against %s expected at its own rate -- it arrives in bursts rather than spread out)',
-                     $w['pair'], $w['repeats'], $w['n'], $w['window'], $w['expected']);
+            $lst[] = sprintf('%s (%d of the %d gaps between its failures are under %s days, against %s expected at its own rate -- it arrives in bursts rather than spread out)',
+                     $w['pair'], $w['repeats'],
+                     (isset($w['intervals']) ? $w['intervals'] : max(1, $w['n'] - 1)),
+                     $w['window'], $w['expected']);
         } else {
-            $lst[] = sprintf('%s (%d repeats against %s expected, typically %s days apart)',
-                     $w['pair'], $w['repeats'], $w['expected'], $w['median_gap_days']);
+            $lst[] = sprintf('%s (%d repeats against %s expected -- %s%% above -- typically %s days apart)',
+                     $w['pair'], $w['repeats'], $w['expected'],
+                     (isset($w['over_pct']) ? $w['over_pct'] : iss_ins_relpct_xy($w['repeats'], $w['expected'])),
+                     $w['median_gap_days']);
         }
     }
     return array(array(
         'kind' => 'recurrence', 'severity' => 'alert',
-        'text' => sprintf('%d %s came back on the same unit with the same fault inside %d days. Across the board that is %sx the Poisson baseline, which at this volume is unremarkable -- but %s show%s a pattern %s own failure rate does not account for, which is the signature of a repair that did not hold: %s.',
-                  $obs, $unit, $windowDays, $ratio,
+        'text' => sprintf('%d %s came back on the same unit with the same fault inside %d days. Across the board that is %s what these units\' own failure rates would produce, which at this volume is unremarkable -- but %s show%s a pattern %s own failure rate does not account for, which is the signature of a repair that did not hold: %s.',
+                  $obs, $unit, $windowDays, iss_ins_relword($ratio),
                   (count($hot) === 1 ? 'one pair' : count($hot) . ' pairs'),
                   (count($hot) === 1 ? 's' : ''),
                   (count($hot) === 1 ? 'its' : 'their'), implode('; ', $lst)),
         'facts' => array('observed' => $obs, 'expected' => round($exp, 1), 'ratio' => $ratio,
+                         'over_pct' => iss_ins_relpct($ratio),
                          'window_days' => $windowDays, 'flagged' => array_slice($hot, 0, 3)),
     ));
 }
@@ -537,7 +620,8 @@ function iss_ana_timing($hours, $unit) {
         $z = ($v - $exp) / sqrt($exp);          /* Poisson: variance = mean */
         if ($z >= 2.5) {
             $hot[] = array('hour' => $h, 'count' => $v, 'expected' => round($exp, 1),
-                           'z' => round($z, 1), 'ratio' => round($v / $exp, 1));
+                           'z' => round($z, 1), 'ratio' => round($v / $exp, 1),
+                           'over_pct' => iss_ins_relpct_xy($v, $exp));
         }
     }
     if (!count($hot)) { return array(); }
@@ -545,8 +629,8 @@ function iss_ana_timing($hours, $unit) {
 
     $lbl = array();
     foreach (array_slice($hot, 0, 3) as $x) {
-        $lbl[] = sprintf('%02d:00-%02d:59 (%d against %s expected, %sx)',
-                 $x['hour'], $x['hour'], $x['count'], $x['expected'], $x['ratio']);
+        $lbl[] = sprintf('%02d:00-%02d:59 (%d against %s expected -- %s%% above)',
+                 $x['hour'], $x['hour'], $x['count'], $x['expected'], $x['over_pct']);
     }
     return array(array(
         'kind' => 'time_of_day', 'severity' => 'watch',
