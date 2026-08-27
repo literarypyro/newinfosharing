@@ -1130,6 +1130,11 @@ for($i=0; $i<$nm; $i++){
 
 	/* ── Row status class + filter status (branches verbatim) ── */
 	$removed = ($row2['remove_time']!="" && $row2['remove_time']!="0000-00-00 00:00:00");
+
+	$inserted = ($row2['insert_time']!="" && $row2['insert_time']!="0000-00-00 00:00:00");
+	$boundary = ($row2['boundary_time']!="" && $row2['boundary_time']!="0000-00-00 00:00:00");
+
+
 	if($row['status']=="cancelled"){
 		$rowClass = "row--cancelled";   $dataStatus = "cancelled";
 	} elseif(!$removed && $inserted && $row['status']=="active"){

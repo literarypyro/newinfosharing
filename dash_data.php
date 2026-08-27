@@ -37,6 +37,11 @@ if(!defined('DASH_LEVEL_LOOKUP'))  define('DASH_LEVEL_LOOKUP',  '');   /* '' = l
 if(!defined('DASH_FLEET_TARGET'))  define('DASH_FLEET_TARGET',  0);    /* 0 = derive from the day's records */
 if(!defined('DASH_SPARK_DAYS'))    define('DASH_SPARK_DAYS',    14);
 if(!defined('DASH_TREND_MONTHS'))  define('DASH_TREND_MONTHS',  12);
+/* @grain -- bucket counts for the other two grains. Years is deliberately
+   short: six rows is enough to see a direction, and reaching further back
+   crosses the missing stretch where every bar would need a caveat. */
+if(!defined('DASH_TREND_YEARS'))   define('DASH_TREND_YEARS',    6);
+if(!defined('DASH_TREND_WEEKS'))   define('DASH_TREND_WEEKS',   12);
 
 /* --- handoff to the other console pages ---------------------------
    The train/incident pages scope themselves to one operating date held
@@ -554,6 +559,152 @@ function dash_delta($series,$date){
 	return $now-$series[$prev];
 }
 
+/* @grain -- Which bucket size the trend card is showing. Anything else falls
+   back to months, so a stale or hand-edited ?g= renders the familiar card
+   rather than an empty one. */
+function dash_trend_grain($g){
+	$g = strtolower(trim((string)$g));
+	return in_array($g, array('year','month','week'), true) ? $g : 'month';
+}
+
+/* @grain -- Coverage, loaded once and cached.
+
+   dash_month_series below carries a warning that reaching past 2021-06..2024-12
+   needs data_coverage.php wired in first. The yearly grain reaches straight
+   into that stretch on its first render, so this is that wiring.
+
+   It matters more than it looks. A year with no records draws a bar of almost
+   nothing, and a near-empty bar on a trend chart reads as a GOOD year -- the
+   single most dangerous thing this card could show a manager. Those buckets
+   are returned as null, not zero, and the dashboard hatches them. */
+function dash_trend_coverage(){
+	static $cov = null, $tried = false;
+	if($tried){ return $cov; }
+	$tried = true;
+	if(!function_exists('ccsLoadCoverage') && file_exists(dirname(__FILE__)."/data_coverage.php")){
+		@require_once(dirname(__FILE__)."/data_coverage.php");
+	}
+	if(function_exists('ccsLoadCoverage') && function_exists('ccsMonthStatus') && dash_ready()){
+		$cov = ccsLoadCoverage(dash_db());
+	}
+	return $cov;
+}
+
+/* True when a given YYYY-MM is known to hold no records. Unknown coverage
+   answers false: guessing a month is missing would hatch bars that are simply
+   quiet, and overstating absence is its own kind of wrong. */
+function dash_month_missing($ym){
+	$cov = dash_trend_coverage();
+	if($cov === null || !function_exists('ccsMonthStatus')){ return false; }
+	return ccsMonthStatus($cov, $ym) === 'missing';
+}
+
+
+/* =====================================================================
+   @grain -- One series builder for all three bucket sizes.
+
+   Returns everything the card needs to draw itself and to hand its own
+   window to a drill-down, so the view and the link can never disagree
+   about what is on screen:
+
+     keys    ordered bucket keys
+     counts  key => int, or NULL where there are no records
+     labels  key => short axis label
+     full    key => label for the hover title
+     sd/ed   the window, for the report handoff
+     head    the card heading
+
+   dash_month_series() is left exactly as it was. It is called elsewhere
+   and there was no reason to make every caller pay for this.
+   ===================================================================== */
+function dash_trend_series($date, $grain){
+	$grain = dash_trend_grain($grain);
+	$date  = dash_date($date);
+	$out   = array('keys'=>array(),'counts'=>array(),'labels'=>array(),'full'=>array(),
+	               'sd'=>$date,'ed'=>$date,'head'=>'','grain'=>$grain);
+
+	if($grain === 'year'){
+		$y0 = (int)date("Y", strtotime($date)) - (DASH_TREND_YEARS - 1);
+		for($y = $y0; $y <= (int)date("Y", strtotime($date)); $y++){
+			$k = (string)$y;
+			$out['keys'][] = $k; $out['counts'][$k] = 0;
+			$out['labels'][$k] = $k; $out['full'][$k] = $k;
+		}
+		$out['sd'] = $y0."-01-01";
+		$out['ed'] = $date;
+		$out['head'] = 'Last '.DASH_TREND_YEARS.' years';
+		$expr = "date_format(incident_date,'%Y')";
+	}
+	else if($grain === 'week'){
+		/* Monday-start weeks, keyed by the Monday itself rather than by a
+		   week NUMBER -- ISO week numbering rolls over at new year and would
+		   put week 52 next to week 1 with no way to tell the years apart. */
+		$mon = strtotime("monday this week", strtotime($date));
+		for($i = DASH_TREND_WEEKS - 1; $i >= 0; $i--){
+			$t = strtotime("-".$i." week", $mon);
+			$k = date("Y-m-d", $t);
+			$out['keys'][] = $k; $out['counts'][$k] = 0;
+			$out['labels'][$k] = date("j M", $t);
+			$out['full'][$k]   = 'week of '.date("j M Y", $t);
+		}
+		$out['sd'] = $out['keys'][0];
+		$out['ed'] = $date;
+		$out['head'] = 'Last '.DASH_TREND_WEEKS.' weeks';
+		$expr = "date_format(date_sub(incident_date, interval weekday(incident_date) day),'%Y-%m-%d')";
+	}
+	else {
+		$cur = strtotime(date("Y-m-01", strtotime($date)));
+		for($i = DASH_TREND_MONTHS - 1; $i >= 0; $i--){
+			$t = strtotime("-".$i." month", $cur);
+			$k = date("Y-m", $t);
+			$out['keys'][] = $k; $out['counts'][$k] = 0;
+			$out['labels'][$k] = date("M", $t);
+			$out['full'][$k]   = date("F Y", $t);
+		}
+		$out['sd'] = $out['keys'][0]."-01";
+		$out['ed'] = $date;
+		$out['head'] = 'Last '.DASH_TREND_MONTHS.' months';
+		$expr = "date_format(incident_date,'%Y-%m')";
+	}
+
+	if(dash_ready() && dash_table_exists('incident_report')){
+		$db  = dash_db();
+		$to  = date("Y-m-d", strtotime("+1 day", strtotime($date)));
+		$sql = "select ".$expr." k, count(*) c from incident_report "
+		     . "where incident_date>='".dash_esc($out['sd'])." 00:00:00' "
+		     . "and incident_date<'".dash_esc($to)." 00:00:00' group by k";
+		$rs = @$db->query($sql);
+		if($rs){ while($r=$rs->fetch_assoc()){
+			if(array_key_exists($r['k'], $out['counts'])){ $out['counts'][$r['k']] = (int)$r['c']; }
+		} }
+	}
+
+	/* Null out buckets with no coverage. A year counts as missing only when
+	   EVERY month in it is -- a partly recovered year keeps its bar, because
+	   the count in it is real even though it is incomplete. */
+	foreach($out['keys'] as $k){
+		if($grain === 'month'){
+			if(dash_month_missing($k)) $out['counts'][$k] = null;
+		}
+		else if($grain === 'year'){
+			$all = true;
+			for($m = 1; $m <= 12; $m++){
+				$ym = sprintf("%04d-%02d", (int)$k, $m);
+				if($ym > date("Y-m", strtotime($date))) break;
+				if(!dash_month_missing($ym)){ $all = false; break; }
+			}
+			if($all) $out['counts'][$k] = null;
+		}
+		else {
+			/* A week can straddle two months; missing if both are. */
+			$a = date("Y-m", strtotime($k));
+			$b = date("Y-m", strtotime("+6 day", strtotime($k)));
+			if(dash_month_missing($a) && dash_month_missing($b)) $out['counts'][$k] = null;
+		}
+	}
+	return $out;
+}
+
 /* Last N months of incident counts.  All months since 2025-01 are
    covered, so no null-vs-zero handling is needed at this window --
    widen DASH_TREND_MONTHS past the 2021-06..2024-12 gap and wire
@@ -879,6 +1030,20 @@ function dash_styles($mode='console'){
 /* --- monthly trend ------------------------------------------------ */
 .ds-months{display:flex;align-items:flex-end;gap:6px;height:84px}
 .ds-months i{flex:1;background:var(--cf-blue);border-radius:3px 3px 0 0;min-height:2px;display:block}
+/* @grain -- No records. Full height so the bucket cannot be mistaken for a
+   quiet one, hatched and pale so it cannot be mistaken for a busy one, and
+   carrying no number at all. */
+.ds-months i.is-gap{height:100% !important;background:repeating-linear-gradient(45deg,
+	var(--cf-line),var(--cf-line) 3px,transparent 3px,transparent 6px);border-radius:3px}
+.ds-months-x span.is-gap{color:var(--cf-ink-3);font-style:italic}
+/* @grain -- Bucket-size selector. Plain links, so the choice lives in the URL
+   and survives a refresh, a bookmark and a wall-display reload with no JS. */
+.ds-seg{display:inline-flex;border:1px solid var(--cf-line);border-radius:7px;overflow:hidden}
+.ds-seg a{padding:3px 9px;font-size:11px;line-height:1.6;color:var(--cf-ink-2);
+	text-decoration:none;background:var(--cf-surface)}
+.ds-seg a+a{border-left:1px solid var(--cf-line)}
+.ds-seg a.on{background:var(--cf-blue);color:#fff;font-weight:600}
+.ds-seg a:hover:not(.on){background:var(--cf-mute-bg)}
 .ds-months-x{display:flex;gap:6px;margin-top:6px;font-size:11px;color:var(--cf-ink-3)}
 .ds-months-x span{flex:1;text-align:center}
 

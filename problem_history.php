@@ -453,7 +453,7 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
   
 </div><div class="ccs-panel-body">
 <?php
-/* @insight -- Buffered so the bottom line can print above the table. */
+/* @insight -- Buffered so the ANALYSIS can print above the table. */
 ob_start();
 ?>
 <table class="table table-striped table-bordered bootstrap-datatable datatable2" width="100%" id='add_form' name='add_form' >

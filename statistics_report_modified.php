@@ -1300,7 +1300,7 @@ $tableHtml = ob_get_clean();
    conclusion has to clear the fold, and the band below needs the
    findings, which are only available once the aggregation above has
    run. So the block runs here into a buffer and prints unchanged in its
-   old position, with just the bottom line hoisted into the tile strip.
+   old position, with just the ANALYSIS hoisted into the tile strip.
    Buffering it verbatim rather than refactoring it keeps its raw HTML,
    its <script> and its echoes exactly as they were. */
 $issPanelHtml = ''; $issBandHtml = '';

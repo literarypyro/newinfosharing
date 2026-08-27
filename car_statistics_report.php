@@ -855,10 +855,17 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $grandTotal; ?></div>
 		<div style="font-size:11px;color:#5A6275;">from <?php echo $distinctIncidents; ?> incident<?php echo $distinctIncidents==1?'':'s'; ?></div>
 	</div>
+	<?php
+	
+	$car_tot=$CAR_MAX;
+	$car_tot=72;
+	?>
+	
+	
 	<div style="flex:1;min-width:140px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;">
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Cars affected</div>
 		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $carsWithFailures; ?></div>
-		<div style="font-size:11px;color:#5A6275;">of <?php echo $CAR_MAX; ?> in the fleet</div>
+		<div style="font-size:11px;color:#5A6275;">of <?php echo $car_tot; ?> in the fleet</div>
 	</div>
 <?php
 	// @slidepanel -- whole tile is the click target now, not just the digit.
@@ -898,7 +905,7 @@ if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
    conclusion has to clear the fold, and the band below needs the
    findings, which are only available once the aggregation above has
    run. So the block runs here into a buffer and prints unchanged in its
-   old position, with just the bottom line hoisted into the tile strip.
+   old position, with just the ANALYSIS hoisted into the tile strip.
    Buffering it verbatim rather than refactoring it keeps its raw HTML,
    its <script> and its echoes exactly as they were. */
 $issPanelHtml = ''; $issBandHtml = '';

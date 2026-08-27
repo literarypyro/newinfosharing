@@ -192,7 +192,7 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 </div>
 <div class="ccs-panel-body">
 <?php
-/* @insight -- Buffered to here so the bottom line can print above the table.
+/* @insight -- Buffered to here so the ANALYSIS can print above the table.
    The aggregates the analysis needs are only complete after the rows have
    been walked, so the middle is captured and re-emitted unchanged below. */
 ob_start();

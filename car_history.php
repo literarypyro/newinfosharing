@@ -290,7 +290,7 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
 /* @insight -- Everything from here to the analysis block is buffered.
    On these drill-down pages the aggregates the analysis needs ($monthlyCounts,
    $sevGrid, $repeatDates on the car page; the per-car queries on the equipment
-   page) are only complete AFTER the table has been walked, so the bottom line
+   page) are only complete AFTER the table has been walked, so the ANALYSIS
    cannot be printed at the top without capturing the middle first. The table,
    its closing markup and the panel itself all come back out below, unchanged
    and in their original order -- only the one-sentence band is added ahead of

@@ -90,6 +90,11 @@ $targets = array(
 	'hourly'    => array('page'=>'train_hourly.php',                'scope'=>'day'),
 	'clearance' => array('page'=>'clearance_form.php',              'scope'=>'day'),
 	'stats'     => array('page'=>'statistics_report_modified.php',  'scope'=>'none'),
+	/* @grain -- year_stats.php derives its own year range from the records
+	   present and covers everything by design, so it keeps no period in the
+	   session: 'none', like the other reports. Writing search_date on the way
+	   there would leave a stale operating date behind for the next daily page. */
+	'years'     => array('page'=>'year_stats.php',                  'scope'=>'none'),
 	'carstats'  => array('page'=>'car_statistics_report.php',       'scope'=>'none')
 );
 
@@ -142,9 +147,7 @@ foreach(array('d','sd','ed','range') as $k){
 	}
 }
 $query = count($fwd) ? (strpos($page,'?')===false ? '?' : '&').implode('&',$fwd) : '';
-
 $query.="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
-
 /* Filenames with spaces ("incident summary.php") are not valid in a
    Location header or an href as-is. */
 $page = str_replace(' ','%20',$page);
