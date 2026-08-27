@@ -216,7 +216,8 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 			         markup that displayed it had been dropped. A bare count with
 			         nothing to compare it against is the one thing a dashboard
 			         tile should never show. */ ?>
-			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span><?php echo dash_delta_chip($d_trains); ?></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span>
+			</div>
 			<?php echo dash_sparkline($sp_trains); ?>
 		</div></a>
 
@@ -235,19 +236,26 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'removed'))); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-info"></span>Removed</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span>
+			
+			
+			</div>
 			<div class="ds-meter"><i class="f-info" style="width:<?php echo dash_pct($fleet['removed'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>" title="Open the incident summary for this date"><span class="ds-rail <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span>Incidents</div>
-			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span><span class="ds-den"><?php echo (int)$inc['failures']; ?> L2+</span><?php echo dash_delta_chip($d_inc); ?></div>
+			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span>
+			
+			</div>
 			<?php echo dash_sparkline($sp_inc); ?>
 		</div></a>
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'cancelled'))); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span>Cancelled</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span><span class="ds-den">trainsets</span><?php echo dash_delta_chip($d_cancel); ?></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span>
+			
+			</div>
 			<?php echo dash_sparkline($sp_cancel); ?>
 		</div></a>
 
