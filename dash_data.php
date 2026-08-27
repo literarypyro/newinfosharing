@@ -255,7 +255,12 @@ function dash_fleet_counts($date){
 	return $c;
 }
 
-/* Last N insertions of the day, newest first -- "most recent train on loop". */
+/* Insertions of the day, newest first -- "most recent train on loop".
+   @insertions -- $limit of 0 (or less) returns the whole day. The dashboard
+   card scrolls now rather than truncating, and a card that scrolls should be
+   showing everything: a scrollbar that stops at five is worse than a list of
+   five, because it looks complete. The default stays 5 so every other caller
+   behaves exactly as before. */
 function dash_recent_insertions($date,$limit=5){
 	$rows=dash_trains($date);
 	$ins=array();
@@ -271,7 +276,8 @@ function dash_recent_insertions($date,$limit=5){
 		}
 	}
 	usort($ins,'dash_cmp_ts_desc');
-	return array_slice($ins,0,$limit);
+	if((int)$limit <= 0){ return $ins; }
+	return array_slice($ins,0,(int)$limit);
 }
 
 function dash_cmp_ts_desc($a,$b){
@@ -1014,6 +1020,37 @@ function dash_styles($mode='console'){
 .ds-key{width:10px;height:10px;border-radius:2px}
 
 /* --- feeds -------------------------------------------------------- */
+/* @insertions -- Scroller for feeds that show everything rather than a top-N.
+   The height is capped in rows, not pixels, so it holds the same number of
+   entries whether the wall stylesheet is in force or the desk one.
+
+   overscroll-behavior stops a flick past the end of the list from scrolling
+   the page underneath it -- on the OCC wall that would drag the whole
+   dashboard out of position with no obvious way back.
+
+   The fade is a background-attachment trick rather than an overlay, so it
+   only shows while there is more list below and disappears at the end: a
+   permanent gradient reads as a design flourish, and the point is to signal
+   that content continues. */
+.ds-scroll{
+	max-height:<?php echo $wall?'19em':'16em'; ?>;
+	overflow-y:auto; overscroll-behavior:contain;
+	scrollbar-width:thin; scrollbar-color:var(--cf-line) transparent;
+	background:
+		linear-gradient(var(--cf-surface) 30%, transparent) top / 100% 22px no-repeat,
+		linear-gradient(transparent, var(--cf-surface) 70%) bottom / 100% 22px no-repeat,
+		radial-gradient(farthest-side at 50% 0, rgba(0,40,90,.12), transparent) top / 100% 7px no-repeat,
+		radial-gradient(farthest-side at 50% 100%, rgba(0,40,90,.12), transparent) bottom / 100% 7px no-repeat;
+	background-attachment:local, local, scroll, scroll;
+}
+.ds-scroll::-webkit-scrollbar{width:7px}
+.ds-scroll::-webkit-scrollbar-thumb{background:var(--cf-line);border-radius:4px}
+.ds-scroll::-webkit-scrollbar-track{background:transparent}
+/* A scrolled list hides its own length, so the heading carries the count. */
+.ds-count{font-size:11px;font-weight:600;color:var(--cf-ink-3);
+	background:var(--cf-canvas);border-radius:9px;padding:1px 7px;margin-left:5px;
+	vertical-align:middle}
+@media print{ .ds-scroll{max-height:none;overflow:visible;background:none} }
 .ds-feed{margin:0;padding:0;list-style:none}
 .ds-feed li{display:flex;gap:12px;align-items:baseline;padding:<?php echo $wall?'9px 0':'6px 0'; ?>;
 	border-bottom:1px solid var(--cf-line);font-size:<?php echo $wall?'15px':'13px'; ?>}

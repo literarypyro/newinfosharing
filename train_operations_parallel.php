@@ -1086,6 +1086,8 @@ if($SRemove!="disabled"){
 		<button type="button" class="ops-pill" onclick="filterTrains('removed',this)">Removed</button>
 		<button type="button" class="ops-pill" onclick="filterTrains('cancelled',this)">Cancelled</button>
 		<button type="button" class="ops-pill" onclick="filterTrains('reserve',this)">Reserve</button>
+				<button type="button" class="ops-pill" onclick="filterTrains('skipping',this)">Skipping</button>
+
 	</div>
 </div>
 
@@ -1132,6 +1134,12 @@ for($i=0; $i<$nm; $i++){
 	$boundary=$row2['boundary_time']!="";
 
 	$removed = ($row2['remove_time']!="" && $row2['remove_time']!="0000-00-00 00:00:00");
+	if($row2['skipping']=="true"){
+		$skipping=true;
+		
+	}
+
+
 	if($row['status']=="cancelled"){
 		$rowClass = "row--cancelled";   $dataStatus = "cancelled";
 	} elseif(!$removed && $inserted && $row['status']=="active"){
@@ -1139,7 +1147,13 @@ for($i=0; $i<$nm; $i++){
 		$dataStatus = "service";
 	} elseif(!$removed && !$inserted && $boundary && $row['status']=="active"){
 		$rowClass = "row--reserve";     $dataStatus = "reserve";
-	} else {
+	} elseif($skipping){
+		$rowClass = "row--skipping";     $dataStatus = "skipping";
+		
+		
+	}
+	
+	else {
 		$rowClass = "row--removed";     $dataStatus = "removed";
 	}
 
@@ -1152,6 +1166,9 @@ for($i=0; $i<$nm; $i++){
 		$pill = '<span class="status-pill pill--service"><span class="led"></span>In service</span>';
 	} elseif($boundary){
 		$pill = '<span class="status-pill pill--reserve"><span class="led"></span>Reserve</span>';
+	
+	} elseif($skipping){
+		$pill = '<span class="status-pill pill--skipping"><span class="led"></span>Skipping</span>';
 	}
 
 	/* ── Switch trail: chips in the Index cell replace the 7 Switch columns.
