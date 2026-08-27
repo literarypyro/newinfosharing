@@ -83,43 +83,6 @@ $d_cancel    = dash_delta($sp_cancel,$view_date);
 
 $max_month   = 0;
 foreach($months as $v){ if($v>$max_month){ $max_month=$v; } }
-
-/* @grain -- Bucket size for the trend card, from ?g=.
-
-   GUARDED on dash_trend_series() rather than assumed. Those helpers live in
-   dash_data.php, and this console has already been bitten once by a page
-   being newer than the include it depends on -- the lfilter hunt was exactly
-   that. If dash_data.php is the older copy, $trend stays null and the card
-   below falls back to the twelve-month version it has always drawn. No
-   fatal, no blank card, no selector until the include catches up. */
-$trend_grain = function_exists('dash_trend_grain')
-	? dash_trend_grain(isset($_GET['g']) ? $_GET['g'] : 'month') : 'month';
-$trend       = function_exists('dash_trend_series')
-	? dash_trend_series($view_date,$trend_grain) : null;
-
-/* Scaled over real counts only. A null bucket -- a period with no records at
-   all -- has no height to contribute and must not drag the top of the scale
-   down with it. */
-$max_trend   = 0;
-if($trend){ foreach($trend['counts'] as $v){ if($v!==null && $v>$max_trend){ $max_trend=$v; } } }
-
-/* @tt -- The auth token, for URLs that do NOT pass through dash_goto.php.
-
-   dash_goto.php appends tt to everything it redirects to, which is why the
-   tiles and the fleet chips work. The slide panel is different: its iframe src
-   is used verbatim, so nothing was adding the token and Tmenu.php's guard on
-   train_detail.php bounced it to login. (edit_ccdr.php escapes this because
-   its Tmenu require is commented out -- it is not that panels are exempt.)
-
-   Taken from THIS request first. The dashboard is itself behind the guard, so
-   whatever token got us here is by definition a working one, and a session
-   that rotates its token keeps working with no edit. The literal is only a
-   fallback for entry points that carry none -- it is the same value
-   dash_goto.php already hardcodes, and the two should collapse into one
-   constant when there is a natural home for it. */
-$dsTT = (isset($_GET['tt']) && $_GET['tt'] !== '')
-	? (string)$_GET['tt']
-	: '2a7b85131d93ffbaacc73f7ff024b55a';
 $max_type    = 0;
 foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 ?><!DOCTYPE html>
@@ -191,7 +154,7 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 		      with isset() so the same markup is correct before and after the trend
 		      selector is merged: without it the form submits d alone, $_GET['g'] is
 		      dropped and the card snaps back to Monthly on every date change. */
-		   $dsGrain = ($trend && isset($trend_grain)) ? $trend_grain : ''; ?>
+		   $dsGrain = isset($trend_grain) ? $trend_grain : ''; ?>
 		<form method="get" action="<?php echo dash_h($dsSelf); ?>">
 		<input class="ds-date" type="date" name="d" value="<?php echo dash_h($view_date); ?>">
 			<?php if($dsGrain!==''){ ?><input type="hidden" name="g" value="<?php echo dash_h($dsGrain); ?>"><?php } ?>
@@ -211,12 +174,9 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'service'))); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>Inserted</div>
-			<?php /* @merge -- denominator and day-on-day chip, restored from the
-			         pre-integration build. $d_trains is still computed above; the
-			         markup that displayed it had been dropped. A bare count with
-			         nothing to compare it against is the one thing a dashboard
-			         tile should never show. */ ?>
-			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span><?php echo dash_delta_chip($d_trains); ?></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['online']; ?></span>
+			
+			</div>
 			<?php echo dash_sparkline($sp_trains); ?>
 		</div></a>
 
@@ -235,19 +195,19 @@ if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FIL
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'removed'))); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-info"></span>Removed</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span><span class="ds-den">/ <?php echo (int)$fleet['target']; ?></span></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span></div>
 			<div class="ds-meter"><i class="f-info" style="width:<?php echo dash_pct($fleet['removed'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>" title="Open the incident summary for this date"><span class="ds-rail <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span>Incidents</div>
-			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span><span class="ds-den"><?php echo (int)$inc['failures']; ?> L2+</span><?php echo dash_delta_chip($d_inc); ?></div>
+			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span></div>
 			<?php echo dash_sparkline($sp_inc); ?>
 		</div></a>
 
 		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'cancelled'))); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span>Cancelled</div>
-			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span><span class="ds-den">trainsets</span><?php echo dash_delta_chip($d_cancel); ?></div>
+			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span></div>
 			<?php echo dash_sparkline($sp_cancel); ?>
 		</div></a>
 
@@ -279,9 +239,7 @@ dash_status_band($view_date,false);
 <?php if(!count($trains)){ ?>
 		<div class="ds-empty">No train availability recorded for this date.</div>
 <?php } else { ?>
-		<?php /* @traindetail -- id on the container so the click handler below can
-		         delegate to it, the same way the incident feed does. */ ?>
-		<div class="ds-fleet" id="ds-fleet">
+		<div class="ds-fleet">
 <?php	foreach($trains as $t){
 			$meta = dash_state_meta($t['state']);
 			$tone = $t['revenue'] ? $meta[1] : 'mute';
@@ -290,45 +248,10 @@ dash_status_band($view_date,false);
 			if(dash_hm($t['remove_time'])!=""){ $tip.=" &middot; out ".dash_hm($t['remove_time']); }
 			if(!$t['revenue']){ $tip.=" &middot; ".$t['type']; }
 ?>
-			<?php /* @traindetail -- href unchanged: it still points at the real
-			         operations page, so middle-click, Ctrl-click, "open in new tab"
-			         and a browser with JS off all behave exactly as before. The
-			         panel is an ENHANCEMENT layered on top via data-panel, which is
-			         the same contract the incident feed already uses -- if the
-			         opener function is not present the click just follows the link. */ ?>
 			<a class="ds-chip t-<?php echo $tone; ?>" title="<?php echo dash_h(strip_tags(str_replace('&middot;','-',$tip))); ?>"
-			   href="<?php echo dash_h(dash_link('ops',$view_date,'tr-'.$t['id'])); ?>"
-			   data-panel="train_detail.php?ta=<?php echo (int)$t['id']; ?>&amp;embed=1&amp;tt=<?php echo dash_h($dsTT); ?>"
-			   data-panel-title="Index <?php echo dash_h($t['index_no']); ?> &mdash; <?php echo dash_h($meta[0]); ?>"><?php echo dash_h($t['index_no']); ?></a>
+			   href="<?php echo dash_h(dash_link('ops',$view_date,'tr-'.$t['id'])); ?>"><?php echo dash_h($t['index_no']); ?></a>
 <?php	} ?>
 		</div>
-		<script>
-		/* @traindetail -- Delegated to the container, not bound per chip, so it
-		   survives the fleet strip being re-rendered and costs one listener
-		   instead of forty. Lifted from the incident feed handler below, including
-		   how it resolves the opener name: DASH_PANEL_FN when the console defines
-		   one, openSlidePanel otherwise.
-
-		   Every early return falls through to the href rather than swallowing the
-		   click. A chip that does nothing is worse than a chip that navigates. */
-		(function(){
-			var strip=document.getElementById('ds-fleet');
-			if(!strip||!strip.addEventListener) return;
-			var fn=<?php echo json_encode(defined('DASH_PANEL_FN') ? DASH_PANEL_FN : 'openSlidePanel'); ?>;
-			strip.addEventListener('click',function(e){
-				/* Let the browser handle the ways a user asks for a new tab. */
-				if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||(e.button&&e.button!==0)) return true;
-				var a=e.target||e.srcElement;
-				while(a && a!==strip && !(a.getAttribute && a.getAttribute('data-panel'))) a=a.parentNode;
-				if(!a || a===strip) return true;
-				var open=window[fn];
-				if(typeof open!=='function') return true;   /* no panel -> follow the href */
-				if(e.preventDefault) e.preventDefault(); else e.returnValue=false;
-				open(a.getAttribute('data-panel'), a.getAttribute('data-panel-title')||'');
-				return false;
-			},false);
-		})();
-		</script>
 		<div class="ds-legend">
 			<span><i class="ds-key f-ok"></i>Inserted <?php echo (int)$fleet['online']; ?></span>
 			<span><i class="ds-key f-warn"></i>Reserve <?php echo (int)$fleet['boundary']; ?></span>
@@ -358,37 +281,11 @@ dash_status_band($view_date,false);
 			         than a truncated list. The count sits in the heading because a
 			         scrolled list hides its own length: without it there is no way
 			         to tell eleven insertions from forty without dragging. */ ?>
-			<?php /* @skiptag -- "Skipping" was a third &middot;-separated fragment
-			         with the same weight as the station, tacked onto a line whose
-			         length already varied by index and station name -- so it landed
-			         in a different place on every row and read as part of the
-			         station rather than as a property of the insertion. It was also
-			         missing the space before its separator, so it ran straight into
-			         "Ave.".
-
-			         It is a flag, not a continuation of the sentence, so it is now a
-			         badge pushed to the right edge. Right-aligned it forms a clean
-			         column down the card: which insertions skipped is answerable by
-			         scanning one edge instead of reading every line to its end.
-
-			         Reuses .ds-badge, so it inherits the size, weight and radius of
-			         the level badges in the incident feed rather than inventing a
-			         second badge style. margin-right is cleared because that class
-			         is built to sit BEFORE text; this one sits after everything. */ ?>
-			<style>
-.ds-feed .ds-skip{margin-right:0;flex:none;
-	text-transform:uppercase;letter-spacing:.05em;font-size:10px}
-			</style>
 			<div class="ds-scroll">
 			<ul class="ds-feed">
 <?php	foreach($insertions as $i){ ?>
-				<?php /* @skiptag -- compare the raw value, not the escaped one. The
-				         old test ran dash_h() over a string that cannot contain
-				         anything needing escaping, which worked but read as though
-				         the escaping mattered to the comparison. */ ?>
 				<li><span class="ds-time"><?php echo dash_h(date("H:i",$i['ts'])); ?></span>
-					<span>Index <?php echo dash_h($i['index_no']); ?> &middot; <?php echo dash_h($i['point']); ?></span><?php
-					if($i['point'] !== "North Ave."){ ?><span class="ds-badge t-warn ds-skip" title="Inserted at Quezon Ave. &mdash; skips the North Ave. segment">Skipping</span><?php } ?></li>
+					<span>Index <?php echo dash_h($i['index_no']); ?> &middot; <?php echo dash_h($i['point']); ?><?php if(dash_h($i['point'])!="North Ave."){ echo "&middot; Skipping"; } ?></span></li>
 <?php	} ?>
 			</ul>
 			</div>
@@ -478,21 +375,11 @@ dash_status_band($view_date,false);
 
 		<div class="ds-card">
 			<div class="ds-card-head">
-				<h2><?php echo $trend ? dash_h($trend['head']) : 'Last '.(int)DASH_TREND_MONTHS.' months'; ?></h2>
-<?php	if($trend){ ?>
-				<?php /* @grain -- Bucket-size selector. Anchors rather than a <select>,
-				         so the state lives in the URL: the wall display reloads into the
-				         same view, and the choice can be bookmarked. $view_date rides
-				         along so switching grain never silently jumps to today. */ ?>
-				<span class="ds-seg">
-<?php		foreach(array('year'=>'Yearly','month'=>'Monthly','week'=>'Weekly') as $gk=>$glabel){ ?>
-					<a class="<?php echo $trend_grain===$gk?'on':''; ?>" href="?d=<?php echo dash_h($view_date); ?>&amp;g=<?php echo $gk; ?>"><?php echo $glabel; ?></a>
-<?php		} ?>
-				</span>
-<?php	} else { ?>
-				<?php /* @grain -- dash_data.php predates dash_trend_series(): no selector,
-				         and the card draws the twelve-month series it always did. */ ?>
+				<h2>Last <?php echo (int)DASH_TREND_MONTHS; ?> months</h2>
 				<a class="ds-more" href="<?php
+					/* Hand the report the same window this chart is showing, so the
+					   drill-down opens on the range the user was just looking at
+					   rather than the report's year-to-date default. */
 					$ym_keys = array_keys($months);
 					echo dash_h(dash_link('stats',$view_date,'',array(
 						'sd'    => (count($ym_keys) ? $ym_keys[0]."-01" : $view_date),
@@ -500,63 +387,17 @@ dash_status_band($view_date,false);
 						'range' => 'custom'
 					)));
 				?>">Statistics report &rarr;</a>
-<?php	} ?>
 			</div>
 			<div class="ds-months">
-<?php	if($trend){
-			foreach($trend['keys'] as $k){
-				$n = $trend['counts'][$k];
-				if($n === null){ ?>
-				<?php /* No records at all. Full height and hatched, because a
-				         near-empty bar on a trend chart reads as a GOOD period --
-				         the most dangerous thing this card could show. */ ?>
-				<i class="is-gap" title="<?php echo dash_h($trend['full'][$k]); ?>: no records"></i>
-<?php			} else { ?>
-				<i style="height:<?php echo dash_pct($n,$max_trend>0?$max_trend:1); ?>%" title="<?php echo dash_h($trend['full'][$k].": ".$n); ?>"></i>
-<?php			}
-			}
-		} else {
-			foreach($months as $ym=>$n){ ?>
+<?php	foreach($months as $ym=>$n){ ?>
 				<i style="height:<?php echo dash_pct($n,$max_month>0?$max_month:1); ?>%" title="<?php echo dash_h($ym.": ".$n); ?>"></i>
-<?php		}
-		} ?>
+<?php	} ?>
 			</div>
 			<div class="ds-months-x">
-<?php	if($trend){
-			foreach($trend['keys'] as $k){ ?>
-				<span class="<?php echo $trend['counts'][$k]===null?'is-gap':''; ?>"><?php echo dash_h($trend['labels'][$k]); ?></span>
-<?php		}
-		} else {
-			foreach($months as $ym=>$n){ ?>
+<?php	foreach($months as $ym=>$n){ ?>
 				<span><?php echo dash_h(date("M",strtotime($ym."-01"))); ?></span>
-<?php		}
-		} ?>
-			</div>
-<?php	if($trend){ ?>
-			<div class="ds-card-head" style="margin:9px 0 0">
-				<span style="font-size:11px;color:var(--cf-ink-3)"><?php
-					/* @grain -- Absence, counted. A hatched bar is easy to miss in a
-					   glance across a room; a number is not. */
-					$ngap = 0; foreach($trend['counts'] as $v){ if($v===null) $ngap++; }
-					echo $ngap ? dash_h($ngap.' bucket'.($ngap==1?'':'s').' have no records') : '&nbsp;';
-				?></span>
-				<a class="ds-more" href="<?php
-					/* @grain -- Yearly goes to year_stats.php instead. A six-year span
-					   pushed into the statistics report as sd/ed would render one
-					   enormous flat table; year_stats is the page built for that
-					   question, and it derives its own range anyway. */
-					if($trend_grain === 'year'){
-						echo dash_h(dash_link('years',$view_date));
-					} else {
-						echo dash_h(dash_link('stats',$view_date,'',array(
-							'sd'    => $trend['sd'],
-							'ed'    => $trend['ed'],
-							'range' => 'custom'
-						)));
-					}
-				?>"><?php echo $trend_grain==='year' ? 'Year comparison &rarr;' : 'Statistics report &rarr;'; ?></a>
-			</div>
 <?php	} ?>
+			</div>
 		</div>
 
 	</div>
