@@ -1036,7 +1036,11 @@ if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
 </div>
 
 <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;">
-	<div><canvas id="csrByCar" width="340" height="220"></canvas></div>
+	<!-- Height carries TOP_CARS rows at a legible pitch. Ten rows in 220px left
+	     Chart.js ~18px each, under what an 11px tick needs, so it auto-skipped
+	     every other car and the figure showed five labels against ten bars. If
+	     TOP_CARS changes, this wants changing with it: roughly 80 + 25 per row. -->
+	<div><canvas id="csrByCar" width="340" height="330"></canvas></div>
 	<div><canvas id="csrByMonth" width="340" height="200"></canvas></div>
 </div>
 
@@ -1392,12 +1396,19 @@ document.addEventListener('keydown',function(e){
 	var ink='#1A2238', muted='#5A6275', grid='rgba(137,135,129,0.20)';
 	var TOP_CARS = 10;
 
+	// A zero draws no number: the bar is already absent, and "0" floating on
+	// the axis is furniture rather than information. Nulls are skipped for the
+	// same reason and one more — fillText would happily paint the string
+	// "null" onto the canvas, which had no guard here before.
 	function valueLabels(){
 		return { id:'csrLabels', afterDatasetsDraw:function(chart){
-			var ctx=chart.ctx, meta=chart.getDatasetMeta(0);
+			var ctx=chart.ctx, meta=chart.getDatasetMeta(0), data=chart.data.datasets[0].data;
 			ctx.save(); ctx.font='11px Arial, sans-serif'; ctx.fillStyle=ink;
 			ctx.textBaseline='middle'; ctx.textAlign='left';
-			meta.data.forEach(function(bar,i){ ctx.fillText(chart.data.datasets[0].data[i], bar.x+6, bar.y); });
+			meta.data.forEach(function(bar,i){
+				if(!data[i]) return;          /* null, undefined and 0 alike */
+				ctx.fillText(data[i], bar.x+6, bar.y);
+			});
 			ctx.restore();
 		}};
 	}
@@ -1412,7 +1423,7 @@ document.addEventListener('keydown',function(e){
 			data:{ labels: top.map(function(r){ return 'Car '+r[0]; }),
 			       datasets:[{ data: top.map(function(r){ return r[1]; }),
 			                   backgroundColor: top.map(function(r){ return r[0]===csrPeakCar ? '#A32D2D' : '#00529B'; }),
-			                   borderRadius:3, categoryPercentage:0.62, barPercentage:0.9 }] },
+			                   borderRadius:3, categoryPercentage:0.7, barPercentage:0.78 }] },
 			options:{ indexAxis:'y', responsive:false, animation:false,
 				layout:{ padding:{ right:22, bottom: tail.length ? 18 : 4 } },
 				plugins:{
@@ -1421,7 +1432,12 @@ document.addEventListener('keydown',function(e){
 					tooltip:{ callbacks:{ label:function(c){ return c.parsed.x+' failures'; } } }
 				},
 				scales:{ x:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } },
-				         y:{ ticks:{ color:ink, font:{size:11} }, grid:{ display:false } } }
+				         /* autoSkip:false is the actual fix -- without it Chart.js
+				            silently thins the ticks to whatever fits, so the chart
+				            claims ten bars while naming five of them. The canvas
+				            height above is what makes keeping all ten legible. */
+				         y:{ ticks:{ color:ink, font:{size:11}, autoSkip:false, padding:4 },
+				             grid:{ display:false } } }
 			},
 			plugins:[ valueLabels(), { id:'csrTail', afterDraw:function(chart){
 				if(!tail.length) return;
@@ -1443,6 +1459,49 @@ document.addEventListener('keydown',function(e){
 		c.fillText('Car-level failures by car \u2014 '+csrYear, 0, 9);
 		c.font='10px Arial, sans-serif'; c.fillStyle=muted;
 		c.fillText('No failures recorded for this year.', 0, 34);
+	}
+
+	// Counts above each column, the vertical counterpart of valueLabels().
+	// Kept separate rather than generalised: the two differ in anchor, baseline
+	// and alignment, and a single function taking an orientation flag would be
+	// longer than both.
+	//
+	// Zeros and nulls both draw nothing. A zero column has no bar to label and
+	// "0" sitting on the axis is furniture, not information; a null has no
+	// count to print at all.
+	//
+	// The cost is that a recorded zero month and an uncovered month now look
+	// identical on the figure. The red footnote below names the uncovered
+	// buckets outright, so the distinction is still on the page — it is just
+	// carried by the footnote alone rather than by the footnote and a stray
+	// numeral. Drawing zeros in muted grey would keep both; it was tried and
+	// judged noisier than it was worth.
+	function monthValueLabels(){
+		return { id:'csrMonthLabels', afterDatasetsDraw:function(chart){
+			var data = chart.data.datasets[0].data, n = data.length;
+			if(!n || !chart.chartArea) return;
+			var ctx = chart.ctx, area = chart.chartArea, i, w, widest = 0;
+
+			ctx.save(); ctx.font='10px Arial, sans-serif'; ctx.fillStyle=ink;
+			ctx.textAlign='center'; ctx.textBaseline='bottom';
+
+			// Room check before drawing anything. Twelve months across 340px is
+			// comfortable; a weekly or daily bucket is not, and overlapping
+			// numerals are worse than no numerals. Measured against the widest
+			// label so the figure is all-or-nothing rather than partly legible.
+			for(i = 0; i < n; i++){
+				if(!data[i]) continue;        /* matches what is drawn below */
+				w = ctx.measureText(String(data[i])).width;
+				if(w > widest) widest = w;
+			}
+			if(widest + 4 <= area.width / n){
+				chart.getDatasetMeta(0).data.forEach(function(bar, k){
+					if(!data[k]) return;      /* null, undefined and 0 alike */
+					ctx.fillText(data[k], bar.x, bar.y - 3);
+				});
+			}
+			ctx.restore();
+		}};
 	}
 
 	// Uncovered months carry null, so Chart.js draws no bar at all. A null and
@@ -1468,12 +1527,12 @@ document.addEventListener('keydown',function(e){
 		data:{ labels: csrMonthSeries.map(function(r){ return r[0]; }),
 		       datasets:[{ data: csrMonthSeries.map(function(r){ return r[1]; }), backgroundColor:'#00529B', borderRadius:3 }] },
 		options:{ responsive:false, animation:false,
-			layout:{ padding:{ bottom: csrUncovered.length ? 16 : 2 } },
+			layout:{ padding:{ top:14, bottom: csrUncovered.length ? 16 : 2 } },
 			plugins:{ title:{ display:true, text:'Car-level failures by '+csrBucketWord+', whole fleet', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
 			scales:{ x:{ ticks:{ color:muted, font:{size:10} }, grid:{ display:false } },
 			         y:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } } }
 		},
-		plugins:[monthGapNote]
+		plugins:[monthGapNote, monthValueLabels()]
 	});
 
 	window.csrPrintReport = function(){

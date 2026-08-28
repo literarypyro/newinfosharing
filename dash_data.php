@@ -200,10 +200,39 @@ function dash_hm($v){ $t=dash_ts($v); return $t ? date("H:i",$t) : ""; }
    read the timestamps, do not trust a stored status beyond 'cancelled'. */
 function dash_train_state($r){
 	if(isset($r['status']) && strtolower(trim($r['status']))=='cancelled'){ return 'cancelled'; }
+
 	if(dash_ts(isset($r['remove_time'])?$r['remove_time']:"")){ return 'removed'; }
 	if(dash_ts(isset($r['insert_time'])?$r['insert_time']:"")){ return 'online'; }
+
 	if(dash_ts(isset($r['boundary_time'])?$r['boundary_time']:"")){ return 'boundary'; }
 	return 'pending';
+}
+
+/* @skipping -- Whether a train skipped part of the loop, as ONE rule.
+ *
+ * The old test was `trim($r['inserted_to']) !== "north"`, which is true of the
+ * empty string. inserted_to stays empty until a train is actually inserted, so
+ * every pending and reserve train counted as skipping -- and because trains
+ * are added to the day's schedule as the day goes on, the tile climbed all
+ * morning. That is the multiplying figure: it was counting "not yet inserted"
+ * as "skipped".
+ *
+ * A train that has not entered the loop cannot have skipped part of it, so an
+ * insertion is required. The comparison is case-insensitive because nothing
+ * constrains what train_operations_admin writes into the column.
+ *
+ * The dashboard's insertion feed badges the same thing a few lines down the
+ * page. Both now call this, so the tile and the badges cannot disagree -- a
+ * count of 6 beside four badged rows is the kind of contradiction that costs
+ * the whole dashboard its credibility. */
+function dash_is_skipping($r){
+	if(!dash_ts(isset($r['insert_time']) ? $r['insert_time'] : "")){ return false; }
+	$to = strtolower(trim((string)(isset($r['inserted_to']) ? $r['inserted_to'] : "")));
+	return ($to !== "" && $to !== "north");
+}
+
+function dash_train_state2($r){
+	return dash_is_skipping($r) ? 'skipping' : 'null';
 }
 
 /* Non-revenue trains are shown but never counted against the target. */
@@ -222,7 +251,7 @@ function dash_trains($date){
 	$d=dash_esc($date);
 	$sql ="select ta.id,ta.index_no,ta.status,ta.type,ta.date,";
 	$sql.="ta.car_a,ta.car_b,ta.car_c,ta.car_d,";
-	$sql.="tt.boundary_time,tt.insert_time,tt.remove_time,";
+	$sql.="tt.boundary_time,tt.insert_time,tt.skipping,tt.remove_time,";
 	$sql.="tt.insert_driver,tt.remove_driver,tt.inserted_to,tt.removed_from ";
 	$sql.="from train_availability ta ";
 	$sql.="left join train_ava_time tt on tt.train_ava_id=ta.id ";
@@ -235,7 +264,12 @@ function dash_trains($date){
 		while($r=$rs->fetch_assoc()){
 			$r['state']=dash_train_state($r);
 			$r['revenue']=dash_is_revenue($r);
+			$r['state2']=dash_train_state2($r);
+
 			$out[]=$r;
+
+
+
 		}
 	}
 	return $cache[$date]=$out;
@@ -252,6 +286,16 @@ function dash_fleet_counts($date){
 		if(!$r['revenue']){ $c['nonrevenue']++; }
 	}
 	$c['target']= DASH_FLEET_TARGET>0 ? DASH_FLEET_TARGET : max(1,$c['total']-$c['nonrevenue']);
+	return $c;
+}
+function dash_fleet_counts2($date){
+	$rows=dash_trains($date);
+	/* $c was never initialised as an array -- 'null' was incremented from
+	   undefined on every non-skipping train, one notice per train. */
+	$c=array('skipping'=>0,'null'=>0);
+	foreach($rows as $r){
+		$c[$r['state2']]++;
+	}
 	return $c;
 }
 
@@ -271,6 +315,12 @@ function dash_recent_insertions($date,$limit=5){
 				'ts'=>$t,
 				'index_no'=>$r['index_no'],
 				'point'=>(strtolower(trim((string)$r['inserted_to']))=='quezon')?'Quezon Ave.':'North Ave.',
+				/* @skipping -- carried explicitly rather than re-derived from
+				   the label above. The label maps anything that is not
+				   'quezon' to 'North Ave.', so a third insertion point would
+				   be displayed as North and badged as not-skipping while the
+				   tile counted it. One rule, one answer. */
+				'skipping'=>dash_is_skipping($r),
 				'driver'=>$r['insert_driver']
 			);
 		}

@@ -273,6 +273,8 @@ function ysCellUrl($y, $m, $car, $equipt, $level, $equipts){
 	if($equipt)         $q .= '&equipt='.$equipt;
 	if($level)          $q .= '&level='.$level;
 	if(count($equipts)) $q .= '&equipts='.rawurlencode(implode(',', $equipts));
+	
+	$q.="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
 	return 'month_stats.php?'.$q;
 }
 ?>
