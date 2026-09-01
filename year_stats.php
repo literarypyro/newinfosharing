@@ -120,6 +120,14 @@ if($level)           $where .= " and incident_report.level = ".$level." ";
    is joined and NOT de-duplicated: an incident affecting three cars counts
    once against each, which is the basis every other statistics page uses. */
 $grid = array();          // [year][month] => count
+/* @total -- NOT accumulated here. This loop sees every row the filter matched,
+   including months later masked as 'gap' (coverage says no records, yet rows
+   exist), months in the future, and years trimmed away by the y1/y2 bound.
+   None of those reach the grid, so a total summed here counts cells the table
+   does not draw: it read 20767 beside twelve columns summing to 20710, and
+   divided that by the MASKED denominator of 120 covered months. It is derived
+   from $yearTotal instead, below, which makes it the sum of the All row by
+   construction rather than by coincidence. */
 $total = 0;
 $sql = "select year(incident_report.incident_date) as yr,
                month(incident_report.incident_date) as mo,
@@ -136,7 +144,6 @@ if($rs){
 		if($y <= 0 || $m < 1 || $m > 12) continue;   /* junk dates stay out of the axis */
 		if(!isset($grid[$y])) $grid[$y] = array();
 		$grid[$y][$m] = $c;
-		$total += $c;
 	}
 }
 
@@ -225,6 +232,10 @@ foreach($years as $y){
 		$monthTotal[$m] += $c;
 	}
 }
+/* The grand total is the sum of the row totals -- the same figure the table's
+   own corner cell prints, because it is now the same variable. */
+foreach($yearTotal as $t){ $total += $t; }
+
 function ysRate($sum, $months){ return $months > 0 ? round($sum / $months, 1) : null; }
 
 /* Worst month overall, by rate rather than by total, for the same reason. */
@@ -386,7 +397,24 @@ a.two:hover, a.two:active { color:#003E76; text-decoration:underline; }
 
 .ys-cell { display:block; height:26px; line-height:26px; border-radius:2px;
 	text-decoration:none; color:#1A2238; }
-a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
+a.ys-cell:hover, a.ys-cell:focus { outline:2px solid #FDB813; outline-offset:-2px; }
+
+/* @cellcolour -- Every link state pinned explicitly, and that is the whole
+   point rather than tidiness. `.ys-cell` and `.ys-s4` are both one class, so
+   they tie on specificity and source order decides; but a console-wide
+   `a:hover { color:... }` in history_theme.php is an element PLUS a
+   pseudo-class, which outranks both. Hovering the darkest cell therefore
+   repainted its text link-blue on a #00529B background and the number
+   disappeared -- worst on exactly the cell most worth reading. Anchors only:
+   the totals and the All row are not links and keep the base colour. */
+a.ys-cell, a.ys-cell:link, a.ys-cell:visited,
+a.ys-cell:hover, a.ys-cell:active, a.ys-cell:focus { color:#1A2238; }
+a.ys-cell.ys-s3, a.ys-cell.ys-s3:link, a.ys-cell.ys-s3:visited,
+a.ys-cell.ys-s3:hover, a.ys-cell.ys-s3:active, a.ys-cell.ys-s3:focus,
+a.ys-cell.ys-s4, a.ys-cell.ys-s4:link, a.ys-cell.ys-s4:visited,
+a.ys-cell.ys-s4:hover, a.ys-cell.ys-s4:active, a.ys-cell.ys-s4:focus { color:#FFFFFF; }
+a.ys-cell.ys-zero, a.ys-cell.ys-zero:link, a.ys-cell.ys-zero:visited,
+a.ys-cell.ys-zero:hover, a.ys-cell.ys-zero:active, a.ys-cell.ys-zero:focus { color:#9A968A; }
 
 /* Sequential single hue. Magnitude is one thing, so it gets one colour --
    a categorical palette here would invite reading the shades as kinds. */
@@ -398,6 +426,14 @@ a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
 
 /* Covered, no failures. Deliberately NOT the same as a gap. */
 .ys-zero { background:#FBFAF6; color:#9A968A; }
+
+/* @peakmark -- The ring the two peak tiles refer to. Without it "October" sat
+   beside a grid whose darkest cell is a July, and the two looked like they
+   disagreed: the tiles rank a month-of-year by its AVERAGE across covered
+   years (the All row), while the shading ranks single cells by raw count.
+   Both are right; nothing on the page said they were answering different
+   questions. Marking the cell each tile names is cheaper than explaining it. */
+.ys-peak { outline:2px solid #FDB813; outline-offset:-2px; border-radius:2px; }
 
 /* No coverage. Hatched, and carrying an em dash rather than a digit, so it
    cannot be read as a count at a glance or in a photocopy. */
@@ -492,14 +528,18 @@ a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
 		<div class="k-sub"><?php echo $gapCells ? $gapCells.' month'.($gapCells==1?'':'s').' still missing' : 'no gaps'; ?></div>
 	</div>
 	<div class="kpi-tile">
-		<div class="k-label">Heaviest month of the year</div>
+		<div class="k-label">Heaviest month, on average</div>
 		<div class="k-value" style="color:#7A1F1F;"><?php echo $peakM ? htmlspecialchars($mFull[$peakM]) : '&mdash;'; ?></div>
-		<div class="k-sub"><?php echo $peakM ? $peakRate.' per covered month' : 'not enough data'; ?></div>
+		<div class="k-sub"><?php echo $peakM
+			? $peakRate.' per covered month across '.(int)$coveredByMonth[$peakM].' year'.($coveredByMonth[$peakM]==1?'':'s').' &mdash; ringed in the All row'
+			: 'not enough data'; ?></div>
 	</div>
 	<div class="kpi-tile">
-		<div class="k-label">Heaviest year</div>
+		<div class="k-label">Heaviest year, on average</div>
 		<div class="k-value"><?php echo $peakY ? (int)$peakY : '&mdash;'; ?></div>
-		<div class="k-sub"><?php echo $peakY ? $peakYRate.' per covered month' : 'not enough data'; ?></div>
+		<div class="k-sub"><?php echo $peakY
+			? $peakYRate.' per covered month across '.(int)$coveredByYear[$peakY].' month'.($coveredByYear[$peakY]==1?'':'s').' &mdash; ringed in the Total column'
+			: 'not enough data'; ?></div>
 	</div>
 </div>
 
@@ -570,7 +610,7 @@ a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
 	$cm = $coveredByYear[$y];
 	$partial = ($cm > 0 && $cm < 12 && !($y === $nowY));
 	?>
-	<td class="ys-tot"><?php echo (int)$yearTotal[$y]; ?><br>
+	<td class="ys-tot<?php echo ($peakY && $y === $peakY) ? ' ys-peak' : ''; ?>"><?php echo (int)$yearTotal[$y]; ?><br>
 		<span class="ys-rate<?php echo $partial ? ' ys-part' : ''; ?>"><?php
 			echo $cm ? ($cm.'/12 mo') : 'no data';
 		?></span></td>
@@ -587,7 +627,8 @@ a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
 		/* The rate leads and the total follows. While the archive is uneven,
 		   comparing March's total against July's compares how much of each
 		   has been recovered, not how bad each was. */
-		echo '<td class="ys-tot">'.($rate === null ? '&mdash;' : $rate).'<br>'
+		$pk = ($peakM && $m === $peakM) ? ' ys-peak' : '';
+		echo '<td class="ys-tot'.$pk.'">'.($rate === null ? '&mdash;' : $rate).'<br>'
 		   . '<span class="ys-rate">'.($cm ? $sum.' in '.$cm.'y' : 'no data').'</span></td>';
 	} ?>
 	<td class="ys-tot"><?php echo (int)$total; ?><br><span class="ys-rate">all</span></td>

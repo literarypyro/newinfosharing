@@ -905,9 +905,14 @@ function isGenerateNIS(){
 <th rowspan=2>Incident No.</th>
 <th rowspan=2>Incident Date/Time</th>
 <th rowspan=2>Time Resolved</th>
-
 <th rowspan=2>Incident<br> Duration</th>
+
+<th rowspan=2>Index No</th>
+<th rowspan=2>Car(s)</th>
+<th rowspan=2>Location</th>
 <th rowspan=2>Description</th>
+<th rowspan=2>Reported By</th>
+
 <th colspan=2>Action Taken</th>
 <th rowspan=2>Level<br> Status</th>
 <th rowspan=2>Additional<br> Defects</th>
@@ -1028,25 +1033,24 @@ for($i=0;$i<$nm;$i++){
 			else if($direction=="ML"){ $direction="Mainline"; }
 			/* item #7 fix: omit the "  " separator when $direction was blanked (S), so the
 			   description reads "Stn. Ayala, ..." instead of "Stn. Ayala  , ...". */
-			$description="Index #".$row['index_no'].",".$carClause.$location.($direction!=""?"  ".$direction:"").", ".$row['description'].", Reported By ".$reported_by.", ";
+			$description=$row['description'].",  ";
 		
 		}
 		else if(($incident_type=="unload")||($incident_type=='nload')){
 			if($carClause==""){ } else { $carClause=" Car(s) ".$carClause.", "; }
 			
-			$description="Index #".$row['index_no'].",".$carClause.", ".$row['description'].", Reported By ".$reported_by.", ";
+			$description=$row['description'].",";
 
 
 
 		}
 		else {
-			$description.=$row['description'].", Reported By ".$reported_by;
+			$description.=$row['description'];
 		}
 	
 ?>
 			<tr class="<?php echo ($i%2>0)?'cf-row--odd':'cf-row--even'; ?>">
 						
-			
 <td align=center>
 <?php 
 
@@ -1060,9 +1064,25 @@ $id=$row['incident_id'];
 
 <a href='#' class="two2" onclick='openSlidePanel("edit_ccdr.php?ir=<?php echo $id; ?>&embed=1","Incident - <?php echo htmlspecialchars($no); ?>")'><?php echo $row['incident_no']; ?></a></td><td align=center><?php echo $hourStamp; ?></td>
 <td align=center><?php if(isset($row['resolution_date'])){ echo date("Y-m-d H:iA",strtotime($row['resolution_date'])); } ?></td>
-
 <td><?php echo $row['duration']; ?></td>
+
+<td align=center>
+			<?php echo $row['index_no']; ?>
+</td>
+<td align=center>
+			<?php echo $carClause; ?>
+</td>
+<td align=center>
+
+<?php
+echo $location.($direction!=""?"  ".$direction:"")
+?>
+</td>
+
 <td><?php echo $description; ?></td>
+
+<td><?php echo $reported_by; ?></td>
+
 <td><?php echo $row['action_dotc']; ?></td>
 <td><?php echo $row['action_maintenance']; ?></td>
 <td align=center><?php echo $row['level']; ?></td>
@@ -1120,7 +1140,14 @@ if($defectsNM>0){
 }
 ?>
 </td>
+<?PHP
+if(!isset($_GET['tt'])){
+	?>
+
 <td valign=center align=center><a href='#' class="LDel" onclick='deleteIncident("<?php echo $row['incident_id']; ?>")'>X</a></td>
+<?PHP
+}
+?>
 </tr>
 <?php
 }
