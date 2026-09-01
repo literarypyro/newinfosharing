@@ -277,7 +277,7 @@ body { height: 100%; overflow: hidden; }
 		<li><a href='edit_ccdr.php' id='dr1' >Edit Incident Details</a></li>
 		-->
 		
-		<li><a href='incident summary.php' id='dr3'>Daily Incident Summary</a></li>		
+		<li><a href='incident_summary_2.php' id='dr3'>Daily Incident Summary</a></li>		
 		<li><a href='ccdr_summary.php' id='dr2'>CCDR Summary</a></li>
 		
 	</ul>
