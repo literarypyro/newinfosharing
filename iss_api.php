@@ -1,5 +1,4 @@
 <?php
-define('ISS_API_TOKEN','a74277dd0463e4e00c6df24368007f7b');
 /* =====================================================================
    iss_api.php  --  REST API for the ISS Monitor mobile app.
 
@@ -13,7 +12,13 @@ define('ISS_API_TOKEN','a74277dd0463e4e00c6df24368007f7b');
      GET  /days/{date}                    the dashboard payload
      GET  /days/{date}/trains             fleet, one entry per index
      GET  /days/{date}/incidents          the day's register
-     GET  /days/{date}/trends             breakdowns and series
+     GET  /days/{date}/trends[?g=]        breakdowns, severity grid, loops
+     GET  /days/{date}/insertions         the day's insertion log
+
+   VOCABULARY: state 'boundary' is labelled "Reserve" -- one state, two
+   names (the machine value is the join key, the label is what operations
+   says). counts.reserve is that count, so no client has to derive it.
+   See iss_state_label().
      GET  /incidents/{id}                 one incident, full record
      GET  /incidents/{id}/annotations     notes and acknowledgements
      POST /incidents/{id}/annotations     add one  (the ONLY write)
@@ -72,6 +77,13 @@ if(!defined('ISS_API_WRITES')) define('ISS_API_WRITES', true);  /* false = read-
    a calm empty dashboard during an outage -- the exact failure this
    design exists to prevent. The app shows its stale banner and keeps
    the last known values whenever ok is false. */
+/* Ops aggregates -- Trends and Insertions. Guarded: a station that has
+   not received iss_api_ops.php yet keeps every existing endpoint working
+   and gets 'available:false' sections on the new ones. */
+if(file_exists(dirname(__FILE__)."/iss_api_ops.php")){
+	require_once(dirname(__FILE__)."/iss_api_ops.php");
+}
+
 function iss_meta($date=null){
 	$m = array(
 		'ok'          => dash_ready(),
@@ -161,6 +173,45 @@ function iss_resolve_date($v){
    Representations -- the only place the wire format is defined
    ===================================================================== */
 
+/* =====================================================================
+   @reserve -- "Reserve" and "boundary" are the same thing.
+
+   dash_state_meta() labels the state "At boundary", because that is the
+   physical fact: the set is standing at the boundary. The console
+   dashboard shows those same trains under "Reserve", because that is what
+   operations CALL them. Two names for one state, and this API was passing
+   the internal one through as though it were the user-facing one.
+
+   That put the mobile app in an impossible position. Its Reserve tile had
+   no figure to read, so it inferred one from index_type=='reserve' -- a
+   field that does not exist on this payload. The tile read 0 every day,
+   which is the worst kind of wrong: a confident number for a question
+   that was never actually asked.
+
+   So the vocabulary is decided HERE, once:
+     - 'state' keeps the machine value 'boundary'. It is the join key
+       between this API and dash_data.php, and renaming it would silently
+       break every existing client's switch.
+     - 'state_label' becomes "Reserve" -- what a supervisor reads.
+     - counts gain an explicit 'reserve', so no client derives it again.
+
+   If operations ever splits the two ideas apart -- reserve meaning "held
+   back", boundary meaning "standing at the boundary" -- this is the only
+   function that needs to change.
+   ===================================================================== */
+function iss_state_label($state, $fallback){
+	if($state === 'boundary') return 'Reserve';
+	return $fallback;
+}
+
+/* @skipping -- inserted, but not at North Ave., so it did not run the full
+   line. Deliberately NOT folded into 'state': the train IS in service, and
+   overwriting its state would lose that. Same test as the console. */
+function iss_is_skipping($t){
+	$to = isset($t['inserted_to']) ? trim((string)$t['inserted_to']) : '';
+	return ($to !== '' && $to !== 'North Ave.');
+}
+
 function iss_train($t){
 	$cars = array();
 	foreach(array('car_a','car_b','car_c','car_d') as $k){
@@ -171,7 +222,7 @@ function iss_train($t){
 		'id'            => isset($t['id']) ? $t['id'] : null,
 		'index_no'      => (string)$t['index_no'],
 		'state'         => $t['state'],   /* online|boundary|removed|cancelled|pending */
-		'state_label'   => $meta[0],
+		'state_label'   => iss_state_label($t['state'], $meta[0]),   /* @reserve */
 		'tone'          => $t['revenue'] ? $meta[1] : 'mute',
 		'revenue'       => (bool)$t['revenue'],
 		'type'          => isset($t['type']) ? (string)$t['type'] : '',
@@ -180,7 +231,15 @@ function iss_train($t){
 		'insert_time'   => dash_hm(isset($t['insert_time'])   ? $t['insert_time']   : ''),
 		'remove_time'   => dash_hm(isset($t['remove_time'])   ? $t['remove_time']   : ''),
 		'inserted_to'   => isset($t['inserted_to'])  ? (string)$t['inserted_to']  : '',
-		'removed_from'  => isset($t['removed_from']) ? (string)$t['removed_from'] : ''
+		'removed_from'  => isset($t['removed_from']) ? (string)$t['removed_from'] : '',
+		/* @skipping -- train_operations_parallel.php filters on this, and the
+		   dashboard badges it on the insertions card. An inserted train whose
+		   insertion point is not North Ave. did not run the full line.
+
+		   Sent as its own flag rather than folded into 'state': the train IS
+		   in service, and overwriting its state would lose that. The client
+		   decides whether to render it as a sixth state or a badge. */
+		'skipping'      => iss_is_skipping($t)
 	);
 }
 
@@ -305,6 +364,10 @@ if($seg[0] === 'health'){
 			'train_ava_time'     => dash_table_exists('train_ava_time'),
 			'incident_report'    => dash_table_exists('incident_report'),
 			'equipment_type'     => dash_table_exists('equipment_type'),
+			'timetable_day'      => dash_table_exists('timetable_day'),
+			'train_compo'        => dash_table_exists('train_compo'),
+			'level_condition'    => function_exists('iss_column_exists')
+			                        && iss_column_exists('incident_report','level_condition'),
 			'index_switch'       => dash_switch_table(),
 			'iss_annotation'     => iss_annotations_table()
 		),
@@ -322,9 +385,17 @@ if($seg[0] === 'days'){
 
 	if($sub === 'trains'){
 		$rows = array();
-		foreach(dash_trains($date) as $t) $rows[] = iss_train($t);
+		$c = dash_fleet_counts($date);
+		$rsv = 0; $skp = 0;
+		foreach(dash_trains($date) as $t){
+			$rows[] = iss_train($t);
+			if($t['state'] === 'boundary') $rsv++;
+			if($t['state'] === 'online' && iss_is_skipping($t)) $skp++;
+		}
+		$c['reserve']  = $rsv;    /* @reserve -- same derivation as /today */
+		$c['skipping'] = $skp;
 		iss_ok(array(
-			'counts'   => dash_fleet_counts($date),
+			'counts'   => $c,
 			'trains'   => $rows,
 			'switches' => dash_switches($date)
 		), $date);
@@ -339,7 +410,40 @@ if($seg[0] === 'days'){
 		), $date);
 	}
 
+	if($sub === 'insertions'){
+		iss_ok(array(
+			'insertions' => function_exists('iss_insertions') ? iss_insertions($date) : array()
+		), $date);
+	}
+
 	if($sub === 'trends'){
+		/* @ops -- The operational aggregates the mobile Trends screen reads:
+		   severity grid, AM/PM cancellations, loop completion, LRV count and
+		   the bucketed trend. Merged into this payload rather than given their
+		   own endpoint so the screen still costs ONE request.
+
+		   ?g= picks the trend bucket size, the same parameter the console's
+		   dashboard uses. Absent means monthly. */
+		if(function_exists('iss_ops_trends')){
+			$ops = iss_ops_trends($date, isset($_GET['g']) ? $_GET['g'] : 'month');
+			iss_ok(array(
+				'severity' => $ops['severity'],
+				'ampm'     => $ops['ampm'],
+				'loops'    => $ops['loops'],
+				'lrv'      => $ops['lrv'],
+				'trend'    => $ops['trend'],
+				'types'    => $ops['types'],
+				'months'   => dash_month_series($date, DASH_TREND_MONTHS),
+				'sparks'   => array(
+					'trains'    => dash_spark_trains($date),
+					'incidents' => dash_spark_incidents($date),
+					'cancelled' => dash_spark_cancelled($date)
+				)
+			), $date);
+		}
+
+		/* Fallback: iss_api_ops.php not installed. The old payload, so the
+		   app's problem-type card and sparklines keep working. */
 		iss_ok(array(
 			'types'  => dash_type_breakdown($date, 8),
 			'months' => dash_month_series($date, DASH_TREND_MONTHS),
@@ -380,13 +484,30 @@ if($seg[0] === 'days'){
 	foreach(dash_trains($date) as $t){
 		$m = dash_state_meta($t['state']);
 		$strip[] = array(
-			'index_no' => (string)$t['index_no'],
-			'state'    => $t['state'],
-			'tone'     => $t['revenue'] ? $m[1] : 'mute'
+			'index_no'    => (string)$t['index_no'],
+			'state'       => $t['state'],
+			/* @reserve -- the strip carried state+tone only, so the Today
+			   tiles had nothing to count Skipping or Reserve from and fell
+			   back to a field that does not exist here. Both travel now. */
+			'state_label' => iss_state_label($t['state'], $m[0]),
+			'skipping'    => iss_is_skipping($t),
+			'tone'        => $t['revenue'] ? $m[1] : 'mute'
 		);
 	}
+	/* @reserve -- Both figures come from the SAME dash_trains() pass the
+	   strip is built from, so the tiles and the strip can never disagree
+	   about how many sets are held in reserve. */
+	$fleet = dash_fleet_counts($date);
+	$reserve = 0; $skipping = 0;
+	foreach(dash_trains($date) as $t){
+		if($t['state'] === 'boundary') $reserve++;
+		if($t['state'] === 'online' && iss_is_skipping($t)) $skipping++;
+	}
+	$fleet['reserve']  = $reserve;   /* === boundary, named as operations names it */
+	$fleet['skipping'] = $skipping;
+
 	iss_ok(array(
-		'fleet'      => dash_fleet_counts($date),
+		'fleet'      => $fleet,
 		'incidents'  => dash_incident_counts($date),
 		'band'       => $band,
 		'recent'     => $recent,

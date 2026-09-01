@@ -267,15 +267,31 @@ $ysScope = count($ysNarrow)
 /* Drill-down target: one cell is one month, which is exactly what
    month_stats.php already renders. The narrowing rides along so the panel
    opens on the same population the grid was showing. */
+/* @tt -- The access token every console page expects on an inbound URL. It was
+   missing here, so a cell click landed on month_stats.php without it; the
+   sibling drill-downs in car_statistics_report.php all append it. Held as a
+   constant rather than repeated as a literal, because this page now needs it
+   in two places -- the href and the panel's iframe src -- and two hand-copied
+   literals is how one of them ends up stale. */
+define('YS_TT', '2a7b85131d93ffbaacc73f7ff024b55a');
+
 function ysCellUrl($y, $m, $car, $equipt, $level, $equipts){
 	$q = 'by=equipt&year='.$y.'&months='.$m;
 	if($car)            $q .= '&car='.$car;
 	if($equipt)         $q .= '&equipt='.$equipt;
 	if($level)          $q .= '&level='.$level;
 	if(count($equipts)) $q .= '&equipts='.rawurlencode(implode(',', $equipts));
-	
-	$q.="&tt=2a7b85131d93ffbaacc73f7ff024b55a";
+	$q .= '&title='.rawurlencode(ysCellTitle($y, $m));
+	$q .= '&tt='.YS_TT;
 	return 'month_stats.php?'.$q;
+}
+
+/* Used for both the panel heading and month_stats.php's own title= parameter,
+   so the two cannot disagree. */
+function ysCellTitle($y, $m){
+	$f = array(1=>'January','February','March','April','May','June','July',
+	           'August','September','October','November','December');
+	return $f[$m].' '.$y;
 }
 ?>
 <style>
@@ -402,6 +418,34 @@ a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
 	color:#4A4A4A; margin:0 0 10px; }
 .ys-key i { display:inline-block; width:14px; height:12px; border-radius:2px;
 	vertical-align:-1px; margin-right:5px; }
+
+/* --- Slide panel ------------------------------------------------ @monthpanel
+   Copied byte-identical from car_statistics_report.php, for the reason its own
+   comment gives a few rules up: the moment these drift, two panels opened side
+   by side stop looking like the same system, and that is harder to notice than
+   a page that is plainly unstyled. var() fallbacks because the ta- custom
+   properties live in train_operations.php's :root and do not reach here. */
+.ta-overlay       { position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(10,25,50,.45); opacity:0; visibility:hidden; transition:opacity .2s; z-index:99998; }
+.ta-overlay.active{ opacity:1; visibility:visible; }
+.ta-panel         { position:fixed; top:0; right:-900px; width:480px; max-width:96vw; height:100vh; background:var(--paper,#F7F9FC); box-shadow:-6px 0 24px rgba(0,30,80,.25); transition:right .25s ease; z-index:99999; display:flex; flex-direction:column; font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+.ta-panel.active  { right:0; }
+.ta-panel-head    { background:var(--rail,#00529B); border-bottom:3px solid var(--gold,#FDB813); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex:none; }
+.ta-panel-head h3 { margin:0; color:#fff; font-size:13px; font-weight:600; letter-spacing:.3px; }
+.ta-panel-close   { background:none; border:none; color:rgba(255,255,255,.7); font-size:19px; line-height:1; cursor:pointer; padding:0 2px; }
+.ta-panel-close:hover { color:var(--gold,#FDB813); }
+.ta-panel-body    { flex:1; overflow-y:auto; padding:16px 18px; }
+#irPanel.ta-panel--ir { width:820px; }
+.ta-panel-body--ir { padding:0; overflow:hidden; position:relative; }
+#irFrame           { display:block; width:100%; height:100%; border:0; background:#fff; opacity:0; transition:opacity .15s; }
+#irFrame.ready     { opacity:1; }
+.ir-loading, .ir-fallback { position:absolute; top:0; right:0; bottom:0; left:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:var(--paper,#F7F9FC); text-align:center; padding:0 30px; }
+.ir-loading.hidden, .ir-fallback.hidden { display:none; }
+.ir-spinner { width:26px; height:26px; border:3px solid #C9D6E5; border-top-color:var(--rail,#00529B); border-radius:50%; animation:ir-spin .7s linear infinite; }
+@keyframes ir-spin { to { transform:rotate(360deg); } }
+.ir-loading span, .ir-fallback p { font-size:12px; color:var(--mut,#5A6678); }
+.ir-fallback strong { color:var(--ink,#16243B); font-size:13px; }
+.ir-fallback a { color:var(--rail,#00529B); font-weight:600; text-decoration:none; }
+.ir-fallback a:hover { text-decoration:underline; }
 </style>
 <?php include("history_theme.php"); ?>
 
@@ -496,14 +540,26 @@ a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
 		$c = isset($grid[$y][$m]) ? (int)$grid[$y][$m] : 0;
 		$url = htmlspecialchars(ysCellUrl($y,$m,$car,$equipt,$level,$equipts));
 		$ttl = htmlspecialchars($mFull[$m].' '.$y).' &mdash; '.$c.' car-level failure'.($c==1?'':'s');
+		/* @monthpanel -- The href is the real target and stays real: it keeps
+		   middle-click, ctrl-click and a no-JS load working, and it is what the
+		   panel's own fallback link points at when the iframe will not load.
+		   The onclick intercepts a plain left click and opens the panel
+		   instead, matching openMonthPanel() in car_statistics_report.php.
+
+		   Not attached under embed=1: this page is itself inside a panel
+		   iframe then, and a second panel nested in an 820px frame is worse
+		   than navigating the frame, which is what the bare href does. */
+		$oc = $IR_EMBED ? '' :
+		      ' onclick="return ysCellClick(event,this,\''
+		      . htmlspecialchars(addslashes(ysCellTitle($y,$m)), ENT_QUOTES) . '\')"';
 		if($c === 0){
-			echo '<td><a class="ys-cell ys-zero" href="'.$url.'" title="'.$ttl.'">0</a></td>';
+			echo '<td><a class="ys-cell ys-zero" href="'.$url.'" title="'.$ttl.'"'.$oc.'>0</a></td>';
 			continue;
 		}
 		/* Five steps, rebuilt every load from the values present. */
 		$band = ($vHi > $vLo) ? (int)floor((($c - $vLo) / ($vHi - $vLo)) * 5) : 2;
 		if($band > 4) $band = 4;
-		echo '<td><a class="ys-cell ys-s'.$band.'" href="'.$url.'" title="'.$ttl.'">'.$c.'</a></td>';
+		echo '<td><a class="ys-cell ys-s'.$band.'" href="'.$url.'" title="'.$ttl.'"'.$oc.'>'.$c.'</a></td>';
 	} ?>
 	<?php
 	/* The row total sits OUTSIDE the shading scale on purpose: shaded on the
@@ -547,7 +603,7 @@ a.ys-cell:hover { outline:2px solid #FDB813; outline-offset:-2px; }
 	Figures count <b>car-level failures</b>: an incident affecting three cars counts once against each.
 	This is the basis the equipment and per-car reports use, so they reconcile; the incident history
 	logs count one row per incident and show a smaller figure.
-	<?php if($gapCells){ ?>
+	<?php if(!$IR_EMBED){ ?>
 	Any cell click opens that month in the period panel.
 	<?php } ?>
 </p>
@@ -616,4 +672,88 @@ function ysPrintReport(){
 	win.onload = function(){ setTimeout(function(){ win.print(); }, 250); };
 }
 </script>
+
+<?php if(!$IR_EMBED){ ?>
+<!-- @monthpanel -- Its own backdrop; taOverlay belongs to train_operations.php.
+     Emitted only when this page is NOT itself inside a panel iframe: nesting a
+     second 820px panel inside one is worse than letting the cell's href
+     navigate the frame it is already in. -->
+<div class="ta-overlay" id="irOverlay" onclick="ysClosePanel()"></div>
+<div class="ta-panel ta-panel--ir" id="irPanel" role="dialog" aria-modal="true" aria-labelledby="ir-panel-title">
+	<div class="ta-panel-head">
+		<h3 id="ir-panel-title">Period breakdown</h3>
+		<button type="button" class="ta-panel-close" onclick="ysClosePanel()" aria-label="Close">&times;</button>
+	</div>
+	<div class="ta-panel-body ta-panel-body--ir">
+		<iframe id="irFrame" src="about:blank" title="Period breakdown" onload="ysFrameLoaded()"></iframe>
+		<div class="ir-loading" id="irLoading">
+			<div class="ir-spinner"></div>
+			<span>Loading failure table&hellip;</span>
+		</div>
+		<div class="ir-fallback hidden" id="irFallback">
+			<strong>This is taking longer than expected.</strong>
+			<p>The page may be blocked from loading inside this panel.<br>You can open it directly instead:</p>
+			<a href="#" id="irFallbackLink" target="_blank" rel="noopener">Open the month in a new tab &rarr;</a>
+		</div>
+	</div>
+</div>
+<script>
+/* @monthpanel -- Same shape as openMonthPanel() in car_statistics_report.php.
+   The URL is taken from the anchor rather than rebuilt in JS, so the panel and
+   the fallback link cannot target different months, and the token and filters
+   are carried by whatever ysCellUrl() already put in the href. */
+var irLoadTimer = null, irExpectingLoad = false;
+
+function ysCellClick(e, a, title){
+	/* Let the browser have the click when the operator asked for a new tab or
+	   window -- a panel that hijacks ctrl-click makes a grid of 100+ cells
+	   impossible to compare side by side. */
+	if(e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1)){ return true; }
+	if(!document.getElementById('irPanel')){ return true; }   /* navigate instead */
+	ysOpenPanel(a.href, title);
+	return false;
+}
+
+function ysOpenPanel(url, title){
+	document.getElementById('ir-panel-title').textContent = title;
+	document.getElementById('irFallbackLink').href = url;
+	var frame = document.getElementById('irFrame');
+	frame.classList.remove('ready');
+	document.getElementById('irLoading').classList.remove('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	clearTimeout(irLoadTimer);
+	irExpectingLoad = true;
+	frame.src = url + '&embed=1';
+	document.getElementById('irPanel').classList.add('active');
+	document.getElementById('irOverlay').classList.add('active');
+	irLoadTimer = setTimeout(function(){
+		if(irExpectingLoad){ document.getElementById('irFallback').classList.remove('hidden'); }
+	}, 6000);
+}
+
+function ysClosePanel(){
+	var p = document.getElementById('irPanel');
+	if(!p){ return; }
+	p.classList.remove('active');
+	clearTimeout(irLoadTimer);
+	irExpectingLoad = false;
+	document.getElementById('irFrame').src = 'about:blank';   /* release the framed page */
+	var ov = document.getElementById('irOverlay');
+	if(ov){ ov.classList.remove('active'); }
+}
+
+function ysFrameLoaded(){
+	if(!irExpectingLoad){ return; }   /* ignore the about:blank resets */
+	irExpectingLoad = false;
+	clearTimeout(irLoadTimer);
+	document.getElementById('irLoading').classList.add('hidden');
+	document.getElementById('irFallback').classList.add('hidden');
+	document.getElementById('irFrame').classList.add('ready');
+}
+
+document.addEventListener('keydown', function(e){
+	if(e.key === 'Escape'){ ysClosePanel(); }
+});
+</script>
+<?php } ?>
 </body>

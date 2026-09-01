@@ -1701,12 +1701,19 @@ var srmPanelEquipts = <?php echo json_encode(implode(',', $rsEquiptIds)); ?>;
 	var ink='#1A2238', muted='#5A6275', grid='rgba(137,135,129,0.20)';
 	var TOP_EQ = 8;
 
+	// @figures -- Guarded the same way the car report's is. Without the test
+	// fillText paints the literal string "null" onto the canvas, and a zero
+	// gets a numeral floating beside a bar that is not there. Both are worse
+	// than nothing, and both survive into the printed PNG.
 	function valueLabels(){
 		return { id:'srmLabels', afterDatasetsDraw:function(chart){
-			var ctx=chart.ctx, meta=chart.getDatasetMeta(0);
+			var ctx=chart.ctx, meta=chart.getDatasetMeta(0), data=chart.data.datasets[0].data;
 			ctx.save(); ctx.font='11px Arial, sans-serif'; ctx.fillStyle=ink;
 			ctx.textBaseline='middle'; ctx.textAlign='left';
-			meta.data.forEach(function(bar,i){ ctx.fillText(chart.data.datasets[0].data[i], bar.x+6, bar.y); });
+			meta.data.forEach(function(bar,i){
+				if(!data[i]) return;          /* null, undefined and 0 alike */
+				ctx.fillText(data[i], bar.x+6, bar.y);
+			});
 			ctx.restore();
 		}};
 	}
@@ -1756,15 +1763,77 @@ var srmPanelEquipts = <?php echo json_encode(implode(',', $rsEquiptIds)); ?>;
 		c.fillText('No failures recorded for this range.', 0, 34);
 	}
 
+	// @figures -- Counts above each column, the vertical counterpart of
+	// valueLabels(). Kept as its own function rather than generalised: the two
+	// differ in anchor, baseline and alignment, and one function taking an
+	// orientation flag would be longer than both.
+	//
+	// Zeros and nulls both draw nothing. A zero column has no bar to label and
+	// "0" sitting on the axis is furniture, not information; a null has no
+	// count to print at all. The cost is that a recorded zero and an uncovered
+	// bucket look identical on the figure, so the red footnote below names the
+	// uncovered buckets outright.
+	function monthValueLabels(){
+		return { id:'srmMonthLabels', afterDatasetsDraw:function(chart){
+			var data = chart.data.datasets[0].data, n = data.length;
+			if(!n || !chart.chartArea) return;
+			var ctx = chart.ctx, area = chart.chartArea, i, w, widest = 0;
+
+			ctx.save(); ctx.font='10px Arial, sans-serif'; ctx.fillStyle=ink;
+			ctx.textAlign='center'; ctx.textBaseline='bottom';
+
+			// Room check before drawing anything. This chart matters more here
+			// than on the car report: srmBucketWord switches to days when the
+			// range is short, so n can be 28-31 rather than 12 and the numerals
+			// would collide. Measured against the widest label so the figure is
+			// all-or-nothing rather than partly legible.
+			for(i = 0; i < n; i++){
+				if(!data[i]) continue;        /* matches what is drawn below */
+				w = ctx.measureText(String(data[i])).width;
+				if(w > widest) widest = w;
+			}
+			if(widest + 4 <= area.width / n){
+				chart.getDatasetMeta(0).data.forEach(function(bar, k){
+					if(!data[k]) return;      /* null, undefined and 0 alike */
+					ctx.fillText(data[k], bar.x, bar.y - 3);
+				});
+			}
+			ctx.restore();
+		}};
+	}
+
+	// Uncovered buckets carry null, so Chart.js draws no bar. A null and a zero
+	// look identical, so the gap is named in a footnote painted into the canvas
+	// — which survives toDataURL and therefore the print handoff.
+	var monthGapNote = {
+		id:'srmMonthGap',
+		afterDraw:function(chart){
+			if(!srmUncovered.length) return;
+			var ctx=chart.ctx, area=chart.chartArea;
+			ctx.save(); ctx.font='10px Arial, sans-serif'; ctx.fillStyle='#7A1F1F';
+			ctx.textAlign='left'; ctx.textBaseline='top';
+			var y=chart.height-13;
+			ctx.strokeStyle=grid; ctx.lineWidth=1;
+			ctx.beginPath(); ctx.moveTo(area.left,y-5); ctx.lineTo(chart.width-8,y-5); ctx.stroke();
+			ctx.fillText('No data: '+srmUncovered.join(', ')+' \u2014 not zero failures', area.left, y);
+			ctx.restore();
+		}
+	};
+
 	new Chart(document.getElementById('srmByMonth'), {
 		type:'bar',
 		data:{ labels: srmMonthSeries.map(function(r){ return r[0]; }),
 		       datasets:[{ data: srmMonthSeries.map(function(r){ return r[1]; }), backgroundColor:'#00529B', borderRadius:3 }] },
 		options:{ responsive:false, animation:false,
+			/* Headroom for the numerals above the tallest column, and a strip
+			   at the foot for the gap note when there is one. Without the top
+			   padding the label on the peak column is clipped by the canvas. */
+			layout:{ padding:{ top:14, bottom: srmUncovered.length ? 16 : 2 } },
 			plugins:{ title:{ display:true, text:'Car-level failures by '+srmBucketWord+', all equipment', color:ink, font:{size:11,weight:'normal'}, padding:{bottom:6} }, legend:{ display:false } },
 			scales:{ x:{ ticks:{ color:muted, font:{size:9}, maxRotation:45 }, grid:{ display:false } },
 			         y:{ ticks:{ color:muted, precision:0, font:{size:10} }, grid:{ color:grid } } }
-		}
+		},
+		plugins:[monthGapNote, monthValueLabels()]
 	});
 
 	window.srmPrintReport = function(){
