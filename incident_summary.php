@@ -824,7 +824,7 @@ $isPrintTo   = isset($availability_date2) ? $availability_date2 : '';
 $isPrintQS   = "ccdr=".urlencode($isPrintFrom)."&ccdr2=".urlencode($isPrintTo);
 ?>
 <div class="cf-printbar">
-	<span class="cf-printbar-label">Printouts
+	<span class="cf-printbar-label">Control Center Daily Report
 		<?php if($isPrintFrom !== ''){ ?><span class="cf-printbar-range"><?php
 			echo htmlspecialchars(date("d M Y", strtotime($isPrintFrom)));
 			if($isPrintTo !== '' && $isPrintTo !== $isPrintFrom){
@@ -836,12 +836,6 @@ $isPrintQS   = "ccdr=".urlencode($isPrintFrom)."&ccdr2=".urlencode($isPrintTo);
 		<?php /* Primary = the current format. The other two are named for what
 		         they are rather than all three reading "Generate ... Printout",
 		         which said nothing about which to pick. */ ?>
-		<a href="#" class="cf-tbtn cf-tbtn--primary"
-		   onclick='window.open("generate_nis.php?<?php echo $isPrintQS; ?>"); return false;'
-		   title="The current CCDR format">CCDR &mdash; current format</a>
-		<a href="#" class="cf-tbtn"
-		   onclick='window.open("generate_ccdr.php?<?php echo $isPrintQS; ?>"); return false;'
-		   title="The previous CCDR layout, kept for recipients who still expect it">CCDR &mdash; legacy layout</a>
 <?php
 		/* @nisdirect -- ccadmin generates the NIS spreadsheet from here instead of
 		   going to weekly_printout.php and clicking Generate NIS printout there.
@@ -862,15 +856,6 @@ $isPrintQS   = "ccdr=".urlencode($isPrintFrom)."&ccdr2=".urlencode($isPrintTo);
 		if($isNisUser && $isPrintFrom !== ''){ ?>
 		<?php /* No range, no button: generate_nis2 with an empty ccdr produces a
 		         spreadsheet for nothing, and the click gives no clue why. */ ?>
-		<a href="#" class="cf-tbtn" id="isNisBtn"
-		   data-ccdr="<?php echo htmlspecialchars($isPrintFrom); ?>"
-		   data-ccdr2="<?php echo htmlspecialchars($isPrintTo); ?>"
-		   onclick='isGenerateNIS(); return false;'
-		   title="Downloads the NIS spreadsheet for this range without leaving the page">Weekly printout</a>
-		<?php } else { ?>
-		<a href="#" class="cf-tbtn"
-		   onclick='window.open("weekly_printout.php?<?php echo $isPrintQS; ?>"); return false;'
-		   title="Weekly roll-up over the same range">Weekly summary</a>
 		<?php } ?>
 	</span>
 </div>

@@ -895,7 +895,7 @@ $isPrintTo   = isset($availability_date2) ? $availability_date2 : '';
 $isPrintQS   = "ccdr=".urlencode($isPrintFrom)."&ccdr2=".urlencode($isPrintTo);
 ?>
 <div class="cf-printbar">
-	<span class="cf-printbar-label">Printouts
+	<span class="cf-printbar-label">Incident Report (Printouts)
 		<?php if($isPrintFrom !== ''){ ?><span class="cf-printbar-range"><?php
 			echo htmlspecialchars(date("d M Y", strtotime($isPrintFrom)));
 			if($isPrintTo !== '' && $isPrintTo !== $isPrintFrom){
