@@ -445,21 +445,16 @@ else {
 <tbody>
 <?php
 
-/* @nonrevenue -- $CAR_MAX is the REVENUE fleet, 1..73. It is no longer a
-   filter on what gets counted.
-   Numbers above it are placeholders standing in for non-revenue trains that do
-   not run the usual cars. Those are real failures on real vehicles, and the old
-   guard dropped them before they reached $stats -- so this table, its month
-   totals and its grand total all excluded them while month_stats.php, which has
-   no such guard, counted them. That is the whole of the 75-against-77 gap on
-   March 2026. Neither page said anything, so the drill-down simply disagreed
-   with the cell that opened it.
-   The roster is now the revenue fleet PLUS whichever placeholders appear in the
-   window. Revenue cars are listed even at zero, because a car with no failures
-   is a fact worth showing; placeholders are listed only when they have data,
-   because that set is open-ended. The initialisation moved below the query,
-   since the roster is now derived from the rows. */
 $CAR_MAX = 73;
+for($i=1;$i<=$CAR_MAX;$i++){
+
+	for($k=1;$k<=$bucketCount;$k++){
+		$stats["Car_".$i][$bucketKey.$k]=0;
+	}
+	// "total" was never initialised — the += below was accumulating onto an
+	// undefined index on the first hit for every car.
+	$stats["Car_".$i]["total"]=0;
+}
 $highestCount=0;   // was only defined inside if($nm>0), but used unconditionally below
 
 // @peakmonth -- both were accumulated onto undefined indexes further down.
@@ -507,89 +502,61 @@ $sql="SELECT car_no,month(incident_date) as mo,sum(1) as count FROM incident_car
 
 $rs=$db->query($sql);
 
-$nm=$rs?$rs->num_rows:0;
+$nm=$rs->num_rows;
 
-/* @nonrevenue -- Buffered, because the roster is derived from the rows and the
-   rows must be walked twice: once to learn which placeholder numbers appear,
-   once to add them up. A mysqli result only walks forwards. */
-$rawRows    = array();
-$extraCars  = array();   /* placeholder numbers present in this window */
-$unnumbered = 0;         /* car_no of 0 or blank -- NOT a placeholder */
-for($i=0;$i<$nm;$i++){
-	$row=$rs->fetch_assoc();
-	$car_id=$row['car_no']*1;
-	/* A blank is a THIRD valid category, not bad data and not a placeholder.
-	   These are real trains that carry no car numbers; why is not recorded and
-	   is not this page's business to guess. They are counted like any other
-	   failure and gathered into one row, because they cannot be split by a car
-	   number that was never part of the record. */
-	if($car_id < 1){ $unnumbered += (int)$row['count']; $row['car_no']=0; $car_id=0; }
-	else if($car_id > $CAR_MAX && !in_array($car_id,$extraCars,true)){ $extraCars[]=$car_id; }
-	$rawRows[]=$row;
-}
-sort($extraCars);
-$carIds = array_merge(range(1,$CAR_MAX), $extraCars);
-/* Keyed 0 and rendered last. Dropping these is what left this page's grand
-   total short of the month panel's: the panel has no car column to drop them
-   from, so the only way the two can agree is for the table to carry them. */
-if($unnumbered){ $carIds[] = 0; }
+if($nm>0){
+	$highestCount=0;
+	
+	for($i=0;$i<$nm;$i++){
+		$row=$rs->fetch_assoc();
+		$car_id=$row['car_no']*1;
+		
+		// Was "=" not "+=": a car appearing in BOTH the current and legacy
+		// databases for the same month had one of the two figures overwritten,
+		// while the total below accumulated both — so the month cells and the
+		// total disagreed.
+		if($car_id < 1 || $car_id > $CAR_MAX) continue;   // outside the fleet range
 
-foreach($carIds as $i){
-	for($k=1;$k<=$bucketCount;$k++){
-		$stats["Car_".$i][$bucketKey.$k]=0;
-	}
-	// "total" was never initialised — the += below was accumulating onto an
-	// undefined index on the first hit for every car.
-	$stats["Car_".$i]["total"]=0;
-}
 
-foreach($rawRows as $row){
-	$car_id=$row['car_no']*1;
-
-	// Was "=" not "+=": a car appearing in BOTH the current and legacy
-	// databases for the same month had one of the two figures overwritten,
-	// while the total below accumulated both — so the month cells and the
-	// total disagreed.
-	if($isDayView){
-		$day=$row['day']*1;
-		/* @dayview -- The LIKE clause should keep $day inside the month, but an
-		   out-of-range bucket would create a 32nd column's worth of data that no
-		   cell reads. Unlike the car guard this one is a real impossibility,
-		   not a category of vehicle. */
+		if($isDayView){
+			$day=$row['day']*1;
+		/* @dayview -- same shape as the car range guard above. The LIKE clause
+		   should keep $day inside the month, but an out-of-range bucket would
+		   otherwise create a 32nd column's worth of data that no cell reads. */
 		if($day < 1 || $day > $bucketCount) continue;
 		$stats["Car_".$car_id][$bucketKey.$day]+=$row['count'];
-	}
-	else {
-		/* @dayview -- was assigning to $month, overwriting the SELECTED month on
-		   every row fetched. Renamed to a loop-local. */
-		$mo=$row['mo']*1;
+		
+		}
+		else {
+			/* @dayview -- was assigning to $month, overwriting the SELECTED
+			   month on every row fetched. Renamed to a loop-local. */
+			$mo=$row['mo']*1;
 		$stats["Car_".$car_id]["Month_".$mo]+=$row['count'];
-	}
 
-	$stats["Car_".$car_id]["total"]+=$row['count'];
 
-	/* @nonrevenue -- The 60% flag and the Most Fault-Prone Car tile stay scoped
-	   to the REVENUE fleet. A placeholder stands in for a whole train, so its
-	   count is not comparable with one car's, and letting it top that tile
-	   would answer a different question than the tile asks. Totals are another
-	   matter: those include everything, which is what makes this page reconcile
-	   with the month panel. */
-	if($car_id <= $CAR_MAX){
+		}
+
+		
+
+
+
+		$stats["Car_".$car_id]["total"]+=$row['count'];
+		
 		$highestCount=sortCar($highestCount,$stats["Car_".$car_id]["total"]);
+		
+		
+		
+		
 	}
 }
 
 
 
 
-/* @nonrevenue -- was a hardcoded 1..73, which also meant it ignored $CAR_MAX
-   sitting a few lines above it. */
-foreach($carIds as $i){
-	$isNonRev  = ($i > $CAR_MAX);
-	$isNoCar   = ($i === 0);
-	$isFlagged = (!$isNonRev && !$isNoCar && ($highestCount*0.60) < $stats["Car_".$i]["total"]);
+for($i=1;$i<=73;$i++){
+	$isFlagged=(($highestCount*0.60)<$stats["Car_".$i]["total"]);
 ?>
-<tr class="<?php echo ($stats["Car_".$i]["total"] == 0) ? 'ccs-zero' : 'ccs-nonzero'; echo $isNonRev ? ' ccs-nonrev' : ''; ?>"
+<tr class="<?php echo ($stats["Car_".$i]["total"] == 0) ? 'ccs-zero' : 'ccs-nonzero'; ?>"
 <?php 
 if($isFlagged){
 //		echo "style='background-color:#F9D6D6; color:#7A1F1F;'";
@@ -603,11 +570,7 @@ else {
 
 
 ?>>
-<?php if($isNoCar){ /* a real row; it just has no car number to drill on */ ?>
-<th class='car ccs-nocar' title="Trains that carry no car numbers. Counted in the totals; the drill-down filters by car number, so there is nothing to open.">no car&nbsp;#</th>
-<?php } else { ?>
-<th class='stat_hover car' onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $i; ?>','Statistics Report','<?php echo $month; ?>','<?php echo $equipment; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}" title="<?php echo $isNonRev ? 'Non-revenue placeholder number' : 'Revenue car'; ?>"><?php echo $i; ?><?php if($isNonRev){ ?> <span class="ccs-nr">NR</span><?php } ?></th>
-<?php } ?>
+<th class='stat_hover car' onclick="openEditIncidentPanel('<?php echo $year; ?>','<?php echo $i; ?>','Statistics Report','<?php echo $month; ?>','<?php echo $equipment; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"><?php echo $i; ?></th>
 <?php
 /**
 <th class='stat_hover'><a href='car_history.php?car_id=<?php echo $i; ?>&y=<?php echo $year; ?>' style='text-decoration:none; color:#00529B; font-weight:600;'><?php echo $i; ?></a></th>
@@ -664,31 +627,6 @@ for($k=1;$k<=$bucketCount;$k++){
 </tfoot>
 </table>
 <?php
-/* @nonrevenue -- Say what the table contains, rather than leaving the reader to
-   discover it by drilling down and getting a different number. Placeholders are
-   named so an out-of-convention entry that is actually a typo shows up as one;
-   unnumbered rows are the only thing still excluded, and now they are excluded
-   out loud. */
-if(count($extraCars) || $unnumbered){
-	echo '<p class="ccs-fleetnote">';
-	if(count($extraCars)){
-		echo 'Includes <b>'.count($extraCars).'</b> non-revenue placeholder number'
-		   . (count($extraCars)==1?'':'s').' (marked <span class="ccs-nr">NR</span>): '
-		   . htmlspecialchars(implode(', ', $extraCars))
-		   . '. These are counted in the month totals and in the grand total, but are '
-		   . 'left out of the 60% flag and the Most Fault-Prone Car figure, which compare '
-		   . 'single revenue cars.';
-	}
-	if($unnumbered){
-		if(count($extraCars)) echo ' ';
-		echo 'The <b>no car #</b> row holds <b>'.$unnumbered.'</b> failure'.($unnumbered==1?'':'s')
-		   . ' on trains that carry no car numbers. These count in the month totals and the '
-		   . 'grand total like any other, but sit outside the 60% flag and the Most '
-		   . 'Fault-Prone Car figure, which compare single revenue cars, and cannot be '
-		   . 'opened because the drill-down filters by car number.';
-	}
-	echo '</p>';
-}
 $tableHtml = ob_get_clean();
 
 /* ==========================================================================
@@ -724,20 +662,7 @@ if(function_exists('iss_insight')){
 	if($rs){
 		while($r = $rs->fetch_assoc()){
 			$cn = (int)$r['cn'];
-			/* @nonrevenue -- was "same fleet range the table uses", which is no
-			   longer what the table uses. Placeholders belong in the analysis
-			   for the same reason they belong in the totals; excluding them
-			   here would put the panel back out of step with the table it sits
-			   under, in the other direction.
-
-			   Trains with no car numbers stay out, and NOT because the record
-			   is wanting -- they are valid trains. This particular question is
-			   "which unit carries this fault", and it cannot be asked of a row
-			   with no unit. Folding them into one synthetic unit would be worse
-			   than leaving them out: several different trains would be read as
-			   one, and the concentration findings are exactly what that would
-			   mislead. The count is stated under the table instead. */
-			if($cn < 1) continue;
+			if($cn < 1 || $cn > $CAR_MAX) continue;   /* same fleet range the table uses */
 			$eq = $r['eq'];
 			if($eq === null || $eq === '') $eq = '__blank';
 			$cell[$cn][$eq] = (isset($cell[$cn][$eq]) ? $cell[$cn][$eq] : 0) + (int)$r['c'];
@@ -814,7 +739,7 @@ if(function_exists('iss_insight')){
 		}
 		while($r = $rs->fetch_assoc()){
 			$cn = (int)$r['cn'];
-			if($cn < 1) continue;   /* @nonrevenue -- see the cross-tab note above */
+			if($cn < 1 || $cn > $CAR_MAX) continue;
 			$issEvents[] = array(
 				'date'=>substr($r['d'],0,10),
 				'unit_key'=>'car'.$cn, 'unit_label'=>'Car '.$cn,
@@ -833,10 +758,6 @@ if(function_exists('iss_insight')){
 $grandTotal2 = $grandTotal;   // already accumulated above
 $carTotals = array();
 $carsWithFailures=0;
-/* @nonrevenue -- This one KEEPS the revenue range on purpose. It answers "how
-   many of the fleet had no failures", and a placeholder only ever appears in
-   the data when it HAS one -- counting them would quietly change the
-   denominator from the fleet to the fleet-plus-whatever-turned-up. */
 $zeroRows = 0; $totalRows = $CAR_MAX;   /* @zerorows */
 for($i=1;$i<=$CAR_MAX;$i++){
 	if($stats["Car_".$i]["total"] > 0){
@@ -1154,17 +1075,6 @@ if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
 .ccs-rowtabs button:hover{background:#F2F5F9;}
 .ccs-rowtabs button.is-on{background:#00529B;color:#fff;}
 table.ccs-rows-with tr.ccs-zero{display:none;}
-/* @nonrevenue -- Placeholder rows read as part of the fleet table but are
-   visibly not one of the 73. Marked rather than moved into a block of their
-   own: they belong in the totals, and separating them invites the reader to
-   subtract them back out. */
-tbody tr.ccs-nonrev th.car{ border-left:3px solid #7A5AA8; }
-.ccs-nr{ font-size:9px; font-weight:700; letter-spacing:.04em; color:#7A5AA8;
-	vertical-align:super; }
-th.ccs-nocar{ color:#5A6275; cursor:default; font-style:italic; font-weight:600;
-	white-space:nowrap; }
-.ccs-fleetnote{ margin:6px 0 0; font-size:11.5px; color:#5A6275; }
-.ccs-fleetnote b{ color:#1A2238; }
 table.ccs-rows-none tr.ccs-nonzero{display:none;}
 @media print{.ccs-rowtabs .ccs-seg{display:none;}}
 </style>
