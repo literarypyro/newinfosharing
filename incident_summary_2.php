@@ -52,6 +52,8 @@ if($dlFrom !== false){
 ?>
 <?php
 require("Tmenu.php");
+if (file_exists(dirname(__FILE__)."/type_scale.php")) require_once(dirname(__FILE__)."/type_scale.php");
+
 require_once("db_config.php"); /* centralized credentials -- see db_config.php */
 ?>
 
@@ -1010,12 +1012,17 @@ function isGenerateNIS(){
 <th rowspan=2>CTC</th>
 <th rowspan=2>Recommending<br> Approval</th>
 <th rowspan=2>Approving</th>
-<th rowspan=2>Description</th>
-<th rowspan=2>Action Taken</th>
+<th colspan=2>Cause</th>
+
 <th colspan=3>Engineering</th>
 <th rowspan=2></th>
 </tr>
 <tr class='rowHeading'>
+<th>Preliminary Finding</th>
+<th>Verified By</th>
+
+
+
 <th>Recommending<br> Approval</th>
 <th>Approving<br> Officer</th>
 <th>IRO</th>

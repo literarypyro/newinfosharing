@@ -52,6 +52,7 @@ if($dlFrom !== false){
 ?>
 <?php
 require("Tmenu.php");
+if (file_exists(dirname(__FILE__)."/type_scale.php")) require_once(dirname(__FILE__)."/type_scale.php");
 require_once("db_config.php"); /* centralized credentials -- see db_config.php */
 ?>
 
