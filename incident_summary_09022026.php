@@ -399,42 +399,6 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 .ta-grid.ta-console table.train_ava tbody tr:hover td { background: #E3EEFA; }
 .ta-grid.ta-console table.train_ava td:first-child { text-align: center; font-weight: 600; color: var(--cf-blue); width: 36px; }
 
-/* -- @colwidth: the incident table's column model ------------------------
-   Maintenance Provider was the widest column on the page purely because its
-   header is the longest string in the header row and its cells hold prose.
-   Additional Defects, which is what this report exists to surface, was left
-   with whatever remained. The two are now sized to what they are worth:
-   Additional Defects gets half again what Maintenance does.
-
-   Percentages because the table is width=95% with no horizontal scroller --
-   pixels would overflow a 1366px terminal or leave dead space on a wide one.
-   The fourteen values sum to 100; change one and change another, or the last
-   column drifts. */
-.ta-grid.ta-console table.train_ava.cf-inc { table-layout: fixed; }
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(1)  { width:  6%; } /* Incident No. */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(2)  { width:  8%; } /* Incident Date/Time */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(3)  { width:  8%; } /* Time Resolved */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(4)  { width:  5%; } /* Duration */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(5)  { width:  4%; } /* Index No */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(6)  { width:  6%; } /* Car(s) */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(7)  { width:  6%; } /* Location */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(8)  { width: 15%; } /* Description */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(9)  { width:  6%; } /* Reported By */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(10) { width:  8%; } /* Action Taken - DOTC */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(11) { width:  8%; } /* Action Taken - Maintenance  <- narrowed */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(12) { width:  4%; } /* Level Status */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(13) { width: 13%; } /* Additional Defects  <- widened */
-.ta-grid.ta-console table.train_ava.cf-inc col:nth-child(14) { width:  3%; } /* delete */
-
-/* Fixed layout lets an unbroken token run straight out of its column. Scoped
-   to the cells that can hold one, so short codes are never broken mid-word. */
-.ta-grid.ta-console table.train_ava.cf-inc td { vertical-align: top; overflow-wrap: anywhere; }
-.ta-grid.ta-console table.train_ava.cf-inc th { vertical-align: middle; }
-/* The first-child rule above pins column 1 to 36px, which the colgroup would
-   otherwise have to fight; the cell rule wins under fixed layout, so it is
-   released here and the colgroup decides. */
-.ta-grid.ta-console table.train_ava.cf-inc td:first-child { width: auto; }
-
 /* -- Inline Edit / Delete links inside cells -- */
 /* Inline per-cell Edit links: there are up to 8 of these in a single row
    (one per editable field), so a permanently-visible bordered button per
@@ -922,26 +886,7 @@ function isGenerateNIS(){
 <?php } ?>
 
 <!-- header -->
-<?php /* @colwidth -- Widths live on a colgroup, and the table is switched to
-         table-layout:fixed so they are obeyed rather than treated as hints.
-
-         With the default auto layout the browser sizes columns from their
-         CONTENT, so "Action Taken - Maintenance Provider" -- a header that long
-         over cells holding whole sentences -- claimed whatever it wanted and
-         squeezed Additional Defects down to a couple of characters. That column
-         is the point of the report: it names the other equipment that failed.
-
-         They are percentages, not pixels, because this table is width=95% and
-         has no horizontal scroller; fixed pixel widths would either overflow a
-         narrow terminal or leave a gap on a wide one. The set sums to 100.
-
-         Fourteen cols for thirteen headers: the rows emit a delete cell that
-         the header never declared, so an empty th is added below to match. */ ?>
-<table width=95% class='train_ava cf-inc'>
-<colgroup>
-	<col><col><col><col><col><col><col>
-	<col><col><col><col><col><col><col>
-</colgroup>
+<table width=95% class='train_ava'>
 <tr class='rowHeading'>
 <th rowspan=2>Incident No.</th>
 <th rowspan=2>Incident Date/Time</th>
@@ -957,15 +902,10 @@ function isGenerateNIS(){
 <th colspan=2>Action Taken</th>
 <th rowspan=2>Level<br> Status</th>
 <th rowspan=2>Additional<br> Defects</th>
-<?php /* @colwidth -- the delete column, which the rows have always emitted and
-         the header has always been missing. */ ?>
-<th rowspan=2></th>
 </tr>
 <tr class='rowHeading'>
 <th>DOTC</th>
-<?php /* Broken explicitly so a narrower column wraps where it reads, rather
-         than wherever the box happens to run out. */ ?>
-<th>Maintenance Provider<br>(TESP/Other)</th>
+<th>Maintenance Provider (TESP/Other)</th>
 </tr>
 
 <?php

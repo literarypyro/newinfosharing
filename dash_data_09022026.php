@@ -620,7 +620,7 @@ function dash_delta($series,$date){
    rather than an empty one. */
 function dash_trend_grain($g){
 	$g = strtolower(trim((string)$g));
-	return in_array($g, array('year','month','ytd','week'), true) ? $g : 'month';
+	return in_array($g, array('year','month','week'), true) ? $g : 'month';
 }
 
 /* @grain -- Coverage, loaded once and cached.
@@ -708,35 +708,6 @@ function dash_trend_series($date, $grain){
 		$out['head'] = 'Last '.DASH_TREND_WEEKS.' weeks';
 		$expr = "date_format(date_sub(incident_date, interval weekday(incident_date) day),'%Y-%m-%d')";
 	}
-	else if($grain === 'ytd'){
-		/* @ytd -- The months of the VIEWED year, January to the month on
-		   screen. Distinct from 'month', which is a rolling last-N window and
-		   so straddles two years for most of the year -- comparing March with
-		   the previous March means counting backwards across a boundary the
-		   card does not draw.
-
-		   It stops at the month being viewed and does NOT run to December.
-		   Drawing the rest of the year would put four empty bars on the right
-		   of the chart in September, and this file already carries the warning
-		   for why that is the worst thing this card can do: a near-empty bar
-		   reads as a GOOD period. Those months have not happened; there is no
-		   honest bar for them, so there is no bar. */
-		$y   = (int)date("Y", strtotime($date));
-		$end = (int)date("n", strtotime($date));
-		for($m = 1; $m <= $end; $m++){
-			$t = mktime(0,0,0,$m,1,$y);
-			$k = date("Y-m", $t);
-			$out['keys'][] = $k; $out['counts'][$k] = 0;
-			$out['labels'][$k] = date("M", $t);
-			$out['full'][$k]   = date("F Y", $t);
-		}
-		$out['sd'] = $y."-01-01";
-		$out['ed'] = $date;
-		/* A completed year is just the year; a year still running says so, so
-		   nobody reads a nine-month total as an annual one. */
-		$out['head'] = ($end === 12) ? ($y.' by month') : ($y.' to date');
-		$expr = "date_format(incident_date,'%Y-%m')";
-	}
 	else {
 		$cur = strtotime(date("Y-m-01", strtotime($date)));
 		for($i = DASH_TREND_MONTHS - 1; $i >= 0; $i--){
@@ -768,8 +739,7 @@ function dash_trend_series($date, $grain){
 	   EVERY month in it is -- a partly recovered year keeps its bar, because
 	   the count in it is real even though it is incomplete. */
 	foreach($out['keys'] as $k){
-		if($grain === 'month' || $grain === 'ytd'){
-			/* Both are keyed YYYY-MM, so they null out identically. */
+		if($grain === 'month'){
 			if(dash_month_missing($k)) $out['counts'][$k] = null;
 		}
 		else if($grain === 'year'){

@@ -571,8 +571,19 @@ dash_status_band($view_date,false);
 				         so the state lives in the URL: the wall display reloads into the
 				         same view, and the choice can be bookmarked. $view_date rides
 				         along so switching grain never silently jumps to today. */ ?>
+				<?php /* @ytd -- The fourth option is labelled with the YEAR rather
+				         than "This year", because the card follows the date being
+				         viewed: on a 2019 board "This year" would be a lie, while
+				         "2019" is simply what it shows. Placed next to Monthly --
+				         both are months, one rolling and one calendar. */
+				$dsSeg = array(
+					'year'  => 'Yearly',
+					'month' => 'Monthly',
+					'ytd'   => date("Y", strtotime($view_date)),
+					'week'  => 'Weekly',
+				); ?>
 				<span class="ds-seg">
-<?php		foreach(array('year'=>'Yearly','month'=>'Monthly','week'=>'Weekly') as $gk=>$glabel){ ?>
+<?php		foreach($dsSeg as $gk=>$glabel){ ?>
 					<a class="<?php echo $trend_grain===$gk?'on':''; ?>" href="?d=<?php echo dash_h($view_date); ?>&amp;g=<?php echo $gk; ?>"><?php echo $glabel; ?></a>
 <?php		} ?>
 				</span>

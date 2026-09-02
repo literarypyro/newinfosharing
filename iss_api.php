@@ -204,12 +204,55 @@ function iss_state_label($state, $fallback){
 	return $fallback;
 }
 
-/* @skipping -- inserted, but not at North Ave., so it did not run the full
-   line. Deliberately NOT folded into 'state': the train IS in service, and
-   overwriting its state would lose that. Same test as the console. */
+/* =====================================================================
+   @skipping -- inserted somewhere other than North Ave., so the set did
+   not run the full line.
+
+   TWO BUGS FIXED HERE, and they were hiding each other.
+
+   1. WRONG VALUE SPACE. The database stores inserted_to as the raw form
+      code -- 'north' or 'quezon' (see the option values in
+      train_operations_parallel.php). dash_data.php maps those to display
+      labels, but ONLY inside dash_recent_insertions(); dash_trains()
+      hands back the raw code untouched. This function was comparing the
+      raw code against the display label "North Ave.", so:
+
+        inserted_to='north'   -> 'north' !== 'North Ave.'  -> SKIPPING
+        inserted_to='quezon'  -> 'quezon' !== 'North Ave.' -> SKIPPING
+
+      Every inserted train came back skipping. The Quezon ones were right
+      by accident, which is why the figure looked plausible.
+
+   2. THE ONLINE GATE. The counts then filtered on state=='online', which
+      cancelled out most of bug 1 -- and in doing so dropped the real
+      cases. A set inserted at Quezon and later removed has state
+      'removed', so it was never counted, even though it demonstrably
+      skipped. That is the missed skipping.
+
+   The test is now on the INSERTION, positively: did this set enter
+   service anywhere other than North Ave.? Skipping is a fact about what
+   already happened, not about where the train is now -- so it survives
+   the set being removed later in the day, and the count stops depending
+   on when you happen to look.
+
+   Normalisation mirrors dash_data.php line 263 exactly: lowercase, trim,
+   compare against 'quezon'. Anything else -- 'north', blank, a value
+   this build has never seen -- is NOT skipping. Erring toward "not
+   skipping" on an unrecognised code is deliberate: inventing a skip is
+   worse than missing one, because the badge is an accusation about
+   service that was not delivered.
+   ===================================================================== */
 function iss_is_skipping($t){
-	$to = isset($t['inserted_to']) ? trim((string)$t['inserted_to']) : '';
-	return ($to !== '' && $to !== 'North Ave.');
+	/* No insertion recorded means the set never entered service, so there
+	   is nothing to have skipped. */
+	if(!dash_ts(isset($t['insert_time']) ? $t['insert_time'] : '')) return false;
+
+	$to = strtolower(trim((string)(isset($t['inserted_to']) ? $t['inserted_to'] : '')));
+
+	/* Positive test against the ONE known non-terminus code. Accepts the
+	   display label too, in case a future dash_data.php starts mapping
+	   inserted_to before dash_trains() returns it. */
+	return ($to === 'quezon' || $to === 'quezon ave.');
 }
 
 function iss_train($t){
@@ -390,7 +433,9 @@ if($seg[0] === 'days'){
 		foreach(dash_trains($date) as $t){
 			$rows[] = iss_train($t);
 			if($t['state'] === 'boundary') $rsv++;
-			if($t['state'] === 'online' && iss_is_skipping($t)) $skp++;
+			/* No state gate: a set inserted at Quezon and later removed still
+			   skipped. Gating on 'online' is what dropped the real cases. */
+			if(iss_is_skipping($t)) $skp++;
 		}
 		$c['reserve']  = $rsv;    /* @reserve -- same derivation as /today */
 		$c['skipping'] = $skp;
@@ -501,7 +546,8 @@ if($seg[0] === 'days'){
 	$reserve = 0; $skipping = 0;
 	foreach(dash_trains($date) as $t){
 		if($t['state'] === 'boundary') $reserve++;
-		if($t['state'] === 'online' && iss_is_skipping($t)) $skipping++;
+		/* No state gate -- see iss_is_skipping(). */
+		if(iss_is_skipping($t)) $skipping++;
 	}
 	$fleet['reserve']  = $reserve;   /* === boundary, named as operations names it */
 	$fleet['skipping'] = $skipping;
