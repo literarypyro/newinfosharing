@@ -25,7 +25,20 @@ if (defined('ISS_INSIGHT_LOADED')) { return; }
 define('ISS_INSIGHT_LOADED', 1);
 
 define('ISS_INSIGHT_SCHEMA',  'iss.report.v1');
-define('ISS_INSIGHT_PROMPT_V', '4');   /* bump to invalidate every cached narrative */
+define('ISS_INSIGHT_PROMPT_V', '5');   /* bump to invalidate every cached narrative */
+
+/* @leadlabel -- What the summary band calls its one hoisted sentence.
+   "Bottom line" carries a register this report should not: it is the language
+   of a closing position, and it makes a statistical reading sound like a
+   verdict that has been arrived at rather than a finding that can be checked
+   against the table underneath it. The panel below is headed "Analysis and
+   interpretation", so the band says "Key finding" -- the same family, and it
+   is literally what the sentence is: the single most consequential finding,
+   picked by the ranking in iss_insight_executive().
+   One constant because the phrase reaches the screen, the printout and the
+   model prompt; change it here and all three follow. Alternatives that fit the
+   space: "Assessment", "In summary", "Analysis". */
+if (!defined('ISS_INSIGHT_LEAD_LABEL')) { define('ISS_INSIGHT_LEAD_LABEL', 'Key finding'); }
 
 /* ---------------------------------------------------------------------------
  * 0. CONFIG
@@ -777,7 +790,9 @@ function iss_insight_system_prompt() {
 "the printout's Key Figures block; a third copy is padding. The score line carries the rate,\n" .
 "the coverage and the shares precisely because no tile does.\n\n" .
 "Reply with ONE JSON object and nothing else -- no markdown fence, no preamble:\n" .
-'{"headline":"<=100 chars","summary":"2-4 sentences","findings":[{"title":"short","detail":"1-3 sentences","priority":"high|medium|low","evidence":["F1"]}],"watchlist":[{"subject":"","why":""}],"caveats":["..."],"questions":["..."],"executive":{"bottom_line":"one sentence, the single most consequential thing","summary":"2-3 plain sentences","points":["..."],"caveats":["..."]}}' . "\n\n" .
+'{"headline":"<=100 chars","summary":"2-4 sentences","findings":[{"title":"short","detail":"1-3 sentences","priority":"high|medium|low","evidence":["F1"]}],"watchlist":[{"subject":"","why":""}],"caveats":["..."],"questions":["..."],"executive":{"lead":"one sentence, the single most consequential thing","summary":"2-3 plain sentences","points":["..."],"caveats":["..."]}}' . "\n\n" .
+"Do not use the phrase \"bottom line\" in any text you write. It reads as a closing position\n" .
+"rather than a reading of the data, which is the opposite of what this panel is for.\n\n" .
 "Every findings[] entry must cite at least one real finding id in evidence. Maximum 6 findings, 4 watchlist items, 3 questions, 5 executive points.";
 }
 
@@ -966,7 +981,7 @@ function iss_insight_audit($out, $F, $c = null) {
        survive, and it is the block that reaches the reader who cannot check
        it against the table. */
     if (isset($out['executive']) && is_array($out['executive'])) {
-        foreach (array('bottom_line', 'summary') as $k) {
+        foreach (array('lead', 'bottom_line', 'summary') as $k) {
             if (isset($out['executive'][$k])) { $blob .= ' ' . $out['executive'][$k]; }
         }
         foreach (array('points', 'caveats') as $k) {

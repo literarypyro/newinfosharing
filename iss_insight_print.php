@@ -155,7 +155,7 @@ function iss_insight_print_js(){
 			for(var j = 0; j < ids.length; j++){ ids[j].removeAttribute('id'); }
 		}
 
-		/* The masthead carries the bottom line and nothing else. Leading it
+		/* The masthead carries the key finding and nothing else. Leading it
 		   with the score line was tried and dropped: the printout already
 		   opens with a Key Figures block, so the masthead would have restated
 		   figures the reader meets twice more on the same sheet. The score

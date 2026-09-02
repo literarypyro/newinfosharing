@@ -432,7 +432,12 @@ function iss_insight_html_dual($c, $F, $tech, $showAudit = false) {
                override untouched -- there is nothing here for a model to get
                wrong and nothing for the audit to catch. */
             'score'   => $exe['score'],
-            'bottom'  => isset($m['bottom_line']) ? $m['bottom_line'] : $exe['bottom'],
+            /* @leadlabel -- 'lead' is what the prompt now asks for; 'bottom_line'
+               is still read so a narrative cached under the previous prompt
+               renders rather than silently falling back to the deterministic
+               text. */
+            'bottom'  => isset($m['lead']) ? $m['lead']
+                       : (isset($m['bottom_line']) ? $m['bottom_line'] : $exe['bottom']),
             'context' => isset($m['summary']) ? array($m['summary']) : $exe['context'],
             'points'  => (!empty($m['points']) && is_array($m['points']))
                          ? array_slice($m['points'], 0, 5) : $exe['points'],
@@ -594,7 +599,11 @@ function iss_insight_summary_band($c, $F, $anchor) {
     if ($cav)   { $bits[] = $cav . ' data caveat' . ($cav === 1 ? '' : 's'); }
 
     $h  = '<div class="ins-band">';
-    $h .= '<div class="ins-band-key">Bottom line</div>';
+    /* Guarded: a station may hold an older iss_insight.php with no such
+       constant, and the band losing its label is worse than the old wording. */
+    $h .= '<div class="ins-band-key">'
+        . iss_ins_esc(defined('ISS_INSIGHT_LEAD_LABEL') ? ISS_INSIGHT_LEAD_LABEL : 'Key finding')
+        . '</div>';
     /* The score is NOT repeated here. This band exists to hoist the bottom
        line above the fold and nothing else; the panel a few hundred pixels
        below already carries the score, and on the live page the two together
