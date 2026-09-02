@@ -425,6 +425,10 @@ body { font-family: var(--cf-sans); color: var(--cf-dark); }
 .ta-grid.ta-console table.train_ava.cf-inc col:nth-child(12) { width:  4%; } /* Level Status */
 .ta-grid.ta-console table.train_ava.cf-inc col:nth-child(13) { width: 13%; } /* Additional Defects  <- widened */
 .ta-grid.ta-console table.train_ava.cf-inc col:nth-child(14) { width:  3%; } /* delete */
+/* @readonly -- With no delete column the set is thirteen and would sum to 97.
+   Its share goes to Additional Defects, which is the column that wanted the
+   room in the first place. */
+.ta-grid.ta-console table.train_ava.cf-inc--ro col:nth-child(13) { width: 16%; }
 
 /* Fixed layout lets an unbroken token run straight out of its column. Scoped
    to the cells that can hold one, so short codes are never broken mid-word. */
@@ -922,6 +926,25 @@ function isGenerateNIS(){
 <?php } ?>
 
 <!-- header -->
+<?php
+/* @readonly -- The delete column is dropped on the dashboard route.
+   ?tt= is how the console's own links arrive here, and that route is a
+   management VIEW: the row should not carry a destructive control.
+
+   The cell at the foot of the row already tested isset($_GET['tt']) on its
+   own. The header and the colgroup did not, so with the token present the
+   header declared one more column than the rows emitted and every width from
+   the delete cell backwards sat against the wrong column. One flag, read in
+   all three places, is what keeps them from disagreeing again.
+
+   This is PRESENTATION, not access control. The row simply stops rendering
+   the link; processing.php?removeIncident= is still reachable by anyone who
+   knows the URL. If the dashboard route is meant to be genuinely read-only,
+   that check belongs in processing.php, where a crafted request also meets
+   it. Worth doing separately -- hiding a button has never stopped anybody. */
+$isDashView = isset($_GET['tt']);
+$isCols     = $isDashView ? 13 : 14;
+?>
 <?php /* @colwidth -- Widths live on a colgroup, and the table is switched to
          table-layout:fixed so they are obeyed rather than treated as hints.
 
@@ -937,10 +960,9 @@ function isGenerateNIS(){
 
          Fourteen cols for thirteen headers: the rows emit a delete cell that
          the header never declared, so an empty th is added below to match. */ ?>
-<table width=95% class='train_ava cf-inc'>
+<table width=95% class='train_ava cf-inc<?php echo $isDashView ? ' cf-inc--ro' : ''; ?>'>
 <colgroup>
-	<col><col><col><col><col><col><col>
-	<col><col><col><col><col><col><col>
+<?php for($cIdx = 0; $cIdx < $isCols; $cIdx++){ echo '<col>'; } ?>
 </colgroup>
 <tr class='rowHeading'>
 <th rowspan=2>Incident No.</th>
@@ -958,8 +980,9 @@ function isGenerateNIS(){
 <th rowspan=2>Level<br> Status</th>
 <th rowspan=2>Additional<br> Defects</th>
 <?php /* @colwidth -- the delete column, which the rows have always emitted and
-         the header has always been missing. */ ?>
-<th rowspan=2></th>
+         the header has always been missing. Emitted only when the rows will
+         emit the matching cell. */
+if(!$isDashView){ ?><th rowspan=2></th><?php } ?>
 </tr>
 <tr class='rowHeading'>
 <th>DOTC</th>
@@ -1187,7 +1210,9 @@ if($defectsNM>0){
 ?>
 </td>
 <?PHP
-if(!isset($_GET['tt'])){
+/* @readonly -- was isset($_GET['tt']) inline; now the same $isDashView the
+   header and the colgroup use, so the three cannot drift apart. */
+if(!$isDashView){
 	?>
 
 <td valign=center align=center><a href='#' class="LDel" onclick='deleteIncident("<?php echo $row['incident_id']; ?>")'>X</a></td>
