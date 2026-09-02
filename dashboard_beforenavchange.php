@@ -658,12 +658,7 @@ if($dsPartial){ ob_end_flush(); exit; }
 </div><!-- /#dsLive -->
 
 </div>
-<?php /* @autorefresh -- Emitted for EVERY date, not just today.
-         Polling is today-only; swapping the region is not. The range selector
-         on the trend card switches grain by loading a new URL, and that is
-         worth doing in place whichever date is on screen -- a 2019 board has
-         nothing to poll for, but its Yearly/Monthly/Weekly buttons should
-         still not throw the page away. */ ?>
+<?php if($is_today){ ?>
 <style>
 .ds-live{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--cf-ink-3,#5A6275);
 	margin-left:14px;white-space:nowrap;}
@@ -676,40 +671,32 @@ if($dsPartial){ ob_end_flush(); exit; }
 .ds-live.is-stale  .ds-live-dot{background:#E24B4A;}
 .ds-live.is-stale  #dsLiveText{color:#A32D2D;font-weight:600;}
 .ds-live.is-paused .ds-live-dot{background:#9AA5B1;}
-/* @grain -- the region dims while a range switch is in flight, so a slow
-   query reads as "loading" rather than as "the button did nothing". */
-#dsLive.is-loading{opacity:.55;transition:opacity .12s;}
 </style>
 <script>
-/* @autorefresh + @grain -- see the block comment at the top of this file for
-   what the polling deliberately does not do. */
+/* @autorefresh -- see the block comment at the top of this file for what this
+   deliberately does not do. */
 (function(){
-	var SECS     = <?php echo (int)DASH_REFRESH_SECS; ?>;
-	var IS_TODAY = <?php echo $is_today ? 'true' : 'false'; ?>;
-	var region   = document.getElementById('dsLive');
-	var live     = document.getElementById('dsLiveStatus');   /* today only */
-	var toggle   = document.getElementById('dsLiveOn');
-	var text     = document.getElementById('dsLiveText');
-	if(!region || !window.XMLHttpRequest) return;
+	var SECS   = <?php echo (int)DASH_REFRESH_SECS; ?>;
+	var live   = document.getElementById('dsLiveStatus');
+	var region = document.getElementById('dsLive');
+	var toggle = document.getElementById('dsLiveOn');
+	var text   = document.getElementById('dsLiveText');
+	if(!live || !region || !window.XMLHttpRequest) return;
 
 	var busy = false, lastOk = new Date(), failures = 0;
 
 	function two(n){ return (n<10?'0':'')+n; }
 	function clock(d){ return two(d.getHours())+':'+two(d.getMinutes())+':'+two(d.getSeconds()); }
 
-	/* The status readout exists only on today's board. Everything below calls
-	   state() unconditionally, so it has to tolerate not being there rather
-	   than each caller testing first. */
 	function state(cls, msg){
-		if(!live || !text) return;
 		live.className = 'ds-live ' + cls;
 		text.innerHTML = '';
 		text.appendChild(document.createTextNode(msg));
 	}
 
 	/* A panel is open when the console's panel element carries its active
-	   class. Several ids are checked because the console has more than one
-	   panel implementation in play; an unknown one simply means no pause,
+	   class. Both known ids are checked because the console has more than one
+	   panel implementation in play; an unknown third simply means no pause,
 	   which is the safe direction -- a missed pause is one redraw, a false
 	   pause is a board that stops updating while saying it is live. */
 	function panelOpen(){
@@ -737,8 +724,8 @@ if($dsPartial){ ob_end_flush(); exit; }
 		}
 	}
 
-	function partialUrl(href){
-		var u = href.split('#')[0];
+	function url(){
+		var u = location.href.split('#')[0];
 		u += (u.indexOf('?') === -1 ? '?' : '&') + 'partial=1';
 		/* Defeats the proxy and the browser cache alike; without it a tick can
 		   return the response from twenty seconds ago and look like a shift in
@@ -746,126 +733,61 @@ if($dsPartial){ ob_end_flush(); exit; }
 		return u + '&_=' + (new Date()).getTime();
 	}
 
-	/* @grain -- The date form and the Today link live in the bar, OUTSIDE the
-	   swapped region, so a range switch does not touch them. Both carry the
-	   grain: the form as a hidden input, the link in its query string. Left
-	   alone, submitting the date form after switching to Weekly would quietly
-	   send you back to Monthly -- the board would look like it had ignored the
-	   click, one step later and with no obvious cause. */
-	function syncBar(href){
-		var m = /[?&]g=([a-z]+)/i.exec(href);
-		var g = m ? m[1] : '';
-		var hidden = document.querySelector('.ds-bar input[name="g"]');
-		if(hidden && g){ hidden.value = g; }
-		var today = document.querySelector('.ds-bar a.ds-today');
-		if(today && g){
-			today.href = today.href.split('?')[0] + '?g=' + g;
-		}
-	}
-
-	/* One loader for both callers. The tick reloads the current URL; a range
-	   button loads a different one and pushes it. Sharing it is the point:
-	   two copies of "fetch, swap, re-run scripts" would drift, and the swap is
-	   the part with the non-obvious step in it. */
-	function load(href, push, onDone){
-		if(busy) return;
-		busy = true;
-		if(push){ region.className = 'is-loading'; }
-
-		var xhr = new XMLHttpRequest();
-		xhr.open('GET', partialUrl(href), true);
-		xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
-		xhr.onreadystatechange = function(){
-			if(xhr.readyState !== 4) return;
-			busy = false;
-			region.className = '';
-			var ok = (xhr.status >= 200 && xhr.status < 300 && xhr.responseText);
-			if(ok){
-				region.innerHTML = xhr.responseText;
-				runScripts(region);
-				if(push && window.history && window.history.pushState){
-					window.history.pushState({ds:1}, '', href);
-				}
-				syncBar(push ? href : location.href);
-				lastOk = new Date(); failures = 0;
-			}
-			if(onDone) onDone(ok);
-		};
-		try { xhr.send(null); } catch(e){ busy = false; region.className = ''; if(onDone) onDone(false); }
-	}
-
-	/* ---- polling: today only ---------------------------------------------- */
 	function tick(){
 		if(busy) return;                                   /* never overlap */
 		if(toggle && !toggle.checked){ state('is-paused','paused'); return; }
 		if(document.hidden){ return; }                     /* nobody is looking */
 		if(panelOpen()){ state('is-paused','paused - panel open'); return; }
 
+		busy = true;
 		state('is-busy','updating' + (failures ? ' - retry ' + failures : '') + '\u2026');
-		load(location.href, false, function(ok){
-			if(ok){ state('is-live','updated ' + clock(lastOk)); return; }
-			failures++;
-			/* One blip is a blip. Sustained failure is reported as STALE with
-			   the age of the data, because the alternative is a board showing
-			   an hour-old number as though it were now. */
-			if(failures < 3){ state('is-live','updated ' + clock(lastOk)); }
-			else {
-				var mins = Math.round((new Date() - lastOk) / 60000);
-				state('is-stale','STALE - last updated ' + clock(lastOk)
-					+ (mins >= 1 ? ' (' + mins + ' min ago)' : ''));
+
+		var xhr = new XMLHttpRequest();
+		xhr.open('GET', url(), true);
+		xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
+		xhr.onreadystatechange = function(){
+			if(xhr.readyState !== 4) return;
+			busy = false;
+			if(xhr.status >= 200 && xhr.status < 300 && xhr.responseText){
+				region.innerHTML = xhr.responseText;
+				runScripts(region);
+				lastOk = new Date(); failures = 0;
+				state('is-live','updated ' + clock(lastOk));
 			}
+			else {
+				failures++;
+				/* One blip is a blip. Sustained failure is reported as STALE
+				   with the age of the data, because the alternative is a board
+				   showing an hour-old number as though it were now. */
+				if(failures < 3){ state('is-live','updated ' + clock(lastOk)); }
+				else {
+					var mins = Math.round((new Date() - lastOk) / 60000);
+					state('is-stale','STALE - last updated ' + clock(lastOk)
+						+ (mins >= 1 ? ' (' + mins + ' min ago)' : ''));
+				}
+			}
+		};
+		try { xhr.send(null); } catch(e){ busy = false; failures++; }
+	}
+
+	if(toggle){
+		toggle.onchange = function(){
+			if(toggle.checked){ state('is-live','resuming\u2026'); tick(); }
+			else { state('is-paused','paused'); }
+		};
+	}
+	/* Refresh on return rather than waiting out the rest of the interval: the
+	   first thing someone does on coming back to a terminal is read it. */
+	if(typeof document.addEventListener === 'function'){
+		document.addEventListener('visibilitychange', function(){
+			if(!document.hidden) tick();
 		});
 	}
 
-	/* ---- range switching: every date ---------------------------------------
-	   Delegated to the region rather than bound to the anchors, because the
-	   anchors are replaced by every swap -- including the swap the range
-	   button itself triggers. A direct binding would work once and then stop,
-	   which is the sort of failure that gets reported as "it works sometimes". */
-	if(region.addEventListener && window.history && window.history.pushState){
-		region.addEventListener('click', function(e){
-			var t = e.target;
-			while(t && t !== region && !(t.tagName && t.tagName.toLowerCase() === 'a')){ t = t.parentNode; }
-			if(!t || t === region || !t.href) return;
-			var seg = t.parentNode;
-			if(!seg || !seg.className || seg.className.indexOf('ds-seg') === -1) return;
-
-			/* Let the browser have the click when a new tab or window was
-			   asked for -- comparing two grains side by side is a reasonable
-			   thing to want. */
-			if(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return;
-
-			e.preventDefault();
-			load(t.href, true);
-		}, false);
-
-		/* Back and Forward move between grains without a server round trip of
-		   the whole page. The state test keeps this off history entries this
-		   script did not create. */
-		window.addEventListener('popstate', function(ev){
-			if(ev.state && ev.state.ds){ load(location.href, false); }
-		}, false);
-	}
-
-	/* ---- start ------------------------------------------------------------ */
-	if(IS_TODAY){
-		if(toggle){
-			toggle.onchange = function(){
-				if(toggle.checked){ state('is-live','resuming\u2026'); tick(); }
-				else { state('is-paused','paused'); }
-			};
-		}
-		/* Refresh on return rather than waiting out the rest of the interval:
-		   the first thing someone does on coming back to a terminal is read it. */
-		if(typeof document.addEventListener === 'function'){
-			document.addEventListener('visibilitychange', function(){
-				if(!document.hidden) tick();
-			});
-		}
-		state('is-live','updated ' + clock(lastOk));
-		setInterval(tick, SECS * 1000);
-	}
+	state('is-live','updated ' + clock(lastOk));
+	setInterval(tick, SECS * 1000);
 })();
 </script>
+<?php } ?>
 </body>
 </html>
