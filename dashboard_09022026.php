@@ -31,37 +31,6 @@ $view_date = dash_date(isset($_GET['d']) ? $_GET['d'] : (isset($_POST['d']) ? $_
 $is_today  = ($view_date === date("Y-m-d"));
 
 /* ==========================================================================
-   @autorefresh -- Keeping the board current without reloading the page.
-
-   NOT a meta refresh and not location.reload(). Both throw the whole document
-   away every few seconds, which on a control-room terminal means: any open
-   slide panel slams shut mid-read, the scroll position jumps, a half-typed
-   date in the picker is wiped, and the browser re-fetches the menu, the CSS
-   and jQuery on every tick. The page also becomes impossible to read aloud
-   from, because it can vanish underneath whoever is reading it.
-
-   Instead the page fetches ITSELF with partial=1 and swaps in just the data
-   region. One source of truth -- there is no second endpoint to keep in step
-   with this file, which is the failure mode a hand-written JSON API invites.
-
-   Four things it deliberately does NOT do:
-     - poll a historical date. A past day cannot change; polling it is pure
-       load on the database for a number that is already final.
-     - poll while the tab is hidden. An unattended terminal left open overnight
-       would otherwise run every dashboard query some thousands of times.
-     - poll while a slide panel is open. The panel is read from the page behind
-       it; re-rendering that page under an open panel is how a click lands on
-       the wrong incident.
-     - overlap. If a tick is still in flight when the next is due, it is
-       skipped rather than queued.
-   ========================================================================== */
-if(!defined('DASH_REFRESH_SECS')){ define('DASH_REFRESH_SECS', 20); }
-
-/* A partial request renders the live region only -- see the ob_clean() below. */
-$dsPartial = (isset($_GET['partial']) && $_GET['partial'] === '1');
-if($dsPartial){ ob_start(); }
-
-/* ==========================================================================
    @dashlink -- Force the operating date onto the incident-summary links.
 
    incident_summary.php now honours ?d=<date> and clears any previously chosen
@@ -174,9 +143,7 @@ foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 
 </head>
 <body>
-<?php /* @autorefresh -- the menu is chrome; a partial tick has no use for it,
-         and skipping it also skips whatever queries it runs. */
-if(!$dsPartial){ require("Tmenu_2.php"); } ?>
+<?php require("Tmenu_2.php"); ?>
 <?php
 
 /* @dashdate -- console skin for the date control. Deliberately AFTER the nav
@@ -187,7 +154,7 @@ if(!$dsPartial){ require("Tmenu_2.php"); } ?>
 
    received the file yet keeps the plain native field. */
 
-if(!$dsPartial && file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FILE__)."/dash_datepicker.php"); }
+if(file_exists(dirname(__FILE__)."/dash_datepicker.php")){ include(dirname(__FILE__)."/dash_datepicker.php"); }
 ?>
 <!-- @dashdate -- jQuery UI loads HERE, after Tmenu_2.php, and this ordering is
      the whole fix. Tmenu_2.php emits its own <script> for jQuery 1.10.2. In the
@@ -235,37 +202,7 @@ if(!$dsPartial && file_exists(dirname(__FILE__)."/dash_datepicker.php")){ includ
 			<?php /* Today means "same view, today", not "reset everything". */ ?>
 			<?php if(!$is_today){ ?><a class="ds-today" href="<?php echo dash_h($dsSelf).($dsGrain!==''?'?g='.dash_h($dsGrain):''); ?>">Today</a><?php } ?>
 		</form>
-		<?php /* @autorefresh -- OUTSIDE #dsLive on purpose, so the swap cannot
-		         replace the very element that reports whether the swap is
-		         happening. A dashboard that has quietly stopped updating looks
-		         exactly like a quiet shift; this is the line that tells them
-		         apart, so it must not depend on the thing it is reporting on. */ ?>
-		<?php if($is_today){ ?>
-		<div class="ds-live" id="dsLiveStatus" aria-live="polite">
-			<label class="ds-live-toggle"><input type="checkbox" id="dsLiveOn" checked> Live</label>
-			<span class="ds-live-dot" id="dsLiveDot"></span>
-			<span id="dsLiveText">starting&hellip;</span>
-		</div>
-		<?php } ?>
 	</div>
-
-<?php
-/* @autorefresh -- Everything below is replaced on a tick. The bar above is
-   not: it holds the date form (a half-typed value must survive) and the status
-   readout.
-
-   ob_clean() throws away everything rendered so far -- doctype, head, menu,
-   the bar -- so a partial response is the live region and nothing else. The
-   page above still RUNS on a tick, which is deliberate: the data those lines
-   compute is shared, and splitting the file into a page half and a fragment
-   half is what would let the two drift apart. */
-if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
-/* The wrapper itself is NOT part of a tick response. The browser assigns the
-   response to region.innerHTML, so shipping the <div id="dsLive"> too would
-   nest a second one inside the first on every tick -- ids duplicating, and the
-   nesting growing one level deeper every twenty seconds until something that
-   looks up an element by id finds the wrong one. */
-?>
 
 <?php if(!dash_ready()){ ?>
 	<div class="ds-alert">No database connection. Check <code>db_config.php</code> &mdash; every panel below will read empty until it resolves.</div>
@@ -648,146 +585,6 @@ dash_status_band($view_date,false);
 
 	</div>
 
-<?php
-/* @autorefresh -- A partial request ends HERE, before the closing tag, so the
-   response is the region's contents and nothing else. The buffer opened at the
-   top is flushed; everything the browser already has -- doctype, head, menu,
-   stylesheets, jQuery -- is not sent again on a tick. */
-if($dsPartial){ ob_end_flush(); exit; }
-?>
-</div><!-- /#dsLive -->
-
 </div>
-<?php if($is_today){ ?>
-<style>
-.ds-live{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--cf-ink-3,#5A6275);
-	margin-left:14px;white-space:nowrap;}
-.ds-live-toggle{display:flex;align-items:center;gap:4px;cursor:pointer;}
-.ds-live-toggle input{margin:0;cursor:pointer;}
-.ds-live-dot{width:7px;height:7px;border-radius:50%;background:#9AA5B1;flex:none;}
-.ds-live.is-live   .ds-live-dot{background:#1D9E75;}
-.ds-live.is-busy   .ds-live-dot{background:#BA7517;}
-/* Stale is the state that matters, so it is the only one that is loud. */
-.ds-live.is-stale  .ds-live-dot{background:#E24B4A;}
-.ds-live.is-stale  #dsLiveText{color:#A32D2D;font-weight:600;}
-.ds-live.is-paused .ds-live-dot{background:#9AA5B1;}
-</style>
-<script>
-/* @autorefresh -- see the block comment at the top of this file for what this
-   deliberately does not do. */
-(function(){
-	var SECS   = <?php echo (int)DASH_REFRESH_SECS; ?>;
-	var live   = document.getElementById('dsLiveStatus');
-	var region = document.getElementById('dsLive');
-	var toggle = document.getElementById('dsLiveOn');
-	var text   = document.getElementById('dsLiveText');
-	if(!live || !region || !window.XMLHttpRequest) return;
-
-	var busy = false, lastOk = new Date(), failures = 0;
-
-	function two(n){ return (n<10?'0':'')+n; }
-	function clock(d){ return two(d.getHours())+':'+two(d.getMinutes())+':'+two(d.getSeconds()); }
-
-	function state(cls, msg){
-		live.className = 'ds-live ' + cls;
-		text.innerHTML = '';
-		text.appendChild(document.createTextNode(msg));
-	}
-
-	/* A panel is open when the console's panel element carries its active
-	   class. Both known ids are checked because the console has more than one
-	   panel implementation in play; an unknown third simply means no pause,
-	   which is the safe direction -- a missed pause is one redraw, a false
-	   pause is a board that stops updating while saying it is live. */
-	function panelOpen(){
-		var ids = ['irPanel','taPanel','slidePanel','dashPanel'];
-		for(var i=0;i<ids.length;i++){
-			var el = document.getElementById(ids[i]);
-			if(el && el.className && el.className.indexOf('active') !== -1) return true;
-		}
-		return false;
-	}
-
-	/* innerHTML does not execute <script>. The fleet strip and the incident
-	   feed each bind a delegated listener to the container they live in, and
-	   those containers are replaced by the swap -- so without re-running them
-	   the chips and feed rows stop opening panels, silently, while everything
-	   still LOOKS right. Cloned into fresh nodes because a script element that
-	   has already run will not run again. */
-	function runScripts(root){
-		var found = root.getElementsByTagName('script'), list = [];
-		for(var i=0;i<found.length;i++){ list.push(found[i]); }
-		for(var j=0;j<list.length;j++){
-			var old = list[j], fresh = document.createElement('script');
-			if(old.src){ fresh.src = old.src; } else { fresh.text = old.text || old.innerHTML; }
-			old.parentNode.replaceChild(fresh, old);
-		}
-	}
-
-	function url(){
-		var u = location.href.split('#')[0];
-		u += (u.indexOf('?') === -1 ? '?' : '&') + 'partial=1';
-		/* Defeats the proxy and the browser cache alike; without it a tick can
-		   return the response from twenty seconds ago and look like a shift in
-		   which nothing happened. */
-		return u + '&_=' + (new Date()).getTime();
-	}
-
-	function tick(){
-		if(busy) return;                                   /* never overlap */
-		if(toggle && !toggle.checked){ state('is-paused','paused'); return; }
-		if(document.hidden){ return; }                     /* nobody is looking */
-		if(panelOpen()){ state('is-paused','paused - panel open'); return; }
-
-		busy = true;
-		state('is-busy','updating' + (failures ? ' - retry ' + failures : '') + '\u2026');
-
-		var xhr = new XMLHttpRequest();
-		xhr.open('GET', url(), true);
-		xhr.setRequestHeader('X-Requested-With','XMLHttpRequest');
-		xhr.onreadystatechange = function(){
-			if(xhr.readyState !== 4) return;
-			busy = false;
-			if(xhr.status >= 200 && xhr.status < 300 && xhr.responseText){
-				region.innerHTML = xhr.responseText;
-				runScripts(region);
-				lastOk = new Date(); failures = 0;
-				state('is-live','updated ' + clock(lastOk));
-			}
-			else {
-				failures++;
-				/* One blip is a blip. Sustained failure is reported as STALE
-				   with the age of the data, because the alternative is a board
-				   showing an hour-old number as though it were now. */
-				if(failures < 3){ state('is-live','updated ' + clock(lastOk)); }
-				else {
-					var mins = Math.round((new Date() - lastOk) / 60000);
-					state('is-stale','STALE - last updated ' + clock(lastOk)
-						+ (mins >= 1 ? ' (' + mins + ' min ago)' : ''));
-				}
-			}
-		};
-		try { xhr.send(null); } catch(e){ busy = false; failures++; }
-	}
-
-	if(toggle){
-		toggle.onchange = function(){
-			if(toggle.checked){ state('is-live','resuming\u2026'); tick(); }
-			else { state('is-paused','paused'); }
-		};
-	}
-	/* Refresh on return rather than waiting out the rest of the interval: the
-	   first thing someone does on coming back to a terminal is read it. */
-	if(typeof document.addEventListener === 'function'){
-		document.addEventListener('visibilitychange', function(){
-			if(!document.hidden) tick();
-		});
-	}
-
-	state('is-live','updated ' + clock(lastOk));
-	setInterval(tick, SECS * 1000);
-})();
-</script>
-<?php } ?>
 </body>
 </html>
