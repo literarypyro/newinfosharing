@@ -270,7 +270,6 @@ if(file_exists(dirname(__FILE__)."/datepicker_theme.php")){ include(dirname(__FI
 	--c-reserve:   #BA7517;
 	--c-removed:   #378ADD;
 	--c-cancelled: #E24B4A;
-	--c-skipping:  #6D5BD0;
 }
 
 
@@ -385,15 +384,6 @@ tr.row--cancelled td.idx-cell::before { background:var(--c-cancelled); }
 .pill--reserve    { background:#FAEEDA; color:#854F0B; } .pill--reserve   .led { background:var(--c-reserve); }
 .pill--removed    { background:#E6F1FB; color:#0C447C; } .pill--removed   .led { background:var(--c-removed); }
 .pill--cancelled  { background:#FCEBEB; color:#A32D2D; } .pill--cancelled .led { background:var(--c-cancelled); }
-.pill--pending    { background:#EEF0F3; color:#4A5464; } .pill--pending   .led { background:#8A93A0; }
-/* @skipping -- a BADGE, not a status pill. It sits beside whichever lifecycle
-   pill the train has, because a skipping train is also in service, or also
-   removed; it is never skipping INSTEAD of those. Matches
-   train_operations_admin.php so the operators' board and the management board
-   cannot describe the same train differently. */
-.pill--skipping   { background:#EDE9FB; color:#4B3A8F; } .pill--skipping  .led { background:var(--c-skipping); }
-tr.is-skipping td.idx-cell::after{ content:""; position:absolute; left:0; bottom:0;
-	width:3px; height:34%; background:var(--c-skipping); }
 
 /* Switch trail — replaces the original's 7 Switch columns */
 .sw-trail         { display:flex; flex-direction:column; align-items:flex-start; gap:3px; margin-top:6px; }
@@ -957,16 +947,7 @@ function filterTrains(status,btn){
 	btn.classList.add('active');
 	var rows=document.querySelectorAll('tr[data-train-id]');
 	for(var j=0;j<rows.length;j++){
-		/* @skipping -- Skipping is an attribute, not a data-status, so it is
-		   tested against its own flag while every other pill still tests the
-		   lifecycle status. A skipping train that has been removed appears
-		   under BOTH pills, which is the point. Mirrors
-		   train_operations_admin.php exactly. */
-		var hit = (status==='all')
-			|| (status==='skipping'
-				? rows[j].getAttribute('data-skipping')==='1'
-				: rows[j].getAttribute('data-status')===status);
-		rows[j].style.display = hit ? '' : 'none';
+		rows[j].style.display=(status==='all'||rows[j].getAttribute('data-status')===status)?'':'none';
 	}
 }
 
@@ -1153,28 +1134,10 @@ for($i=0; $i<$nm; $i++){
 	$boundary=$row2['boundary_time']!="";
 
 	$removed = ($row2['remove_time']!="" && $row2['remove_time']!="0000-00-00 00:00:00");
-
-	/* @skipping -- This read $row2['skipping'] == "true". Two things were wrong
-	   with that, and together they made the Skipping filter permanently empty.
-
-	   The column is not in this page's SELECT (see the query above), so the
-	   index was undefined on every row -- a notice per train, and a value that
-	   could never equal "true". And nothing in the console writes that column
-	   at all: both this page and train_operations_admin.php record an insertion
-	   by writing inserted_to, never skipping. So the column has no author, and
-	   a flag with no author is not a source of truth.
-
-	   inserted_to is the real record: the insertion form writes 'north' or
-	   'quezon'. A train inserted anywhere other than North skipped part of the
-	   loop. The test is identical to the one in train_operations_admin.php,
-	   deliberately -- the operators' board and the management board describing
-	   the same train differently is worse than either being wrong alone.
-
-	   $inserted is required. inserted_to is empty until a train is actually
-	   inserted, and "" != "north" is true, so without it every reserve and
-	   pending train would count as skipping. */
-	$insertedTo = strtolower(trim((string)$row2['inserted_to']));
-	$skipping   = ($inserted && $insertedTo !== "" && $insertedTo !== "north");
+	if($row2['skipping']=="true"){
+		$skipping=true;
+		
+	}
 
 
 	if($row['status']=="cancelled"){
@@ -1184,42 +1147,28 @@ for($i=0; $i<$nm; $i++){
 		$dataStatus = "service";
 	} elseif(!$removed && !$inserted && $boundary && $row['status']=="active"){
 		$rowClass = "row--reserve";     $dataStatus = "reserve";
-	} else {
+	} elseif($skipping){
+		$rowClass = "row--skipping";     $dataStatus = "skipping";
+		
+		
+	}
+	
+	else {
 		$rowClass = "row--removed";     $dataStatus = "removed";
 	}
 
-	/* @skipping -- Carried ALONGSIDE $dataStatus, not inside it. Skipping is an
-	   attribute of a train, not a stage of its day: a train inserted at Quezon
-	   is skipping AND in service, and an hour later skipping AND removed. As a
-	   fifth branch in a single-valued cascade it has to be one or the other, so
-	   whichever branch came first stole the train from the other filter --
-	   before `removed` and every skipping train that gets removed disappears
-	   from Removed; after it and Skipping is empty for those same trains. */
-	if($skipping){ $rowClass .= " is-skipping"; }
-
 	/* ── Status pill (verbatim) ── */
-	/* @skipping -- Reordered, and this is a visible behaviour change. status is
-	   'active' for everything that is not cancelled, so the old
-	   elseif($row['status']=="active") matched every remaining train and the
-	   two branches after it were unreachable. A reserve train -- boundary set,
-	   never inserted -- was showing "In service" on the operators' board, which
-	   contradicted its own row colour and the Reserve filter that classified it
-	   correctly. Testing the timestamps in lifecycle order is what makes the
-	   pill agree with $dataStatus, which is derived from those same timestamps. */
 	if($row['status']=="cancelled"){
 		$pill = '<span class="status-pill pill--cancelled"><span class="led"></span>Cancelled</span>';
 	} elseif($removed){
 		$pill = '<span class="status-pill pill--removed"><span class="led"></span>Removed</span>';
-	} elseif($inserted){
+	} elseif($row['status']=="active"){
 		$pill = '<span class="status-pill pill--service"><span class="led"></span>In service</span>';
 	} elseif($boundary){
 		$pill = '<span class="status-pill pill--reserve"><span class="led"></span>Reserve</span>';
-	} else {
-		$pill = '<span class="status-pill pill--pending"><span class="led"></span>Pending</span>';
-	}
-	/* Appended, never substituted -- see the class comment above. */
-	if($skipping){
-		$pill .= ' <span class="status-pill pill--skipping"><span class="led"></span>Skipping</span>';
+	
+	} elseif($skipping){
+		$pill = '<span class="status-pill pill--skipping"><span class="led"></span>Skipping</span>';
 	}
 
 	/* ── Switch trail: chips in the Index cell replace the 7 Switch columns.
@@ -1441,16 +1390,14 @@ for($i=0; $i<$nm; $i++){
 	$delCell = '<td class="del-cell" rowspan='.$spanN.'><a href=\'#\' class="'.$SRemove5.'" onclick=\'deleteRow("'.$row['id'].'")\'>X</a></td>';
 
 	/* ── Emit: first row carries the spanned cells; sub-rows carry one car each ── */
-	/* @skipping -- matched by its own attribute, not by data-status. */
-	$skipAttr = $skipping ? ' data-skipping="1"' : '';
-	echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'"'.$skipAttr.' class="'.$rowClass.' row-first">'
+	echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'" class="'.$rowClass.' row-first">'
 		.$idxCell
 		.$carCells[0]
 		.$dataCells
 		.$delCell
 		.'</tr>';
 	for($r=1; $r<$spanN; $r++){
-		echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'"'.$skipAttr.' class="'.$rowClass.'">'
+		echo '<tr data-train-id="'.$row['id'].'" data-status="'.$dataStatus.'" class="'.$rowClass.'">'
 			.$carCells[$r]
 			.'</tr>';
 	}
