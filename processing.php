@@ -52,7 +52,7 @@ if(isset($_GET['searchEquipment'])){
 	echo ($out=="") ? "No data available" : $out;
 }
 
-if (isset($_GET['removeEquipment'])) {
+if ((isset($_GET['removeEquipment'])) && (isset($_SESSION['username']))) {
     $stmt = $db->prepare("delete from equipment where id=?");
     $stmt->bind_param("i", $_GET['removeEquipment']);
     $stmt->execute();
@@ -471,7 +471,7 @@ if(isset($_GET['removeRow'])){
 	echo "Data deleted";
 }
 
-if(isset($_GET['removeIncident'])){
+if ((isset($_GET['removeIncident'])) && (isset($_SESSION['username']))) {
 	$incident_no=$_GET['removeIncident'];
 	clearIncidentRecords($incident_no);
 	$update="delete from incident_report where id='".$incident_no."'";
