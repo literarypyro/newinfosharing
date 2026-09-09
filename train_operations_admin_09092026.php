@@ -112,126 +112,6 @@ function getLevel($id,$dbase){
 	$row=$rs->fetch_assoc();
 	return $row['rnk'];
 }
-/* =========================================================================
-   @skipping -- Station skips, read from the `skipping` table.
-
-   Both endpoints are ids into `departure_location` (1-13 stations in line
-   order North Avenue to Taft, 14 North Turnback, 15 South Turnback,
-   16 I & R area), each leg carrying its own bound. Drivers and the
-   requesting / reporting STDOs are train_driver ids.
-
-   A skip is encoded in two sittings -- the departure when it happens, the
-   loading later -- so a row with no loading_time is OPEN and renders as
-   pending rather than as blanks.
-
-   Uses db_query()/prepared statements, unlike the copy in
-   train_availability_skip.php which predates db_connect.php here.
-   ========================================================================= */
-function ccsSkipTime($v){
-	if($v=="" || $v=="0000-00-00 00:00:00" || $v===null){ return ""; }
-	return date("H:i",strtotime($v));
-}
-
-function ccsSkipPerson($id,$dbase){
-	$id=intval($id);
-	if($id<=0){ return ""; }
-	$rs=db_query($dbase,"select firstName,lastName,position from train_driver where id=? limit 1",array($id));
-	if(!$rs || $rs->num_rows==0){ return ""; }
-	$r=$rs->fetch_assoc();
-	return str_replace("SUP","STDO",$r['position']." ".substr($r['firstName'],0,1).". ".$r['lastName']);
-}
-
-function ccsLoadSkips($dbase,$trainAvaId){
-	$out=array();
-	static $tableExists=null;
-	if($tableExists===null){
-		$chk=@$dbase->query("show tables like 'skipping'");
-		$tableExists=($chk && $chk->num_rows>0);
-	}
-	if(!$tableExists){ return $out; }
-	$rs=db_query($dbase,
-		"select s.*, dl.name as departure_name, ll.name as loading_name "
-		."from skipping s "
-		."left join departure_location dl on dl.id = s.departure_location "
-		."left join departure_location ll on ll.id = s.loading_location "
-		."where s.tar_id=? order by s.departure_time desc",array($trainAvaId));
-	if(!$rs){ return $out; }
-	while($r=$rs->fetch_assoc()){
-		$note="";
-		if(trim($r['via_location'])!=""){
-			$note="via ".$r['via_location'];
-			$va=ccsSkipTime($r['via_arrival']); $vd=ccsSkipTime($r['via_departure']);
-			if($va!="" || $vd!=""){ $note.=" (".$va." / ".$vd.")"; }
-		}
-		$dd=ccsSkipPerson($r['departure_driver'],$dbase);
-		$ld=ccsSkipPerson($r['loading_driver'],$dbase);
-		$lt=ccsSkipTime($r['loading_time']);
-		$out[]=array(
-			'id'      =>$r['id'],
-			'open'    =>($lt==""),
-			'from'    =>trim($r['departure_name']." ".$r['departure_bound']),
-			'dep'     =>ccsSkipTime($r['departure_time']),
-			'to'      =>trim($r['loading_name']." ".$r['loading_bound']),
-			'load'    =>$lt,
-			'in'      =>$r['incident_id'],
-			'note'    =>$note,
-			'depdrv'  =>$dd,
-			'loaddrv' =>($ld!="" && $ld!=$dd)?$ld:"",
-			'reqby'   =>ccsSkipPerson($r['requested_by'],$dbase),
-			'repby'   =>ccsSkipPerson($r['reported_by'],$dbase)
-		);
-	}
-	return $out;
-}
-
-/* @skipping -- the three spanned cells for skipping view: the skip trail
-   itself, then the requesting and reporting STDOs, one line per skip so the
-   three columns read across. Layout A (one flowing line per skip) rather
-   than the two-column form: measured against Times metrics at these widths,
-   A fits the rows a skip already owns while the split version overflows by
-   a line on every ordinary skip. */
-function ccsSkipCells($skipList,$spanN,$trainId,$canEdit){
-	$n=count($skipList);
-	$trail=""; $req=""; $rep="";
-	for($k=0;$k<$n;$k++){
-		$sp=$skipList[$k];
-		$trail.='<div class="skip-leg'.($sp['open']?' skip-leg--open':'').'">'
-		     .'<span class="skip-stn">'.htmlspecialchars($sp['from']).'</span> '
-		     .'<span class="hl-time">'.$sp['dep'].'</span> '
-		     .'<span class="skip-arrow">&rarr;</span> ';
-		if($sp['open']){
-			$trail.=($canEdit
-				? '<a href="#" class="ta-act" onclick=\'changeForm("loading","'.$sp['id'].'","")\'>+ Loading</a>'
-				: '<span class="skip-pending">+ Loading</span>');
-		} else {
-			$trail.='<span class="skip-stn">'.htmlspecialchars($sp['to']).'</span> '
-			     .'<span class="hl-time">'.$sp['load'].'</span>';
-			if($sp['in']!=""){ $trail.=' <span class="skip-in">IN '.htmlspecialchars($sp['in']).'</span>'; }
-		}
-		if($sp['loaddrv']!=""){
-			$trail.='<div class="skip-sub">'.htmlspecialchars($sp['depdrv'])
-			     .' <span class="skip-arrow">&rarr;</span> '.htmlspecialchars($sp['loaddrv']).'</div>';
-		}
-		if($sp['note']!=""){ $trail.='<div class="skip-note">'.htmlspecialchars($sp['note']).'</div>'; }
-		$trail.='</div>';
-		$req.='<div class="skip-who">'.($sp['reqby']!=""?htmlspecialchars($sp['reqby']):'&mdash;').'</div>';
-		$rep.='<div class="skip-who">'.($sp['repby']!=""?htmlspecialchars($sp['repby']):'&mdash;').'</div>';
-	}
-	/* A train cannot depart on another skip until the previous one has loaded,
-	   so "+ Skip" is inert while any skip on this train is still open. */
-	$blocked=false;
-	for($k=0;$k<$n;$k++){ if($skipList[$k]['open']){ $blocked=true; break; } }
-	if($blocked){
-		$trail.='<span class="skip-add is-blocked" title="Record the loading of the open skip before adding another">+ Skip</span>';
-	} else if($canEdit){
-		$trail.='<a href="#" class="ta-act skip-add" onclick=\'changeForm("skipping","'.$trainId.'","skipping")\'>+ Skip</a>';
-	}
-	if($n==0 && $req==""){ $req='<span class="tc-none">&mdash;</span>'; $rep='<span class="tc-none">&mdash;</span>'; }
-	return '<td rowspan='.$spanN.' class="ta-skip-cell">'.$trail.'</td>'
-	      .'<td rowspan='.$spanN.' class="ta-skip-who">'.$req.'</td>'
-	      .'<td rowspan='.$spanN.' class="ta-skip-who">'.$rep.'</td>';
-}
-
 function insertCompo($train_id,$car,$dbase){
 	if($car=="") return;
 	db_exec($dbase,"insert into train_compo(tar_id,car_no) values (?,?)",array($train_id,$car));
@@ -644,25 +524,6 @@ td.del-cell a.disabled { display:none; }
 #add_form td:nth-child(odd)  { background:var(--rail-wash); color:#1A2238; font-weight:600; font-size:11px; padding:7px 10px; white-space:nowrap; width:130px; border-bottom:1px solid var(--line); vertical-align:middle; }
 #add_form td:nth-child(even) { background:#fff; padding:5px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
 #add_form td:last-child      { background:var(--paper); text-align:center; padding:10px; }
-/* ── @skipping -- skip trail cells (layout A: one flowing line per skip) ──
-   No background of its own, so the row's status colour shows through the
-   way it does for every other cell. */
-.train_ava td.ta-skip-cell { vertical-align: top; }
-.train_ava td.ta-skip-who  { vertical-align: top; white-space: nowrap; }
-.skip-leg      { padding:2px 0; border-left:2px solid #00529B; padding-left:6px; margin-bottom:3px; }
-.skip-leg--open{ border-left-color:#FDB813; }
-.skip-stn      { font-weight:600; }
-.skip-arrow    { color:#00529B; }
-.skip-in       { color:#6b6b6b; font-size:90%; }
-.skip-sub      { font-size:90%; color:#444; }
-.skip-note     { font-size:90%; color:#9a3412; }
-.skip-who      { padding:2px 0; }
-.skip-pending  { color:#a35a00; font-style:italic; }
-.skip-add      { display:inline-block; margin-top:2px; font-size:92%; }
-/* "+ Skip" is inert while a skip on the same train is still open: rendered
-   as a span, so unlike a disabled <a> it has no onclick left to fire. */
-.skip-add.is-blocked { color:#999; cursor:default; }
-
 #add_form td[colspan="2"]    { background:var(--paper); text-align:center; padding:10px; border-bottom:none; }
 #add_form td.submit          { background:var(--paper); text-align:center; padding:10px; }
 .ta-panel input[type="text"], .ta-panel input[type="number"] { height:28px; font-size:12px; font-weight:400; font-family:var(--ta-sans); border:1px solid #C5D8EE; background:#fff; color:#1A2238; border-radius:4px; padding:0 8px; width:100%; box-sizing:border-box; }
@@ -1433,13 +1294,7 @@ for($i=0; $i<$nm; $i++){
 	   enabled. Requiring $inserted is what makes the figure mean anything:
 	   a train that has not entered the loop cannot be skipping part of it. */
 	$insertedTo = strtolower(trim((string)$row2['inserted_to']));
-	/* @skipping -- was a proxy: ($inserted && $insertedTo !== "" && $insertedTo !== "north"),
-	   i.e. "inserted somewhere other than North Avenue". Now that the
-	   `skipping` table exists the flag is the real thing. Note the
-	   consequence: until rows are entered, the Skipping filter shows
-	   nothing, where the proxy used to guess. */
-	$skipList   = ccsLoadSkips($db,$row['id']);
-	$skipping   = (count($skipList) > 0);
+	$skipping   = ($inserted && $insertedTo !== "" && $insertedTo !== "north");
 
 	if($row['status']=="cancelled"){
 		$rowClass = "row--cancelled";   $dataStatus = "cancelled";
@@ -1525,9 +1380,6 @@ for($i=0; $i<$nm; $i++){
 	}
 	$spanN = max(count($carsArr), 1);
 
-	/* @skipping -- built once per train; only emitted in skipping view. */
-	$skipCellsHtml = ccsSkipCells($skipList,$spanN,$row['id'],($ULev>=2));
-
 	/* ── Boundary time (verbatim) ── */
 	$boundary_time = ($row2['boundary_time']!="" && $row2['boundary_time']!="0000-00-00 00:00:00")
 		? date("H:i",strtotime($row2['boundary_time'])) : "";
@@ -1610,24 +1462,16 @@ for($i=0; $i<$nm; $i++){
 			.'<div class="ta-slot-time">'.$insertDisplay.'</div>'
 			.'<div class="ta-slot-driver">'.$insertDrDisplay.'</div>'
 .'</div></td>';
-		/* @skipping -- header order is I336, Inserted, Skip/Req/Rep, Removed,
-		   so the trio goes in ahead of the Removed cell. */
-		if($lfilter === 'skipping'){ $dataCells .= $skipCellsHtml; }
 		$dataCells .= '<td rowspan='.$spanN.' class="ta-slot-cell"><div class="ta-slot">'
 			.'<div class="ta-slot-time">'.$removeDisplay.'</div>'
 			.'<div class="ta-slot-driver">'.$removeDrDisplay.'</div>'
 .'</div></td>';
 		$remarksEsc = htmlspecialchars(str_replace(["\r","\n"], ' ', $remove_remarks), ENT_QUOTES);
-		/* @skipping -- the header swaps Remarks+L2/L3/L4 for the three skip
-		   columns in skipping view, so the body has to swap with it or the
-		   table goes out of alignment. */
-		if($lfilter !== 'skipping'){
-			$dataCells .= '<td rowspan='.$spanN.' class="ta-remarks">'.$remove_remarks.$incidentClause
-				.'<br></td>';
-			$dataCells .= '<td rowspan='.$spanN.' class="lvl">'.$level2Clause.'</td>'
-				.'<td rowspan='.$spanN.' class="lvl">'.$level3Clause.'</td>'
-				.'<td rowspan='.$spanN.' class="lvl">'.$level4Clause.'</td>';
-		}
+		$dataCells .= '<td rowspan='.$spanN.' class="ta-remarks">'.$remove_remarks.$incidentClause
+			.'<br></td>';
+		$dataCells .= '<td rowspan='.$spanN.' class="lvl">'.$level2Clause.'</td>'
+			.'<td rowspan='.$spanN.' class="lvl">'.$level3Clause.'</td>'
+			.'<td rowspan='.$spanN.' class="lvl">'.$level4Clause.'</td>';
 
 	} elseif($row['status']=="cancelled"){
 		/* ── Cancelled branch: incidents, levels, CANCELLED label (logic verbatim) ── */
@@ -1666,19 +1510,10 @@ for($i=0; $i<$nm; $i++){
 		$dataCells .= '<td rowspan='.$spanN.' class="lvl">'.$level2Clause.'</td>'
 			.'<td rowspan='.$spanN.' class="lvl">'.$level3Clause.'</td>'
 			.'<td rowspan='.$spanN.' class="lvl">'.$level4Clause.'</td>';
-		if($lfilter === 'skipping'){
-			/* A cancelled train never ran, so it has no skips. In skipping view
-			   the span runs I336..Removed -- 6 columns, or 5 alongside a shown
-			   boundary time -- and Remarks+L2/L3/L4 are absent entirely. */
-			$dataCells = ($boundary_time=="")
-				? '<td rowspan='.$spanN.' colspan=6 class="ta-cancelled-flag">CANCELLED</td>'
-				: '<td rowspan='.$spanN.' class="ta-slot-cell"><span class="hl-time">'.$boundary_time.'</span></td>'
-				 .'<td rowspan='.$spanN.' colspan=5 class="ta-cancelled-flag">CANCELLED</td>';
-		}
 	} else {
 		/* Reserve/unimog/test with no active status yet. Original emitted no
 		   cells at all here (short row); padded with blanks to keep alignment. */
-		$dataCells = str_repeat('<td rowspan='.$spanN.'>&nbsp;</td>', ($lfilter === 'skipping') ? 6 : 7);
+		$dataCells = str_repeat('<td rowspan='.$spanN.'>&nbsp;</td>', 7);
 	}
 
 	/* ── Index cell: number + pill + switch trail + hover actions ── */
