@@ -226,7 +226,7 @@ function dash_train_state($r){
  * count of 6 beside four badged rows is the kind of contradiction that costs
  * the whole dashboard its credibility. */
 function dash_is_skipping($r){
-	if(!dash_ts(isset($r['insert_time']) ? $r['insert_time'] : "")){ return false; }
+	if($r['skip']>0){ return true; } else { return false; }
 	$to = strtolower(trim((string)(isset($r['inserted_to']) ? $r['inserted_to'] : "")));
 	return ($to !== "" && $to !== "north");
 }
@@ -251,10 +251,12 @@ function dash_trains($date){
 	$d=dash_esc($date);
 	$sql ="select ta.id,ta.index_no,ta.status,ta.type,ta.date,";
 	$sql.="ta.car_a,ta.car_b,ta.car_c,ta.car_d,";
+	$sql.="(select count(sk.departure_time) from skipping sk where sk.tar_id=ta.id) as skip,";
 	$sql.="tt.boundary_time,tt.insert_time,tt.skipping,tt.remove_time,";
 	$sql.="tt.insert_driver,tt.remove_driver,tt.inserted_to,tt.removed_from ";
 	$sql.="from train_availability ta ";
 	$sql.="left join train_ava_time tt on tt.train_ava_id=ta.id ";
+
 	$sql.="where date(ta.date)='".$d."' ";
 	$sql.="order by (ta.index_no+0), ta.index_no";
 
@@ -264,7 +266,6 @@ function dash_trains($date){
 		while($r=$rs->fetch_assoc()){
 			$r['state']=dash_train_state($r);
 			$r['revenue']=dash_is_revenue($r);
-			$r['state2']=dash_train_state2($r);
 
 			$out[]=$r;
 
@@ -272,9 +273,42 @@ function dash_trains($date){
 
 		}
 	}
+
+	
+	
+	
+	
 	return $cache[$date]=$out;
 }
+function dash_trains2($date){
+	static $cache=array();
+	$date=dash_date($date);
+	if(isset($cache[$date])){ return $cache[$date]; }
+	$out=array();
+	if(!dash_ready() || !dash_table_exists('train_availability')){ return $cache[$date]=$out; }
 
+	$d=dash_esc($date);
+
+	
+	$sql2 ="select * from skipping ";
+	$sql2.="where date(departure_time)='".$d."' ";
+
+	
+	
+	$db=dash_db();
+	$rs2=@$db->query($sql2);
+	if($rs2){
+		$counts=$rs2->num_rows;
+	}
+	else {
+		$counts=0;
+		
+	}
+	
+	
+	
+	return $counts;
+}
 /* Counts keyed by state, plus the denominator the tiles divide by. */
 function dash_fleet_counts($date){
 	$rows=dash_trains($date);
@@ -289,13 +323,10 @@ function dash_fleet_counts($date){
 	return $c;
 }
 function dash_fleet_counts2($date){
-	$rows=dash_trains($date);
+	$rows=dash_trains2($date);
 	/* $c was never initialised as an array -- 'null' was incremented from
 	   undefined on every non-skipping train, one notice per train. */
-	$c=array('skipping'=>0,'null'=>0);
-	foreach($rows as $r){
-		$c[$r['state2']]++;
-	}
+	$c['skipping']=$rows;	
 	return $c;
 }
 

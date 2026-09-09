@@ -603,7 +603,18 @@ function changeForm(form_type,form_id,form_extra){
 		else { htmlCode+="<td id='td' name='td'></td>"; setHTML(); }
 		htmlCode+="</tr>";
 		htmlCode+="<tr><td>Inserted To</td><td><select name='inserted_to' id='inserted_to'>";
-		htmlCode+="<option value='north'>North Ave.</option><option value='quezon'>Quezon Ave.</option>";
+		htmlCode+="<option value='north'>North Ave.</option>";
+		htmlCode+="<option value='quezon'>Quezon Ave.</option>";
+		htmlCode+="<option value='gma'>GMA Kamuning</option>";
+		htmlCode+="<option value='cubao'>Araneta - Cubao</option>";
+		htmlCode+="<option value='santolan'>Santolan</option>";
+		htmlCode+="<option value='ortigas'>Ortigas</option>";
+		htmlCode+="<option value='shaw'>Shaw Boulevard</option>";
+		htmlCode+="<option value='boni'>Boni Avenue</option>";
+		htmlCode+="<option value='guadalupe'>Guadalupe</option>";
+		htmlCode+="<option value='ayala'>Ayale Ave.</option>";
+		htmlCode+="<option value='magallanes'>Magallanes</option>";
+		htmlCode+="<option value='taft'>Taft Ave.</option>";
 		htmlCode+="</select></td></tr>";
 		htmlCode+="<tr><td colspan=2 class='submit' align=center>";
 		htmlCode+="<input type=hidden name='insertion_id' id='insertion_id' value='"+form_id+"' />";
