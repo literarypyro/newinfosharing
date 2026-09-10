@@ -323,101 +323,14 @@ if($monthSel < 1 || $monthSel > 12){ $monthSel = 0; }
 $month      = $monthSel;                 /* the toolbar's "selected" test reads this */
 $isDayView  = ($monthSel > 0);
 $viewYm     = $isDayView ? sprintf("%04d-%02d", $year, $monthSel) : '';
+$bucketCount= $isDayView ? (int)date("t", strtotime($viewYm."-01")) : 12;
 $bucketKey  = $isDayView ? "Day_" : "Month_";
 $bucketWord = $isDayView ? "day" : "month";
-
-/* @present -- WHERE THE GRID STOPS.
- *
- * statistics_report_modified.php ends its default range at "last day of this
- * month" rather than 31 December, so on a September board it draws January to
- * September and no further. This page drew all twelve columns regardless, and
- * October to December sat there as three zero cells.
- *
- * Three empty columns on the right of a failure report is not a cosmetic
- * problem. This file already carries the warning in another form -- a bar with
- * nothing in it reads as a GOOD period -- and the same is true of a cell: a
- * run of zeros at the end of the row looks like a fleet that stopped failing,
- * when those months simply have not happened. Every derived figure inherited
- * it too: the monthly average divided by twelve, and "Month with the Most
- * Failures" ranked real months against months that do not exist yet.
- *
- * Applied to BOTH views, which is what "all ranges" means on this page -- the
- * year grid stops at the current month, the day grid stops at today.
- */
-$bucketMax = $isDayView ? (int)date("t", strtotime($viewYm."-01")) : 12;
-
-/* Where "now" falls inside the period on screen. A period wholly in the past
-   keeps its full width -- 2019 gets twelve columns because 2019 finished. */
-if($isDayView){
-	if($viewYm === date("Y-m"))         { $bucketNow = (int)date("j"); }
-	else if($viewYm > date("Y-m"))      { $bucketNow = 0; }
-	else                                { $bucketNow = $bucketMax; }
-} else {
-	if((int)$year === (int)date("Y"))   { $bucketNow = (int)date("n"); }
-	else if((int)$year > (int)date("Y")){ $bucketNow = 0; }
-	else                                { $bucketNow = $bucketMax; }
-}
-
-/* @present -- The equipment filter, moved UP from the aggregation block so the
-   probe below can be scoped exactly the way the report is. Escaped on the way
-   in: this went straight from $_POST into a WHERE clause, and this console has
-   a history of that. */
-$equiptClause = (isset($_POST['equipt_car']) && $_POST['equipt_car'] !== "")
-	? " and equipt='".$db->real_escape_string($_POST['equipt_car'])."' " : "";
-
-/* @present -- The safety net, and the reason this is a max() rather than a
-   plain cut.
- *
- * Nothing here may DROP a record. The per-car Total column accumulates every
- * row the query returns, not just the ones inside the drawn range, so a
- * December record under a September grid would make a row whose cells no
- * longer sum to its own total -- and this page reconciling with
- * month_stats.php is exactly what the non-revenue work was about.
- *
- * So the grid runs to the current bucket OR the last bucket holding a record,
- * whichever is further. In normal operation there is nothing after today and
- * this is simply "up to September". When a date is mis-encoded into the
- * future the column appears rather than the failure vanishing, which is the
- * right way round: an odd-looking December column is a question, a silently
- * missing count is a wrong answer nobody sees.
- */
-$bucketData = 0;
-$csrProbe = @$db->query(
-	  "select max(".($isDayView ? "day(incident_date)" : "month(incident_date)").") as b "
-	. "from incident_cars inner join incident_report "
-	. "on incident_cars.incident_id=incident_report.id "
-	. "where incident_date like '"
-	. $db->real_escape_string($isDayView ? $viewYm."-%" : $year."-%")."' ".$equiptClause);
-if($csrProbe && ($csrRow = $csrProbe->fetch_assoc())){ $bucketData = (int)$csrRow['b']; }
-
-$bucketCount = ($bucketNow > $bucketData) ? $bucketNow : $bucketData;
-if($bucketCount > $bucketMax){ $bucketCount = $bucketMax; }
-/* Never zero: array_fill(1,0,0) returns an empty array and every $monthTotals
-   read below would be an undefined index. A period that has not started draws
-   one empty column and says so in the sub-header. */
-if($bucketCount < 1){ $bucketCount = 1; }
-
-$bucketClamped = ($bucketCount < $bucketMax);
-$bucketFuture  = ($bucketNow === 0 && $bucketData === 0);
-if($isDayView){
-	$bucketSpan = $bucketFuture
-		? date("F Y", strtotime($viewYm."-01")).' has not started'
-		: '1 to '.$bucketCount.' '.date("F", strtotime($viewYm."-01"));
-} else {
-	$bucketSpan = $bucketFuture
-		? $year.' has not started'
-		: 'January to '.date("F", mktime(0,0,0,$bucketCount,1,(int)$year));
-}
 
 ?>
 
 <h1><?php echo "Car Incidents By Year"; ?></h1>
-<div class='sub'> <?php echo "For the Year ".$year; ?> <?php if((isset($_POST['equipt_car']))&&($_POST['equipt_car']!="")){  echo " - ".getEquipt($_POST['equipt_car'],$db); } ?><?php
-/* @present -- A report that stops short has to say where it stopped, in the
-   line the reader is already looking at. Without this the grid ending at
-   September is indistinguishable from a report that lost its last three
-   columns. */
-if($bucketClamped){ echo " &middot; ".$bucketSpan; } ?> </div>
+<div class='sub'> <?php echo "For the Year ".$year; ?> <?php if((isset($_POST['equipt_car']))&&($_POST['equipt_car']!="")){  echo " - ".getEquipt($_POST['equipt_car'],$db); } ?> </div>
 </div>
 
 <div class="ccs-panel">
@@ -507,12 +420,21 @@ if($isDayView){
 	for($m=1;$m<=$bucketCount;$m++){ echo "<th>".$m."</th>"; }
 }
 else {
-	/* @present -- Was twelve hardcoded <th>. A grid that stops at the current
-	   month needs a header that stops with it, and a header written out by hand
-	   beside a body written by a loop is a drift waiting to happen: one count,
-	   one source. */
-	for($m=1;$m<=$bucketCount;$m++){ echo "<th>".date("F", mktime(0,0,0,$m,1,(int)$year))."</th>"; }
-} ?>
+	?>
+
+	<th>January</th>
+	<th>February</th>
+	<th>March</th>
+	<th>April</th>
+	<th>May</th>
+	<th>June</th>
+	<th>July</th>
+	<th>August</th>
+	<th>September</th>
+	<th>October</th>
+	<th>November</th>
+	<th>December</th>
+<?php } ?>
 	<?php /* @dayview -- Total lived inside the else, so day view emitted N day
 	         headers and no Total header while every body row still wrote a
 	         Total cell. That column-count mismatch is what makes DataTables
@@ -549,10 +471,13 @@ $grandTotal=0;
 // (it is only assigned inside the row loop below), and unpadded besides: a
 // LIKE of '2026-3%' never matches '2026-03-...'. $viewYm is already padded.
 
-/* @present -- $equiptClause is now built once, up where $bucketCount is
-   resolved, because the probe that sizes the grid has to be scoped the same
-   way this query is. Rebuilding it here would be a second definition of the
-   same thing and the two could disagree. */
+if((isset($_POST['equipt_car']))&&($_POST['equipt_car']!="")){
+	$equiptClause=" and equipt='".$_POST['equipt_car']."' ";
+}
+else {
+	$equiptClause="";
+	
+}
 
 if($isDayView){
 $sql="SELECT car_no,day(incident_date) as day,sum(1) as count FROM incident_cars inner join incident_report on incident_cars.incident_id=incident_report.id where incident_date like '".$viewYm."-%' ".$equiptClause." group by incident_cars.car_no*1,day(incident_date)";
@@ -638,11 +563,6 @@ foreach($rawRows as $row){
 		/* @dayview -- was assigning to $month, overwriting the SELECTED month on
 		   every row fetched. Renamed to a loop-local. */
 		$mo=$row['mo']*1;
-		/* @present -- Deliberately NOT guarded against $bucketCount the way the
-		   day branch above is. $bucketCount already covers the last month holding
-		   a record, so nothing can land outside it; adding a `continue` here
-		   would turn that guarantee into a silent drop the day it stopped
-		   holding, and the row's cells would stop summing to its own Total. */
 		$stats["Car_".$car_id]["Month_".$mo]+=$row['count'];
 	}
 

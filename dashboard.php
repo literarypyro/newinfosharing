@@ -738,12 +738,30 @@ dash_status_band($view_date,false);
 			</div>
 			<div class="ds-months-x">
 <?php	if($trend){
-			foreach($trend['keys'] as $k){ ?>
-				<span class="<?php echo $trend['counts'][$k]===null?'is-gap':''; ?>"><?php echo dash_h($trend['labels'][$k]); ?></span>
+			foreach($trend['keys'] as $k){
+				/* @trendyear -- isset(), not a bare read: 'sub' and 'ystart' are new
+				   on dash_trend_series(), and an older dash_data.php returns a series
+				   without them. The axis then draws exactly as it did before rather
+				   than emitting notices under every bar. */
+				$axCls = array();
+				if($trend['counts'][$k]===null)  { $axCls[] = 'is-gap'; }
+				if(!empty($trend['ystart'][$k])) { $axCls[] = 'is-yr';  }
+				$axSub = isset($trend['sub'][$k]) ? $trend['sub'][$k] : '';
+?>
+				<span class="<?php echo implode(' ',$axCls); ?>"><?php echo dash_h($trend['labels'][$k]);
+					if($axSub!==''){ ?><b><?php echo dash_h($axSub); ?></b><?php } ?></span>
 <?php		}
 		} else {
-			foreach($months as $ym=>$n){ ?>
-				<span><?php echo dash_h(date("M",strtotime($ym."-01"))); ?></span>
+			/* @trendyear -- The pre-dash_trend_series() axis has the same problem
+			   and needs the same fix: this branch IS the "last 12 months" chart in
+			   its original form, and $months is a rolling window too. */
+			$fbPrevY = '';
+			foreach($months as $ym=>$n){
+				$fbT    = strtotime($ym."-01");
+				$fbY    = date("Y",$fbT);
+				$fbTurn = ($fbY !== $fbPrevY); $fbPrevY = $fbY;
+?>
+				<span class="<?php echo $fbTurn?'is-yr':''; ?>"><?php echo dash_h(date("M",$fbT)); ?><b><?php echo dash_h("'".date("y",$fbT)); ?></b></span>
 <?php		}
 		} ?>
 			</div>

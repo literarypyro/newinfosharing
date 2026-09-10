@@ -707,7 +707,13 @@ function dash_month_missing($ym){
 function dash_trend_series($date, $grain){
 	$grain = dash_trend_grain($grain);
 	$date  = dash_date($date);
+	/* @trendyear -- 'sub' is the second line of each x-axis label and 'ystart'
+	   marks the bucket where the year turns. Separate from 'labels' rather than
+	   folded into it because the axis has twelve buckets sharing the card width:
+	   "Oct '25" on one line collides long before the card is narrow enough to
+	   matter, so the year has to be its own line, styled its own way. */
 	$out   = array('keys'=>array(),'counts'=>array(),'labels'=>array(),'full'=>array(),
+	               'sub'=>array(),'ystart'=>array(),
 	               'sd'=>$date,'ed'=>$date,'head'=>'','grain'=>$grain);
 
 	if($grain === 'year'){
@@ -732,6 +738,7 @@ function dash_trend_series($date, $grain){
 			$k = date("Y-m-d", $t);
 			$out['keys'][] = $k; $out['counts'][$k] = 0;
 			$out['labels'][$k] = date("j M", $t);
+			$out['sub'][$k]    = "'".date("y", $t);
 			$out['full'][$k]   = 'week of '.date("j M Y", $t);
 		}
 		$out['sd'] = $out['keys'][0];
@@ -775,12 +782,36 @@ function dash_trend_series($date, $grain){
 			$k = date("Y-m", $t);
 			$out['keys'][] = $k; $out['counts'][$k] = 0;
 			$out['labels'][$k] = date("M", $t);
+			/* @trendyear -- The reason this exists. A rolling twelve-month window
+			   straddles a year boundary for eleven months out of twelve, so an
+			   axis reading "Oct Nov Dec Jan Feb" with no year on it looks like one
+			   calendar year -- and a reader comparing January with December is
+			   then comparing two different years without being told.
+
+			   Not applied to 'ytd' or 'year': ytd's heading already names the year
+			   it is drawing ("2026 by month"), and the year grain's labels ARE
+			   years. Repeating it under every bar there would be noise, not
+			   information. */
+			$out['sub'][$k]    = "'".date("y", $t);
 			$out['full'][$k]   = date("F Y", $t);
 		}
 		$out['sd'] = $out['keys'][0]."-01";
 		$out['ed'] = $date;
 		$out['head'] = 'Last '.DASH_TREND_MONTHS.' months';
 		$expr = "date_format(incident_date,'%Y-%m')";
+	}
+
+	/* @trendyear -- Which bucket starts a new year, computed once here rather
+	   than in each branch above. Every grain keys its buckets with the year
+	   first -- "2026", "2026-03", "2026-03-16" -- so the first four characters
+	   are the year whatever the bucket size is. The first bucket always counts
+	   as a turn: it is where the axis starts, and its year is the one a reader
+	   has no earlier label to infer from. */
+	$dsPrevY = '';
+	foreach($out['keys'] as $k){
+		$dsThisY = substr($k, 0, 4);
+		$out['ystart'][$k] = ($dsThisY !== $dsPrevY);
+		$dsPrevY = $dsThisY;
 	}
 
 	if(dash_ready() && dash_table_exists('incident_report')){
@@ -1275,6 +1306,13 @@ function dash_styles($mode='console'){
 .ds-seg a:hover:not(.on){background:var(--cf-mute-bg)}
 .ds-months-x{display:flex;gap:6px;margin-top:6px;font-size:11px;color:var(--cf-ink-3)}
 .ds-months-x span{flex:1;text-align:center}
+/* @trendyear -- The year, on its own line under the month. Repeated years sit
+   lighter than the month above them so the axis still reads as months at a
+   glance; the bucket where the year TURNS is darker and bolder, so the
+   boundary is what the eye catches first. */
+.ds-months-x b{display:block;font-weight:400;line-height:1.3;color:#a7aeba;
+	font-size:<?php echo $wall?'11px':'9.5px'; ?>}
+.ds-months-x span.is-yr b{font-weight:600;color:var(--cf-ink-2)}
 
 /* --- status band -------------------------------------------------- */
 .ds-band{display:flex;align-items:stretch;border:1px solid var(--cf-line);border-radius:12px;
