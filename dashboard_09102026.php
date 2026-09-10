@@ -363,132 +363,27 @@ dash_status_band($view_date,false);
 <?php if(!count($trains)){ ?>
 		<div class="ds-empty">No train availability recorded for this date.</div>
 <?php } else { ?>
-<?php
-		/* @fleetgrid -- The band is four FIXED quadrants rather than one flowing
-		   strip: In Service top-left, Removed top-right, Cancelled bottom-left,
-		   Non-revenue bottom-right.
-
-		   Bucketing tests NON-REVENUE FIRST, before any state. That is not an
-		   arbitrary precedence -- it is the rule this band has always used: the
-		   chip tone below is `$t['revenue'] ? $meta[1] : 'mute'`, so a
-		   non-revenue train that is on line has always been drawn as
-		   non-revenue, never as in service. Testing state first would move those
-		   chips into In Service and quietly change what the band reports.
-
-		   Every train lands in exactly ONE bucket, so no index can appear twice
-		   and the four counts sum to the record count in the card head.
-
-		   Reserve (boundary_time set, not yet inserted) and not-prepped trains
-		   are named by no quadrant. Dropping them would make trains vanish from
-		   the band every morning before insertion, so they get a fifth group
-		   across the foot -- rendered only when it is holding something. */
-		$fleetBuckets = array(
-			'service'    => array('In Service',          'ok',   array()),
-			'removed'    => array('Removed',             'info', array()),
-			'cancelled'  => array('Cancelled',           'bad',  array()),
-			'nonrevenue' => array('Non-revenue',         'mute', array()),
-			'other'      => array('Reserve / not prepped','warn', array())
-		);
-		foreach($trains as $t){
-			if(!$t['revenue'])                 { $b='nonrevenue'; }
-			else if($t['state']==='cancelled') { $b='cancelled';  }
-			else if($t['state']==='removed')   { $b='removed';    }
-			else if($t['state']==='online')    { $b='service';    }
-			else                               { $b='other';      }
-			$fleetBuckets[$b][2][] = $t;
-		}
-
-		/* @nrkind -- Tally the non-revenue sub-kinds ONCE, here, because both the
-		   group heading and the legend need the answer and they must not be able
-		   to disagree.
-
-		   function_exists, not a bare call: dash_nonrevenue_kind() and the tones
-		   it names both live in dash_data.php, so an older copy of that file has
-		   neither, and the guard degrades this to exactly the grey-chip band it
-		   replaced instead of fatalling the page. This console has been bitten by
-		   a stale include before.
-
-		   Classification runs only INSIDE the non-revenue bucket, so it can never
-		   move a chip between quadrants -- the 2x2 is untouched by it. The
-		   corollary is worth knowing: if index 70 is ever entered with a blank
-		   type it is a revenue train as far as the band is concerned, and it will
-		   sit green in In Service rather than violet down here. */
-		$nrKinds = array();
-		foreach($fleetBuckets['nonrevenue'][2] as $t){
-			$k = function_exists('dash_nonrevenue_kind')
-			   ? dash_nonrevenue_kind($t['index_no']) : array('Non-revenue','mute');
-			if(!isset($nrKinds[$k[1]])){ $nrKinds[$k[1]] = array($k[0],0); }
-			$nrKinds[$k[1]][1]++;
-		}
-		/* True only when a NAMED kind is present. An all-plain non-revenue day
-		   keeps the single grey swatch and grows no legend -- a key with one row
-		   in it just restates the heading. */
-		$nrNamed = (count($nrKinds) > 0) &&
-		           !(count($nrKinds)===1 && isset($nrKinds['mute']));
+		<?php /* @traindetail -- id on the container so the click handler below can
+		         delegate to it, the same way the incident feed does. */ ?>
+		<div class="ds-fleet" id="ds-fleet">
+<?php	foreach($trains as $t){
+			$meta = dash_state_meta($t['state']);
+			$tone = $t['revenue'] ? $meta[1] : 'mute';
+			$tip  = $meta[0];
+			if(dash_hm($t['insert_time'])!=""){ $tip.=" &middot; in ".dash_hm($t['insert_time']); }
+			if(dash_hm($t['remove_time'])!=""){ $tip.=" &middot; out ".dash_hm($t['remove_time']); }
+			if(!$t['revenue']){ $tip.=" &middot; ".$t['type']; }
 ?>
-		<?php /* @traindetail -- id stays on the OUTER container. The handler below
-		         delegates from it and walks up to the nearest data-panel, so it
-		         reaches chips nested one level deeper with no change at all. */ ?>
-		<div class="ds-fleet-grid" id="ds-fleet">
-<?php	foreach($fleetBuckets as $bKey=>$bucket){
-			/* @fleetgrid -- The four named quadrants render even when empty: their
-			   POSITION is the information. A quadrant that collapsed when it had
-			   no trains would slide the other three across the grid, and the band
-			   would mean one thing at 04:00 and another at noon. Only the fifth
-			   group is conditional. */
-			if($bKey==='other' && !count($bucket[2])){ continue; }
-?>
-			<div class="ds-fleet-group<?php echo $bKey==='other' ? ' ds-fleet-group--wide' : ''; ?>">
-				<div class="ds-fleet-head">
-					<span><?php /* @nrkind -- No single swatch once this group holds more
-					         than one colour: picking any one of them to stand for the
-					         whole would be a claim the chips below contradict. The
-					         legend carries the keys instead. */
-					if(!($bKey==='nonrevenue' && $nrNamed)){ ?><i class="ds-key f-<?php echo $bucket[1]; ?>"></i><?php } ?><?php echo $bucket[0]; ?></span>
-					<b><?php echo count($bucket[2]); ?></b>
-				</div>
-				<div class="ds-fleet">
-<?php			if(!count($bucket[2])){ ?>
-					<span class="ds-fleet-none">&mdash;</span>
-<?php			} else {
-				foreach($bucket[2] as $t){
-					$meta = dash_state_meta($t['state']);
-					/* @nrkind -- Same guard as the tally above, same reason. */
-					$nrk  = (!$t['revenue'] && function_exists('dash_nonrevenue_kind'))
-					      ? dash_nonrevenue_kind($t['index_no']) : null;
-					$tone = $t['revenue'] ? $meta[1] : ($nrk ? $nrk[1] : 'mute');
-					$tip  = $meta[0];
-					if(dash_hm($t['insert_time'])!=""){ $tip.=" &middot; in ".dash_hm($t['insert_time']); }
-					if(dash_hm($t['remove_time'])!=""){ $tip.=" &middot; out ".dash_hm($t['remove_time']); }
-					/* A named kind is more use in the tooltip than the raw type column;
-					   an unnamed one is not, since "Non-revenue" is already the group
-					   heading and the type is the only detail left to show. */
-					if(!$t['revenue']){ $tip.=" &middot; ".(($nrk && $nrk[1]!=='mute') ? $nrk[0] : $t['type']); }
-?>
-					<?php /* @traindetail -- href unchanged: it still points at the real
-					         operations page, so middle-click, Ctrl-click, "open in new tab"
-					         and a browser with JS off all behave exactly as before. The
-					         panel is an ENHANCEMENT layered on top via data-panel, which is
-					         the same contract the incident feed already uses -- if the
-					         opener function is not present the click just follows the link. */ ?>
-					<a class="ds-chip t-<?php echo $tone; ?>" title="<?php echo dash_h(strip_tags(str_replace('&middot;','-',$tip))); ?>"
-					   href="<?php echo dash_h(dash_link('ops',$view_date,'tr-'.$t['id'])); ?>"
-					   data-panel="train_detail.php?ta=<?php echo (int)$t['id']; ?>&amp;embed=1&amp;tt=<?php echo dash_h($dsTT); ?>"
-					   data-panel-title="Index <?php echo dash_h($t['index_no']); ?> &mdash; <?php echo dash_h($meta[0]); ?>"><?php echo dash_h($t['index_no']); ?></a>
-<?php				}
-			} ?>
-				</div>
-<?php			if($bKey==='nonrevenue' && $nrNamed){ ?>
-				<?php /* @nrkind -- Entry order follows the chips: $nrKinds was filled
-				         walking the bucket, which is index order, so the legend reads
-				         left to right in the order the colours are first met. */ ?>
-				<div class="ds-fleet-legend">
-<?php				foreach($nrKinds as $nrTone=>$nrKind){ ?>
-					<span><i class="ds-key f-<?php echo $nrTone; ?>"></i><?php echo dash_h($nrKind[0]); ?> <b><?php echo (int)$nrKind[1]; ?></b></span>
-<?php				} ?>
-				</div>
-<?php			} ?>
-			</div>
+			<?php /* @traindetail -- href unchanged: it still points at the real
+			         operations page, so middle-click, Ctrl-click, "open in new tab"
+			         and a browser with JS off all behave exactly as before. The
+			         panel is an ENHANCEMENT layered on top via data-panel, which is
+			         the same contract the incident feed already uses -- if the
+			         opener function is not present the click just follows the link. */ ?>
+			<a class="ds-chip t-<?php echo $tone; ?>" title="<?php echo dash_h(strip_tags(str_replace('&middot;','-',$tip))); ?>"
+			   href="<?php echo dash_h(dash_link('ops',$view_date,'tr-'.$t['id'])); ?>"
+			   data-panel="train_detail.php?ta=<?php echo (int)$t['id']; ?>&amp;embed=1&amp;tt=<?php echo dash_h($dsTT); ?>"
+			   data-panel-title="Index <?php echo dash_h($t['index_no']); ?> &mdash; <?php echo dash_h($meta[0]); ?>"><?php echo dash_h($t['index_no']); ?></a>
 <?php	} ?>
 		</div>
 		<script>
@@ -518,25 +413,13 @@ dash_status_band($view_date,false);
 			},false);
 		})();
 		</script>
-<?php	/* @fleetgrid -- The legend that stood here is GONE, and deliberately so.
-		   It read its five figures from dash_fleet_counts(), which counts by
-		   state and adds non-revenue as an OVERLAPPING extra -- a non-revenue
-		   train that is on line is counted in both 'online' and 'nonrevenue'.
-		   The quadrant headings above count chips, where every train is in
-		   exactly one place. So on any day with a non-revenue train running, the
-		   legend would have said "Inserted 18" directly beneath a quadrant
-		   headed "In Service 16" -- both correct, neither wrong, and the pair
-		   unreadable. The headings carry the same swatch, label and count, so
-		   nothing was lost but the contradiction.
-
-		   The card head's "N records - M non-revenue" note is untouched: total
-		   is a total and does not double-count.
-
-		   The old markup, if the overlap is ever wanted back explicitly:
-		   <div class="ds-legend">
-		     <span><i class="ds-key f-ok"></i>Inserted <?php echo (int)$fleet['online']; ?></span>
-		     ... boundary / removed / cancelled / nonrevenue ...
-		   </div> */ ?>
+		<div class="ds-legend">
+			<span><i class="ds-key f-ok"></i>Inserted <?php echo (int)$fleet['online']; ?></span>
+			<span><i class="ds-key f-warn"></i>Reserve <?php echo (int)$fleet['boundary']; ?></span>
+			<span><i class="ds-key f-info"></i>Removed <?php echo (int)$fleet['removed']; ?></span>
+			<span><i class="ds-key f-bad"></i>Cancelled <?php echo (int)$fleet['cancelled']; ?></span>
+			<span><i class="ds-key f-mute"></i>Non-revenue <?php echo (int)$fleet['nonrevenue']; ?></span>
+		</div>
 <?php } ?>
 	</div>
 

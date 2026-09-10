@@ -872,49 +872,6 @@ function dash_state_meta($state){
 	return array($state,'mute');
 }
 
-/* @nrkind -- Sub-kinds WITHIN the non-revenue group.
- *
- * Non-revenue is a type flag, not a state, and it has been covering trains
- * that operations treat as entirely different things: the 70s are the test
- * series, index 50 is the reserve train. Drawing them all grey said only
- * "none of these is carrying passengers", which is the least interesting
- * thing about any of them.
- *
- * Returns array(label, tone), the same shape as dash_state_meta(), so the two
- * are interchangeable at the call site.
- *
- * NOTE the tone for index 50 is 'resv', NOT 'warn'. The Reserve / not prepped
- * GROUP is warn, and that group is a different fact -- a revenue train sitting
- * at boundary waiting to be inserted. Two things called Reserve in one band
- * must not share a colour, or the band teaches the wrong thing every time
- * someone glances at it.
- *
- * The index numbers live here rather than in the markup so there is one place
- * to edit when the fleet is renumbered. */
-function dash_nonrevenue_kind($index_no){
-	$idx = trim((string)$index_no);
-	/* Numeric comparison, not string: train_availability stores index_no as
-	   text, so "070" and "70" are the same train. Anything not purely numeric
-	   ("70A") is left unclassified rather than run through (int), which would
-	   silently read "70A" as 70 and mislabel a train that isn't the test one. */
-	if($idx==="" || !ctype_digit($idx)){ return array('Non-revenue','mute'); }
-	$n = (int)$idx;
-	/* The 70s are a BLOCK, not a number: 70 through 79 are all test trains and
-	   80 is where the block ends. Written as a range rather than a list of
-	   cases so a test index that has never appeared before is coloured right on
-	   the first day it runs, with no edit here.
-
-	   Half-open on purpose -- >=70 and <80. An inclusive <=79 would need a
-	   second edit the day the block is widened, and this is the boundary that
-	   is easy to get wrong. */
-	if($n >= 70 && $n < 80){ return array('Test Train','test'); }
-	/* Index 50 stays a single number. Nothing has said the 50s are a block the
-	   way the 70s are, and guessing at a range here would quietly recolour any
-	   51-59 that turned up. */
-	if($n === 50){ return array('Reserve Train','resv'); }
-	return array('Non-revenue','mute');
-}
-
 function dash_level_tone($lvl){
 	if($lvl==="L4"){ return 'bad'; }
 	if($lvl==="L3"){ return 'warn'; }
@@ -1118,12 +1075,6 @@ function dash_styles($mode='console'){
 	--cf-bad:#a32222; --cf-bad-bg:#fbeaea;
 	--cf-info:#125e9c; --cf-info-bg:#e6f0fa;
 	--cf-mute:#5f6672; --cf-mute-bg:#eef0f4;
-	/* @nrkind -- Two tones added for the non-revenue sub-kinds. Violet and
-	   teal because every existing tone is already spoken for by a status
-	   group, and the one that would read as closest -- warn, for reserve --
-	   is exactly the one that must not be reused. */
-	--cf-test:#6b3fa0; --cf-test-bg:#f1eaf9;
-	--cf-resv:#0d6b6b; --cf-resv-bg:#e2f1f1;
 	--cf-radius:8px;
 }
 .ds-wrap{max-width:<?php echo $wall?'1680px':'1360px'; ?>;margin:0 auto;padding:<?php echo $wall?'18px 22px':'16px 18px 40px'; ?>;
@@ -1178,38 +1129,6 @@ function dash_styles($mode='console'){
 .ds-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:<?php echo $wall?'13px':'12px'; ?>;color:var(--cf-ink-2)}
 .ds-legend span{display:flex;align-items:center;gap:6px}
 .ds-key{width:10px;height:10px;border-radius:2px}
-
-/* --- fleet quadrants ---------------------------------------------- */
-/* @fleetgrid -- Additive: .ds-fleet above is untouched, so dashboard_wall.php
-   and anything else still drawing one flowing strip is unaffected. The grid
-   wraps those strips, one per status group.
-
-   Explicit `1fr 1fr`, not auto-fit: auto-fit would open a third column on a
-   wide workstation and the quadrant POSITIONS -- which are the whole point of
-   this layout -- would stop meaning anything. Two columns at every width, one
-   below 640px where side-by-side chip rows get too narrow to read. */
-.ds-fleet-grid{display:grid;grid-template-columns:1fr 1fr;gap:<?php echo $wall?'14px':'10px'; ?>}
-.ds-fleet-group{border:1px solid var(--cf-line);border-radius:10px;min-width:0;
-	padding:<?php echo $wall?'10px 12px':'8px 10px'; ?>}
-/* The fifth group spans the foot rather than sitting in a fifth cell, which
-   would put it under In Service and read as part of that column. */
-.ds-fleet-group--wide{grid-column:1/-1}
-.ds-fleet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;
-	margin-bottom:<?php echo $wall?'9px':'7px'; ?>;color:var(--cf-ink-2);
-	font-size:<?php echo $wall?'13px':'12px'; ?>}
-.ds-fleet-head span{display:flex;align-items:center;gap:6px}
-.ds-fleet-head b{color:var(--cf-ink);font-size:<?php echo $wall?'15px':'13px'; ?>}
-.ds-fleet-none{color:var(--cf-ink-3);font-size:<?php echo $wall?'15px':'13px'; ?>}
-@media (max-width:640px){ .ds-fleet-grid{grid-template-columns:1fr} }
-/* @nrkind -- Legend for ONE group, sitting inside it, below its chips. Ruled
-   off with a dashed line so it reads as belonging to that quadrant rather
-   than to the card -- the card-wide legend was removed precisely because a
-   key at that level implied it described everything above it. */
-.ds-fleet-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;padding-top:7px;
-	border-top:1px dashed var(--cf-line);color:var(--cf-ink-2);
-	font-size:<?php echo $wall?'12px':'11px'; ?>}
-.ds-fleet-legend span{display:flex;align-items:center;gap:5px}
-.ds-fleet-legend b{color:var(--cf-ink);font-weight:600}
 
 /* --- feeds -------------------------------------------------------- */
 /* @insertions -- Scroller for feeds that show everything rather than a top-N.
@@ -1339,10 +1258,6 @@ a.ds-tile:focus-visible{outline:2px solid var(--cf-blue);outline-offset:2px}
 .t-mute{background:var(--cf-mute-bg);color:var(--cf-mute)}
 .f-ok{background:var(--cf-ok)} .f-warn{background:var(--cf-warn)} .f-bad{background:var(--cf-bad)}
 .f-info{background:var(--cf-info)} .f-mute{background:#b7bec9}
-/* @nrkind */
-.t-test{background:var(--cf-test-bg);color:var(--cf-test)}
-.t-resv{background:var(--cf-resv-bg);color:var(--cf-resv)}
-.f-test{background:var(--cf-test)} .f-resv{background:var(--cf-resv)}
 
 .ds-empty{padding:22px 4px;text-align:center;color:var(--cf-ink-3);font-size:13px}
 .ds-alert{background:var(--cf-warn-bg);color:var(--cf-warn);border:1px solid #e8cf9a;
