@@ -159,7 +159,7 @@ table.exception {
 <td style='width:1%;white-space:nowrap;'>
 <img src='mrt-logo.png' align="center" valign="center" class="site-logo"
  />
-</td><td valign="middle" align="left" width=100% ><h0>Information Sharing System</h0></td>
+</td><td valign="middle" align="left" width=100% ><h0>Train Operations Management System</h0></td>
 
 <!-- </td><td valign="center" width=55%><font face="Century" size="5"><h1><b>Control Center Operation</b></h1></font> 
 </td> -->
