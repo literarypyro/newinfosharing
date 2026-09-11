@@ -189,7 +189,7 @@ function iss_ana_crosstab($ct, $unit) {
             /* Phrasing is driven by the actual column label. This runs over
                Car x Equipment on the report page and Car x Severity on the
                drill-down, and "fleet-wide" is only meaningful for the first. */
-            'text' => sprintf('%s is not evenly distributed across %s: %s%% of its %d %s are on %d of the %d -- %s. That is %s, so this is not merely chance.',
+            'text' => sprintf('%s does not spread evenly across %s: %s%% of its %d %s are on %d of the %d -- %s. That is %s, so this is not just chance.',
                       $c['col'], strtolower(iss_ins_plural($ct['row_label'], 2)),
                       $c['share_in_hot'], $c['total'], $unit,
                       count($c['hot']), $nr,
@@ -203,7 +203,7 @@ function iss_ana_crosstab($ct, $unit) {
     foreach (array_slice($spread, 0, 1) as $c) {
         $out[] = array(
             'kind' => 'fleet_wide', 'severity' => 'watch',
-            'text' => sprintf('%s is evenly distributed across %s: %d %s, and no %s carries more than its normal share. The %s furthest from its normal share is still %s. This indicates the %s as a whole rather than particular %s.',
+            'text' => sprintf('%s is spread evenly across %s: %d %s, and no %s has more than its normal share would give. The %s furthest from its normal share is still %s. That points at the %s as a whole rather than at particular %s.',
                       $c['col'], strtolower(iss_ins_plural($ct['row_label'], 2)),
                       $c['total'], $unit, strtolower($ct['row_label']),
                       strtolower($ct['row_label']), iss_ana_strength($c['maxz']),
@@ -257,7 +257,7 @@ function iss_ana_changepoint($series, $buckets, $colword) {
 
     return array(array(
         'kind' => 'changepoint', 'severity' => ($chg > 0 ? 'alert' : 'info'),
-        'text' => sprintf('The level shifted and remained there, rather than fluctuating: a step %s at %s that did not revert. Average of %s per %s across the %d %ss before, and %s across the %d after, a change of %s%%. Repeating the test on shuffled data puts the odds of a step this clean occurring by chance at under %s in 100.',
+        'text' => sprintf('The level moved to a new one and stayed there, rather than just going up and down: a step %s at %s that did not go back. Average of %s per %s across the %d %ss before, and %s across the %d after, a change of %s%%. The same test on shuffled data says the odds of a step this clean happening by chance are under %s in 100.',
                   ($chg > 0 ? 'up' : 'down'), $b[$k + 1], round($mb, 1), $colword,
                   count($before), $colword, round($ma, 1), count($after),
                   ($chg >= 0 ? '+' : '') . $chg, max(1, 100 - round($conf * 100))),
@@ -312,7 +312,7 @@ function iss_ana_seasonality($hist, $peakBucket, &$F, $colword) {
     if (count($high) || count($low)) {
         $out[] = array(
             'kind' => 'seasonality', 'severity' => 'info',
-            'text' => sprintf('The same yearly pattern recurs across %d years of history, measured against the all-year average: %s%s. Judge a single %s against the same month in other years rather than against the yearly average.',
+            'text' => sprintf('The same yearly shape repeats across %d years of history, measured against the all-year average: %s%s. Judge a single %s against the same month in other years, not against the yearly average.',
                       (int)round(count($all) / 12),
                       (count($high) ? 'consistently heavy in ' . implode(', ', $high) : ''),
                       (count($low) ? (count($high) ? '; light in ' : 'consistently light in ') . implode(', ', $low) : ''),
@@ -384,7 +384,7 @@ function iss_ana_comovement($rows, $rowword) {
     $p = $pairs[0];
     $out[] = array(
         'kind' => 'co_movement', 'severity' => 'watch',
-        'text' => sprintf('%s and %s increase and decrease together month to month, and they follow each other %s. Verify whether they share a subsystem, a maintenance window, or simply a reporting habit. Over this few months this warrants investigation, but it is not proof.',
+        'text' => sprintf('%s and %s go up and down together month to month, and they follow each other %s. Check whether they share a subsystem, a maintenance window, or just a reporting habit. Over this few months, this is something to look into, not proof.',
                   $p['a'], $p['b'], iss_ana_rword($p['r'])),
         'facts' => array('pairs' => array_slice($pairs, 0, 3)),
     );
@@ -435,7 +435,7 @@ function iss_ana_rotation($rows, $prevRows, $rowword, $prevLabel) {
     if ($k <= 2 && count($new)) {
         return array(array(
             'kind' => 'rotation', 'severity' => 'watch',
-            'text' => sprintf('The top 5 has changed: only %d of the top 5 %s remain from %s. New in the top 5: %s.',
+            'text' => sprintf('The top 5 has changed: only %d of the top 5 %s are the same as in %s. New in the top 5: %s.',
                       $k, $rowword, $prevLabel, implode(', ', array_slice($new, 0, 5))),
             'facts' => array('overlap' => $k, 'unchanged' => $same, 'new_entrants' => $new,
                              'previous_label' => $prevLabel),
@@ -553,7 +553,7 @@ function iss_ana_recurrence($events, $windowDays, $unit) {
         if ($ratio < 1.25) { return array(); }   /* nothing worth saying */
         return array(array(
             'kind' => 'recurrence', 'severity' => 'watch',
-            'text' => sprintf('Repeat failures occur %s%% more often than these units\' own failure rates would give: %d recurred within %d days, against %s expected. No single unit-and-fault pair explains it, so this is distributed across many of them rather than confined to a few unsuccessful repairs.',
+            'text' => sprintf('Faults come back %s%% more often than these units\' own failure rates would give: %d came back within %d days, against %s expected. No single unit-and-fault pair explains it, so this is spread across many of them rather than a few bad repairs.',
                       iss_ins_relpct($ratio), $obs, $windowDays, round($exp, 1)),
             'facts' => array('observed' => $obs, 'expected' => round($exp, 1), 'ratio' => $ratio,
                              'over_pct' => iss_ins_relpct($ratio),
@@ -563,7 +563,7 @@ function iss_ana_recurrence($events, $windowDays, $unit) {
     $lst = array();
     foreach (array_slice($hot, 0, 3) as $w) {
         if (!empty($w['bursty'])) {
-            $lst[] = sprintf('%s (%d of the %d gaps between its failures are under %s days, against %s expected at its own rate -- they occur in bursts rather than spread out)',
+            $lst[] = sprintf('%s (%d of the %d gaps between its failures are under %s days, against %s expected at its own rate -- they come in bursts instead of being spread out)',
                      $w['pair'], $w['repeats'],
                      (isset($w['intervals']) ? $w['intervals'] : max(1, $w['n'] - 1)),
                      $w['window'], $w['expected']);
@@ -576,7 +576,7 @@ function iss_ana_recurrence($events, $windowDays, $unit) {
     }
     return array(array(
         'kind' => 'recurrence', 'severity' => 'alert',
-        'text' => sprintf('%d %s recurred on the same unit with the same fault within %d days. Overall that is %s what these units\' own failure rates would give, which at this volume is unremarkable. However, %s recurred more often than %s own failure rate explains, which is the pattern seen when a repair does not address the cause: %s.',
+        'text' => sprintf('%d %s came back on the same unit with the same fault within %d days. Overall that is %s what these units\' own failure rates would give, which at this volume is nothing unusual. But %s came back more often than %s own failure rate explains, which is what it looks like when a repair does not fix the cause: %s.',
                   $obs, $unit, $windowDays, iss_ins_relword($ratio),
                   (count($hot) === 1 ? 'one pair' : count($hot) . ' pairs'),
                   (count($hot) === 1 ? 'its' : 'their'), implode('; ', $lst)),

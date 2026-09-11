@@ -86,7 +86,7 @@ function iss_ins_plain($f, $c, $opts = array()) {
             return sprintf('There were %s %s in this period.',
                    number_format($F['total']), iss_ins_unit($c, $F['total']));
         }
-        return sprintf('There were %s %s over %d %s, an average of %s per %s.',
+        return sprintf('There were %s %s over %d %s. That is about %s each %s.',
                number_format($F['total']), iss_ins_unit($c, $F['total']),
                $F['buckets_covered'], iss_ins_colword($c, $F['buckets_covered']),
                iss_aud_n($F['mean_per_bucket']), $col);
@@ -97,7 +97,7 @@ function iss_ins_plain($f, $c, $opts = array()) {
             /* Never let this one collapse into a bare percentage. The whole
                point is that the two totals are NOT comparable, and an
                executive who is given "6.7% up on last year" will quote it. */
-            return sprintf('Per %s, this period has %s%% %s %s. The two yearly totals must not be compared directly: this period has only %d %s of records, while %s has %d.',
+            return sprintf('Each %s here has %s%% %s %s. Do not compare the two yearly totals: this period has only %d %s of records, and %s has %d.',
                    $col, abs($d), ($d > 0 ? 'more than' : ($d < 0 ? 'fewer than' : 'the same as')),
                    $F['previous_label'], $F['buckets_current'],
                    iss_ins_colword($c, $F['buckets_current']),
@@ -108,14 +108,14 @@ function iss_ins_plain($f, $c, $opts = array()) {
                $F['previous_label']);
 
     case 'trend':
-        return sprintf('Failures %s over the period: about %s per %s near the start and about %s near the end, a change of %s%%.',
-               ($F['change_pct'] > 0 ? 'increased' : 'decreased'),
+        return sprintf('Failures %s as the period went on: about %s a %s near the start, and about %s near the end. That is a change of %s%%.',
+               ($F['change_pct'] > 0 ? 'went up' : 'went down'),
                iss_aud_n($F['first_half_avg']), $col, iss_aud_n($F['second_half_avg']),
                abs($F['change_pct']));
 
     case 'changepoint':
-        return sprintf('The level shifted in %s and remained there, rather than fluctuating as it usually does. Before: about %s per %s. After: about %s per %s. That is a change of %s%%. If nothing had actually changed, a shift this clear would occur only about %s%% of the time.',
-               $F['at'],
+        return sprintf('The numbers %s in %s and stayed at the new level. This was not the usual month-to-month movement. Before: about %s a %s. After: about %s a %s. That is a change of %s%%. If nothing had really changed, a jump this clear would happen only about %s%% of the time.',
+               ($F['change_pct'] > 0 ? 'went up' : 'went down'), $F['at'],
                iss_aud_n($F['mean_before']), $col, iss_aud_n($F['mean_after']), $col,
                abs($F['change_pct']), max(1, 100 - (int)$F['confidence_pct']));
 
@@ -130,19 +130,19 @@ function iss_ins_plain($f, $c, $opts = array()) {
             : (isset($F['seasonal_index']) ? iss_ins_relpct($F['seasonal_index']) : null);
         if (!empty($opts['have_score'])) {
             if ($seasonal) {
-                return sprintf('This is normal for this %s, however: it is usually about %s%% above the average.',
+                return sprintf('That is normal for this %s, though. It is usually about %s%% higher than the average.',
                        $col, $sp);
             }
             if (!empty($F['is_outlier'])) {
-                return 'This is considerably above the usual level for this period.';
+                return 'That is much higher than this period usually gets.';
             }
             return '';
         }
         $s = sprintf('The highest %s was %s, with %s.', $col, $F['bucket'], $F['value']);
         if ($seasonal) {
-            $s .= sprintf(' This is normal for this %s, however -- it is usually about %s%% above the average -- so it is not a new development.', $col, $sp);
+            $s .= sprintf(' That is normal for this %s though -- it is usually about %s%% higher than the average -- so it is not something new.', $col, $sp);
         } elseif (!empty($F['is_outlier'])) {
-            $s .= ' This is considerably above the usual level for this period.';
+            $s .= ' That is much higher than this period usually gets.';
         }
         return $s;
 
@@ -153,7 +153,7 @@ function iss_ins_plain($f, $c, $opts = array()) {
            really is a short list; the same threshold the finding itself uses
            to decide between watch and info. */
         if ($F['n_rows_to_60pct'] > max(2, $F['n_rows_total'] * 0.2)) { return ''; }
-        return sprintf('Most of the total is concentrated in a few %s: %s%% of all failures are on just %d of the %d -- %s.',
+        return sprintf('A few %s account for most of it: %s%% of all of them are on just %d of the %d -- %s.',
                $rowp, $F['share_pct'], $F['n_rows_to_60pct'], $F['n_rows_total'],
                iss_aud_list($F['top'], 3));
 
@@ -179,7 +179,7 @@ function iss_ins_plain($f, $c, $opts = array()) {
                    : ($h['row'] . ' (' . $h['obs'] . ' against ' . $h['exp'] . ' expected)');
         }
         $nhot = min(3, count($F['hot']));
-        return sprintf('%s failures are not distributed across the fleet. Most occur on a few %s: %s. The cause is %s with %s rather than with the equipment type itself.',
+        return sprintf('%s failures are not spread across the fleet. Most of them are on a few %s: %s. So the problem is %s on %s rather than on the equipment type itself.',
                $F['column'], $rowp, iss_aud_list($who, 3),
                iss_aud_conf($F['hot'][0]['z']),
                ($nhot === 1 ? 'that ' . $rows : 'those ' . $rowp));
@@ -189,36 +189,36 @@ function iss_ins_plain($f, $c, $opts = array()) {
             $rows = strtolower($F['row_label']);
             $rowp = strtolower(iss_ins_plural($F['row_label'], 2));
         }
-        return sprintf('%s fails on all %s at about the same rate, and no single %s is worse than the others. The cause is more likely the equipment type itself, so repairing one %s at a time is unlikely to help.',
+        return sprintf('%s fails on all %s about equally. No single %s is worse than the rest. So the problem is more likely the equipment type itself, and repairing one %s at a time will probably not help much.',
                $F['column'], $rowp, $rows, $rows);
 
     case 'spike':
         /* "against a usual 0" reads as a typo. Say it in words instead. */
         $s = ((float)$F['baseline'] <= 0)
-           ? sprintf('%s recorded %s in %s. In a normal %s it records none.',
+           ? sprintf('%s had %s in %s. In a normal %s it has none.',
              $F['row'], $F['value'], $F['bucket'], $col)
-           : sprintf('%s increased sharply to %s in %s. Its usual level is about %s per %s.',
-             $F['row'], $F['value'], $F['bucket'], iss_aud_n($F['baseline']), $col);
-        if (isset($F['seasonal_index'])) { $s .= ' Part of this is the usual pattern for the time of year, but not all of it.'; }
+           : sprintf('%s went up to %s in %s. A normal %s is about %s.',
+             $F['row'], $F['value'], $F['bucket'], $col, iss_aud_n($F['baseline']));
+        if (isset($F['seasonal_index'])) { $s .= ' Part of that is the usual pattern for this time of year, but not all of it.'; }
         return $s;
 
     case 'emerging':
         $l = array();
         foreach ($F as $e) { if (is_array($e) && isset($e['row'])) { $l[] = $e['row']; } }
-        return 'Increasing over the period: ' . iss_aud_list($l, 3) . '.';
+        return 'Going up over the period: ' . iss_aud_list($l, 3) . '.';
 
     case 'receding':
         $l = array();
         foreach ($F as $e) { if (is_array($e) && isset($e['row'])) { $l[] = $e['row']; } }
-        return 'Decreasing over the period: ' . iss_aud_list($l, 3) . '.';
+        return 'Going down over the period: ' . iss_aud_list($l, 3) . '.';
 
     case 'rotation':
         if ((int)$F['overlap'] >= 4) {
-            return sprintf('The top of the list is unchanged from %s. Measures taken since then have not altered it.',
-                   $F['previous_label']);
+            return sprintf('The same %s are still at the top of the list as in %s. Whatever was done since then has not changed that.',
+                   $rowp, $F['previous_label']);
         }
-        return sprintf('The top of the list has changed since %s. New entries: %s.',
-               $F['previous_label'], iss_aud_list($F['new_entrants'], 3));
+        return sprintf('The %s at the top of the list have changed since %s. New at the top: %s.',
+               $rowp, $F['previous_label'], iss_aud_list($F['new_entrants'], 3));
 
     case 'recurrence':
         if (empty($F['flagged'])) { return ''; }
@@ -227,45 +227,45 @@ function iss_ins_plain($f, $c, $opts = array()) {
         /* No row word here. The pairs are unit-and-fault ("Car 33 / Air
    Conditioning"), so borrowing the REPORT's row word produced "the same
    equipment" on a report whose rows are equipment and whose pairs are cars. */
-        return sprintf('The same failure keeps occurring despite subsequent repairs. %s %s again much sooner than %s usual interval. This usually indicates that the earlier repair did not address the cause.',
+        return sprintf('The same fault is coming back after repair. %s %s again much sooner than usual for %s. This often means the first repair did not fix the real cause.',
                iss_aud_list($l, 2), 'failed',
-               (count($l) === 1 ? 'its' : 'their'));
+               (count($l) === 1 ? 'it' : 'them'));
 
     case 'time_of_day':
         $pk = $F['peaks'][0];
         $op = isset($pk['over_pct']) ? $pk['over_pct'] : iss_ins_relpct($pk['ratio']);
-        return sprintf('Failures are not evenly distributed through the day. Most occur around %02d:00 -- %s%% above what an even distribution would give. Verify whether this is when the failures actually occur, or only when they are recorded.',
+        return sprintf('Failures are not spread evenly through the day. Most of them happen around %02d:00 -- %s%% more than an even spread would give. Check whether that is when the failures really happen, or only when they get written up.',
                $pk['hour'], $op);
 
     case 'seasonality':
-        return sprintf('The same yearly pattern recurs across %d years of records. Compare a %s with the same %s in other years rather than with the yearly average.',
+        return sprintf('The same yearly pattern repeats, seen across %d years. Compare a %s with the same %s in other years, not with the yearly average.',
                $F['years'], $col, $col);
 
     case 'co_movement':
         $p = $F['pairs'][0];
-        return sprintf('%s and %s increase and decrease together. They may share a cause, or they may simply be reported at the same time. Worth verifying, though on its own this is not conclusive.',
+        return sprintf('%s and %s go up and down together. They may share a cause, or they may just be reported at the same time. Worth checking, but this on its own does not prove anything.',
                $p['a'], $p['b']);
 
     case 'severity_shift':
-        return sprintf('Serious cases %s over the period, from about %s per %s to about %s.',
-               ($F['second_half_avg'] > $F['first_half_avg'] ? 'increased' : 'decreased'),
+        return sprintf('Serious cases %s over the period, from about %s a %s to about %s.',
+               ($F['second_half_avg'] > $F['first_half_avg'] ? 'went up' : 'went down'),
                iss_aud_n($F['first_half_avg']), $col, iss_aud_n($F['second_half_avg']));
 
     /* ---- caveats. These survive into the executive view intact. --------- */
     case 'coverage':
         $n = count($F['uncovered']);
-        return sprintf('Important: %d %s in this range have no records at all. Nothing was recorded for them, which is not the same as having no failures, so they must not be read as an improvement. They are excluded from every figure above.',
+        return sprintf('Important: %d %s in this range have no records at all. Nothing was written down for them. That is not the same as having no failures, so do not read them as an improvement. They are left out of every figure above.',
                $n, iss_ins_colword($c, $n));
 
     case 'quality':
         $b = array();
-        if (!empty($F['suggested_rows']))     { $b[] = $F['suggested_rows'] . ' entries were categorised by the system rather than by a person'; }
+        if (!empty($F['suggested_rows']))     { $b[] = $F['suggested_rows'] . ' entries were sorted into a category by the system, not by a person'; }
         if (!empty($F['uncategorized_rows'])) { $b[] = $F['uncategorized_rows'] . ' entries have no category at all'; }
         if (!count($b)) { return ''; }
         return 'A note on the data: ' . iss_aud_list($b, 2) . '.';
 
     case 'crosstab_mismatch':
-        return 'Two of the counts behind this report do not match, so the breakdown by unit has been omitted. It is better to omit it than to present figures that do not reconcile.';
+        return 'Two of the counts behind this report do not match, so the breakdown by unit was left out. It is better to leave it out than to show numbers that do not add up.';
 
     /* Deliberately silent for an executive: interesting to an engineer,
        noise in a summary. */
@@ -307,7 +307,7 @@ function iss_aud_merge_concentrated($items, $c) {
         $bits[] = $b;
     }
     if (count($bits) < 2) { return ''; }
-    return sprintf('%s each fail mostly on a few %s rather than across the whole fleet: %s. For these, examine the %s rather than the equipment type.',
+    return sprintf('%s each fail mostly on a few %s, not across the whole fleet: %s. For these, check the %s rather than the equipment type.',
            iss_aud_list($names, 4), $rowp, implode('; ', $bits), $rowp);
 }
 function iss_aud_cmp_hotz($a, $b) {

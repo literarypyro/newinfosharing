@@ -25,7 +25,7 @@ if (defined('ISS_INSIGHT_LOADED')) { return; }
 define('ISS_INSIGHT_LOADED', 1);
 
 define('ISS_INSIGHT_SCHEMA',  'iss.report.v1');
-define('ISS_INSIGHT_PROMPT_V', '7');   /* bump to invalidate every cached narrative */
+define('ISS_INSIGHT_PROMPT_V', '6');   /* bump to invalidate every cached narrative */
 
 /* @leadlabel -- What the summary band calls its one hoisted sentence.
    "Bottom line" carries a register this report should not: it is the language
@@ -369,7 +369,7 @@ function iss_insight_findings($c) {
             $F[] = array(
                 'id' => 'F' . $n, 'kind' => 'trend',
                 'severity' => ($chg >= 25 ? 'alert' : ($chg <= -25 ? 'info' : 'watch')),
-                'text' => sprintf('%s over the period: %s per %s in the first half against %s in the second, a change of %s%%.',
+                'text' => sprintf('%s over the period: %s per %s in the first half and %s in the second, a change of %s%%.',
                           ($chg > 0 ? 'Rising' : 'Falling'), round($fa, 1),
                           strtolower($c['dimensions']['col']), round($sa, 1),
                           ($chg >= 0 ? '+' : '') . $chg),
@@ -462,7 +462,7 @@ function iss_insight_findings($c) {
         $n++;
         $F[] = array(
             'id' => 'F' . $n, 'kind' => 'spike', 'severity' => 'alert',
-            'text' => sprintf('%s increased sharply to %d %s in %s, against a usual level of about %s.',
+            'text' => sprintf('%s rose sharply to %d %s in %s. Its usual level is about %s.',
                       $s['row'], $s['value'], $unit, $s['bucket'], $s['baseline']),
             'facts' => $s,
         );
@@ -492,14 +492,14 @@ function iss_insight_findings($c) {
         $n++; $lst = array();
         foreach (array_slice($emerging, 0, 3) as $e) { $lst[] = $e['row'] . ' (+' . $e['change_pct'] . '%)'; }
         $F[] = array('id' => 'F' . $n, 'kind' => 'emerging', 'severity' => 'watch',
-            'text' => 'Increasing -- higher in the second half than the first: ' . implode(', ', $lst) . '.',
+            'text' => 'Higher in the second half than the first: ' . implode(', ', $lst) . '.',
             'facts' => array_slice($emerging, 0, 3));
     }
     if (count($receding)) {
         $n++; $lst = array();
         foreach (array_slice($receding, 0, 3) as $e) { $lst[] = $e['row'] . ' (' . $e['change_pct'] . '%)'; }
         $F[] = array('id' => 'F' . $n, 'kind' => 'receding', 'severity' => 'info',
-            'text' => 'Decreasing -- lower in the second half than the first: ' . implode(', ', $lst) . '.',
+            'text' => 'Lower in the second half than the first: ' . implode(', ', $lst) . '.',
             'facts' => array_slice($receding, 0, 3));
     }
 
@@ -553,7 +553,7 @@ function iss_insight_findings($c) {
     if (count($c['coverage']['uncovered'])) {
         $n++;
         $F[] = array('id' => 'F' . $n, 'kind' => 'coverage', 'severity' => 'caveat',
-            'text' => sprintf('No records at all exist for %d %s in this range (%s). These are UNKNOWN, not zero. They are excluded from every figure above and must not be read as having no failures.',
+            'text' => sprintf('Nothing at all was recorded for %d %s in this range (%s). These are UNKNOWN, not zero. They are left out of every figure above, and must not be read as having no failures.',
                       count($c['coverage']['uncovered']),
                       iss_ins_colword($c, count($c['coverage']['uncovered'])),
                       implode(', ', array_slice($c['coverage']['uncovered'], 0, 10))),
@@ -563,7 +563,7 @@ function iss_insight_findings($c) {
     /* -- F: data quality --------------------------------------------------- */
     $q = $c['quality'];
     $qn = array();
-    if (!empty($q['suggested_rows']))     { $qn[] = $q['suggested_rows'] . ' rows were categorised by the system rather than by a person'; }
+    if (!empty($q['suggested_rows']))     { $qn[] = $q['suggested_rows'] . ' rows were given a category by the system, not by a person'; }
     if (!empty($q['uncategorized_rows'])) { $qn[] = $q['uncategorized_rows'] . ' rows are uncategorized'; }
     if (!empty($q['notes']) && is_array($q['notes'])) { $qn = array_merge($qn, $q['notes']); }
     if (count($qn)) {
@@ -622,7 +622,7 @@ function iss_insight_scoreboard($c, $F) {
        being read as a quiet year. */
     $rate = ''; $yoy = '';
     if ($ncov > 1) {
-        $rate = sprintf('%s %s over %d recorded %s, an average of %s per %s',
+        $rate = sprintf('%s %s over %d recorded %s, about %s a %s',
                 number_format($grand), iss_ins_unit($c, $grand), $ncov,
                 iss_ins_colword($c, $ncov),
                 round(array_sum($covered) / $ncov, 1), iss_ins_colword($c, 1));
@@ -796,22 +796,18 @@ function iss_insight_system_prompt() {
 "Do not use the phrase \"bottom line\" in any text you write. It reads as a closing position\n" .
 "rather than a reading of the data, which is the opposite of what this panel is for.\n\n" .
 
-"PLAIN, STANDARD ENGLISH, IN BOTH REGISTERS. This is read by controllers, supervisors and\n" .
-"managers at MRT-3. The register is that of a written operations report: clear and plain, but\n" .
-"NOT casual. Do not write down to the reader.\n" .
-"  - IDIOM is the thing to avoid, not formality. An idiom can be understood word by word and\n" .
-"    still mean nothing to a reader who did not grow up with it.\n" .
-"    Not: repairs are not holding, spread thin, stands out, points at, worst offenders, top\n" .
-"    the list, turned over, shift the needle, a lead rather than a finding, across the board,\n" .
-"    at play, hinges on, boils down to, came back to bite.\n" .
-"    Instead: the same failure keeps occurring despite subsequent repairs; most occur on a few\n" .
-"    cars; no car is worse than the others; examine the cars rather than the equipment type.\n" .
-"  - Ordinary technical vocabulary is correct and wanted -- occur, recur, distributed,\n" .
-"    indicates, verify, exclude, average, subsequent, however. These are not jargon.\n" .
-"  - What to avoid is inflated vocabulary where a plain word exists: use not utilise, about\n" .
-"    not approximately, more than not in excess of, so not accordingly.\n" .
-"  - Short sentences. One idea each. Say what happened and to what.\n" .
-"  - Say figures the way a report states them: 45% above the usual level, not elevated by 45%.\n" .
+"PLAIN ENGLISH, IN BOTH REGISTERS. This is read by controllers, supervisors and managers at\n" .
+"MRT-3, for many of whom English is a second or third language. Idiom is the problem, not\n" .
+"vocabulary: an idiom can be understood word by word and still mean nothing.\n" .
+"  - Short sentences. One idea each. Say who did what.\n" .
+"  - No idiom or figurative language. Not: repairs are not holding, spread thin, stands out,\n" .
+"    points at, worst offenders, top the list, turned over, shift the needle, a lead rather\n" .
+"    than a finding, across the board, in the round, at play, drive, hinges on, boils down to.\n" .
+"    Instead: the same fault came back after repair, most of them are on a few cars, no car is\n" .
+"    worse than the rest, check the cars first, the same items are still at the top.\n" .
+"  - Prefer the ordinary word: use rather than utilise, about rather than approximately, more\n" .
+"    than rather than in excess of, happens rather than occurs, so rather than accordingly.\n" .
+"  - Say numbers the way a person says them: 45% higher than usual, not elevated by 45%.\n" .
 "  - This applies to the TECHNICAL text as much as the executive text. Technical means every\n" .
 "    figure is kept, not that the sentences are harder to read.\n\n" .
 "Every findings[] entry must cite at least one real finding id in evidence. Maximum 6 findings, 4 watchlist items, 3 questions, 5 executive points.";
