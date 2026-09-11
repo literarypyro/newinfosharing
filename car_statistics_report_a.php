@@ -326,142 +326,6 @@ $viewYm     = $isDayView ? sprintf("%04d-%02d", $year, $monthSel) : '';
 $bucketKey  = $isDayView ? "Day_" : "Month_";
 $bucketWord = $isDayView ? "day" : "month";
 
-/* ==========================================================================
-   @ask -- The prompt layer, car report edition.
-
-   Same module as the equipment report, different vocabulary. Three things
-   differ on this page and each one has to be handled rather than assumed:
-
-   1. PERIOD is a year plus an optional month, not a From/To pair. A question
-      resolves to a date SPAN, so the span is translated to the nearest thing
-      these two <select>s can express -- and when it cannot be expressed
-      exactly, the chip says what was actually applied instead of quietly
-      widening the question.
-
-   2. EQUIPMENT is one <select>, not a set. A question naming two parts gets
-      the first and is told the rest were dropped.
-
-   3. LEVEL does not exist here -- its <select> is commented out and no query
-      carries a level clause. So a level question is answered with "this
-      report does not hold that", not silently ignored, which is why the
-      vocabulary declares it under 'lacks'.
-
-   Guarded on the module file, like every other helper: a station without
-   iss_insight_prompt.php keeps this page exactly as it was.
-   ========================================================================== */
-$issAsk = null; $issVocab = null; $issRoster = array(); $issAskNote = '';
-if(file_exists(dirname(__FILE__)."/iss_insight_prompt.php")){
-	require_once(dirname(__FILE__)."/iss_insight_prompt.php");
-}
-if(function_exists('iss_prompt_ask')){
-
-	/* The roster the equipment <select> offers. Its inline id list repeats 14
-	   ids; DISTINCT here so "27 equipment types" is not reported as 41. */
-	$rsAsk = $db->query("select distinct id, equipment_name from equipment
-	                     where id in ('114','102','110','11','113','104','108','109','103','124',
-	                                  '67','111','112','105','81','118','119','64','115','89',
-	                                  '120','123','121','116','2','122','117')");
-	if($rsAsk){
-		while($rAsk = $rsAsk->fetch_assoc()){
-			$issRoster[(string)$rAsk['id']] = $rAsk['equipment_name'];
-		}
-	}
-
-	$issConditions = array();
-	$rsC = $db->query("select id, description from level_condition order by id");
-	if($rsC){ while($rC = $rsC->fetch_assoc()){ $issConditions[(string)$rC['id']] = $rC['description']; } }
-
-	$issVocab = iss_prompt_vocab(array(
-		'report'     => 'car_statistics_report',
-		'unit'       => 'car-level failures',
-		'equipment'  => $issRoster,
-		'conditions' => $issConditions,
-		/* Cars are the ROWS here, so there is nothing to filter one down to. */
-		'has_car'    => false,
-		/* No level clause exists on this page. Declared, so it is refused out
-		   loud rather than dropped. */
-		'levels'     => array(),
-		'lacks'      => array(
-			'a severity level filter' => '/\b(?:level|lvl|severity)[ \-]?[0-4]\b|\ball levels\b/',
-			'cancelled loops'         => '/\b(?:loops?|cancell?ed|cancell?ations?)\b/',
-		),
-		'date_min'   => '2013-01-01',
-		'date_max'   => date('Y-m-d'),
-	));
-
-	$issDrop = array();
-	if(isset($_POST['ask_drop'])){
-		foreach(explode(',', (string)$_POST['ask_drop']) as $d){
-			$d = trim($d); if($d !== '') $issDrop[] = $d;
-		}
-	}
-	$issAsk = iss_prompt_ask(isset($_POST['ask']) ? (string)$_POST['ask'] : '', $issVocab, $issDrop);
-	$issReq = $issAsk['request'];
-
-	/* ---- period: span -> year + month -------------------------------------
-	   Exactly one calendar month  -> that year and month.
-	   Exactly one calendar year   -> that year, all months.
-	   Anything else               -> the START year, all months, and say so.
-	   The third case is the honest one: "last 6 months" crossing a new year
-	   cannot be drawn by a page that shows one year at a time, and pretending
-	   otherwise would put a figure under a chip that misdescribes it. */
-	if($issReq['from'] !== '' && $issReq['to'] !== ''){
-		$fY = (int)date('Y', strtotime($issReq['from']));
-		$tY = (int)date('Y', strtotime($issReq['to']));
-		$fM = (int)date('n', strtotime($issReq['from']));
-		$tM = (int)date('n', strtotime($issReq['to']));
-		$wholeMonth = ($fY === $tY && $fM === $tM
-		               && date('j', strtotime($issReq['from'])) === '1'
-		               && $issReq['to'] === date('Y-m-t', strtotime($issReq['from'])));
-
-		if($fY === $tY && $fM === $tM){
-			$year = $fY; $monthSel = $fM;
-			if(!$wholeMonth) $issAskNote = 'Showing the whole of '
-			                             . date('F Y', strtotime($issReq['from']))
-			                             . '; this report cannot show part of a month.';
-		} elseif($fY === $tY){
-			$year = $fY; $monthSel = 0;
-			if(!($fM === 1 && $tM === 12)){
-				$issAskNote = 'Showing all of ' . $fY
-				            . '; this report cannot show a range of months within a year.';
-			}
-		} else {
-			$year = $fY; $monthSel = 0;
-			$issAskNote = 'Showing ' . $fY . ' only; this report covers one year at a time, and '
-			            . 'the period asked for runs from ' . date('M Y', strtotime($issReq['from']))
-			            . ' to ' . date('M Y', strtotime($issReq['to'])) . '.';
-		}
-		/* Keep the request honest about what was actually applied, so the chip
-		   and the answer describe the same period the queries used. */
-		$issAsk['request']['from'] = $monthSel
-			? sprintf('%04d-%02d-01', $year, $monthSel) : sprintf('%04d-01-01', $year);
-		$issAsk['request']['to'] = $monthSel
-			? date('Y-m-t', strtotime($issAsk['request']['from'])) : sprintf('%04d-12-31', $year);
-	}
-
-	/* ---- equipment: one select, so one value ---------------------------- */
-	if(count($issReq['equipment'])){
-		$pick = $issReq['equipment'][0];
-		if(isset($issRoster[$pick])){
-			$_POST['equipt_car'] = $pick;
-			$equipment = $pick;
-			if(count($issReq['equipment']) > 1){
-				$issAskNote .= ($issAskNote === '' ? '' : ' ')
-				             . 'This report filters to one equipment type at a time; showing '
-				             . htmlspecialchars($issRoster[$pick]) . '.';
-			}
-			$issAsk['request']['equipment'] = array($pick);
-		}
-	}
-
-	/* Re-derive what the rest of the page reads from these two. */
-	$month      = $monthSel;
-	$isDayView  = ($monthSel > 0);
-	$viewYm     = $isDayView ? sprintf("%04d-%02d", $year, $monthSel) : '';
-	$bucketKey  = $isDayView ? "Day_" : "Month_";
-	$bucketWord = $isDayView ? "day" : "month";
-}
-
 /* @present -- WHERE THE GRID STOPS.
  *
  * statistics_report_modified.php ends its default range at "last day of this
@@ -558,14 +422,7 @@ if($bucketClamped){ echo " &middot; ".$bucketSpan; } ?> </div>
 
 <div class="ccs-panel">
 <div class="ccs-panel-head">
-<?php /* @ask -- The form used to carry .stat-toolbar itself, which put the
-        ask bar INSIDE the blue: a boxed panel floating in the left half of the
-        bar with the rest empty, reading as a sub-control of the filters rather
-        than a peer that overrides them. The blue moves to an inner div so the
-        form can wrap both rows. One submit still carries the question and the
-        selects together. */ ?>
-<form action='car_statistics_report.php' method='post'>
-<div class="stat-toolbar">
+<form action='car_statistics_report.php' method='post' class="stat-toolbar">
 <!--
 <label for='levelSelect'>Level</label>
 <select name='level' id='levelSelect'>
@@ -627,19 +484,6 @@ for($i=0;$i<=$nm;$i++){
 </select>
 
 <input type=submit value='Submit' />
-</div>
-<?php
-/* @ask -- Below the blue, full width, sharing the panel's edges. */
-if(isset($issAsk) && function_exists('iss_prompt_box')){
-	echo iss_prompt_css();
-	echo iss_prompt_box($issAsk, $issVocab, isset($_POST['ask_drop']) ? (string)$_POST['ask_drop'] : '');
-	if($issAskNote !== ''){
-		echo '<div style="margin:0 0 10px;font-size:12px;color:#8A5A00;background:#FFF6E0;'
-		   . 'border:1px solid #F0DCA8;border-radius:4px;padding:7px 11px;">'
-		   . htmlspecialchars($issAskNote) . '</div>';
-	}
-}
-?>
 </form>
 </div>
 <div class='ccs-panel-body'>
@@ -1162,17 +1006,6 @@ $dq = $db->query("select count(distinct incident_cars.incident_id) as c
                     inner join incident_report on incident_cars.incident_id=incident_report.id
                    where incident_date like '".$year."-%'");
 if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
-
-/* @ask -- Distinct cars. The rows of this report are cars, so the count is
-   the number of rows with any failure -- but taken from SQL rather than the
-   rendered grid so it stays right if the grid is ever filtered for display. */
-$distinctCars = 0;
-$cq = $db->query("select count(distinct incident_cars.car_no*1) as c
-                  from incident_cars
-                  inner join incident_report on incident_cars.incident_id=incident_report.id
-                  where incident_date like '"
-                  . $db->real_escape_string($isDayView ? $viewYm."-%" : $year."-%") . "' ".$equiptClause);
-if($cq && ($cr = $cq->fetch_assoc())) $distinctCars = (int)$cr['c'];
 ?>
 
 <div style="display:flex;flex-wrap:wrap;gap:10px;margin:14px 0;">
@@ -1356,26 +1189,7 @@ if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
 	$issBandHtml .= iss_insight_summary_band($issN, $issF, "issInsight");
 }
 ?>
-<?php
-/* @ask -- When the question has an answer, that is the key finding and it
-   takes this slot. The generic analysis is not discarded; it moves down to
-   sit with the full panel, collapsed. */
-$issAskBand = '';
-if(isset($issAsk) && function_exists('iss_prompt_band')){
-	$issAskBand = iss_prompt_band($issAsk, $issVocab, array(
-		'unit'          => 'car-level failures',
-		'total'         => $grandTotal,
-		'incidents'     => $distinctIncidents,
-		'cars'          => $distinctCars,
-		'rows'          => isset($issRows)      ? $issRows      : array(),
-		'buckets'       => isset($issBuckets)   ? $issBuckets   : array(),
-		'bucket_totals' => isset($monthTotals)  ? array_values($monthTotals) : array(),
-		'uncovered'     => isset($issUncov)     ? count($issUncov) : 0,
-	));
-}
-if($issAskBand !== ''){ echo iss_prompt_band_css(); echo $issAskBand; }
-else                  { echo $issBandHtml; }
-?>
+<?php echo $issBandHtml; ?>
 <div style="margin-bottom:14px;">
 	<button type="button" onclick="csrPrintReport()" style="padding:6px 14px;border:1px solid #00529B;background:#00529B;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">Print report</button>
 </div>
@@ -1509,23 +1323,7 @@ table.ccs-rows-none tr.ccs-nonzero{display:none;}
 <?php } ?>
 <?php echo $tableHtml; ?>
 
-<?php
-if($issAskBand !== ''){
-	echo '<style>.ask-gen{border:1px solid #E5DECC;border-radius:6px;background:#FBFAF6;margin:14px 0;}'
-	   . '.ask-gen>summary{cursor:pointer;padding:9px 14px;font-size:12px;font-weight:600;color:#00529B;list-style:none;}'
-	   . '.ask-gen>summary::-webkit-details-marker{display:none;}'
-	   . '.ask-gen>summary:before{content:"\\25B8 ";}'
-	   . '.ask-gen[open]>summary:before{content:"\\25BE ";}'
-	   . '.ask-gen>div{padding:0 14px 12px;}'
-	   . '@media print{.ask-gen>summary{display:none;}.ask-gen>div{padding:0;}}</style>';
-	echo '<details class="ask-gen"><summary>General analysis for this period, not specific to the question</summary><div>';
-	echo $issBandHtml;
-	echo $issPanelHtml;
-	echo '</div></details>';
-} else {
-	echo $issPanelHtml;
-}
-?>
+<?php echo $issPanelHtml; ?>
 <?php
 /* @insight -- Defines issInsightPrintBlock()/issInsightPrintLead() for
    csrPrintReport() below. Emitted after the panel so the element it clones is

@@ -419,25 +419,13 @@ if(function_exists('iss_prompt_ask')){
 		}
 	}
 
-	/* @ask -- The outcome lookup, so a question can name an outcome in the
-	   words the schema uses ("service interruption", "passenger unloading")
-	   rather than a code nobody types. Five rows. */
-	$issConditions = array();
-	$rsC = $db->query("select id, description from level_condition order by id");
-	if($rsC){
-		while($rC = $rsC->fetch_assoc()){
-			$issConditions[(string)$rC['id']] = $rC['description'];
-		}
-	}
-
 	$issVocab = iss_prompt_vocab(array(
-		'report'     => 'statistics_report_modified',
-		'unit'       => 'car-level failures',
-		'equipment'  => $issRoster,
-		'conditions' => $issConditions,
-		'has_car'    => true,
-		'date_min'   => '2013-01-01',
-		'date_max'   => date('Y-m-d'),
+		'report'    => 'statistics_report_modified',
+		'unit'      => 'car-level failures',
+		'equipment' => $issRoster,
+		'has_car'   => true,
+		'date_min'  => '2013-01-01',
+		'date_max'  => date('Y-m-d'),
 	));
 
 	$issDrop = array();
@@ -447,22 +435,6 @@ if(function_exists('iss_prompt_ask')){
 		}
 	}
 	$issAsk = iss_prompt_ask(isset($_POST['ask']) ? (string)$_POST['ask'] : '', $issVocab, $issDrop);
-
-	/* @ask -- View-source diagnostic. When a question names equipment and the
-	   report does not narrow, the cause is almost always the roster lookup
-	   returning nothing or returning names that differ from what people type.
-	   Both are invisible from the rendered page, so state them. Same idea as
-	   the finding-kinds marker. */
-	if(isset($_POST['ask']) && trim($_POST['ask']) !== ''){
-		echo "\n<!-- iss-prompt roster: ".count($issRoster)." names";
-		if(count($issRoster)){
-			$issDiag = array(); $issN = 0;
-			foreach($issRoster as $issK => $issV){ if($issN++ >= 4) break; $issDiag[] = $issK.'='.$issV; }
-			echo "; sample: ".htmlspecialchars(implode(', ', $issDiag));
-		}
-		echo "; matched: [".implode(',', $issAsk['request']['equipment'])."]";
-		echo "; leftover: \"".htmlspecialchars($issAsk['request']['leftover'])."\" -->\n";
-	}
 
 	/* The narrowing. INTERSECTED with the roster rather than replacing it, so
 	   nothing outside this page's own 27 RS types can be selected however the
@@ -564,7 +536,7 @@ if(!isset($carClause))   $carClause   = '';
    It has only ever held one digit from a <select>, but a <select> is a client
    control and this is the string that builds the query. Whitelisting it costs
    nothing and closes it; do the same wherever this pattern repeats. */
-if($level !== '' && !in_array((string)$level, array('0','1','2','3','4'), true)){
+if($level !== '' && !in_array((string)$level, array('1','2','3','4'), true)){
 	$level = ''; $levelClause = '';
 }
 
@@ -655,15 +627,10 @@ if(isset($issAsk) && trim($issAsk['asked']) !== ''){
         load and did not reflect the resolved default. */ ?>
 <select name='level'>
 <option value=''>All Levels</option>
-<?php /* @ask -- 0 is a real tier (a normal incident, no severity assigned),
-        1,614 rows of it, and it was missing from this list entirely.
-        === not ==: on PHP 7 '' == 0 is TRUE, so a loose test would have
-        pre-selected 0 on every cold load. */ ?>
-<option <?php if($level==='0'){ echo "selected"; } ?> value='0'>0 (Normal)</option>
-<option <?php if($level==='1'){ echo "selected"; } ?> value='1'>1</option>
-<option <?php if($level==='2'){ echo "selected"; } ?> value='2'>2</option>
-<option <?php if($level==='3'){ echo "selected"; } ?> value='3'>3</option>
-<option <?php if($level==='4'){ echo "selected"; } ?> value='4'>4</option>
+<option <?php if($level==1){ echo "selected"; } ?> value='1'>1</option>
+<option <?php if($level==2){ echo "selected"; } ?> value='2'>2</option>
+<option <?php if($level==3){ echo "selected"; } ?> value='3'>3</option>
+<option <?php if($level==4){ echo "selected"; } ?> value='4'>4</option>
 
 </select>
 </td>
@@ -1293,99 +1260,6 @@ $dq = $db->query("select count(distinct incident_report.id) as c
                   ".$carClause);
 if($dq && ($dr = $dq->fetch_assoc())) $distinctIncidents = (int)$dr['c'];
 
-/* @ask -- Distinct cars. "How many cars broke down" cannot be derived from
-   either figure above: a car that failed nine times is nine car-level
-   failures and one car, and an incident touching three cars is one incident
-   and three cars. The only honest source is a count over car_no itself.
-   car_no*1 folds '05' and '5', the same normalisation the car filter uses. */
-$distinctCars = 0;
-$cq = $db->query("select count(distinct incident_cars.car_no*1) as c
-                  from incident_report
-                  inner join incident_cars on incident_report.id=incident_cars.incident_id
-                  where ".$levelClause." incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'
-                    and incident_report.equipt in ".$rsEquiptIn."
-                  ".$carClause);
-if($cq && ($cr = $cq->fetch_assoc())) $distinctCars = (int)$cr['c'];
-
-/* ==========================================================================
-   @loops -- Service lost, at INCIDENT grain.
-
-   This is a second unit on a page that already carries two, and the reason it
-   cannot reuse the queries above is the join. cancel lives on incident_report;
-   incident_cars fans a 3-car incident into 3 rows, so summing cancel across
-   that join would triple 1,039 incidents. No car join here at all.
-
-   Two figures, deliberately:
-
-     ROSTERED  loops on incidents inside the 27 equipment types this page
-               reports on -- directly comparable with the failures figure.
-     ALL       loops on every incident in the window, including those with no
-               equipment attributed. A NULL equipt is not a missing record: it
-               means the incident was a service state (train unavailable, no
-               loading or unloading) with no component to name. Those cancel
-               loops too, and the report has never been able to see them.
-
-   The gap between the two IS the finding. Showing only the rostered figure
-   hides service-state incidents; showing only the total puts a number beside
-   the failures count that was never counted on the same basis.
-   ========================================================================== */
-$loops = array('rostered'=>0.0, 'all'=>0.0, 'inc_rostered'=>0, 'inc_all'=>0,
-               'blank'=>0, 'by_condition'=>array());
-
-/* The car filter cannot be applied with a join without reintroducing the
-   fan-out, so it goes in as a subquery on the id instead. */
-$loopCarClause = $carFilter
-	? " and incident_report.id in (select incident_id+0 from incident_cars where car_no*1 = ".(int)$carFilter.") "
-	: "";
-
-$lq = $db->query("select
-        sum(case when incident_report.equipt in ".$rsEquiptIn." then cancel+0 else 0 end) as loops_rostered,
-        sum(cancel+0)                                                                     as loops_all,
-        sum(case when incident_report.equipt in ".$rsEquiptIn." and cancel+0 > 0 then 1 else 0 end) as inc_rostered,
-        sum(case when cancel+0 > 0 then 1 else 0 end)                                     as inc_all,
-        sum(case when cancel is null or cancel = '' then 1 else 0 end)                     as blank_cancel
-      from incident_report
-      where ".$levelClause." incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'
-      ".$loopCarClause);
-if($lq && ($lr = $lq->fetch_assoc())){
-	$loops['rostered']     = (float)$lr['loops_rostered'];
-	$loops['all']          = (float)$lr['loops_all'];
-	$loops['inc_rostered'] = (int)$lr['inc_rostered'];
-	$loops['inc_all']      = (int)$lr['inc_all'];
-	$loops['blank']        = (int)$lr['blank_cancel'];
-}
-
-/* Why the loops were lost, for the levels that record it. level_condition is
-   only populated on levels 3 and 4 -- on 0, 1 and 2 it is not applicable
-   rather than missing -- so this breakdown covers the severe tier only and
-   says so wherever it is rendered. Labels come from the level_condition
-   table, not from code: "With Passenger Unloading" beats "condition 5" for
-   readers who did not write the schema. */
-$lc = $db->query("select r.level_condition, c.description, count(*) as n, sum(r.cancel+0) as loops
-      from incident_report r
-      left join level_condition c on c.id = r.level_condition
-      where ".str_replace('level=', 'r.level=', $levelClause)."
-            r.incident_date between '".$start_date." 00:00:00' and '".$end_date." 23:59:59'
-        and r.level_condition is not null and r.level_condition <> ''
-      group by r.level_condition, c.description
-      order by loops desc");
-if($lc){
-	while($lcr = $lc->fetch_assoc()){
-		$loops['by_condition'][] = array(
-			'code'  => $lcr['level_condition'],
-			'label' => ($lcr['description'] !== null && $lcr['description'] !== '')
-			           ? $lcr['description'] : ('Condition '.$lcr['level_condition']),
-			'n'     => (int)$lcr['n'],
-			'loops' => (float)$lcr['loops'],
-		);
-	}
-}
-/* Half loops are real -- a train turning back mid-line completes half a loop --
-   so these are not integers and must not be printed as though they were. */
-if(!function_exists('loops_fmt')){
-function loops_fmt($v){ return rtrim(rtrim(number_format((float)$v, 1), '0'), '.'); }
-}
-
 /* @roster -- What the roster leaves out, counted rather than hidden.
    Narrowing the report to 27 equipment types is a deliberate scope, but blank
    and out-of-roster equipment is not rare in this system -- the description
@@ -1509,22 +1383,6 @@ $tableHtml = ob_get_clean();
 		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Equipment types affected</div>
 		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo $activeEquipt; ?></div>
 		<div style="font-size:11px;color:#5A6275;">of <?php echo count($equipt); ?> tracked</div>
-	</div>
-<?php /* @loops -- Deliberately the third tile, not the first: failures are
-        what this page reports and loops are context for them. The sub-line
-        carries the all-incident figure because the difference between the two
-        is the part a reader cannot reconstruct. */ ?>
-	<div class="kpi-tile--link" style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;" role="button" tabindex="0" aria-label="Open the cancelled loops breakdown" onclick="openLoopsPanel()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
-		<div style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">Loops lost (this roster)</div>
-		<div style="font-size:22px;font-weight:600;color:#00529B;"><?php echo loops_fmt($loops['rostered']); ?></div>
-		<div style="font-size:11px;color:#5A6275;">
-<?php if($loops['all'] > $loops['rostered']){ ?>
-			<?php echo loops_fmt($loops['all']); ?> across all incident types
-<?php } else { ?>
-			from <?php echo $loops['inc_rostered']; ?> incident<?php echo $loops['inc_rostered']==1?'':'s'; ?>
-<?php } ?>
-			<span class="kpi-hint" style="color:#00529B;">&nbsp;Breakdown</span>
-		</div>
 	</div>
 <?php $peakClickable = ($peakId > 0); /* @equiptpanel -- no peak, no action */ ?>
 	<div class="<?php echo $peakClickable ? 'kpi-tile--link' : ''; ?>" style="flex:1;min-width:150px;border:1px solid #E5DECC;border-radius:6px;padding:10px 12px;background:#FBFAF6;"<?php if($peakClickable){ ?> role="button" tabindex="0" aria-label="Open the car breakdown for <?php echo htmlspecialchars($peakName); ?>" onclick="openEquiptPanel(<?php echo htmlspecialchars(json_encode($panelFrom), ENT_QUOTES); ?>,<?php echo htmlspecialchars(json_encode($panelTo), ENT_QUOTES); ?>,'<?php echo (int)$peakId; ?>',<?php echo htmlspecialchars(json_encode($peakName), ENT_QUOTES); ?>,'<?php echo (int)$panelCar; ?>')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}"<?php } ?>>
@@ -1658,24 +1516,6 @@ if(function_exists('iss_insight')){
 		'coverage' => array('uncovered_buckets'=>$issUncovered),
 		'totals'   => array('by_bucket'=>$monthTotals, 'grand'=>(int)$grandTotal),
 	);
-	/* @loops -- Its own block, not folded into totals: totals are car-level
-	   failures and this is loops. Two units under one key is the one mistake
-	   this context must not make. */
-	$issCtx['service'] = array(
-		'unit'              => 'cancelled loops',
-		'grain'             => 'incident',
-		'loops_rostered'    => $loops['rostered'],
-		'loops_all'         => $loops['all'],
-		'incidents_rostered'=> $loops['inc_rostered'],
-		'incidents_all'     => $loops['inc_all'],
-		'unrecorded'        => $loops['blank'],
-		'note'              => 'Loops are counted once per incident. Failures are counted once per car, so the two figures are not on the same basis and must not be divided into one another. Incidents with no equipment attributed are service states (train unavailable, no loading or unloading), not missing records; they cancel loops but fall outside this roster.',
-	);
-	if(count($loops['by_condition'])){
-		$issCtx['service']['by_condition'] = $loops['by_condition'];
-		$issCtx['service']['by_condition_note'] = 'Escalation stage is recorded on levels 3 and 4 only; on levels 0 to 2 it does not apply.';
-	}
-
 	if(count($issCross))   $issCtx['crosstab'] = $issCross;
 	if(count($issHistory)) $issCtx['history']  = $issHistory;
 	if(count($issEvents))  $issCtx['events']   = $issEvents;
@@ -1761,37 +1601,7 @@ if(isset($issF) && isset($issCtxN) && function_exists('iss_insight_summary_band'
 	$issBandHtml .= iss_insight_summary_band($issCtxN, $issF, "issInsight");
 }
 ?>
-<?php
-/* @ask -- When the question has an answer, THAT is the key finding, and it
-   takes this slot. The generic analysis is not discarded -- it moves down to
-   sit with the full panel, collapsed. Discarding it would be the wrong
-   stance for an official report: a finding that was true before the question
-   was asked is still true after it, and the same reasoning is why focus
-   reorders findings rather than filtering them. Collapsed, not deleted. */
-$issAskBand = '';
-if(isset($issAsk) && function_exists('iss_prompt_band')){
-	/* Everything the band can answer from, all of it already computed above.
-	   isset() on each: these live inside the iss_insight block, so a station
-	   without that file still gets a band rather than a fatal. */
-	$issAskBand = iss_prompt_band($issAsk, $issVocab, array(
-		'loops'         => $loops,
-		'unit'          => 'car-level failures',
-		'total'         => $grandTotal,
-		'incidents'     => $distinctIncidents,
-		'cars'          => $distinctCars,
-		'rows'          => isset($issRows)         ? $issRows         : array(),
-		'buckets'       => isset($issBucketLabels) ? $issBucketLabels : array(),
-		'bucket_totals' => isset($monthTotals)     ? $monthTotals     : array(),
-		'uncovered'     => isset($issUncovered)    ? count($issUncovered) : 0,
-	));
-}
-if($issAskBand !== ''){
-	echo iss_prompt_band_css();
-	echo $issAskBand;
-} else {
-	echo $issBandHtml;
-}
-?>
+<?php echo $issBandHtml; ?>
 <div style="margin-bottom:14px;">
 	<button type="button" onclick="srmPrintReport()" style="padding:6px 14px;border:1px solid #00529B;background:#00529B;color:#fff;border-radius:4px;cursor:pointer;font-size:13px;">Print report</button>
 </div>
@@ -1910,26 +1720,7 @@ table.ccs-rows-none tr.ccs-nonzero{display:none;}
 <?php } ?>
 <?php echo $tableHtml; ?>
 
-<?php
-if($issAskBand !== ''){
-	/* The generic band and the full panel travel together into one
-	   disclosure, so the reader sees a single "there is more" rather than
-	   two. Still in the DOM, so the printout picks it up unchanged. */
-	echo '<style>.ask-gen{border:1px solid #E5DECC;border-radius:6px;background:#FBFAF6;margin:14px 0;}'
-	   . '.ask-gen>summary{cursor:pointer;padding:9px 14px;font-size:12px;font-weight:600;color:#00529B;list-style:none;}'
-	   . '.ask-gen>summary::-webkit-details-marker{display:none;}'
-	   . '.ask-gen>summary:before{content:"\\25B8 ";}'
-	   . '.ask-gen[open]>summary:before{content:"\\25BE ";}'
-	   . '.ask-gen>div{padding:0 14px 12px;}'
-	   . '@media print{.ask-gen>summary{display:none;}.ask-gen>div{padding:0;}}</style>';
-	echo '<details class="ask-gen"><summary>General analysis for this period, not specific to the question</summary><div>';
-	echo $issBandHtml;
-	echo $issPanelHtml;
-	echo '</div></details>';
-} else {
-	echo $issPanelHtml;
-}
-?>
+<?php echo $issPanelHtml; ?>
 <?php
 /* @insight -- Defines issInsightPrintBlock()/issInsightPrintLead() for
    srmPrintReport() below. Emitted after the panel so the element it clones is
@@ -2424,89 +2215,6 @@ document.addEventListener('keydown',function(e){
 });
 </script>
 <!-- @slidepanel -- own backdrop; taOverlay belongs to train_operations.php -->
-<?php
-/* ==========================================================================
-   @loops -- Breakdown panel.
-
-   Figures only. The readers are controllers, supervisors and managers who
-   know what a loop is and what turning back costs, so nothing here defines a
-   term they use daily.
-
-   What it does state is the counting basis, because that is not domain
-   knowledge -- it is a choice made in the query, and no amount of operating
-   experience tells a reader whether the figure in front of them was summed
-   per incident or per car. One line, not a paragraph.
-
-   No iframe: every figure is computed server-side, so there is no load path,
-   no timeout and no fallback link to maintain.
-   ========================================================================== */
-$lpGap = $loops['all'] - $loops['rostered'];
-?>
-<div class="ta-overlay" id="loopsOverlay" onclick="closeLoopsPanel()"></div>
-<div class="ta-panel" id="loopsPanel" role="dialog" aria-modal="true" aria-labelledby="loops-panel-title">
-	<div class="ta-panel-head">
-		<h3 id="loops-panel-title">Cancelled Loops &mdash; <?php echo htmlspecialchars($period); ?></h3>
-		<button type="button" class="ta-panel-close" onclick="closeLoopsPanel()" aria-label="Close">&times;</button>
-	</div>
-	<div class="ta-panel-body">
-
-		<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px;">
-			<tr><td style="padding:6px 0;">Loops lost &mdash; this roster (<?php echo count($rsEquiptIds); ?> equipment types)</td>
-			    <td align="right" style="padding:6px 0;font-weight:600;color:#00529B;font-size:15px;"><?php echo loops_fmt($loops['rostered']); ?></td></tr>
-			<tr><td style="padding:6px 0;border-top:1px solid #EFEADC;">Loops lost &mdash; all incident types</td>
-			    <td align="right" style="padding:6px 0;border-top:1px solid #EFEADC;font-weight:600;color:#00529B;font-size:15px;"><?php echo loops_fmt($loops['all']); ?></td></tr>
-<?php if($lpGap > 0.001){ ?>
-			<tr><td style="padding:6px 0;border-top:1px solid #EFEADC;color:#5A6275;">&nbsp;&nbsp;of which no equipment attributed</td>
-			    <td align="right" style="padding:6px 0;border-top:1px solid #EFEADC;color:#5A6275;"><?php echo loops_fmt($lpGap); ?></td></tr>
-<?php } ?>
-			<tr><td style="padding:6px 0;border-top:1px solid #EFEADC;">Incidents cancelling &mdash; this roster</td>
-			    <td align="right" style="padding:6px 0;border-top:1px solid #EFEADC;"><?php echo $loops['inc_rostered']; ?></td></tr>
-			<tr><td style="padding:6px 0;border-top:1px solid #EFEADC;">Incidents cancelling &mdash; all types</td>
-			    <td align="right" style="padding:6px 0;border-top:1px solid #EFEADC;"><?php echo $loops['inc_all']; ?></td></tr>
-<?php if($loops['blank'] > 0){ ?>
-			<tr><td style="padding:6px 0;border-top:1px solid #EFEADC;color:#8A5A00;">No loop value recorded (excluded)</td>
-			    <td align="right" style="padding:6px 0;border-top:1px solid #EFEADC;color:#8A5A00;"><?php echo $loops['blank']; ?></td></tr>
-<?php } ?>
-		</table>
-
-<?php if(count($loops['by_condition'])){ ?>
-		<p style="margin:0 0 6px;font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.06em;">By outcome &mdash; levels 3 and 4</p>
-		<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px;">
-			<tr style="font-size:11px;color:#5A6275;text-transform:uppercase;letter-spacing:.05em;">
-				<th align="left"  style="padding:4px 0;font-weight:600;">Outcome</th>
-				<th align="right" style="padding:4px 0;font-weight:600;">Incidents</th>
-				<th align="right" style="padding:4px 0;font-weight:600;">Loops</th>
-			</tr>
-<?php foreach($loops['by_condition'] as $bc){ ?>
-			<tr><td style="padding:6px 0;border-top:1px solid #EFEADC;"><?php echo htmlspecialchars($bc['label']); ?></td>
-			    <td align="right" style="padding:6px 0;border-top:1px solid #EFEADC;"><?php echo $bc['n']; ?></td>
-			    <td align="right" style="padding:6px 0;border-top:1px solid #EFEADC;font-weight:600;"><?php echo loops_fmt($bc['loops']); ?></td></tr>
-<?php } ?>
-		</table>
-<?php } ?>
-
-		<p style="margin:0;font-size:12px;line-height:1.5;color:#5A6275;border-top:1px solid #E5DECC;padding-top:10px;">
-			Loops counted per incident; failures per car.
-		</p>
-
-	</div>
-</div>
-<script>
-/* @loops -- Same open/close shape as the equipment panel, minus the iframe
-   plumbing: there is nothing to load, so nothing to time out. */
-function openLoopsPanel(){
-	document.getElementById('loopsPanel').classList.add('active');
-	document.getElementById('loopsOverlay').classList.add('active');
-}
-function closeLoopsPanel(){
-	document.getElementById('loopsPanel').classList.remove('active');
-	document.getElementById('loopsOverlay').classList.remove('active');
-}
-document.addEventListener('keydown',function(e){
-	if(e.key==='Escape') closeLoopsPanel();
-});
-</script>
-
 <div class="ta-overlay" id="irOverlay" onclick="closeIncidentPanel()"></div>
 <div class="ta-panel ta-panel--ir" id="irPanel" role="dialog" aria-modal="true" aria-labelledby="ir-panel-title">
 	<div class="ta-panel-head">
