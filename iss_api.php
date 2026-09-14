@@ -205,54 +205,65 @@ function iss_state_label($state, $fallback){
 }
 
 /* =====================================================================
-   @skipping -- inserted somewhere other than North Ave., so the set did
-   not run the full line.
+   @skipping -- a RECORDED fact, read from the `skipping` table.
 
-   TWO BUGS FIXED HERE, and they were hiding each other.
+   The web console changed the definition, and it changed it from a
+   derived answer to an encoded one. Operations logs a skipped departure
+   as a row in `skipping` (keyed by tar_id); dash_data.php's
+   dash_is_skipping() now returns simply whether any such row exists.
 
-   1. WRONG VALUE SPACE. The database stores inserted_to as the raw form
-      code -- 'north' or 'quezon' (see the option values in
-      train_operations_parallel.php). dash_data.php maps those to display
-      labels, but ONLY inside dash_recent_insertions(); dash_trains()
-      hands back the raw code untouched. This function was comparing the
-      raw code against the display label "North Ave.", so:
+   That supersedes both of this API's earlier attempts, which tried to
+   INFER skipping from the insertion point. The full history is in the
+   function body -- worth keeping, because the second attempt was wrong
+   in a way that looked right.
 
-        inserted_to='north'   -> 'north' !== 'North Ave.'  -> SKIPPING
-        inserted_to='quezon'  -> 'quezon' !== 'North Ave.' -> SKIPPING
+   The short version: insertion point answers "where did this set enter
+   the loop", which is a different question from "did it skip part of
+   one". A set can enter at North and still skip; a planned short working
+   from Quezon has skipped nothing. No amount of care with the value
+   space fixes a figure that is answering the wrong question.
 
-      Every inserted train came back skipping. The Quezon ones were right
-      by accident, which is why the figure looked plausible.
-
-   2. THE ONLINE GATE. The counts then filtered on state=='online', which
-      cancelled out most of bug 1 -- and in doing so dropped the real
-      cases. A set inserted at Quezon and later removed has state
-      'removed', so it was never counted, even though it demonstrably
-      skipped. That is the missed skipping.
-
-   The test is now on the INSERTION, positively: did this set enter
-   service anywhere other than North Ave.? Skipping is a fact about what
-   already happened, not about where the train is now -- so it survives
-   the set being removed later in the day, and the count stops depending
-   on when you happen to look.
-
-   Normalisation mirrors dash_data.php line 263 exactly: lowercase, trim,
-   compare against 'quezon'. Anything else -- 'north', blank, a value
-   this build has never seen -- is NOT skipping. Erring toward "not
-   skipping" on an unrecognised code is deliberate: inventing a skip is
-   worse than missing one, because the badge is an accusation about
-   service that was not delivered.
+   So nothing here derives anything any more. dash_trains() carries the
+   count as `skip`, and this API reports it. When operations and the app
+   disagree about which trains skipped, the answer is now a row someone
+   can point at.
    ===================================================================== */
 function iss_is_skipping($t){
-	/* No insertion recorded means the set never entered service, so there
-	   is nothing to have skipped. */
-	if(!dash_ts(isset($t['insert_time']) ? $t['insert_time'] : '')) return false;
+	/* SUPERSEDED RULE -- kept here as a record of what this used to test,
+	   because it was wrong twice and the second version was wrong subtly.
 
-	$to = strtolower(trim((string)(isset($t['inserted_to']) ? $t['inserted_to'] : '')));
+	   v1: inserted_to !== 'North Ave.'   -- compared a raw form code
+	       against a display label, so every insertion read as skipping.
+	   v2: inserted_to === 'quezon'       -- correct value space, wrong
+	       QUESTION. Insertion point is where a set entered the loop, which
+	       is not the same fact as whether it skipped part of one. A set can
+	       enter at North and still skip; one entering at Quezon on a
+	       planned short working has not skipped anything.
 
-	/* Positive test against the ONE known non-terminus code. Accepts the
-	   display label too, in case a future dash_data.php starts mapping
-	   inserted_to before dash_trains() returns it. */
-	return ($to === 'quezon' || $to === 'quezon ave.');
+	   v3 (current): the `skipping` table. Operations ENCODES a skip as a
+	   row there, one per departure skipped, and dash_is_skipping() in
+	   dash_data.php now reads exactly that. So this is no longer a derived
+	   figure at all -- it is a recorded one, and the only correct thing
+	   for this API to do is report what was recorded.
+
+	   dash_trains() carries the count as `skip` (a correlated subquery on
+	   skipping.tar_id). No insertion requirement and no state gate: the
+	   row exists because someone logged a skipped departure, and that
+	   remains true after the set is removed. */
+	if(!array_key_exists('skip', $t)) return false;   /* see iss_skipping_available() */
+	return ((int)$t['skip'] > 0);
+}
+
+/* Whether the `skip` field is present at all.
+   
+   Without this, a dash_data.php predating the skipping table would make
+   iss_is_skipping() return false for every train, and the app would show a
+   confident 0 -- the same failure the Reserve tile had. Checked against the
+   first row rather than the schema, because that is what iss_is_skipping()
+   actually reads. */
+function iss_skipping_available($rows){
+	foreach($rows as $t){ return array_key_exists('skip', $t); }
+	return true;   /* no trains at all: nothing to be wrong about */
 }
 
 function iss_train($t){
@@ -282,7 +293,10 @@ function iss_train($t){
 		   Sent as its own flag rather than folded into 'state': the train IS
 		   in service, and overwriting its state would lose that. The client
 		   decides whether to render it as a sixth state or a badge. */
-		'skipping'      => iss_is_skipping($t)
+		'skipping'      => iss_is_skipping($t),
+		/* How MANY departures were logged as skipped. One skip and six are
+		   different operational facts and a boolean cannot tell them apart. */
+		'skip_count'    => isset($t['skip']) ? (int)$t['skip'] : 0
 	);
 }
 
@@ -407,6 +421,7 @@ if($seg[0] === 'health'){
 			'train_ava_time'     => dash_table_exists('train_ava_time'),
 			'incident_report'    => dash_table_exists('incident_report'),
 			'equipment_type'     => dash_table_exists('equipment_type'),
+			'skipping'           => dash_table_exists('skipping'),
 			'timetable_day'      => dash_table_exists('timetable_day'),
 			'train_compo'        => dash_table_exists('train_compo'),
 			'level_condition'    => function_exists('iss_column_exists')
@@ -429,16 +444,24 @@ if($seg[0] === 'days'){
 	if($sub === 'trains'){
 		$rows = array();
 		$c = dash_fleet_counts($date);
-		$rsv = 0; $skp = 0;
-		foreach(dash_trains($date) as $t){
+		$trains = dash_trains($date);
+		$rsv = 0; $skp = 0; $skpEvents = 0;
+		foreach($trains as $t){
 			$rows[] = iss_train($t);
 			if($t['state'] === 'boundary') $rsv++;
-			/* No state gate: a set inserted at Quezon and later removed still
-			   skipped. Gating on 'online' is what dropped the real cases. */
-			if(iss_is_skipping($t)) $skp++;
+			/* No state gate: the skipping row exists because a departure was
+			   logged as skipped, and that stays true after the set comes off
+			   the line. Gating on 'online' is what dropped real cases. */
+			if(iss_is_skipping($t)){ $skp++; $skpEvents += (int)$t['skip']; }
 		}
 		$c['reserve']  = $rsv;    /* @reserve -- same derivation as /today */
 		$c['skipping'] = $skp;
+		/* @skipping -- TRAINS that skipped, and DEPARTURES skipped. The
+		   console's own tile shows the second under a label saying "Trains",
+		   so the two figures being separate and named is the only way the app
+		   can agree with it without repeating the mislabel. */
+		$c['skipping_events'] = $skpEvents;
+		$c['skipping_available'] = iss_skipping_available($trains);
 		iss_ok(array(
 			'counts'   => $c,
 			'trains'   => $rows,
@@ -543,12 +566,15 @@ if($seg[0] === 'days'){
 	   strip is built from, so the tiles and the strip can never disagree
 	   about how many sets are held in reserve. */
 	$fleet = dash_fleet_counts($date);
-	$reserve = 0; $skipping = 0;
-	foreach(dash_trains($date) as $t){
+	$issTrains = dash_trains($date);
+	$reserve = 0; $skipping = 0; $skippingEvents = 0;
+	foreach($issTrains as $t){
 		if($t['state'] === 'boundary') $reserve++;
 		/* No state gate -- see iss_is_skipping(). */
-		if(iss_is_skipping($t)) $skipping++;
+		if(iss_is_skipping($t)){ $skipping++; $skippingEvents += (int)$t['skip']; }
 	}
+	$fleet['skipping_events'] = $skippingEvents;
+	$fleet['skipping_available'] = iss_skipping_available($issTrains);
 	$fleet['reserve']  = $reserve;   /* === boundary, named as operations names it */
 	$fleet['skipping'] = $skipping;
 

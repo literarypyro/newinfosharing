@@ -277,14 +277,23 @@ function iss_lrv_utilization($date){
 /* =====================================================================
    5. Insertions -- the whole day, with the skipping flag
    =====================================================================
-   dashboard.php's @insertions change: no limit, the card scrolls. The
-   skipping test is the dashboard's own -- an insertion point that is not
-   North Ave. means the train skipped part of the line.
+   dashboard.php's @insertions change: no limit, the card scrolls.
 
-   The comparison is on the raw point string, matching the console. If a
-   station ever renames the terminus, BOTH pages need the change; a
-   silently different test here would put the app and the console into
-   disagreement about which insertions skipped.
+   @skipping -- the flag is now CARRIED by dash_recent_insertions() rather
+   than re-derived here from the point label. Two reasons, and the second
+   is the one that mattered:
+
+   1. The label is lossy. dash_data.php maps anything that is not
+      'quezon' to 'North Ave.', so a third insertion point would display
+      as North and, under the old test, badge as not-skipping.
+
+   2. It was the wrong question entirely. Skipping is now encoded -- a row
+      in the `skipping` table -- and has nothing to do with where a set
+      entered the loop. A set can enter at North and still skip.
+
+   The console's own insertions card reads $i['skipping'] for exactly this
+   reason (dashboard.php @skiptag). Both now ask one source one question,
+   so the badge on the app and the badge on the console cannot disagree.
    ===================================================================== */
 if(!function_exists('iss_insertions')){
 function iss_insertions($date){
@@ -297,7 +306,11 @@ function iss_insertions($date){
 			'index_no' => isset($i['index_no']) ? (string)$i['index_no'] : '',
 			'time'     => isset($i['ts']) && $i['ts'] ? date("H:i", $i['ts']) : '',
 			'point'    => $point,
-			'skipping' => ($point !== 'North Ave.')
+			/* Read, not derived. A dash_data.php that predates the flag
+			   sends no 'skipping' key, and false is the right answer there:
+			   it means the console is not badging these either, so the two
+			   still agree. */
+			'skipping' => !empty($i['skipping'])
 		);
 	}
 	return $out;

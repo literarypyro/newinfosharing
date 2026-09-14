@@ -938,7 +938,7 @@ function dash_nonrevenue_kind($index_no){
 	   Half-open on purpose -- >=70 and <80. An inclusive <=79 would need a
 	   second edit the day the block is widened, and this is the boundary that
 	   is easy to get wrong. */
-	if($n >= 70 && $n < 80){ return array('Test Train','test'); }
+	if($n >= 70 && $n < 80){ return array('Dynamic Test Train','test'); }
 	/* Index 50 stays a single number. Nothing has said the 50s are a block the
 	   way the 70s are, and guessing at a range here would quietly recolour any
 	   51-59 that turned up. */
