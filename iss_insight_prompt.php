@@ -2534,6 +2534,17 @@ function iss_prompt_scope_phrase($req, $vocab) {
 }
 
 function iss_prompt_cmp_total($a, $b) {
-    if ($a['total'] == $b['total']) return 0;
+    /* @tie -- Equal totals are broken on the label, NOT left as 0.
+       usort is not stable before PHP 8.0, and the live server runs 7.4, so
+       returning 0 lets tied rows come out in whatever order the sort leaves
+       them -- which can differ between two loads of the same page. With ties
+       now reported as ties, that matters twice: the order of names in "3
+       equipment types share the highest figure: A, B and C" would shuffle,
+       and when a tie is longer than four and gets cut to "and 2 more", WHICH
+       four are named would change too. Natural order, so Car 9 sorts before
+       Car 12 rather than after it. */
+    if ($a['total'] == $b['total']) {
+        return strnatcasecmp((string)$a['label'], (string)$b['label']);
+    }
     return ($a['total'] < $b['total']) ? 1 : -1;
 }
