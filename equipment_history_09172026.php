@@ -121,94 +121,6 @@ if(!$ehYear) $ehMonth = 0;   /* a month without a year is not a period */
 
 $ehSd = isset($_GET['sd']) && $_GET['sd'] !== '' ? strtotime($_GET['sd']) : false;
 $ehEd = isset($_GET['ed']) && $_GET['ed'] !== '' ? strtotime($_GET['ed']) : false;
-
-/* ============================================================================
- * @ask -- the prompt box.
- *
- * WHY THIS PAGE AND WHY HERE. Everything below already reads y / m / sd / ed
- * and honours them in $dateClause; what the page has never had is a CONTROL
- * that writes to them -- the filter bar offers Car and Level only. So a typed
- * question is not a new filter path, it is the first way to reach one that has
- * been wired all along. Nothing in the form, the submit round-trip, the links
- * from other pages or the query shape changes.
- *
- * Placed immediately after the GET reads and before $ehMode / $ehRange / the
- * clause construction, so a resolved period flows through exactly the same
- * code a URL parameter would. A question does not get its own date path.
- *
- * The equipment is LOCKED: this page is one equipment type, and a question
- * naming another is refused by name rather than quietly answered about this
- * one. Cars are NOT locked -- 73 of them are this page's second axis.
- * ==========================================================================*/
-$ehAsk = null; $ehVocab = null; $ehAskOn = false;
-/* @ask -- True once an answer band has actually been rendered. Not the same
-   as "a question was typed": a question that resolves nothing produces no
-   band, and in that case the Key finding is exactly what should still show. */
-$ehAnswered = false;
-if(file_exists(dirname(__FILE__)."/iss_insight_prompt.php")){
-	require_once(dirname(__FILE__)."/iss_insight_prompt.php");
-	$ehAskOn = true;
-}
-if($ehAskOn){
-	/* The name is needed for the lock label, so the lookup that used to sit
-	   further down happens here instead and is reused below rather than run
-	   twice. */
-	$ehEqName = '';
-	$ehEqAll  = array();
-	$eqrs = $db->query("select id, equipment_name from equipment order by equipment_name");
-	if($eqrs){
-		while($er = $eqrs->fetch_assoc()){
-			$ehEqAll[(string)(int)$er['id']] = $er['equipment_name'];
-			if((int)$er['id'] === (int)$ehEquipt) $ehEqName = $er['equipment_name'];
-		}
-	}
-
-	$ehVocab = iss_prompt_vocab(array(
-		'report'    => 'equipment_history',
-		'unit'      => 'car-level failures',
-		/* The FULL roster, not just this page's one. A name has to be
-		   recognised before it can be refused by name; a one-entry roster
-		   would make "Bogie" an unknown word and drop it silently. */
-		'equipment' => $ehEqAll,
-		'has_car'   => true,
-		'date_min'  => '2013-01-01',
-		'date_max'  => date('Y-m-d'),
-		'locked'    => array('equipment' => array('id' => (string)(int)$ehEquipt,
-		                                          'label' => ($ehEqName !== '' ? $ehEqName : 'this equipment'))),
-		/* This page reads incident_union, which carries no location or
-		   direction column, so place and station terms are declared absent.
-		   They are then DROPPED AND REPORTED rather than resolved into a
-		   filter no query here would apply. */
-		'places'    => array(),
-		'stations'  => array(),
-		/* Named so a question about them is answered with "not held" instead
-		   of a confident wrong number: resolution_date is not implemented and
-		   duration is encoder-discretionary prose in a varchar. */
-		/* Delimited. Without the ~ ~ these are not patterns: preg_match
-		   rejects a backslash as a delimiter, returns false, and the guard is
-		   dead while warning on every parse. */
-		'lacks'     => array(
-			'time to resolve' => '~\b(?:resolution|resolve[ds]?|downtime|time to (?:fix|repair|resolve)|how long)\b~',
-			'repair duration' => '~\b(?:duration|mttr|repair time)\b~',
-		),
-	));
-
-	$ehAskText = isset($_GET['ask']) ? $_GET['ask'] : '';
-	$ehAskDrop = isset($_GET['ask_drop']) ? $_GET['ask_drop'] : '';
-	$ehAsk     = iss_prompt_ask($ehAskText, $ehVocab,
-	                            ($ehAskDrop !== '' ? explode(',', $ehAskDrop) : array()));
-	$ehReq     = $ehAsk['request'];
-
-	/* A resolved period wins over the URL, because the question is the more
-	   recent instruction -- the reader typed it after arriving. */
-	if(!empty($ehReq['from']) && !empty($ehReq['to'])){
-		$ehSd = strtotime($ehReq['from']);
-		$ehEd = strtotime($ehReq['to']);
-		$_GET['mode'] = 'range';   /* so the mode inference below agrees */
-	}
-	if(!empty($ehReq['level_set']) && $ehReq['level'] !== ''){ $ehLevel = (int)$ehReq['level']; }
-	if(!empty($ehReq['car_set'])   && (int)$ehReq['car'] > 0){ $ehCar   = (int)$ehReq['car']; }
-}
 /* @ehfilter -- mode, mirroring period_filter.php. The bar below keeps BOTH
    sets of period inputs in the DOM and only hides one, so a stale sd/ed would
    otherwise still submit and silently win over the year the user just picked.
@@ -229,12 +141,7 @@ $dateClause = "";
 $ehPeriodLabel = "All time";
 if($ehRange){
 	$dateClause    = " and incident_date between '".date("Y-m-d",$ehSd)." 00:00:00' and '".date("Y-m-d",$ehEd)." 23:59:59' ";
-	/* @datefmt -- "January 01, 2026", matching the answer band. The panel and
-	   the page header sit on the same screen and the printout carries this
-	   label, so two date styles would be visible at once. Written directly
-	   rather than through the module's formatter, because this label must
-	   still render when iss_insight_prompt.php is absent. */
-	$ehPeriodLabel = date("F d, Y",$ehSd)." to ".date("F d, Y",$ehEd);
+	$ehPeriodLabel = date("d M Y",$ehSd)." to ".date("d M Y",$ehEd);
 }
 else if($ehYear && $ehMonth){
 	$dateClause    = " and incident_date like '".sprintf("%04d-%02d",$ehYear,$ehMonth)."-%' ";
@@ -254,264 +161,15 @@ $carClause = $ehCar ? " and incident_cars.car_no*1 = ".$ehCar." " : "";
 
 $initialClause = " where equipt='".$ehEquipt."' ";
 
-/* @ask -- the time axis, applied last because it needs the other clauses to
-   count against.
-   The floor exists because this page's denominator is one equipment type, not
-   the fleet. Fleet-wide the 01:00 exclusion costs about 6% and thousands of
-   rows remain; here it can cost far more of a few hundred, and a six-band
-   shape built on eleven rows is a confident answer to a question the data
-   cannot support. So: count first, then decide whether to narrow at all. */
-$ehTimeClause = "";
-$ehTimeNote   = "";
-$ehTimePhrase = "";
-if($ehAskOn && $ehAsk !== null){
-	$ehTime = iss_prompt_time_sql($ehAsk['request'], $ehVocab, 'incident_date');
-	if(!empty($ehTime['active'])){
-		$ehTimePhrase = function_exists('iss_prompt_time_phrase')
-		              ? iss_prompt_time_phrase($ehAsk['request'], $ehVocab) : 'that time window';
-		$ehBase = " from incident_union ".$initialClause." ".$dateClause." ".$levelClause." ";
-		$rk = $db->query("select count(*) as c".$ehBase.$ehTime['sql']);
-		$rr = $db->query("select count(*) as c".$ehBase.$ehTime['sql_raw']);
-		$kept = ($rk && ($x=$rk->fetch_assoc())) ? (int)$x['c'] : 0;
-		$rawN = ($rr && ($y=$rr->fetch_assoc())) ? (int)$y['c'] : 0;
-
-		if(iss_prompt_time_viable($kept)){
-			$ehTimeClause = $ehTime['sql'];
-			$ehTimeNote   = iss_prompt_time_note($rawN - $kept, $kept);
-		} else {
-			/* Dropped, and said. Not applied silently -- the reader asked a
-			   time question and must not be handed the whole period back as
-			   though it had been answered. */
-			$ehTimeNote = iss_prompt_time_dropped($kept, $ehTimePhrase);
-		}
-	}
-}
-/* Appended to the clause every query on this page already concatenates, so
-   the table, the charts, the counts and the insight panel all narrow together
-   or not at all. */
-$dateClause .= $ehTimeClause;
-/* @period -- The label feeds the printout. A table narrowed to the morning
-   peak that prints "01 Jan 2025 to 31 Dec 2025" is telling the reader it
-   covers the whole year, which on paper there is nothing to correct. */
-if($ehTimeClause !== '' && $ehTimePhrase !== ''){
-	$ehPeriodLabel .= ', ' . $ehTimePhrase;
-}
-
-/* @ask -- The per-car ranking the answer band needs.
-   "which car had the worst number of failures" resolves focus=concentration,
-   and the band CAN name the worst -- but only if it is handed a ranked
-   breakdown. Without one it falls through to restating the total, which is
-   how a question asking WHICH came back answered with HOW MANY.
-
-   The page does compute this, as $carTot, but not until the buffered analysis
-   section far below the band. Rather than move the band away from the box it
-   answers, this runs the same grouped query early, and only when a question
-   actually resolved -- a normal page load pays nothing.
-
-   Cars with no number are excluded from the RANKING only, not from the
-   totals: they are valid trains, but "which car" cannot be answered by a row
-   that names none. The same reason the by-unit analysis leaves them out. */
-/* @traindim -- index_no is written inconsistently: '01' and '1' are the same
-   train, but '7x' is NOT train 7 -- the letter suffix marks a different index.
-   So leading zeros are stripped and everything else is kept verbatim. Grouping
-   on the raw string splits one train in two; casting to a number merges two
-   trains into one. This does neither. */
-function ehTrainKey($s){
-	$s = strtolower(trim((string)$s));
-	if($s === '') return '';
-	return preg_replace('/^0+(?=[0-9])/', '', $s);
-}
-
-$ehAskRows = array();
-$ehAskCars = -1;
-$ehAskDim   = '';
-$ehDimNote  = '';
-$ehTrainRows = array();   /* @also -- the second ranking, when one is asked for */
-$ehLink      = null;      /* @link -- car <-> train pairing for the leader */
-$ehTied      = false;     /* @tied -- second unit asked about the first, not separately */
-if($ehAskOn && $ehAsk !== null && trim($ehAsk['asked']) !== ''
-   && iss_prompt_has_any($ehAsk['request'])){
-	$rq = $db->query("select incident_cars.car_no*1 as cn, count(*) as c
-	                    from incident_cars
-	                    inner join incident_union on incident_cars.incident_id = incident_union.id
-	                   where incident_union.equipt = '".$ehEquipt."' ".$dateClause."
-	                         ".$levelClause." ".$carClause."
-	                   group by cn order by c desc");
-	if($rq){
-		/* Accumulated rather than appended. The query groups on car_no * 1 so
-		   two rows for one car should not arrive -- but '32x' is car 32 with a
-		   status marker, and anything that changes this query to select the raw
-		   column would produce two rows labelled "Car 32" sitting next to each
-		   other in the ranking. Merging here makes that impossible rather than
-		   unlikely. */
-		$byCar = array();
-		while($rr = $rq->fetch_assoc()){
-			$cn = isset($rr['cn']) ? (int)$rr['cn'] : 0;
-			if($cn <= 0) continue;
-			$byCar[$cn] = (isset($byCar[$cn]) ? $byCar[$cn] : 0) + (int)$rr['c'];
-		}
-		arsort($byCar);
-		foreach($byCar as $cn => $n){
-			$ehAskRows[] = array('label' => 'Car '.$cn, 'total' => $n);
-		}
-	}
-	$cq2 = $db->query("select count(distinct incident_cars.car_no*1) as c
-	                     from incident_cars
-	                     inner join incident_union on incident_cars.incident_id = incident_union.id
-	                    where incident_union.equipt = '".$ehEquipt."' ".$dateClause."
-	                          ".$levelClause." ".$carClause."
-	                          and incident_cars.car_no*1 > 0");
-	if($cq2 && ($c2 = $cq2->fetch_assoc())) $ehAskCars = (int)$c2['c'];
-
-	/* @traindim -- The train ranking, built ONLY when the question asks about
-	   trains. train_incident_report carries no index on either foreign key
-	   (PRIMARY on id is all it has), so this join drives from a full scan of
-	   roughly 24,000 rows -- small next to the 118,932-row scan the
-	   composition route would need, but still a MyISAM table read lock. Firing
-	   it on demand means an ordinary page load never pays for it, and the
-	   index can wait for a maintenance window rather than blocking this.
-
-	   The other two hops resolve as eq_ref on PRIMARY, and each incident links
-	   to exactly one TAR row, so count(*) needs no distinct. */
-	/* @also -- Both dimensions, not just the primary. "which car ... and which
-	   train" names two units, and answering one while noting which was ranked
-	   is half an answer to a question asked in full. The car ranking above is
-	   already built; the train ranking is added when the question asks for it,
-	   and the band is given whichever is primary plus the other as `also`. */
-	$ehDims = function_exists('iss_prompt_rank_dimensions')
-	        ? iss_prompt_rank_dimensions($ehAsk['asked'])
-	        : array('car'=>false,'train'=>false);
-	/* @primary -- The unit named FIRST, not a fixed preference: "which train
-	   ... and which car from that train" must rank trains. */
-	$ehAskDim = isset($ehDims['primary']) ? $ehDims['primary']
-	          : ($ehDims['car'] ? 'car' : ($ehDims['train'] ? 'train' : ''));
-	if($ehDims['train']){
-		$tq = $db->query("select ta.index_no as ix, ta.type as ty, count(*) as c
-		                    from incident_union iu
-		                    inner join train_incident_report tir on tir.incident_id = iu.id
-		                    inner join train_availability ta on ta.id = tir.train_ava_id
-		                   where iu.equipt = '".$ehEquipt."' ".$dateClause."
-		                         ".$levelClause."
-		                   group by ta.index_no, ta.type");
-		/* Merged in PHP rather than SQL: the normalisation is a rule about how
-		   the number is written, and it reads as one line here against three
-		   nested casts and a regexp guard in the query. */
-		$byTrain = array(); $trainType = array();
-		if($tq){
-			while($tr = $tq->fetch_assoc()){
-				$k = ehTrainKey($tr['ix']);
-				if($k === '') continue;
-				$byTrain[$k] = (isset($byTrain[$k]) ? $byTrain[$k] : 0) + (int)$tr['c'];
-				if(!isset($trainType[$k])) $trainType[$k] = trim((string)$tr['ty']);
-			}
-		}
-		arsort($byTrain);
-		$ehTrainRows = array();
-		foreach($byTrain as $k => $n){
-			/* Index 50 is a reserved train -- schooling and similar -- so it is
-			   named as such. Counting it with the service fleet is right; letting
-			   it top a ranking unqualified would invite a comparison that does
-			   not hold. */
-			/* (string) matters: PHP turns a numeric-string array key into an
-			   INTEGER, so $k is int 50 here while '7x' stays a string, and
-			   $k === '50' was never true. The reserved marker silently never
-			   appeared. */
-			$lab = 'Index ' . $k . ((string)$k === '50' ? ' (reserved)' : '');
-			$ehTrainRows[] = array('label' => $lab, 'total' => $n);
-		}
-		/* Trains only: the train ranking becomes the band's main list and the
-		   car count is withheld, because a car count answers a different
-		   question. Both named: the car ranking leads and the trains follow as
-		   the second half of the same sentence. */
-		if($ehAskDim === 'train'){
-			$ehAskRows = $ehTrainRows;
-			$ehTrainRows = array();
-			$ehAskCars = -1;
-		}
-	}
-
-	/* @link -- Which trains each car ran in, and which cars each train carried,
-	   over this window.
-	   Both sides come off the same incident, so train_compo is not involved:
-	   incident_cars gives the car, train_incident_report gives the TAR row, and
-	   train_availability gives its index_no on a PRIMARY-key seek. That avoids
-	   the 118,932-row scan the composition route needed; the cost is the tir
-	   scan already being paid for the ranking above.
-
-	   A car pairs with SEVERAL trains across a period, and that is correct
-	   rather than a duplicate: train_availability is a dated composition
-	   history, so the compo a car sits in changes from day to day. */
-	if($ehDims['car'] || $ehDims['train']){
-		$pq = $db->query("select incident_cars.car_no*1 as cn, ta.index_no as ix,
-		                         count(*) as c
-		                    from incident_union iu
-		                    inner join incident_cars on incident_cars.incident_id = iu.id
-		                    inner join train_incident_report tir on tir.incident_id = iu.id
-		                    inner join train_availability ta on ta.id = tir.train_ava_id
-		                   where iu.equipt = '".$ehEquipt."' ".$dateClause."
-		                         ".$levelClause." ".$carClause."
-		                   group by cn, ix");
-		$carToTrain = array(); $trainToCar = array();
-		if($pq){
-			while($pr = $pq->fetch_assoc()){
-				$cn = (int)$pr['cn'];
-				$tk = ehTrainKey($pr['ix']);
-				if($cn <= 0 || $tk === '') continue;
-				$cLab = 'Car '.$cn;
-				$tLab = 'Index '.$tk.((string)$tk === '50' ? ' (reserved)' : '');
-				$carToTrain[$cLab][$tLab] = (isset($carToTrain[$cLab][$tLab]) ? $carToTrain[$cLab][$tLab] : 0) + (int)$pr['c'];
-				$trainToCar[$tLab][$cLab] = (isset($trainToCar[$tLab][$cLab]) ? $trainToCar[$tLab][$cLab] : 0) + (int)$pr['c'];
-			}
-		}
-		/* @tied -- Two shapes, because the question has two readings.
-		   Untied ("and which train") wants a plain list of names: the trains
-		   are context for an independently-ranked answer.
-		   Tied ("and in which train from that car") wants the counts, because
-		   then the breakdown IS the answer -- which of that car's trains its
-		   failures fell in -- and names alone do not say. */
-		$ehTied = function_exists('iss_prompt_rank_tied')
-		        ? iss_prompt_rank_tied($ehAsk['asked']) : false;
-		$flat = function($m) use ($ehTied) {
-			$out = array();
-			foreach($m as $k => $inner){
-				arsort($inner);
-				if($ehTied){
-					$rows = array();
-					foreach($inner as $lab => $n){ $rows[] = array('label'=>$lab, 'n'=>$n); }
-					$out[$k] = $rows;
-				} else {
-					$out[$k] = array_keys($inner);
-				}
-			}
-			return $out;
-		};
-		/* The map describes whichever ranking the band will lead with. */
-		if($ehAskDim === 'car'){
-			$ehLink = array('phrase' => 'ran in', 'noun' => 'train formation',
-			                'plural' => 'train formations', 'map' => $flat($carToTrain));
-		} else if($ehAskDim === 'train'){
-			$ehLink = array('phrase' => 'had failures on', 'noun' => 'car',
-			                'plural' => 'cars', 'map' => $flat($trainToCar));
-		}
-	}
-}
-
 ?>
 <?php
 
-/* @ask -- The roster fetched for the prompt vocabulary already holds this
-   name, so the single-row lookup that used to run here is skipped when it is
-   available. The query is kept for the case where iss_insight_prompt.php is
-   absent, which is the same guard every other optional include on this page
-   uses -- a station that has not received the file must render as before. */
-if(isset($ehEqName) && $ehEqName !== ''){
-	$equipment_name = $ehEqName;
-} else {
-	$identify_equipment="select * from equipment where id='".$ehEquipt."' limit 1";
-	$identify_rs=$db->query($identify_equipment);
-	$identify_row=$identify_rs ? $identify_rs->fetch_assoc() : null;
-	$equipment_name=$identify_row ? $identify_row['equipment_name'] : '';
-}
+$identify_equipment="select * from equipment where id='".$ehEquipt."' limit 1";
+$identify_rs=$db->query($identify_equipment);
+
+$identify_row=$identify_rs->fetch_assoc();
+
+$equipment_name=$identify_row['equipment_name'];
 
 // ---- Two counts, both stated on screen rather than left to be inferred ----
 // This page's table is an incident LOG: one row per incident, which is right
@@ -642,86 +300,6 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
   </form>
   </div>
 </div>
-<?php
-/* @ask -- The box sits BELOW the filter bar and outside its form. Two reasons:
-   it posts its own `ask` and `ask_drop` and must not be swept up by the
-   filter form's submit, and it reads as a different kind of control -- the
-   filters narrow by picking, this one narrows by asking.
-
-   The carried hidden fields keep the two in step: a question submitted after
-   a car or level has been picked must not throw that pick away. */
-if($ehAskOn && $ehAsk !== null){
-	echo iss_prompt_css();
-	echo '<form method="get" action="equipment_history.php" class="ask-form">';
-	echo '<input type="hidden" name="equipt" value="'.(int)$ehEquipt.'">';
-	if($ehCar)   echo '<input type="hidden" name="car_id" value="'.(int)$ehCar.'">';
-	if($ehLevel) echo '<input type="hidden" name="level" value="'.(int)$ehLevel.'">';
-	echo iss_prompt_box($ehAsk, $ehVocab, isset($_GET['ask_drop']) ? $_GET['ask_drop'] : '');
-	echo '</form>';
-	/* The answer band. Wired because it is the only thing that surfaces the
-	   `lacks` guard: "how long to fix these" resolves no filter, and without
-	   the band the reader gets the generic "nothing mapped" rather than being
-	   told this system does not hold resolution time. The band computes
-	   nothing -- it restates figures this page has already counted. */
-	/* @ask -- band_css(), NOT answer_css(). The two are different components:
-	   answer_css styles .ask-ans*, an earlier shape, while iss_prompt_band()
-	   emits .ask-band* and ships its own stylesheet AND the askBandView()
-	   handler for the Summary / Figures tabs in iss_prompt_band_css(). Calling
-	   the wrong one loaded a stylesheet matching nothing, so the band rendered
-	   as raw text with the label welded to the question and two default
-	   browser buttons that did nothing when clicked. */
-	echo iss_prompt_band_css();
-	/* @ask -- Captured rather than echoed straight out, because whether the
-	   answer band rendered decides whether the Key finding band renders
-	   below. A question that was answered has already told the reader what to
-	   look at; the standing summary underneath it is then a second, unasked
-	   headline competing with the first. */
-	$ehAnswerHtml = iss_prompt_band($ehAsk, $ehVocab, array(
-		'unit'      => 'car-level failures',
-		'total'     => $ehPairs,
-		'incidents' => $ehIncidents,
-		/* Lets a "which car" question be answered with a car rather than a
-		   total, and a "how many cars" question with a count. */
-		'rows'      => $ehAskRows,
-		'cars'      => $ehAskCars,
-		/* Empty unless the question named a second unit. */
-		/* @plain -- row_noun lets the band say "more than any other car"
-		   instead of relying on "car-level failures" to carry it. */
-		'row_noun'  => ($ehAskDim === 'train' ? 'train' : 'car'),
-		/* The reader's word for the unit. "car-level failures" stays on the
-		   Figures tab and in the footnote, where it is a column label and
-		   needs to be exact; in a sentence it is jargon. */
-		'unit_plain' => 'recorded failures',
-		/* @tied -- Withheld when the question tied the two units together.
-		   An independent train ranking is then an answer to a question nobody
-		   asked, and its figure counts a different population from the one the
-		   sentence just quoted. */
-		'also'      => (count($ehTrainRows) && empty($ehTied))
-		               ? array('noun' => 'train', 'rows' => $ehTrainRows,
-		                       /* States the basis, because the train figure
-		                          counts every car in that train while the car
-		                          figure counts one car -- side by side in one
-		                          paragraph, that difference has to be said or
-		                          the larger number looks like a contradiction. */
-		                       'basis' => 'counting every car in that train')
-		               : null,
-		'link'      => $ehLink,
-		/* No cancelled-loop measure on this page: passing no 'loops' key is
-		   what makes a service question say so instead of inventing one. */
-	));
-	echo $ehAnswerHtml;
-	if(trim($ehAnswerHtml) !== ''){ $ehAnswered = true; }
-	/* The time note is the page's, not the module's -- it carries counts the
-	   module cannot know. Shown whether the narrowing was applied or dropped,
-	   because both are things the reader has to be told. */
-	if($ehDimNote !== ''){
-		echo '<div class="ask-note">'.htmlspecialchars($ehDimNote).'</div>';
-	}
-	if($ehTimeNote !== ''){
-		echo '<div class="ask-note">'.htmlspecialchars($ehTimeNote).'</div>';
-	}
-}
-?>
 <div class="ccs-panel-body">
 <?php
 /* @insight -- Everything from here to the analysis block is buffered.
@@ -1158,14 +736,7 @@ if(function_exists('iss_insight') && $ehEquipt > 0){
    the two layer-2 pages spell their normalized context differently, and a
    wrong name here would not error, it would just silently produce no band. */
 $issL2Body = ob_get_clean();
-/* @ask -- Suppressed once a question has been answered above. Both are
-   one-sentence headlines in the same visual language, stacked one on the
-   other, so the reader gets two answers having asked once -- and the standing
-   one is the answer to a question they did not ask. The full analysis is
-   still a click away in the panel below, so only the duplicate headline goes.
-   $ehAnswered stays false when the question resolved nothing, so a page with
-   no question, or with an unanswerable one, still shows the Key finding. */
-if(isset($issF2) && isset($issN2) && function_exists('iss_insight_summary_band') && !$ehAnswered){
+if(isset($issF2) && isset($issN2) && function_exists('iss_insight_summary_band')){
 	if(function_exists('iss_insight_band_css')) echo iss_insight_band_css();
 	echo iss_insight_summary_band($issN2, $issF2, "issInsight2");
 }
@@ -1511,14 +1082,7 @@ $(function(){
 				(ehLead ? '<p class="rpt-lead">'+ehLead.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>' : '') +
 			'</div>' +
 			'<div class="rpt-meta">' +
-				<?php /* @period -- was rebuilt from $_GET["y"] and $_GET["m"] directly, which
-         knows nothing about sd/ed. A range -- which the query honours, and
-         which is exactly what a typed question resolves to -- printed as
-         "All records" above a table covering six months. $ehPeriodLabel is
-         the value this page already computes correctly for all four cases
-         (range, year+month, year, all time), so the printout uses it too
-         rather than deriving two of the four again. */ ?>
-				'<span><b>Report period:</b> <?php echo htmlspecialchars($ehPeriodLabel); ?></span>' +
+				'<span><b>Report period:</b> <?php echo isset($_GET["y"]) ? htmlspecialchars($_GET["y"]).(isset($_GET["m"]) ? "-".str_pad(date("m",strtotime($_GET["y"]."-".$_GET["m"]."-01")),2,"0",STR_PAD_LEFT) : "") : "All records"; ?></span>' +
 				<?php /* @levelfilter -- was isset($_GET["level"]), which is TRUE for a
 				         blank level= and printed "Severity: Level ". $ehLevel is
 				         the already-resolved value, so the printout and the page

@@ -44,7 +44,7 @@ define('ISS_PROMPT_LOADED', 1);
 
 /* Bump when the vocabulary or the system prompt changes: it is part of the
  * cache key, so a bump invalidates every cached parse. */
-define('ISS_PROMPT_V', '8');
+define('ISS_PROMPT_V', '7');
 
 /* The parse blocks the page, unlike the narration, which is async -- the
  * queries cannot run until the filters are known. So it gets a much shorter
@@ -229,24 +229,6 @@ function iss_prompt_vocab($spec) {
         /* @stationaxis -- array() disables station, segment and bearing terms
          * on a page that cannot reach incident_description. */
         'stations'  => isset($spec['stations']) ? $spec['stations'] : iss_prompt_default_stations(),
-        /* @unitlock -- For DRILL-DOWNS, which are scoped to one unit before a
-         * question is ever typed. equipment_history is one equipment type;
-         * car_history is one car. A question naming a DIFFERENT one cannot be
-         * honoured, and the dangerous outcome is not an error -- it is the
-         * page quietly answering about its own unit under a read-back that
-         * looks complete. "compare car 33 with car 41" on car 33's page must
-         * say car 41 is not on this page, not return car 33's answer.
-         *
-         * The vocabulary still carries the FULL roster, deliberately. To
-         * refuse a unit by name the parser has to recognise the name first;
-         * a one-entry roster would make "Bogie" an unknown word and drop it
-         * silently, which is the failure this exists to prevent.
-         *
-         *   array('equipment' => array('id'=>'7', 'label'=>'Air Conditioning'))
-         *   array('car'       => array('id'=>33,  'label'=>'Car 33'))
-         *
-         * Report pages pass nothing and behave exactly as before. */
-        'locked'    => isset($spec['locked']) ? $spec['locked'] : array(),
     );
     /* Focus kinds. The LABEL is what the chip shows; the MATCH list is tried
      * against each finding's own kind string, because those live in
@@ -371,9 +353,8 @@ function iss_prompt_rules($text, $vocab) {
        one row at midnight, on-the-hour at 8.5% (human rounding, not
        defaulting). The one exception is handled in iss_prompt_time_sql(). */
     foreach ($vocab['dayparts'] as $dk => $dp) {
-        /* @delim -- ~ not /, for the reason given at the places loop below. */
         if (isset($dp['match']) && $dp['match'] !== ''
-            && preg_match('~\b(?:' . $dp['match'] . ')\b~', $t, $m)) {
+            && preg_match('/\b(?:' . $dp['match'] . ')\b/', $t, $m)) {
             $req['daypart'] = (string)$dk; $usedTxt[] = $m[0]; break;
         }
     }
@@ -472,16 +453,7 @@ function iss_prompt_rules($text, $vocab) {
     $bestK = ''; $bestLen = 0;
     foreach ($vocab['places'] as $pk => $pl) {
         if (!isset($pl['match']) || $pl['match'] === '') continue;
-        /* @delim -- The delimiter is ~, not /, and this is a bug fix rather
-           than a style choice. The ir_area alternation contains a literal
-           slash ("insertion ?/ ?removal", "i ?/ ?r area"), which closed a
-           /.../ pattern early and left " ?removal|..." being read as pattern
-           modifiers. preg_match then returned FALSE with a warning on every
-           single parse, so the insertion-and-removal area term never matched
-           at all -- a silently dead term rather than a visible error. No
-           authored pattern contains ~, and these come from this file and not
-           from the question, so the delimiter is safe. */
-        if (preg_match('~\b(?:' . $pl['match'] . ')\b~', $t, $m)) {
+        if (preg_match('/\b(?:' . $pl['match'] . ')\b/', $t, $m)) {
             if (strlen($m[0]) > $bestLen) { $bestK = (string)$pk; $bestLen = strlen($m[0]); $bestHit = $m[0]; }
         }
     }
@@ -892,34 +864,16 @@ function iss_prompt_validate($raw, $seed, $vocab, $drop) {
 
     if ($vocab['has_car'] && isset($raw['car'])) {
         $cn = (int)$raw['car'];
-        /* @unitlock -- named, not numbered: "Not applied: car 41 (this page
-           covers Car 33 only)" tells the reader what happened to their
-           question. "Not applied: car" does not. */
-        if (isset($vocab['locked']['car']) && $cn !== (int)$vocab['locked']['car']['id']) {
-            $rej[] = 'car ' . $cn . ' (this page covers '
-                   . $vocab['locked']['car']['label'] . ' only)';
-        }
-        else if ($cn >= 0) { $req['car'] = $cn; $req['car_set'] = true; }
+        if ($cn >= 0) { $req['car'] = $cn; $req['car_set'] = true; }
         else { $rej[] = 'car'; }
     }
 
     if (isset($raw['equipment']) && is_array($raw['equipment'])) {
         $ok = array();
-        $lockEq = isset($vocab['locked']['equipment']) ? $vocab['locked']['equipment'] : null;
         foreach ($raw['equipment'] as $id) {
-            $hit = isset($vocab['equipment'][$id]) ? (string)$id
-                 : (isset($vocab['equipment'][(string)(int)$id]) ? (string)(int)$id : '');
-            if ($hit === '') {
-                /* Unknown to the vocabulary: report the id, as before. */
-                $rej[] = 'equipment ' . $id;
-            }
-            /* @unitlock -- recognised, but not this page's unit. Named in the
-               rejection using the vocabulary's own label. */
-            else if ($lockEq !== null && $hit !== (string)$lockEq['id']) {
-                $rej[] = $vocab['equipment'][$hit] . ' (this page covers '
-                       . $lockEq['label'] . ' only)';
-            }
-            else { $ok[] = $hit; }
+            if (isset($vocab['equipment'][$id])) { $ok[] = $id; }
+            else if (isset($vocab['equipment'][(string)(int)$id])) { $ok[] = (string)(int)$id; }
+            else { $rej[] = 'equipment ' . $id; }
         }
         if (count($ok)) $req['equipment'] = $ok;
     }
@@ -1017,37 +971,6 @@ function iss_prompt_validate($raw, $seed, $vocab, $drop) {
         }
     }
 
-    /* @unitlock -- Enforced HERE, at the end, and not only in the branches
-       above, because those branches see the MODEL's raw output while the
-       rules parser writes straight into the seed. A question parsed offline
-       -- which is most of them -- never passes through them at all, so a lock
-       applied only there would hold for the model path and silently fail for
-       the common one. This runs over whatever ended up in the request, from
-       either source.
-
-       The page's own unit is never rejected: it is already the scope, so a
-       question that names it is simply agreeing with the page. */
-    if (isset($vocab['locked']['equipment']) && isset($req['equipment']) && is_array($req['equipment'])) {
-        $lk = (string)$vocab['locked']['equipment']['id'];
-        $keep = array();
-        foreach ($req['equipment'] as $id) {
-            if ((string)$id === $lk) { $keep[] = $id; continue; }
-            $nm = isset($vocab['equipment'][(string)$id]) ? $vocab['equipment'][(string)$id] : ('equipment ' . $id);
-            $msg = $nm . ' (this page covers ' . $vocab['locked']['equipment']['label'] . ' only)';
-            if (!in_array($msg, $rej, true)) { $rej[] = $msg; }
-        }
-        $req['equipment'] = $keep;
-    }
-    if (isset($vocab['locked']['car']) && isset($req['car']) && !empty($req['car_set'])) {
-        $lk = (int)$vocab['locked']['car']['id'];
-        if ((int)$req['car'] !== $lk) {
-            $msg = 'car ' . (int)$req['car'] . ' (this page covers '
-                 . $vocab['locked']['car']['label'] . ' only)';
-            if (!in_array($msg, $rej, true)) { $rej[] = $msg; }
-            $req['car'] = 0; $req['car_set'] = false;
-        }
-    }
-
     $req['rejected'] = $rej;
     return $req;
 }
@@ -1080,15 +1003,7 @@ function iss_prompt_ask($text, $vocab, $drop) {
                . '|' . json_encode($vocab['conditions']) . '|' . $vocab['date_max']
                . '|' . json_encode($vocab['dayparts'])
                . '|' . json_encode(array_keys($vocab['places']))
-               . '|' . json_encode($vocab['stations'])
-               /* @unitlock -- The lock MUST be in the key. Without it a
-                  drill-down and a report page produce the same hash for the
-                  same words, so "Bogie failures in 2025" parsed on the report
-                  page is served straight back to Air Conditioning's page with
-                  Bogie still resolved -- the lock bypassed by a cache hit,
-                  which is worse than no lock because it only fails the second
-                  time anyone asks. */
-               . '|' . json_encode($vocab['locked']));
+               . '|' . json_encode($vocab['stations']));
     $key   = md5($vhash . '|' . strtolower(trim($text)) . '|' . implode(',', $drop));
     $cached = iss_prompt_cache_get($key);
     if ($cached !== null) {
@@ -1362,8 +1277,8 @@ function iss_prompt_box($ask, $vocab, $dropRaw) {
 function iss_prompt_chips($req, $vocab) {
     $c = '';
     if ($req['from'] !== '') {
-        $c .= iss_prompt_chip(iss_prompt_date($req['from']) . ' &ndash; '
-                            . iss_prompt_date($req['to']), 'period', false);
+        $c .= iss_prompt_chip(date('j M Y', strtotime($req['from'])) . ' &ndash; '
+                            . date('j M Y', strtotime($req['to'])), 'period', false);
     }
     if ($req['level'] !== '')  $c .= iss_prompt_chip(
         ($req['level'] === '0') ? 'Normal (no level)' : 'Level ' . $req['level'], 'level', false);
@@ -1522,128 +1437,7 @@ function iss_prompt_time_sql($req, $vocab, $col) {
 
     $out['sql']    = ' and ' . implode(' and ', $w);
     $out['active'] = true;
-    $out['hour']   = $hourFiltered;   /* the sentinel only applies to hour terms */
     return $out;
-}
-
-/* @timefloor -- The time axis on a DRILL-DOWN, where the denominator is small.
- *
- * On a report page the 01:00 exclusion removes about 1,443 rows from roughly
- * 24,300 and what remains is still thousands, so a six-band breakdown is safe.
- * A page scoped to one car or one equipment type may hold a few hundred rows
- * across its whole history, and nothing says that unit's share of untouched
- * default times matches the fleet's -- a unit worked mostly by one shift can
- * sit far above 6%. Dividing eleven surviving rows into bands produces a
- * confident shape built on nothing.
- *
- * So the page counts first and asks. Below the floor the time narrowing is
- * DROPPED rather than applied, and the reader is told why: a question that
- * cannot be answered for this unit must say so, not return the unnarrowed
- * report as though the time term had been honoured.
- *
- * 30 is a working floor, not a derived one -- roughly the point below which
- * one band holding three rows and another holding none says more about who was
- * on shift than about the equipment. Raise it if the drill-downs turn out
- * thinner than expected. */
-if (!defined('ISS_PROMPT_TIME_MIN_ROWS')) { define('ISS_PROMPT_TIME_MIN_ROWS', 30); }
-
-/* @traindim -- Which unit a "which ..." question is asking about.
- *
- * A surface test on the wording, not a grammar change, and deliberately so:
- * the validator resolves FILTERS, and this resolves nothing -- it only tells
- * a page which of two rankings it already holds to hand to the band. Putting
- * it in the validator would mean every page carrying a train concept whether
- * or not it can answer for one.
- *
- * Returns 'train', 'car', or '' when the question names neither. A question
- * naming BOTH ("which car and which train") returns 'train' and the caller
- * says which one it ranked -- the band shows one ranking, and answering the
- * later-mentioned half silently is how the first screenshot came back looking
- * like it had ignored the question.
- */
-function iss_prompt_rank_dimensions($text) {
-    $t = ' ' . strtolower(preg_replace('/\s+/', ' ', (string)$text)) . ' ';
-    $tr = preg_match('~\b(?:train|trains|trainset|consist|index(?:es|\s*no\.?|\s*number)?)\b~', $t, $mt, PREG_OFFSET_CAPTURE);
-    $cr = preg_match('~\bcars?\b~', $t, $mc, PREG_OFFSET_CAPTURE);
-    /* @primary -- Whichever unit is named FIRST is the one being ranked.
-       "which car ... and which train" ranks cars; "which train ... and which
-       car from that train" ranks trains. A fixed preference for one unit gets
-       the second of those backwards, and the reader is handed a ranking of the
-       wrong thing under their own question. */
-    $primary = '';
-    if ($tr && $cr) { $primary = ($mc[0][1] < $mt[0][1]) ? 'car' : 'train'; }
-    else if ($cr)   { $primary = 'car'; }
-    else if ($tr)   { $primary = 'train'; }
-    return array(
-        'train'   => (bool)$tr,
-        'car'     => (bool)$cr,
-        'primary' => $primary,
-    );
-}
-/* @tied -- Is the second unit TIED to the first, or asked about separately?
- *
- * "which car had the worst ... and which train" names two units and wants two
- * rankings: the worst car, and separately the worst train.
- *
- * "which car had the worst ... and in which train FROM THAT CAR" names the
- * same two units but wants one ranking and then a breakdown OF IT: the worst
- * car, then which of THAT CAR's trains its failures fell in.
- *
- * Answering the first when the second was asked produces a figure the reader
- * never asked for, sitting next to one that belongs to a different population
- * -- which is how "Index 1 recorded the most with 9" came to appear beside
- * Car 52's 7.
- *
- * The test is an explicit back-reference. Without one the question is taken as
- * asking about the units independently, which is the safer default: a missed
- * tie shows one ranking too many, while a false tie silently withholds a
- * ranking that was asked for.
- */
-function iss_prompt_rank_tied($text) {
-    $t = ' ' . strtolower(preg_replace('/\s+/', ' ', (string)$text)) . ' ';
-    return (bool)preg_match(
-        '~\b(?:from|of|for|in|on|with)\s+(?:that|this|the\s+same|those)\b'
-      . '|\b(?:that|this|the\s+same)\s+(?:car|train|unit|equipment|one)\b'
-      . '|\bwas\s+it\s+in\b|\bdid\s+it\s+run\b|\bits\s+own\b~', $t);
-}
-
-/* Kept for callers that only need the primary. A question naming both returns
-   'car', because that is the one such questions name first and it is the axis
-   the drill-downs are built around; the second is carried by $d['also']. */
-function iss_prompt_rank_dimension($text) {
-    $d = iss_prompt_rank_dimensions($text);
-    return $d['primary'];
-}
-
-function iss_prompt_time_viable($kept) {
-    return ((int)$kept >= ISS_PROMPT_TIME_MIN_ROWS);
-}
-
-/* The exclusion note, carrying its own arithmetic.
- *
- * "Excludes incidents recorded at 01:00" reads as housekeeping when the
- * denominator is the fleet. On one unit the reader needs to know whether the
- * shape rests on most of the data or a third of it, so the counts go into the
- * sentence. $excluded is how many rows in the requested window sit at the
- * sentinel; $kept is how many survive it. */
-function iss_prompt_time_note($excluded, $kept) {
-    $excluded = (int)$excluded; $kept = (int)$kept;
-    if ($excluded <= 0) { return ''; }
-    $total = $excluded + $kept;
-    return 'Excludes ' . $excluded . ' of the ' . $total . ' incident'
-         . ($total === 1 ? '' : 's') . ' in this time window, recorded at exactly '
-         . ISS_PROMPT_TIME_SENTINEL . '. That value is the entry form\'s default rather '
-         . 'than a recorded time, so it cannot be placed in an hour. The figures below '
-         . 'rest on the remaining ' . $kept . '.';
-}
-
-/* Said instead when the floor is not met and the narrowing was dropped. */
-function iss_prompt_time_dropped($kept, $phrase) {
-    $kept = (int)$kept;
-    return 'The time-of-day narrowing was not applied: only ' . $kept . ' incident'
-         . ($kept === 1 ? '' : 's') . ' on this page fall in ' . $phrase
-         . ' once form-default times are set aside, which is too few to read a pattern '
-         . 'from. The figures below cover the whole period instead.';
 }
 
 /* @placeaxis -- SQL for the place term. $dirCol is the page's expression for
@@ -1787,7 +1581,7 @@ function iss_prompt_print_line($ask, $vocab) {
     if (trim($ask['asked']) === '') return '';
     $req = $ask['request'];
     $bits = array();
-    if ($req['from'] !== '') $bits[] = iss_prompt_date($req['from']) . ' to ' . iss_prompt_date($req['to']);
+    if ($req['from'] !== '') $bits[] = date('j M Y', strtotime($req['from'])) . ' to ' . date('j M Y', strtotime($req['to']));
     if ($req['level'] !== '') $bits[] = 'Level ' . $req['level'];
     if ($req['car'] > 0) $bits[] = 'Car ' . $req['car'];
     if (count($req['equipment'])) {
@@ -1927,12 +1721,6 @@ function iss_prompt_band_css() {
 .ask-band-body b{ color:#00529B; }
 .ask-band-fig{ display:none; }
 .ask-band.figs .ask-band-sum{ display:none; }
-/* @scan -- Lines, not a wall. The lead carries the answer; the rest support it
-   and can be skipped by someone who already has what they came for. */
-.ask-sum-line{ margin:0 0 7px; line-height:1.6; }
-.ask-sum-line:last-child{ margin-bottom:0; }
-.ask-sum-line.lead{ font-size:15px; }
-.ask-sum-line:not(.lead){ font-size:13.5px; color:#3A4252; }
 .ask-band.figs .ask-band-fig{ display:block; }
 .ask-band table{ width:100%; border-collapse:collapse; font-size:13px; }
 .ask-band table td{ padding:5px 0; border-top:1px solid #EFEADC; }
@@ -2015,18 +1803,7 @@ function iss_prompt_unsupported($text, $vocab = null) {
     }
     $hits = array();
     foreach ($map as $label => $re) {
-        /* @lacks -- A page-supplied pattern may arrive without delimiters.
-           The built-in entries above all carry /.../, so a page author copying
-           the shape of a bare \b(?:...)\b gets "Delimiter must not be
-           alphanumeric, backslash, or NUL", preg_match returns FALSE, and the
-           guard is silently dead while emitting a warning on every parse --
-           which is exactly what happened to equipment_history's resolution and
-           duration entries. Wrapped here so a missing delimiter is a non-event
-           rather than a dead guard nobody notices. */
-        if ($re === '' || !is_string($re)) continue;
-        $first = substr($re, 0, 1);
-        if (ctype_alnum($first) || $first === '\\' || $first === "\0") { $re = '~' . $re . '~'; }
-        if (@preg_match($re, $t)) $hits[] = $label;
+        if (preg_match($re, $t)) $hits[] = $label;
     }
     return $hits;
 }
@@ -2078,15 +1855,7 @@ function iss_prompt_band($ask, $vocab, $d) {
         . '<button type="button" data-m="sum" class="on" onclick="return askBandView(this,\'sum\');">Summary</button>'
         . '<button type="button" data-m="figs" onclick="return askBandView(this,\'figs\');">Figures</button>'
         . '</span></div>'
-        /* @scan -- One paragraph of five sentences cannot be scanned; the
-           reader has to consume all of it to find the part they wanted.
-           band_failures separates its blocks with "\n" -- the headline, the
-           context, the breakdown, the second ranking -- and each becomes its
-           own line here. The first gets .lead, because the answer to the
-           question asked should be readable without reading the rest. */
-        . '<div class="ask-band-body ask-band-sum">'
-        . iss_prompt_sum_html($sum)
-        . '</div>'
+        . '<div class="ask-band-body ask-band-sum">' . $sum . '</div>'
         . '<div class="ask-band-body ask-band-fig"><table>';
     foreach ($rows as $r) $h .= '<tr><td>' . $r[0] . '</td><td class="v">' . $r[1] . '</td></tr>';
     $h .= '</table></div>';
@@ -2145,48 +1914,7 @@ function iss_prompt_band_service($req, $vocab, $L, &$sum, &$rows, &$notes) {
     $notes[] = 'Loops counted per incident; failures per car.';
 }
 
-/* "A, B and C" -- the band builds several of these and they should read the
-   same way in each. */
-function iss_prompt_and_list($a) {
-    $a = array_values($a);
-    $n = count($a);
-    if ($n === 0) return '';
-    if ($n === 1) return (string)$a[0];
-    return implode(', ', array_slice($a, 0, $n - 1)) . ' and ' . $a[$n - 1];
-}
-
-/* @scan -- "\n" is the block separator inside a summary. Branches that never
-   set one still render exactly as before: a string with no newline produces a
-   single paragraph. */
-/* @datefmt -- "January 01, 2026", not "1 Jan 2026".
- *
- * The abbreviated day-first form is a British convention. Philippine official
- * writing uses the month name in full, day-then-comma, year -- which is also
- * the form on the reports these answers sit beside, so the panel now matches
- * the page rather than introducing a second style on the same screen.
- *
- * One function because the same date appears in the chips, the scope phrase
- * and the print line, and three copies of a format string is three chances to
- * change two of them. */
-function iss_prompt_date($ymd) {
-    $t = strtotime((string)$ymd);
-    return $t ? date('F d, Y', $t) : (string)$ymd;
-}
-
-function iss_prompt_sum_html($sum) {
-    $parts = explode("\n", (string)$sum);
-    $out = ''; $first = true;
-    foreach ($parts as $p) {
-        $p = trim($p);
-        if ($p === '') continue;
-        $out .= '<p class="ask-sum-line' . ($first ? ' lead' : '') . '">' . $p . '</p>';
-        $first = false;
-    }
-    return $out;
-}
-
 function iss_prompt_band_failures($req, $vocab, $d, $L, &$sum, &$rows, &$notes) {
-    $alsoFigs = null;   /* @also -- filled by the concentration branch, emitted last */
     $unit  = isset($d['unit'])      ? $d['unit']           : 'car-level failures';
     $tot   = isset($d['total'])     ? (int)$d['total']     : 0;
     $inc   = isset($d['incidents']) ? (int)$d['incidents'] : 0;
@@ -2213,170 +1941,16 @@ function iss_prompt_band_failures($req, $vocab, $d, $L, &$sum, &$rows, &$notes) 
         $notes[] = 'A car failing more than once is counted once here and once per failure in the totals.';
     } elseif ($req['measure'] === 'incidents') {
         $sum = '<b>' . $inc . '</b> incident' . ($inc == 1 ? '' : 's')
-             . ($scope !== '' ? ' ' . $scope : '') . ', producing <b>' . $tot . '</b> ' . $unit . '.';
+             . ($scope !== '' ? ' ' . $scope : '') . ', producing ' . $tot . ' ' . $unit . '.';
     } elseif ($tot === 0) {
         $sum = 'No ' . $unit . ' were recorded' . ($scope !== '' ? ' ' . $scope : '') . '.';
     } elseif (in_array('concentration', $req['focus']) && count($rank)) {
-        /* @wording -- Both halves of this sentence used to leave the reader
-           to supply the noun. "had the most, with 7 of 92 car-level failures"
-           makes the unit modify the 92 rather than the 7, so the 7 is the most
-           OF NOTHING NAMED; and "Next is Car 32 with 6" left 6 bare. Naming
-           the unit against the leader and again against the runner-up costs a
-           repetition and removes the guesswork -- which is the right trade on
-           a line someone may read aloud off a printout. */
-        /* @plain -- Every figure says what it counts and what it is a share
-           OF. The previous form was "had the most car-level failures, with 7
-           of the 93 on Static Converter": correct, but the reader had to work
-           out that 7 belonged to one car while 93 belonged to the equipment,
-           and "car-level failures" is internal vocabulary. Naming the row unit
-           once ("more failures than any other car") does the work that the
-           jargon was doing, in words anybody reads the same way. */
-        $rowOne  = isset($d['row_noun'])   ? $d['row_noun']   : '';
-        $sum = '<b>' . htmlspecialchars($rank[0]['label']) . '</b> recorded <b>'
-             . (int)$rank[0]['total'] . '</b> failure'
-             . ((int)$rank[0]['total'] === 1 ? '' : 's')
-             . ($rowOne !== '' ? ', more than any other ' . htmlspecialchars($rowOne) : ', the most of any')
-             /* @plain -- unit_plain is the reader's word for the same thing.
-                The unit string is internal ("car-level failures") and is what
-                the Figures tab and the footnote need; a sentence does not,
-                once the population has been named. A page that supplies no
-                plain form keeps the unit, so nothing changes elsewhere. */
-             . '.'
-             /* @scan -- The answer ends here. Everything after it is context,
-                and context on its own line is context the reader can skip. */
-             . "\n" . 'Out of ' . $tot . ' '
-             . (isset($d['unit_plain']) && $d['unit_plain'] !== '' ? $d['unit_plain'] : $unit)
+        $sum = '<b>' . htmlspecialchars($rank[0]['label']) . '</b> had the most, with <b>'
+             . (int)$rank[0]['total'] . '</b> of ' . $tot . ' ' . $unit
              . ($scope !== '' ? ' ' . $scope : '') . '.';
         if (count($rank) > 1) {
-            $sum .= ' Next is ' . htmlspecialchars($rank[1]['label']) . ' with <b>'
-                  . (int)$rank[1]['total'] . '</b>.';
-        }
-        /* @link -- What the leader is CONNECTED to. A car runs in a train, and
-           over a period it runs in several, because train_availability is a
-           dated composition history rather than a fixed roster. Naming the
-           worst car without naming the trains it ran in leaves the reader to
-           make that join by hand, which is the join they asked for.
-
-           The map is keyed on the label the page put in `rows`, and it is read
-           AFTER the band has chosen its own leader -- so the sentence can never
-           describe a different row from the one the ranking named. A page that
-           supplies nothing gets nothing.
-             array('phrase' => 'ran in', 'noun' => 'train',
-                   'plural' => 'trains',
-                   'map'    => array('Car 52' => array('Index 14','Index 1')))
-         */
-        if (isset($d['link']) && is_array($d['link']) && count($rank)
-            && isset($d['link']['map'][$rank[0]['label']])) {
-            $lk = $d['link'];
-            $to = $lk['map'][$rank[0]['label']];
-            /* Entries may be plain labels, or label+count pairs. Counts are
-               supplied when the question tied the two units together, because
-               then the breakdown IS the answer and a bare list of names does
-               not say which one carried most of it. */
-            $withN = array();
-            foreach ($to as $e) {
-                if (is_array($e) && isset($e['label'])) {
-                    $withN[] = array('label'=>$e['label'], 'total'=>(int)$e['n']);
-                }
-            }
-            if (count($withN)) {
-                usort($withN, 'iss_prompt_cmp_total');
-                $lead = (int)$rank[0]['total'];
-                $shown = array_slice($withN, 0, 4);
-                $more  = count($withN) - count($shown);
-                $bits  = array();
-                foreach ($shown as $r) { $bits[] = $r['label'] . ' (' . $r['total'] . ')'; }
-                /* @subject -- Normally the leader is the subject: "Those 5
-                   occurred while Index 1 had failures on ...". But when the
-                   link runs from equipment to trains, the thing that ran in
-                   the trains is the CAR, not the equipment -- equipment does
-                   not run anywhere. A page can therefore name its own subject
-                   and the leader is left out of this clause. */
-                $subj = (isset($lk['subject']) && $lk['subject'] !== '')
-                      ? $lk['subject'] : $rank[0]['label'];
-                $sum .= "\n" . 'Those ' . $lead . ' occurred while '
-                      . htmlspecialchars($subj) . ' '
-                      . (isset($lk['phrase']) ? $lk['phrase'] : 'was linked to') . ' <b>'
-                      . count($withN) . '</b> different '
-                      . htmlspecialchars(count($withN) === 1
-                          ? (isset($lk['noun']) ? $lk['noun'] : 'unit')
-                          : (isset($lk['plural']) ? $lk['plural'] : 'units'))
-                      . ': ' . htmlspecialchars($more > 0 ? implode(', ', $bits)
-                                                          : iss_prompt_and_list($bits))
-                      . ($more > 0 ? ' and ' . $more . ' more' : '') . '.';
-                /* Moved out of the sentence: it explains the notation rather
-                   than answering anything, and in the flow it read as another
-                   finding. */
-                $notes[] = 'In that list, the bracketed figure is how many of the '
-                         . $lead . ' fell in each.';
-            }
-            else if (count($to)) {
-                $nn = count($to);
-                $word = ($nn === 1)
-                      ? (isset($lk['noun']) ? $lk['noun'] : 'unit')
-                      : (isset($lk['plural']) ? $lk['plural'] : (isset($lk['noun']) ? $lk['noun'].'s' : 'units'));
-                $show = array_slice($to, 0, 4);
-                $more = $nn - count($show);
-                /* @plain -- "Car 52 ran in 5 trains" reads as impossible to
-                   anybody who knows a car sits in one formation. The period
-                   is what makes it true, so the period is said. */
-                $sum .= "\n" . 'Over this period ' . htmlspecialchars($rank[0]['label']) . ' '
-                      . (isset($lk['phrase']) ? $lk['phrase'] : 'is linked to') . ' <b>'
-                      . $nn . '</b> different ' . htmlspecialchars($word) . ': '
-                      /* Plain commas when the list is truncated: an "and"
-                         before the last shown item followed by "and 2 more"
-                         reads as two conjunctions in a row. */
-                      . htmlspecialchars($more > 0 ? implode(', ', $show)
-                                                   : iss_prompt_and_list($show))
-                      . ($more > 0 ? ' and ' . $more . ' more' : '') . '.';
-            }
-        }
-
-        /* @also -- A second ranking, for a question that names two units:
-           "which car had the worst ... and which train". Answering only one of
-           them and noting which was ranked is still half an answer to a
-           question asked in full. $d['also'] is optional, so a page that
-           supplies nothing behaves exactly as before.
-             array('noun' => 'train', 'rows' => array(label,total ...)) */
-        if (isset($d['also']) && is_array($d['also'])
-            && isset($d['also']['rows']) && count($d['also']['rows'])) {
-            $a2 = array();
-            foreach ($d['also']['rows'] as $r) {
-                if (isset($r['total']) && (int)$r['total'] > 0) {
-                    $a2[] = array('label'=>$r['label'], 'total'=>(int)$r['total']);
-                }
-            }
-            usort($a2, 'iss_prompt_cmp_total');
-            if (count($a2)) {
-                $noun = isset($d['also']['noun']) ? $d['also']['noun'] : 'unit';
-                /* @plain -- This is the sentence that was doing the damage.
-                   "By train, Index 1 had the most with 9" sat beside "Car 52
-                   ... 7" in the same paragraph, and 9 is larger than 7 for a
-                   train that Car 52 itself ran in -- so the arithmetic looked
-                   wrong. It is not: the 9 counts every car in that train and
-                   the 7 counts one car. Two populations, one paragraph, and
-                   nothing said which was which.
-                   The basis is now stated in the sentence rather than left to
-                   the reader, and the page supplies the wording because only
-                   the page knows what its partner unit contains. */
-                $basis = isset($d['also']['basis']) ? $d['also']['basis'] : '';
-                $sum .= "\n" . 'Counted by ' . htmlspecialchars($noun) . ' instead, <b>'
-                      . htmlspecialchars($a2[0]['label']) . '</b> recorded the most with <b>'
-                      . (int)$a2[0]['total'] . '</b>'
-                      /* Bracketed. Run on unpunctuated after the figure it
-                         qualifies, "with 9 counting all of its cars together"
-                         reads as one clause and the qualifier is lost. */
-                      . ($basis !== '' ? ' (' . htmlspecialchars($basis) . ')' : '');
-                if (count($a2) > 1) {
-                    $sum .= ', then ' . htmlspecialchars($a2[1]['label'])
-                          . ' with ' . (int)$a2[1]['total'];
-                }
-                $sum .= '.';
-                /* Held, not appended. The main figures are assembled AFTER
-                   this branch returns, so appending here puts the second
-                   ranking above the totals it is secondary to. */
-                $alsoFigs = array('noun' => $noun, 'rank' => $a2);
-            }
+            $sum .= ' Next is ' . htmlspecialchars($rank[1]['label'])
+                  . ' with ' . (int)$rank[1]['total'] . '.';
         }
     } elseif (in_array('trend', $req['focus'])
               && isset($d['bucket_totals']) && count($d['bucket_totals']) >= 2) {
@@ -2404,32 +1978,10 @@ function iss_prompt_band_failures($req, $vocab, $d, $L, &$sum, &$rows, &$notes) 
         $rows[] = array(htmlspecialchars($r['label']), (int)$r['total']);
     }
     if (count($rank) > 6) $rows[] = array('&nbsp;&nbsp;and ' . (count($rank) - 6) . ' more', '');
-
-    /* @also -- Last, under its own heading, so the reader sees the totals, then
-       the primary ranking, then the second one -- the order the sentence above
-       states them in. */
-    if ($alsoFigs !== null) {
-        $rows[] = array('<b>By ' . htmlspecialchars(ucfirst($alsoFigs['noun'])) . '</b>', '');
-        $n2 = 0;
-        foreach ($alsoFigs['rank'] as $r) {
-            if ($n2++ >= 6) break;
-            $rows[] = array(htmlspecialchars($r['label']), (int)$r['total']);
-        }
-        if (count($alsoFigs['rank']) > 6) {
-            $rows[] = array('&nbsp;&nbsp;and ' . (count($alsoFigs['rank']) - 6) . ' more', '');
-        }
-    }
     if ($L !== null && $L['rostered'] > 0) {
         $rows[] = array('Loops lost (per incident)', iss_prompt_n($L['rostered']));
     }
-    /* @plain -- "Failures counted per car; loops per incident" named a measure
-       this answer may not contain at all: loops only appear when a page
-       supplies them. The second clause is now emitted only when there is
-       something for it to describe, and the first is said in full rather than
-       as shorthand. */
-    $notes[] = 'One incident that affects three cars counts as three failures.'
-             . (($L !== null && $L['rostered'] > 0)
-                ? ' Loops lost are counted once per incident, not per car.' : '');
+    $notes[] = 'Failures counted per car; loops per incident.';
 }
 
 /* Says the scope back in the question's own terms, so a figure is never
@@ -2448,8 +2000,8 @@ function iss_prompt_scope_phrase($req, $vocab) {
         $p[] = ($req['level'] === '0') ? 'with no severity level' : 'at level ' . $req['level'];
     if ($req['car'] > 0) $p[] = 'on Car ' . (int)$req['car'];
     if ($req['from'] !== '')
-        $p[] = 'between ' . iss_prompt_date($req['from'])
-             . ' and ' . iss_prompt_date($req['to']);
+        $p[] = 'between ' . date('j M Y', strtotime($req['from']))
+             . ' and ' . date('j M Y', strtotime($req['to']));
     return implode(', ', $p);
 }
 

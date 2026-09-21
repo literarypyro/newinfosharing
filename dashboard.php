@@ -615,7 +615,22 @@ dash_status_band($view_date,false);
 			$lvl = $r['lvl'];
 			$desc= isset($r['description']) ? $r['description'] : '';
 			$desc= trim(preg_replace('/\s+/',' ',strip_tags((string)$desc)));
-			if(strlen($desc)>72){ $desc=substr($desc,0,72)."&hellip;"; }
+/* @desctrim -- cut on characters, not bytes: substr() at 72 can land inside a
+   multi-byte character, and dash_h() then either substitutes U+FFFD or returns
+   an empty string, blanking the link. The ellipsis is a literal UTF-8 character
+   rather than "&hellip;" because dash_h() escapes the ampersand. */
+if(preg_match('/^(.{0,72})/us', $desc, $m)){
+    if($m[1] !== $desc){ $desc = rtrim($m[1])."\xE2\x80\xA6"; }
+} else if(strlen($desc) > 72){            /* invalid UTF-8 in the row -- byte fallback */
+    $desc = rtrim(substr($desc, 0, 72))."...";
+}			
+			
+			
+			
+			
+			
+			
+			
 			if($desc===""){ $desc=dash_type_label(isset($r['incident_type'])?$r['incident_type']:''); }
 			/* @feedpanel -- the band titles its panel "Incident - <no>"; match it,
 			   falling back to the row id when the register has no number yet. */

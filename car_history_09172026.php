@@ -98,121 +98,9 @@ if($ccsMonth < 1 || $ccsMonth > 12){ $ccsMonth = 0; }
 $ccsDay = isset($_GET['d']) && $_GET['d'] !== '' ? (int)$_GET['d'] : 0;
 if(!$ccsYear || !$ccsMonth || !checkdate($ccsMonth, $ccsDay, $ccsYear)){ $ccsDay = 0; }
 
-/* ============================================================================
- * @ask -- the prompt box.
- *
- * Different from equipment_history in one way that matters. That page already
- * read sd/ed from the URL and honoured them, so a typed question only had to
- * fill variables that were already wired. This page has NO range concept at
- * all: its scope is y, m and d, built into LIKE patterns. "last 6 months" has
- * nowhere to go here, so a range branch is added to both date clauses below.
- * Additive -- the existing three branches are untouched.
- *
- * THE SELECTS. This page shows year, month, day, equipment and level as
- * dropdowns, and a range cannot be represented in them: there is no value for
- * "last 6 months" to select. So a resolved period is mapped back onto the
- * selects WHENEVER IT CAN BE -- a question naming one year, one month or one
- * day sets exactly that, and the controls agree with the answer. Only a period
- * the selects cannot express leaves them blank, with a note saying the period
- * came from the question. The filter form does not carry `ask`, so touching a
- * dropdown replaces the question: the two are alternative ways of setting
- * scope and the last action wins.
- *
- * The CAR is locked -- this page is one car -- and equipment is its free axis.
- * ==========================================================================*/
-$chAsk = null; $chVocab = null; $chAskOn = false; $chAnswered = false;
-$ccsSd = ''; $ccsEd = ''; $chRangeNote = '';
-$chTrainRows = array(); $chLink = null; $chTied = false; $chAskDim = '';
-$chAskRows = array(); $chTimeNote = ''; $chTimeClause = ''; $chTimePhrase = '';
-
-if(file_exists(dirname(__FILE__)."/iss_insight_prompt.php")){
-	require_once(dirname(__FILE__)."/iss_insight_prompt.php");
-	$chAskOn = true;
-}
-if($chAskOn){
-	$chEqAll = array();
-	$eqAllRs = $db->query("select id, equipment_name from equipment order by equipment_name");
-	if($eqAllRs){
-		while($er = $eqAllRs->fetch_assoc()){
-			$chEqAll[(string)(int)$er['id']] = $er['equipment_name'];
-		}
-	}
-	$chVocab = iss_prompt_vocab(array(
-		'report'    => 'car_history',
-		'unit'      => 'car-level failures',
-		'equipment' => $chEqAll,
-		'has_car'   => true,
-		'date_min'  => '2013-01-01',
-		'date_max'  => date('Y-m-d'),
-		/* The car is the page. A question naming another is refused by name
-		   rather than quietly answered about this one. */
-		'locked'    => array('car' => array('id' => (int)$car_id,
-		                                    'label' => 'Car ' . (int)$car_id)),
-		/* incident_union carries no location or direction column, so place and
-		   station terms are dropped and reported rather than resolved into a
-		   filter no query here applies. */
-		'places'    => array(),
-		'stations'  => array(),
-		/* Delimited. Without the ~ ~ these are not patterns: preg_match
-		   rejects a backslash as a delimiter and the guard dies silently. */
-		'lacks'     => array(
-			'time to resolve' => '~\b(?:resolution|resolve[ds]?|downtime|time to (?:fix|repair|resolve)|how long)\b~',
-			'repair duration' => '~\b(?:duration|mttr|repair time)\b~',
-		),
-	));
-
-	$chAskText = isset($_GET['ask']) ? $_GET['ask'] : '';
-	$chAskDrop = isset($_GET['ask_drop']) ? $_GET['ask_drop'] : '';
-	$chAsk     = iss_prompt_ask($chAskText, $chVocab,
-	                            ($chAskDrop !== '' ? explode(',', $chAskDrop) : array()));
-	$chReq     = $chAsk['request'];
-
-	if(!empty($chReq['equipment']) && is_array($chReq['equipment'])){
-		$ccsEquipt = (int)$chReq['equipment'][0];
-		$eqr2 = $db->query("select equipment_name from equipment where id='".$ccsEquipt."'");
-		if($eqr2 && ($eqw2 = $eqr2->fetch_assoc())) $ccsEquiptName = (string)$eqw2['equipment_name'];
-	}
-	if(!empty($chReq['level_set']) && $chReq['level'] !== ''){ $ccsLevel = (int)$chReq['level']; }
-
-	if(!empty($chReq['from']) && !empty($chReq['to'])){
-		$f = $chReq['from']; $t = $chReq['to'];
-		$fy = (int)substr($f,0,4); $fm = (int)substr($f,5,2); $fd = (int)substr($f,8,2);
-		$ty = (int)substr($t,0,4); $tm = (int)substr($t,5,2); $td = (int)substr($t,8,2);
-		$lastOfMonth = (int)date('t', strtotime($f));
-		if($f === $t){
-			/* one day -- the selects can show it exactly */
-			$ccsYear = $fy; $ccsMonth = $fm; $ccsDay = $td;
-		}
-		else if($fy === $ty && $fm === $tm && $fd === 1 && $td === $lastOfMonth){
-			$ccsYear = $fy; $ccsMonth = $fm; $ccsDay = 0;
-		}
-		else if($fy === $ty && $fm === 1 && $fd === 1 && $tm === 12 && $td === 31){
-			$ccsYear = $fy; $ccsMonth = 0; $ccsDay = 0;
-		}
-		else {
-			/* Nothing in the dropdowns can say this. They go blank and the
-			   note says why, rather than showing a year the table is not
-			   filtered to. */
-			$ccsSd = $f; $ccsEd = $t;
-			$ccsYear = 0; $ccsMonth = 0; $ccsDay = 0;
-			$chRangeNote = 'The period below is set by the question, not by the '
-			             . 'year and month boxes. Choosing a year or month replaces it.';
-		}
-	}
-}
-
 $dateClause  = "";
 $dateClause2 = "";
-/* @ask -- The range branch, first because it is the most specific. Both
-   clauses get it: this page reads the current tables through $dateClause and
-   transport_old through $dateClause2, and a period applied to one but not the
-   other is the bug the @months note above already records once. */
-if($ccsSd !== '' && $ccsEd !== ''){
-	$sdE = $db->real_escape_string($ccsSd); $edE = $db->real_escape_string($ccsEd);
-	$dateClause  = " and incident_date between '".$sdE." 00:00:00' and '".$edE." 23:59:59' ";
-	$dateClause2 = " and transport_old.incident_date between '".$sdE." 00:00:00' and '".$edE." 23:59:59' ";
-}
-else if($ccsYear && $ccsMonth && $ccsDay){
+if($ccsYear && $ccsMonth && $ccsDay){
 	$ymd = sprintf("%04d-%02d-%02d", $ccsYear, $ccsMonth, $ccsDay);
 	$dateClause  = " and incident_date like '".$ymd."%%' ";
 	$dateClause2 = " and transport_old.incident_date like '".$ymd."%%' ";
@@ -227,219 +115,6 @@ else if($ccsYear){
 	$dateClause2 = " and transport_old.incident_date like '".$ccsYear."-%%' ";
 }
 
-/* @period -- One label for every case, built once.
-   The printout rebuilt this from $_GET["y"] and $_GET["m"] directly, so it
-   ignored the day filter this page has had since @dayfix -- a view of 7 March
-   printed as the whole of March -- and a range would have printed as "All
-   records". Naming all five cases here means the printout states what the
-   table is actually showing. */
-$ccsPeriodLabel = "All records";
-if($ccsSd !== '' && $ccsEd !== ''){
-	$ccsPeriodLabel = date("F d, Y", strtotime($ccsSd))." to ".date("F d, Y", strtotime($ccsEd));
-}
-else if($ccsYear && $ccsMonth && $ccsDay){
-	$ccsPeriodLabel = date("F d, Y", strtotime(sprintf("%04d-%02d-%02d",$ccsYear,$ccsMonth,$ccsDay)));
-}
-else if($ccsYear && $ccsMonth){
-	$ccsPeriodLabel = date("F Y", strtotime(sprintf("%04d-%02d-01",$ccsYear,$ccsMonth)));
-}
-else if($ccsYear){
-	$ccsPeriodLabel = "Year ".$ccsYear;
-}
-
-
-/* @ask -- The clauses and the rankings are resolved BEFORE the document
-   opens, because the answer band renders directly under the box in the filter
-   bar and needs its figures by then. They used to sit beside the main query
-   further down; nothing about them depends on the markup. */
-// @carryfilter -- equipment clause alongside the date clause, so the table AND
-// every chart below (they all read this one result set) narrow together.
-$equiptClause = $ccsEquipt ? " and incident_union.equipt = ".$ccsEquipt." " : "";
-/* @levelfilter -- Applied to the row query, which every chart on this page is
-   derived from, so the table and the figures narrow together. Chart 3 is the
-   exception -- see the note where it is built. */
-$levelClause  = $ccsLevel  ? " and incident_union.level = ".$ccsLevel." "   : "";
-
-/* ============================================================================
- * @ask -- the time axis and the rankings, here because they need the clauses.
- *
- * This page's free axis is EQUIPMENT, not cars: the car is fixed, so "which
- * equipment fails most on this car" is the question its ranking answers. The
- * train axis is the same one equipment_history uses, read from this car's side
- * -- which trains this car ran in when it failed.
- * ==========================================================================*/
-$chBase = " from incident_cars
-             inner join incident_union on incident_cars.incident_id = incident_union.id
-            where incident_cars.car_no*1 = '".$db->real_escape_string($car_id)."' "
-        . $dateClause . " " . $equiptClause . " " . $levelClause . " ";
-
-if($chAskOn && $chAsk !== null){
-	/* -- time of day, with the small-denominator floor ------------------- */
-	$chTime = iss_prompt_time_sql($chAsk['request'], $chVocab, 'incident_date');
-	if(!empty($chTime['active'])){
-		$chTimePhrase = function_exists('iss_prompt_time_phrase')
-		              ? iss_prompt_time_phrase($chAsk['request'], $chVocab) : 'that time window';
-		$rk = $db->query("select count(*) as c".$chBase.$chTime['sql']);
-		$rr = $db->query("select count(*) as c".$chBase.$chTime['sql_raw']);
-		$kept = ($rk && ($x=$rk->fetch_assoc())) ? (int)$x['c'] : 0;
-		$rawN = ($rr && ($y=$rr->fetch_assoc())) ? (int)$y['c'] : 0;
-		if(iss_prompt_time_viable($kept)){
-			$chTimeClause = $chTime['sql'];
-			$chTimeNote   = iss_prompt_time_note($rawN - $kept, $kept);
-		} else {
-			/* One car's history is a far smaller denominator than a report
-			   page's, so the floor bites here more often -- which is the
-			   reason it exists. */
-			$chTimeNote = iss_prompt_time_dropped($kept, $chTimePhrase);
-		}
-	}
-}
-$dateClause .= $chTimeClause;
-if($chTimeClause !== '' && $chTimePhrase !== ''){ $ccsPeriodLabel .= ', ' . $chTimePhrase; }
-
-/* Rebuilt so the rankings narrow with the time filter the table now carries. */
-$chBase = " from incident_cars
-             inner join incident_union on incident_cars.incident_id = incident_union.id
-            where incident_cars.car_no*1 = '".$db->real_escape_string($car_id)."' "
-        . $dateClause . " " . $equiptClause . " " . $levelClause . " ";
-
-/* @traindim -- index_no is written inconsistently: '01' and '1' are the same
-   train, but '7x' is a DIFFERENT index. Leading zeros go, letter suffixes
-   stay. Grouping on the raw string splits one train in two; casting to a
-   number merges two trains into one. */
-if(!function_exists('chTrainKey')){
-	function chTrainKey($s){
-		$s = strtolower(trim((string)$s));
-		if($s === '') return '';
-		return preg_replace('/^0+(?=[0-9])/', '', $s);
-	}
-}
-
-$chEqRows = array(); $chAskCars = -1;
-if($chAskOn && $chAsk !== null && trim($chAsk['asked']) !== ''
-   && iss_prompt_has_any($chAsk['request'])){
-
-	$chDims = function_exists('iss_prompt_rank_dimensions')
-	        ? iss_prompt_rank_dimensions($chAsk['asked'])
-	        : array('car'=>false,'train'=>false,'primary'=>'');
-	$chTied = function_exists('iss_prompt_rank_tied')
-	        ? iss_prompt_rank_tied($chAsk['asked']) : false;
-	/* @primary -- The module's dimension helper knows car and train, because
-	   that is what the report pages and equipment_history rank by. This page's
-	   free axis is EQUIPMENT -- the car is the page itself -- so the ordering
-	   has to be decided here: whichever of equipment or train is named FIRST
-	   leads. Without this, "which equipment failed most ... and in which train"
-	   ranked trains, because only the train term was recognised at all. */
-	$chAskedTxt = ' ' . strtolower(preg_replace('/\s+/', ' ', $chAsk['asked'])) . ' ';
-	$posEq = preg_match('~\b(?:equipment|equipt|part|component|fault type)s?\b~',
-	                    $chAskedTxt, $mEq, PREG_OFFSET_CAPTURE) ? $mEq[0][1] : -1;
-	$posTr = preg_match('~\b(?:train|trains|trainset|consist|index(?:es|\s*no\.?|\s*number)?)\b~',
-	                    $chAskedTxt, $mTr, PREG_OFFSET_CAPTURE) ? $mTr[0][1] : -1;
-	if($posTr >= 0 && ($posEq < 0 || $posTr < $posEq)){ $chAskDim = 'train'; }
-	else { $chAskDim = 'equipment'; }
-	/* The train ranking and pairing are built whenever trains are named at
-	   all, whichever leads. */
-	$chWantsTrain = ($posTr >= 0);
-
-	/* -- equipment on this car -------------------------------------------- */
-	$eqRank = $db->query("select incident_union.equipt as eq, count(*) as c".$chBase
-	                   . " group by eq order by c desc");
-	if($eqRank){
-		while($er = $eqRank->fetch_assoc()){
-			$id = (string)(int)$er['eq'];
-			if($id === '0') continue;
-			$nm2 = isset($chEqAll[$id]) ? $chEqAll[$id] : ('Equipment '.$id);
-			$chEqRows[] = array('label' => $nm2, 'total' => (int)$er['c']);
-		}
-	}
-
-	/* -- trains this car ran in ------------------------------------------- */
-	if($chWantsTrain){
-		$tq = $db->query("select ta.index_no as ix, count(*) as c
-		                    from incident_cars
-		                    inner join incident_union on incident_cars.incident_id = incident_union.id
-		                    inner join train_incident_report tir on tir.incident_id = incident_union.id
-		                    inner join train_availability ta on ta.id = tir.train_ava_id
-		                   where incident_cars.car_no*1 = '".$db->real_escape_string($car_id)."' "
-		                 . $dateClause." ".$equiptClause." ".$levelClause."
-		                   group by ta.index_no");
-		$byTrain = array();
-		if($tq){
-			while($tr = $tq->fetch_assoc()){
-				$k = chTrainKey($tr['ix']);
-				if($k === '') continue;
-				$byTrain[$k] = (isset($byTrain[$k]) ? $byTrain[$k] : 0) + (int)$tr['c'];
-			}
-		}
-		arsort($byTrain);
-		foreach($byTrain as $k => $n){
-			/* Index 50 is a reserved train, for schooling and similar. Counted
-			   with the rest, but named, so it is not read as a service train
-			   topping a ranking. */
-			$chTrainRows[] = array('label' => 'Index '.$k.((string)$k === '50' ? ' (reserved)' : ''),
-			                       'total' => $n);
-		}
-	}
-
-	/* -- equipment <-> train pairing, for the leader ----------------------- */
-	if($chWantsTrain){
-		$pq = $db->query("select incident_union.equipt as eq, ta.index_no as ix, count(*) as c
-		                    from incident_cars
-		                    inner join incident_union on incident_cars.incident_id = incident_union.id
-		                    inner join train_incident_report tir on tir.incident_id = incident_union.id
-		                    inner join train_availability ta on ta.id = tir.train_ava_id
-		                   where incident_cars.car_no*1 = '".$db->real_escape_string($car_id)."' "
-		                 . $dateClause." ".$equiptClause." ".$levelClause."
-		                   group by eq, ta.index_no");
-		$eqToTrain = array(); $trainToEq = array();
-		if($pq){
-			while($pr = $pq->fetch_assoc()){
-				$id = (string)(int)$pr['eq']; $k = chTrainKey($pr['ix']);
-				if($id === '0' || $k === '') continue;
-				$eLab = isset($chEqAll[$id]) ? $chEqAll[$id] : ('Equipment '.$id);
-				$tLab = 'Index '.$k.((string)$k === '50' ? ' (reserved)' : '');
-				$eqToTrain[$eLab][$tLab] = (isset($eqToTrain[$eLab][$tLab]) ? $eqToTrain[$eLab][$tLab] : 0) + (int)$pr['c'];
-				$trainToEq[$tLab][$eLab] = (isset($trainToEq[$tLab][$eLab]) ? $trainToEq[$tLab][$eLab] : 0) + (int)$pr['c'];
-			}
-		}
-		$flat = function($m) use ($chTied) {
-			$out = array();
-			foreach($m as $k => $inner){
-				arsort($inner);
-				if($chTied){
-					$rows = array();
-					foreach($inner as $lab => $n){ $rows[] = array('label'=>$lab,'n'=>$n); }
-					$out[$k] = $rows;
-				} else { $out[$k] = array_keys($inner); }
-			}
-			return $out;
-		};
-		if($chAskDim === 'train'){
-			$chLink = array('phrase' => 'had failures on', 'noun' => 'equipment type',
-			                'plural' => 'equipment types', 'map' => $flat($trainToEq));
-		} else {
-			/* The subject is the CAR, not the equipment: a static converter
-			   does not run in a train, the car it is fitted to does. */
-			$chLink = array('subject' => 'this car', 'phrase' => 'ran in',
-			                'noun' => 'train formation', 'plural' => 'train formations',
-			                'map' => $flat($eqToTrain));
-		}
-	}
-
-	/* The band leads with whichever the question named first. */
-	if($chAskDim === 'train'){
-		$chAskRows = $chTrainRows; $chTrainRows = array();
-	} else {
-		$chAskRows = $chEqRows;
-	}
-}
-
-/* Counted here rather than reusing the table's own row count: that is not
-   available until the table has been walked, several hundred lines below the
-   band that needs it. On one car's history this is a cheap count. */
-$chTotal = 0;
-$ctq = $db->query("select count(*) as c".$chBase);
-if($ctq && ($ctr = $ctq->fetch_assoc())) $chTotal = (int)$ctr['c'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -610,52 +285,6 @@ if($NAV_SHOW){ require("Tmenu_2.php"); }
   </form>
   </div>
 </div>
-<?php
-/* @ask -- Below the filter bar and OUTSIDE its form: this posts its own `ask`
-   and `ask_drop` and must not be swept up by the filter submit. The carried
-   hidden fields keep the two in step, so asking a question after narrowing to
-   one equipment type does not throw that narrowing away.
-
-   The filter form deliberately does NOT carry `ask`. Touching a dropdown
-   replaces the question -- they are alternative ways of setting scope and the
-   last action wins. */
-if($chAskOn && $chAsk !== null){
-	echo iss_prompt_css();
-	echo '<form method="get" action="car_history.php" class="ask-form">';
-	echo '<input type="hidden" name="car_id" value="'.(int)$car_id.'">';
-	if($ccsEquipt) echo '<input type="hidden" name="eq" value="'.(int)$ccsEquipt.'">';
-	if($ccsLevel)  echo '<input type="hidden" name="level" value="'.(int)$ccsLevel.'">';
-	echo iss_prompt_box($chAsk, $chVocab, isset($_GET['ask_drop']) ? $_GET['ask_drop'] : '');
-	echo '</form>';
-	/* The answer band. Captured rather than echoed straight out, because
-	   whether it rendered decides whether the standing Key finding renders
-	   below -- two one-sentence headlines stacked is two answers to a question
-	   asked once. */
-	echo iss_prompt_band_css();
-	$chAnswerHtml = iss_prompt_band($chAsk, $chVocab, array(
-		'unit'       => 'car-level failures',
-		'unit_plain' => 'recorded failures',
-		'total'      => $chTotal,
-		'incidents'  => $chTotal,   /* one car: one row per incident */
-		/* The free axis here is equipment -- the car is the page. */
-		'row_noun'   => ($chAskDim === 'train' ? 'train' : 'equipment type'),
-		'rows'       => $chAskRows,
-		'also'       => (count($chTrainRows) && empty($chTied))
-		                ? array('noun' => 'train', 'rows' => $chTrainRows,
-		                        'basis' => 'counting every failure on this car')
-		                : null,
-		'link'       => $chLink,
-	));
-	echo $chAnswerHtml;
-	if(trim($chAnswerHtml) !== ''){ $chAnswered = true; }
-	if($chRangeNote !== ''){
-		echo '<div class="ask-note">'.htmlspecialchars($chRangeNote).'</div>';
-	}
-	if($chTimeNote !== ''){
-		echo '<div class="ask-note">'.htmlspecialchars($chTimeNote).'</div>';
-	}
-}
-?>
 <div class="ccs-panel-body">
 <?php
 /* @insight -- Everything from here to the analysis block is buffered.
@@ -695,6 +324,13 @@ ob_start();
 // is present in is_transport.incident_union, with nothing held only in the old
 // database. If a pre-2019 incident is ever found missing, restore it into
 // is_transport rather than re-adding a query half here.
+// @carryfilter -- equipment clause alongside the date clause, so the table AND
+// every chart below (they all read this one result set) narrow together.
+$equiptClause = $ccsEquipt ? " and incident_union.equipt = ".$ccsEquipt." " : "";
+/* @levelfilter -- Applied to the row query, which every chart on this page is
+   derived from, so the table and the figures narrow together. Chart 3 is the
+   exception -- see the note where it is built. */
+$levelClause  = $ccsLevel  ? " and incident_union.level = ".$ccsLevel." "   : "";
 $sql="select * from incident_cars inner join incident_union on incident_cars.incident_id=incident_union.id where incident_cars.car_no*1='".$car_id."' ".$dateClause." ".$equiptClause." ".$levelClause." order by incident_date desc";
 $rs=$db->query($sql);
 $nm=$rs->num_rows;
@@ -1099,11 +735,7 @@ if(function_exists('iss_insight') && count($monthlyCounts) >= 1){
    the two layer-2 pages spell their normalized context differently, and a
    wrong name here would not error, it would just silently produce no band. */
 $issL2Body = ob_get_clean();
-/* @ask -- Suppressed once a question has been answered above: the two are
-   headlines in the same visual language, and the standing one answers a
-   question the reader did not ask. The full analysis stays in the panel
-   below. $chAnswered is false whenever the question resolved nothing. */
-if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band') && !$chAnswered){
+if(isset($issF) && isset($issN) && function_exists('iss_insight_summary_band')){
 	if(function_exists('iss_insight_band_css')) echo iss_insight_band_css();
 	echo iss_insight_summary_band($issN, $issF, "issInsight");
 }
@@ -1716,10 +1348,13 @@ $(function(){
 				(ccsLead ? '<p class="rpt-lead">'+ccsLead.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>' : '') +
 			'</div>' +
 			'<div class="rpt-meta">' +
-<?php /* @period -- $ccsPeriodLabel, not a second derivation from $_GET. The
-         old form knew nothing about the day filter or about a range, so it
-         printed a wider period than the table showed. */ ?>
-			'<span><b>Report period:</b> <?php echo htmlspecialchars($ccsPeriodLabel); ?></span>' +
+			'<span><b>Report period:</b> <?php
+  if(!isset($_GET["y"])){ echo "All records"; }
+  else if(isset($_GET["m"]) && $_GET["m"] !== ""){
+    echo htmlspecialchars(date("F Y", strtotime((int)$_GET["y"]."-".(int)$_GET["m"]."-01")));
+  }
+  else { echo htmlspecialchars((int)$_GET["y"]); }
+?></span>' +
 				<?php /* @levelfilter -- every inherited filter stated on the printout,
 				         or a report showing a fraction of the car's history has
 				         nothing on the page explaining why. */ ?>
