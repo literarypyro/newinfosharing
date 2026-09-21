@@ -2147,6 +2147,22 @@ function iss_prompt_band_service($req, $vocab, $L, &$sum, &$rows, &$notes) {
 
 /* "A, B and C" -- the band builds several of these and they should read the
    same way in each. */
+/* @tie -- How many rows share the top figure.
+ *
+ * A ranking sorted by count has a first row whether or not anything actually
+ * came first. Reading rank[0] as "the most" turns a three-way tie into a
+ * winner, and the runner-up line then prints the SAME number underneath it:
+ * "DCI recorded 2 failures, more than any other equipment type. Next is Door
+ * Failure with 2." Both halves are true of the data and the sentence is false.
+ */
+function iss_prompt_tie_count($rank) {
+    if (!count($rank)) return 0;
+    $top = (int)$rank[0]['total'];
+    $n = 0;
+    foreach ($rank as $r) { if ((int)$r['total'] === $top) $n++; else break; }
+    return $n;
+}
+
 function iss_prompt_and_list($a) {
     $a = array_values($a);
     $n = count($a);
@@ -2232,24 +2248,63 @@ function iss_prompt_band_failures($req, $vocab, $d, $L, &$sum, &$rows, &$notes) 
            once ("more failures than any other car") does the work that the
            jargon was doing, in words anybody reads the same way. */
         $rowOne  = isset($d['row_noun'])   ? $d['row_noun']   : '';
-        $sum = '<b>' . htmlspecialchars($rank[0]['label']) . '</b> recorded <b>'
-             . (int)$rank[0]['total'] . '</b> failure'
-             . ((int)$rank[0]['total'] === 1 ? '' : 's')
-             . ($rowOne !== '' ? ', more than any other ' . htmlspecialchars($rowOne) : ', the most of any')
-             /* @plain -- unit_plain is the reader's word for the same thing.
-                The unit string is internal ("car-level failures") and is what
-                the Figures tab and the footnote need; a sentence does not,
-                once the population has been named. A page that supplies no
-                plain form keeps the unit, so nothing changes elsewhere. */
-             . '.'
-             /* @scan -- The answer ends here. Everything after it is context,
-                and context on its own line is context the reader can skip. */
-             . "\n" . 'Out of ' . $tot . ' '
-             . (isset($d['unit_plain']) && $d['unit_plain'] !== '' ? $d['unit_plain'] : $unit)
-             . ($scope !== '' ? ' ' . $scope : '') . '.';
-        if (count($rank) > 1) {
-            $sum .= ' Next is ' . htmlspecialchars($rank[1]['label']) . ' with <b>'
-                  . (int)$rank[1]['total'] . '</b>.';
+        /* @compare -- "more than any other equipment type" is a claim about a
+           field of competitors. With one row in the ranking there are none,
+           and the sentence asserts a comparison that was never made -- which
+           is how "ACU recorded 1 failure, more than any other equipment type"
+           came to sit on a report filtered to ACU alone. */
+        $only = (count($rank) === 1);
+        $tied = iss_prompt_tie_count($rank);
+        /* The headline first, then the context -- both branches share the
+           context, so it is appended once below rather than written into each.
+           Building it inside the branches is how the tie case lost its "Out of
+           8 recorded failures" line entirely. */
+        if ($tied > 1) {
+            /* @tie -- No winner to name, so none is named. The count leads,
+               because "three of them, with 2 each" is the finding. */
+            $names = array();
+            foreach (array_slice($rank, 0, min($tied, 4)) as $r) {
+                $names[] = '<b>' . htmlspecialchars($r['label']) . '</b>';
+            }
+            $extra = $tied - count($names);
+            $sum = '<b>' . $tied . '</b> '
+                 . htmlspecialchars($rowOne !== '' ? $rowOne . 's' : 'of them')
+                 . ' share the highest figure, with <b>' . (int)$rank[0]['total']
+                 . '</b> failure' . ((int)$rank[0]['total'] === 1 ? '' : 's') . ' each: '
+                 . ($extra > 0 ? implode(', ', $names) . ' and ' . $extra . ' more'
+                               : iss_prompt_and_list($names)) . '.';
+        }
+        else {
+            $sum = '<b>' . htmlspecialchars($rank[0]['label']) . '</b> recorded <b>'
+                 . (int)$rank[0]['total'] . '</b> failure'
+                 . ((int)$rank[0]['total'] === 1 ? '' : 's')
+                 /* @compare -- no comparison claimed when there is nothing to
+                    compare against. */
+                 . ($only ? ''
+                          : ($rowOne !== '' ? ', more than any other ' . htmlspecialchars($rowOne)
+                                            : ', the most of any'))
+                 . '.';
+        }
+
+        /* @scan -- The answer ends above. Everything from here is context, and
+           context on its own line is context the reader can skip.
+           @plain -- unit_plain is the reader's word for the unit; the internal
+           string stays on the Figures tab and in the footnote. Singular when
+           there is one: "Out of 1 recorded failures" is the kind of slip that
+           makes a reader doubt the figures either side of it. */
+        $sum .= "\n" . 'Out of ' . $tot . ' '
+              . ($tot == 1
+                 ? (isset($d['unit_one']) && $d['unit_one'] !== '' ? $d['unit_one'] : 'recorded failure')
+                 : (isset($d['unit_plain']) && $d['unit_plain'] !== '' ? $d['unit_plain'] : $unit))
+              . ($scope !== '' ? ' ' . $scope : '') . '.';
+
+        /* @tie -- "Next is" must mean next LOWER. With a tie at the top,
+           rank[1] holds the figure just reported as shared, and printing it
+           reads as a contradiction. Skip past the tied block. */
+        $nextAt = ($tied > 1) ? $tied : 1;
+        if (isset($rank[$nextAt])) {
+            $sum .= ' Next is ' . htmlspecialchars($rank[$nextAt]['label']) . ' with <b>'
+                  . (int)$rank[$nextAt]['total'] . '</b>.';
         }
         /* @link -- What the leader is CONNECTED to. A car runs in a train, and
            over a period it runs in several, because train_availability is a
@@ -2265,7 +2320,17 @@ function iss_prompt_band_failures($req, $vocab, $d, $L, &$sum, &$rows, &$notes) 
                    'plural' => 'trains',
                    'map'    => array('Car 52' => array('Index 14','Index 1')))
          */
-        if (isset($d['link']) && is_array($d['link']) && count($rank)
+        /* @tie -- A breakdown describes ONE leader. With the top shared there
+           is no single one to break down, and picking whichever sorted first
+           would present an arbitrary choice as the answer. The Figures tab
+           still carries every row, so nothing is hidden -- only the sentence
+           that would have implied a winner. */
+        if ($tied > 1 && isset($d['link']) && is_array($d['link'])) {
+            $notes[] = 'No breakdown is shown because the highest figure is shared: '
+                     . 'there is no single leader to break down. The Figures tab lists '
+                     . 'every row.';
+        }
+        if ($tied <= 1 && isset($d['link']) && is_array($d['link']) && count($rank)
             && isset($d['link']['map'][$rank[0]['label']])) {
             $lk = $d['link'];
             $to = $lk['map'][$rank[0]['label']];
@@ -2360,6 +2425,20 @@ function iss_prompt_band_failures($req, $vocab, $d, $L, &$sum, &$rows, &$notes) 
                    the reader, and the page supplies the wording because only
                    the page knows what its partner unit contains. */
                 $basis = isset($d['also']['basis']) ? $d['also']['basis'] : '';
+                $t2 = iss_prompt_tie_count($a2);
+                if ($t2 > 1) {
+                    $nm2 = array();
+                    foreach (array_slice($a2, 0, min($t2, 4)) as $r) {
+                        $nm2[] = '<b>' . htmlspecialchars($r['label']) . '</b>';
+                    }
+                    $ex2 = $t2 - count($nm2);
+                    $sum .= "\n" . 'Counted by ' . htmlspecialchars($noun) . ' instead, <b>'
+                          . $t2 . '</b> share the highest figure with <b>'
+                          . (int)$a2[0]['total'] . '</b> each: '
+                          . ($ex2 > 0 ? implode(', ', $nm2) . ' and ' . $ex2 . ' more'
+                                      : iss_prompt_and_list($nm2)) . '.';
+                }
+                else {
                 $sum .= "\n" . 'Counted by ' . htmlspecialchars($noun) . ' instead, <b>'
                       . htmlspecialchars($a2[0]['label']) . '</b> recorded the most with <b>'
                       . (int)$a2[0]['total'] . '</b>'
@@ -2372,6 +2451,7 @@ function iss_prompt_band_failures($req, $vocab, $d, $L, &$sum, &$rows, &$notes) 
                           . ' with ' . (int)$a2[1]['total'];
                 }
                 $sum .= '.';
+                }
                 /* Held, not appended. The main figures are assembled AFTER
                    this branch returns, so appending here puts the second
                    ranking above the totals it is secondary to. */

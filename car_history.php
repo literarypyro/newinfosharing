@@ -123,6 +123,7 @@ if(!$ccsYear || !$ccsMonth || !checkdate($ccsMonth, $ccsDay, $ccsYear)){ $ccsDay
 $chAsk = null; $chVocab = null; $chAskOn = false; $chAnswered = false;
 $ccsSd = ''; $ccsEd = ''; $chRangeNote = '';
 $chTrainRows = array(); $chLink = null; $chTied = false; $chAskDim = '';
+$chDimNote = '';   /* @lockeddim -- set when the question asks to rank cars */
 $chAskRows = array(); $chTimeNote = ''; $chTimeClause = ''; $chTimePhrase = '';
 
 if(file_exists(dirname(__FILE__)."/iss_insight_prompt.php")){
@@ -337,6 +338,23 @@ if($chAskOn && $chAsk !== null && trim($chAsk['asked']) !== ''
 	                    $chAskedTxt, $mTr, PREG_OFFSET_CAPTURE) ? $mTr[0][1] : -1;
 	if($posTr >= 0 && ($posEq < 0 || $posTr < $posEq)){ $chAskDim = 'train'; }
 	else { $chAskDim = 'equipment'; }
+
+	/* @lockeddim -- "which car had the most problems in ACU" asked on a page
+	   that IS one car. The lock already refuses a question naming a DIFFERENT
+	   car, but "which car" names none, so nothing caught it: the question
+	   resolved a ranking request, the page ranked its own free axis instead,
+	   and the reader was told "ACU recorded 1 failure, more than any other
+	   equipment type" -- an answer to a question they did not ask, about a
+	   comparison that was never made.
+	   Saying so is the whole fix. The equipment ranking still renders, because
+	   it is the nearest thing this page can answer, but it is no longer passed
+	   off as the answer to the question. */
+	if(!empty($chDims['car'])){
+		$chDimNote = 'This page covers Car ' . (int)$car_id . ' only, so it cannot '
+		           . 'compare one car against another. The figures below are for this '
+		           . 'car alone. To rank cars, ask the same question on the equipment '
+		           . 'or statistics report.';
+	}
 	/* The train ranking and pairing are built whenever trains are named at
 	   all, whichever leads. */
 	$chWantsTrain = ($posTr >= 0);
@@ -648,6 +666,9 @@ if($chAskOn && $chAsk !== null){
 	));
 	echo $chAnswerHtml;
 	if(trim($chAnswerHtml) !== ''){ $chAnswered = true; }
+	if($chDimNote !== ''){
+		echo '<div class="ask-note">'.htmlspecialchars($chDimNote).'</div>';
+	}
 	if($chRangeNote !== ''){
 		echo '<div class="ask-note">'.htmlspecialchars($chRangeNote).'</div>';
 	}
