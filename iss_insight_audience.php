@@ -153,9 +153,40 @@ function iss_ins_plain($f, $c, $opts = array()) {
            really is a short list; the same threshold the finding itself uses
            to decide between watch and info. */
         if ($F['n_rows_to_60pct'] > max(2, $F['n_rows_total'] * 0.2)) { return ''; }
-        return sprintf('Most of the total is concentrated in a few %s: %s%% of all failures are on just %d of the %d -- %s.',
-               $rowp, $F['share_pct'], $F['n_rows_to_60pct'], $F['n_rows_total'],
-               iss_aud_list($F['top'], 3));
+        /* @ambiguous -- The old sentence was "Most of the total is concentrated
+           in a few equipment: 60% of all failures are on just 2 of the 7 --
+           Static Converter (7) and Tachograph (2)." Four separate problems in
+           one line:
+             - "a few equipment" treats a mass noun as a count noun;
+             - "2 of the 7" never says 7 of WHAT;
+             - the 7 in "of the 7" and the 7 in "Static Converter (7)" are
+               different quantities sharing a numeral in the same sentence;
+             - the bracketed figures are unlabelled, and the 60% cannot be
+               checked against anything on the page.
+           So: the noun is said, both numerals are given their unit, and the
+           arithmetic behind the percentage is shown. */
+        $pairs = isset($F['top_pairs']) ? $F['top_pairs'] : array();
+        $bits  = array();
+        foreach ($pairs as $i => $pr) {
+            /* "failures" once, on the first, rather than after every name. */
+            $bits[] = $pr['label'] . ' with ' . (int)$pr['total']
+                    . ($i === 0 ? ' ' . iss_ins_unit($c, (int)$pr['total']) : '');
+        }
+        if (!count($bits)) { $bits = $F['top']; }   /* older finding, no pairs */
+
+        $s = sprintf('Failures are concentrated on %d of the %d %s: %s.',
+             $F['n_rows_to_60pct'], $F['n_rows_total'],
+             /* @countable -- follows a number, so "equipment types" not
+                "Equipment"; also lower case, since it is mid-sentence. */
+             iss_ins_rowcount($c, $F['n_rows_total']),
+             iss_aud_list(array_slice($bits, 0, 3), 3));
+        if (isset($F['cum']) && isset($F['grand']) && $F['grand'] > 0) {
+            /* "Together" only when there is more than one thing to add up. */
+            $s .= sprintf('%s is %d of %d, or %s%%.',
+                  ($F['n_rows_to_60pct'] > 1 ? ' Together that' : ' That'),
+                  (int)$F['cum'], (int)$F['grand'], $F['share_pct']);
+        }
+        return $s;
 
     case 'concentrated_on_units':
         /* Use the CROSS-TAB's row word, not the report's. On the equipment

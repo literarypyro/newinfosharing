@@ -519,6 +519,8 @@ function getDriver(ajaxHTML){
 	driverHTML="<select name='train_driver' id='train_driver'>";
 	var driverTerms=ajaxHTML.split("==>");
 	var count=(driverTerms.length)*1-1;
+	
+	driverHTML+="<option></option>";	
 	for(var n=0;n<count;n++){
 		var parts=driverTerms[n].split(";");
 		driverHTML+="<option value='"+parts[0]+"'>"+parts[1].replace("_ENYE_","?")+"</option>";

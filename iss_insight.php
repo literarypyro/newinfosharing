@@ -210,6 +210,22 @@ function iss_ins_plural($w, $n) {
     return $w . 's';
 }
 function iss_ins_rowword($c, $n) { return strtolower(iss_ins_plural($c['dimensions']['row'], $n)); }
+/* @countable -- The row word after a NUMBER.
+   "2 of the 7 cars" is fine; "2 of the 7 equipment" is not, because equipment
+   is a mass noun and does not take a count. Its countable form is "equipment
+   types", and saying so also removes a second ambiguity: on a report whose
+   rows are equipment, "the 7" could otherwise be read as 7 failures rather
+   than 7 kinds of equipment. Anything already countable is returned as it is. */
+function iss_ins_rowcount($c, $n) {
+    $w = iss_ins_rowword($c, $n);
+    $mass = array('equipment' => 'equipment type', 'rolling stock' => 'rolling stock unit');
+    foreach ($mass as $m => $countable) {
+        if ($w === $m || $w === $m . 's') {
+            return iss_ins_plural($countable, $n);
+        }
+    }
+    return $w;
+}
 /* The unit is a caller-supplied plural ("car-level failures", "incidents").
    At a count of one it has to lose the 's', or a one-record window reads
    "1 recorded failures". */
@@ -408,11 +424,16 @@ function iss_insight_findings($c) {
         $sorted = array();
         foreach ($rows as $r) { $r['total'] = iss_ins_row_total($r); $sorted[] = $r; }
         usort($sorted, 'iss_ins_cmp_total');
-        $cum = 0; $k = 0; $top = array();
+        $cum = 0; $k = 0; $top = array(); $topPairs = array();
         foreach ($sorted as $r) {
             if ($cum >= $grand * 0.6) { break; }
             $cum += $r['total']; $k++;
             $top[] = $r['label'] . ' (' . $r['total'] . ')';
+            /* @checkable -- the label and the count kept apart as well as
+               joined, so a sentence can write "Static Converter with 7
+               failures" instead of "Static Converter (7)" and leave the
+               reader guessing what the bracket holds. */
+            $topPairs[] = array('label' => $r['label'], 'total' => (int)$r['total']);
         }
         $n++;
         $F[] = array(
@@ -421,13 +442,20 @@ function iss_insight_findings($c) {
             /* Phrased so subject-verb agreement holds whichever way the row
                word falls -- "1 of 4 equipment account for" was wrong, and so
                would be "3 of 7 cars accounts for". */
+            /* @countable -- iss_ins_rowcount, not iss_ins_rowword: this word
+               follows a number, and "7 equipment" is not English. */
             'text' => sprintf('%s%% of the total is on %d of the %d %s: %s.',
                       iss_ins_pct($cum, $grand), $k, count($rows),
-                      iss_ins_rowword($c, count($rows)),
+                      iss_ins_rowcount($c, count($rows)),
                       implode(', ', array_slice($top, 0, 5))),
             'facts' => array('n_rows_to_60pct' => $k, 'n_rows_total' => count($rows),
                              'share_pct' => iss_ins_pct($cum, $grand),
-                             'top' => array_slice($top, 0, 5)),
+                             /* The arithmetic behind the percentage. Without
+                                these the reader is given a 60% they cannot
+                                check against any figure on the page. */
+                             'cum' => (int)$cum, 'grand' => (int)$grand,
+                             'top' => array_slice($top, 0, 5),
+                             'top_pairs' => array_slice($topPairs, 0, 5)),
         );
     }
 
