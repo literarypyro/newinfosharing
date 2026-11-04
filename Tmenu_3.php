@@ -1,0 +1,279 @@
+<?php
+require("trans menu_3.php"); //added mjun@
+?> 
+<style type='text/css'>
+
+/*--- Menu --- */
+table {
+	border-collapse:collapse;
+}
+ul#navMenu {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 6px 16px;
+	margin: 0;
+	width: auto;
+	list-style: none;
+	position: relative;
+	z-index: 2000;
+	background: #013E76;
+	border-top: 1px solid rgba(255,255,255,0.15);
+}
+
+ul#navMenu ul {
+	position: absolute;
+	left: 0;
+	top: 100%;
+	display: none;
+	padding: 4px 0;
+	margin: 0;
+	background: #fff;
+	border: 1px solid #D2DDEA;
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0,30,80,.15);
+	min-width: 200px;
+	/* No explicit width -- the browser shrink-to-fits this absolutely
+	   positioned box around its content's *preferred* width. Without
+	   white-space:nowrap on the links below, "preferred width" falls
+	   back to the wrap-at-word-boundary measurement, so a long label
+	   (e.g. "Onboard Equipment and Accessories") wraps to two lines
+	   inside a box stuck near the 200px floor instead of the box
+	   growing to fit it on one line -- min-width alone can't fix that,
+	   since it's a floor, not a signal to stop wrapping. Short labels
+	   never hit this path, which is why the menus looked "uniform and
+	   fine" except for the long ones. */
+	white-space: nowrap;
+	z-index: 2001;
+}
+
+ul#navMenu li {
+	display: block;
+	float: none;
+	position: relative;
+}
+
+ul#navMenu > li > a {
+	text-decoration: none;
+	padding: 6px 12px;
+	width: auto;
+	background: transparent;
+	color: #fff;
+	border: none;
+	float: none;
+	display: inline-block;
+	text-align: left;
+	font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+	font-size: 13px;
+	border-radius: 4px
+}
+
+ul#navMenu > li > a:hover {
+	background: rgba(255,255,255,0.14);
+	color: #fff
+}
+
+ul#navMenu li:hover ul {
+	display:block;
+}
+
+/* -- dropdown submenu items: fill the dropdown card, dark text on white -- */
+
+ul#navMenu ul a {
+	width: auto;
+	background: transparent;
+	color: #16243B;
+	border: none;
+	float: none;
+	display: block;
+	text-align: left;
+	padding: 7px 14px;
+	border-radius: 0;
+}
+
+ul#navMenu ul a:hover {
+	background: #EEF4FB;
+	color: #00529B;
+}
+
+ul#navMenu ul li {
+	display:block;
+	margin:0px
+}
+
+ul#navMenu ul ul {
+	top:0;left:100%;
+}
+
+ul#navMenu li:hover ul ul {
+	display:none;
+}
+
+ul#navMenu ul li:hover ul {
+	display:block;
+}
+  
+/**  try out*/ 
+/* loading spinner 
+body { height: 100%; overflow: hidden; }
+
+.no-js #loading-screen, 
+.no-js #pulsing-circle-container,
+.no-js #pulsing-circle { display: none;  }
+
+#loading-fallback { display: none; }
+
+.no-cssanimations #pulsing-circle { background-color: none; }
+.no-cssanimations #loading-fallback { display: block; }
+
+
+#loading-screen {
+  background: #fff;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 999;
+}
+
+#pulsing-circle-container {
+  display: block; 
+  position: absolute; 
+  margin: 0 auto; 
+  top: 0; 
+  left: 0;
+  bottom: 0;
+  right: 0; 
+  width: 100px;
+  height: 100px;
+}
+
+#pulsing-circle {
+  width: 100%;
+  height: 100%;
+  margin: 100px auto;
+  background-color: gray;
+  border-radius: 100%;  
+  -webkit-animation: scaleout 1.0s infinite ease-in-out;
+  animation: scaleout 1.0s infinite ease-in-out;
+}
+
+@-webkit-keyframes scaleout {
+  0% { -webkit-transform: scale(0.0) }
+  100% {
+    -webkit-transform: scale(1.0);
+    opacity: 0;
+  }
+}
+
+@keyframes scaleout {
+  0% { 
+    transform: scale(0.0);
+    -webkit-transform: scale(0.0);
+  } 100% {
+    transform: scale(1.0);
+    -webkit-transform: scale(1.0);
+    opacity: 0;
+  }
+}
+*/
+
+/* Replaced the old images/image_715235.gif (read as a nuclear/radiation
+   alert icon) with a plain CSS ring spinner in the console's own blue/
+   gold palette -- no external image dependency, and since this lives in
+   the one shared Tmenu_2.php, every page picks up the same neutral
+   spinner automatically. */
+#dvLoading {
+	background: none;
+	height: 46px;
+	width: 46px;
+	position: fixed;
+	left: 50%;
+	top: 50%;
+	margin: -23px 0 0 -23px;
+	z-index: 1000;
+	border: 4px solid rgba(0,82,155,0.15);
+	border-top-color: #00529B;
+	border-radius: 50%;
+	animation: ta-spin 0.8s linear infinite;
+}
+@keyframes ta-spin {
+	to { transform: rotate(360deg); }
+}
+
+</style>
+
+<!--
+ <script src="nprogress-master/nprogress.js"></script>
+ -->
+
+<script type="text/javascript" src="js/jquery-1.10.2.min.js"></script>
+
+<script language='javascript' src='ajax.js'></script>
+<script language='javascript'>
+
+
+  $(window).load(function() {
+/*     $("#loading-spinner").fadeOut(); 
+    $('#loading-screen').delay(350).fadeOut('slow'); 
+     $('body').delay(350).css({'overflow':'visible'});  */
+     
+     $('#dvLoading').delay(350).fadeOut('slow'); 
+  });
+  
+  /*
+  $(window).bind("load", function() {
+    $('#dvLoading').fadeOut(1500);
+ });
+  */
+  
+        
+</script>
+
+
+ 
+<!--
+<div id="loading-screen">
+	<div id="pulsing-circle-container">
+        <div id="pulsing-circle"><img scr="images/sprites.gif" id="loading-fallback">            
+        </div>        
+        <div id="dvLoading"></div>
+	</div>
+</div>
+
+-->
+<div id="dvLoading"></div>
+
+<link href="dist/css/hover.css" rel="stylesheet" media="all">
+<link href="dist/hover-min.css" rel="stylesheet" media="all">
+
+<!-- The Stylesheets -->
+    <!--    <link href="nprogress-master/nprogress.css" rel="stylesheet" /> -->
+
+
+<ul id="navMenu" >
+  
+  <li><a href="dashboard.php">Main Dashboard</a></li>
+
+</ul>
+
+<!--
+<script language='javascript' src='ajax.js'></script>
+<script language='javascript'>
+
+	// Quick Load
+
+	$(function(){	
+	
+	$("#dr").click(function() { NProgress.start();  });   
+	$("#dr1").click(function() { NProgress.start(); });
+	$("#dr2").click(function() { NProgress.start(); });
+	$("#dr3").click(function() { NProgress.start();
+	setTimeout(function() { NProgress.done(); $('.fade').removeClass('out'); }, 1000); });  
+	});
+	
+</script>
+-->

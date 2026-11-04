@@ -22,6 +22,13 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
        of 7 lost columns of empty space.
      - L4 column KEPT (operations.php had dropped it).
      - Sub-row count follows the compo (3 cars = 3 rows) instead of a fixed 4.
+   SKIPPING: ported from train_availability_skip.php (see the @skip comments).
+             Same `skipping` table, same processing.php?skipLocation endpoint,
+             same three POST handlers (insert / update / loading). The legacy
+             page spent two table columns and a variable-height band of rows
+             on this; here each train's skips are a stack of blocks in one
+             Skip column, the way switches became chips. The forms live in the
+             slide panel like every other form on this page.
    NOT PORTED FROM operations.php (no columns for them in the legacy schema):
      stabling / ready-for-insertion / planned-actual departure / loop,
      secondary driver, the Train Management board.
@@ -91,6 +98,187 @@ function getOrdinal($number){
 	if(($number%100)>=11 && ($number%100)<=13)
 		return $number.'th';
 	return $number.$ends[$number%10];
+}
+
+/* =========================================================================
+   SKIPPING HELPERS — ported from train_availability_skip.php
+   -------------------------------------------------------------------------
+   A skip has three facts: the departure, the arrival, and the loading.
+   Departure and arrival are encoded together, in one form.
+
+   The loading is usually the arrival: the train arrives at a station and
+   loads there, at that time. The loading_* columns exist for the case where
+   it is NOT — the train arrives at one station and loads at another, or
+   loads at a different time. They are filled in only then, which is why the
+   legacy link reads "+ Loading (If Separate)" and why the legacy column was
+   headed "Arrived/1st loading": the arrival IS the first loading by default.
+
+   So EMPTY loading_* means "loaded on arrival", not "not encoded yet" and
+   not "awaiting loading". There is no open/closed state on a skip and
+   nothing here waits on the operator. An earlier comment in the legacy file
+   read it the other way round; it was wrong, and so was the pending state
+   this page first rendered from it.
+
+   departure_location is an id into `departure_location` (the 13 stations in
+   line order, then North Turnback 14, South Turnback 15, I & R area 16).
+   arrived_location and loading_location are ids into `station` (1-12). That
+   asymmetry is the legacy schema's, not a typo here — the departure picker
+   is served by processing.php?skipLocation=Y, which reads the former.
+
+   via_location is free text rather than a location id, because the pocket
+   tracks are not rows in departure_location.
+   ========================================================================= */
+
+if(!function_exists('ccsSkipTableExists')){
+function ccsSkipTableExists($dbase){
+	static $exists=null;
+	if($exists===null){
+		$chk=@$dbase->query("show tables like 'skipping'");
+		$exists=($chk && $chk->num_rows>0);
+	}
+	return $exists;
+}
+}
+
+/* HH:MM, tolerating empty, null and zero dates */
+if(!function_exists('ccsSkipTime')){
+function ccsSkipTime($v){
+	if($v===null || $v==="" || $v=="0000-00-00 00:00:00"){ return ""; }
+	$t=strtotime($v);
+	return ($t===false)?"":date("H:i",$t);
+}
+}
+
+/* Null-safe name lookup. getTrainDriver() returns the raw id for an unknown
+   row, which is right for a required driver column and wrong for the three
+   nullable ones here, so skips get their own formatter. SUP -> STDO applied
+   at the source, the way the legacy page applied it at every print site. */
+if(!function_exists('ccsSkipPerson')){
+function ccsSkipPerson($id,$dbase){
+	$id=intval($id);
+	if($id<=0){ return ""; }
+	$rs=db_query($dbase,"select firstName,lastName,position from train_driver where id=? limit 1",array($id));
+	if($rs===false || $rs->num_rows==0){ return ""; }
+	$r=$rs->fetch_assoc();
+	return str_replace("SUP","STDO",$r['position']." ".substr($r['firstName'],0,1).". ".$r['lastName']);
+}
+}
+
+if(!function_exists('ccsPost')){
+function ccsPost($k,$d=""){ return isset($_POST[$k]) ? $_POST[$k] : $d; }
+}
+
+/* @skip -- the month/day/year/hour/minute/amorpm -> "Y-m-d H:i" conversion the
+   legacy page repeated inline eight times, once per handler. Two fixes folded in:
+
+   1. The insert branch of the legacy skipping handler tested $_POST['hour']
+      when it meant $_POST['hour2'], so a skip saved with a departure time but
+      no arrival time yet built its arrival from a blank hour -- strtotime()
+      returned false and date() stamped 1970-01-01 into arrived_time. Here the
+      suffix decides which field is tested, so the two groups can't cross.
+   2. A failed strtotime() returns "" rather than a 1970 date. */
+if(!function_exists('ccsPostDateTime')){
+function ccsPostDateTime($sfx=''){
+	if(!isset($_POST['hour'.$sfx]) || $_POST['hour'.$sfx]===""){ return ""; }
+	$hour   = $_POST['hour'.$sfx];
+	$amorpm = ccsPost('amorpm'.$sfx);
+	if($amorpm=="pm"){ if($hour<12) $hour+=12; }
+	else { if($hour=="12") $hour=0; }
+	$t=strtotime(ccsPost('year'.$sfx)."-".ccsPost('month'.$sfx)."-".ccsPost('day'.$sfx)
+		." ".$hour.":".ccsPost('minute'.$sfx));
+	return ($t===false)?"":date("Y-m-d H:i",$t);
+}
+}
+
+if(!function_exists('ccsLoadSkips')){
+function ccsLoadSkips($dbase,$trainAvaId){
+	$out=array();
+	if(!ccsSkipTableExists($dbase)){ return $out; }
+	/* @skip -- ordered ASCENDING, where the legacy page ordered DESC. In a
+	   two-column band the newest-first order read fine; in a vertical stack
+	   inside one cell it reads as a timeline, so it matches the switch trail
+	   beside it (which is `order by date_change`). */
+	$sql="select s.*, dl.name as departure_name, ll.station_name as loading_name, ss.station_name as arrived_name
+		from skipping s
+		left join departure_location dl on dl.id = s.departure_location
+		left join station ll on ll.id = s.loading_location
+		left join station ss on ss.id = s.arrived_location
+		where s.tar_id=? order by s.departure_time, s.id";
+	$q=db_query($dbase,$sql,array(intval($trainAvaId)));
+	if($q===false){ return $out; }
+	while($r=$q->fetch_assoc()){
+		$note="";
+		if(isset($r['via_location']) && trim($r['via_location'])!=""){
+			$note="via ".$r['via_location'];
+			$va=ccsSkipTime(isset($r['via_arrival'])?$r['via_arrival']:"");
+			$vd=ccsSkipTime(isset($r['via_departure'])?$r['via_departure']:"");
+			if($va!="" || $vd!=""){ $note.=" (".$va." / ".$vd.")"; }
+		}
+		$depDrv  = ccsSkipPerson($r['departure_driver'],$dbase);
+		$loadDrv = ccsSkipPerson($r['loading_driver'],$dbase);
+		$loadTime= ccsSkipTime($r['loading_time']);
+		/* @skip -- the legacy display read incident_id while the form wrote
+		   incident_no, so a skip encoded through the form never showed its IN.
+		   Prefer incident_id when the row has one, fall back to what the form
+		   actually writes. */
+		$incident="";
+		if(isset($r['incident_id']) && $r['incident_id']!="" && $r['incident_id']!="0") $incident=$r['incident_id'];
+		elseif(isset($r['incident_no']) && $r['incident_no']!="")                       $incident=$r['incident_no'];
+
+		/* @skip -- "was the loading separate from the arrival?", which is the
+		   only question the loading_* columns answer. A loading recorded at the
+		   same station and the same minute as the arrival is the arrival, so it
+		   collapses onto one line rather than being printed twice. */
+		$loadWhere = trim($r['loading_name']." ".$r['loading_bound']);
+		$arrWhere  = trim($r['arrived_name']);
+		$arrTime   = ccsSkipTime($r['arrived_time']);
+		$separateLoad = false;
+		if($loadTime!="" || $loadWhere!=""){
+			/* arrived_location carries no bound of its own, so the loading
+			   station matches when its name is the same up to the bound. */
+			$sameStation = ($arrWhere!="" && $loadWhere!="" && strpos($loadWhere,$arrWhere)===0);
+			$sameTime    = ($arrTime!="" && $loadTime==$arrTime);
+			$separateLoad= !($sameStation && $sameTime);
+		}
+
+		$out[]=array(
+			'id'       =>$r['id'],
+			'sep_load' =>$separateLoad,
+			'from'     =>trim($r['departure_name']." ".$r['departure_bound']),
+			'dep'      =>ccsSkipTime($r['departure_time']),
+			'arr'      =>ccsSkipTime($r['arrived_time']),
+			'arr_name' =>trim($r['arrived_name']),
+			'to'       =>trim($r['loading_name']." ".$r['loading_bound']),
+			'load'     =>$loadTime,
+			'in'       =>$incident,
+			'note'     =>$note,
+			'depdrv'   =>$depDrv,
+			/* only shown when it actually changed hands */
+			'loaddrv'  =>($loadDrv!="" && $loadDrv!=$depDrv)?$loadDrv:"",
+			'requested'=>$r['requested_by'],
+			'reported' =>$r['reported_by'],
+			/* raw ids/timestamps, handed to the edit form so it opens filled in
+			   instead of blank -- see openSkipEdit() */
+			'raw'      =>array(
+				'id'        =>$r['id'],
+				'dep'       =>$r['departure_time'],
+				'arr'       =>$r['arrived_time'],
+				'load'      =>$r['loading_time'],
+				'dep_loc'   =>$r['departure_location'],
+				'dep_bound' =>$r['departure_bound'],
+				'arr_loc'   =>$r['arrived_location'],
+				'load_loc'  =>$r['loading_location'],
+				'load_bound'=>$r['loading_bound'],
+				'drv'       =>$r['departure_driver'],
+				'load_drv'  =>$r['loading_driver'],
+				'req'       =>$r['requested_by'],
+				'rep'       =>$r['reported_by'],
+				'inc'       =>isset($r['incident_no'])?$r['incident_no']:""
+			)
+		);
+	}
+	return $out;
+}
 }
 
 /* ── POST handlers (verbatim from original, whitespace tightened only) ── */
@@ -238,6 +426,51 @@ if(isset($_POST['edit_car'])){
 	insertCompo($edit_car_id,$_POST['car_1'],$db); insertCompo($edit_car_id,$_POST['car_2'],$db);
 	insertCompo($edit_car_id,$_POST['car_3'],$db); insertCompo($edit_car_id,$_POST['car_4'],$db);
 }
+
+/* ── SKIPPING POST handlers — ported from train_availability_skip.php ──
+   All three are the legacy statements with their values bound rather than
+   interpolated. That is not cosmetic here: requested_by and reported_by are
+   free-typed operator names, and the legacy INSERT wrapped them in single
+   quotes, so the first STDO with an apostrophe in their surname broke the
+   statement outright. Remarks-style double-quote wrapping of the two
+   timestamps goes the same way. */
+
+if(isset($_POST['update_skipping'])){
+	/* @skip -- departure_bound added to the UPDATE. The edit form has always
+	   shown a Bound select, and the legacy UPDATE silently dropped it, so
+	   correcting a skip's bound was impossible once it was saved. */
+	db_exec($db,"update skipping set
+			departure_time=?, departure_location=?, departure_bound=?, departure_driver=?,
+			requested_by=?, reported_by=?, incident_no=?,
+			arrived_time=?, arrived_location=?
+		where id=?",
+		array(
+			ccsPostDateTime(''), ccsPost('skip_loc'), ccsPost('bound'), ccsPost('train_driver'),
+			ccsPost('requested_by'), ccsPost('reported_by'), ccsPost('incident_no'),
+			ccsPostDateTime('2'), ccsPost('arrived_location'),
+			$_POST['update_skipping']
+		));
+}
+elseif(isset($_POST['skip_loc'])){
+	db_exec($db,"insert into skipping
+			(departure_time,departure_location,departure_driver,departure_bound,tar_id,
+			 requested_by,reported_by,incident_no,arrived_time,arrived_location)
+		values (?,?,?,?,?,?,?,?,?,?)",
+		array(
+			ccsPostDateTime(''), ccsPost('skip_loc'), ccsPost('train_driver'), ccsPost('bound'),
+			ccsPost('departure_id'), ccsPost('requested_by'), ccsPost('reported_by'),
+			ccsPost('incident_no'), ccsPostDateTime('2'), ccsPost('arrived_location')
+		));
+}
+
+if(isset($_POST['loading_location'])){
+	/* legacy SELECTed the row first and then updated it by the id it had just
+	   read back from the id it was given; dropped. */
+	db_exec($db,"update skipping set loading_time=?, loading_location=?, loading_driver=?, loading_bound=?
+		where id=?",
+		array(ccsPostDateTime(''), $_POST['loading_location'], ccsPost('train_driver'),
+		      ccsPost('bound'), ccsPost('loading_id')));
+}
 ?>
 
 <?php $selfPage = basename(__FILE__); /* form action / reload target — rename-safe */ ?>
@@ -315,7 +548,7 @@ button, input, select, textarea,
    Identifiers stay monospace: an index number or a car number is a code to be
    read character by character, not prose. */
 .idx-num, .sw-chip .sw-idx, .tc-car, td.lvl, .ops-info .val { font-family:var(--ta-mono); }
-.hl-time, .ta-slot-time, .sw-chip .sw-time,
+.hl-time, .ta-slot-time, .sw-chip .sw-time, .skip-time,
 .ta-ops td .hl-time, .ta-ops td .ta-slot-time {
 	font-family:var(--ta-sans);
 	font-variant-numeric:tabular-nums;
@@ -358,7 +591,7 @@ button, input, select, textarea,
 
 /* ── Refined table (operations.php) — Line 3 skin ── */
 .ops-table-wrap   { margin:8px 16px 14px; overflow-x:auto; border-radius:6px; box-shadow:0 1px 3px rgba(0,30,80,.12); background:#fff; }
-table.train_ava   { width:100%; border-collapse:separate; border-spacing:0; min-width:980px; }
+table.train_ava   { width:100%; border-collapse:separate; border-spacing:0; min-width:1120px; }
 table.train_ava th{ background:var(--rail); color:#fff; padding:9px 10px; font-family:var(--ta-sans); font-weight:600; font-size:11px; letter-spacing:.4px; text-transform:uppercase; text-align:center; border-right:1px solid rgba(255,255,255,.18); border-bottom:3px solid var(--gold); }
 table.train_ava td{ padding:8px 10px; vertical-align:top; border-right:1px solid #E6EDF5; border-bottom:1px solid #E6EDF5; font-family:var(--ta-sans); font-size:12.5px; }
 table.train_ava tr.row-first td { border-top:2px solid var(--line); }
@@ -405,6 +638,29 @@ tr.is-skipping td.idx-cell::after{ content:""; position:absolute; left:0; bottom
 .sw-chip .ta-del-sw.disabled { display:none; }
 .idx-actions      { margin-top:6px; visibility:hidden; }
 tr.tr-hover .idx-actions { visibility:visible; }
+
+/* ── Skip column — ported from train_availability_skip.php's two Skip columns
+      ("Skipped from" / "Arrived/1st loading") plus the variable-height band of
+      rows they needed. Here each skip is one block in a stack, like the switch
+      trail: no band arithmetic, no 2N+1 rowspan, and no cap. ── */
+td.skip-cell      { min-width:205px; font-size:11.5px; vertical-align:top !important; }
+.skip-item        { background:#FBFAFF; border:1px solid #E2DCF7; border-left:3px solid var(--c-skipping); border-radius:4px; padding:4px 7px; margin-bottom:5px; }
+.skip-leg         { display:flex; align-items:baseline; gap:5px; flex-wrap:wrap; line-height:1.5; }
+.skip-leg--sub    { color:var(--mut); }
+.skip-time        { font-weight:700; color:var(--ink); }
+.skip-leg--sub .skip-time { font-weight:600; color:var(--mut); }
+.skip-stn         { font-weight:600; }
+.skip-arrow       { color:var(--c-skipping); }
+.skip-tag         { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#99A2AE; }
+.skip-meta        { color:var(--mut); font-size:10.5px; margin-top:2px; line-height:1.45; }
+.skip-in          { font-size:10.5px; color:#19459B; }
+.skip-note        { font-size:10.5px; color:#9A3412; }
+.skip-add         { margin-top:2px; }
+/* per-skip controls follow the page's hover convention (.idx-actions,
+   .ta-slot-actions); "+ Skip" stays put, since with no skips yet it is the
+   only thing in the cell to find. */
+.skip-item .ta-act { visibility:hidden; }
+tr.tr-hover .skip-item .ta-act { visibility:visible; }
 
 /* Car column — one car per sub-row (operations.php), linked like the original */
 td.tc-car-cell    { text-align:center; vertical-align:middle !important; min-width:64px; }
@@ -488,7 +744,12 @@ td.del-cell a.disabled { display:none; }
 .ta-panel input[type="submit"]:hover, .ta-panel button[type="button"]:not(.ta-panel-close):hover { background:var(--rail-dark); border-color:var(--rail-dark); }
 .ta-panel input[type="checkbox"] { margin-right:5px; vertical-align:middle; }
 .ta-panel select[name="month"], .ta-panel select[name="day"], .ta-panel select[name="year"],
-.ta-panel select[name="hour"], .ta-panel select[name="minute"], .ta-panel select[name="amorpm"] { width:auto; display:inline-block; margin-right:4px; }
+.ta-panel select[name="hour"], .ta-panel select[name="minute"], .ta-panel select[name="amorpm"],
+.ta-panel select[name="month2"], .ta-panel select[name="day2"], .ta-panel select[name="year2"],
+.ta-panel select[name="hour2"], .ta-panel select[name="minute2"], .ta-panel select[name="amorpm2"] { width:auto; display:inline-block; margin-right:4px; }
+/* bootstrap-2 typeahead dropdown, used by Requested By / Reported By */
+.ta-panel .typeahead { width:100%; }
+.typeahead.dropdown-menu { z-index:100001; font-size:12px; }
 
 /* Legacy link classes still referenced by permission flags */
 a.Llink:link { color:#FF0000; } a.Llink:visited { color:black; } a.Llink:hover { color:Orange; } a.Llink:active { color:#0000FF; }
@@ -503,6 +764,24 @@ a.LEdit:visited { color:blue; } a.LDel:visited { color:red; }
 }
 </style>
 
+<?php
+/* @skip -- Requested By / Reported By suggestion lists, ported from the legacy
+   page. Two changes: the lists are read through the page's existing $db rather
+   than a second connection opened purely for this, and the two columns are
+   queried separately. Legacy filtered on requested_by and then harvested
+   reported_by from the same rows, so any STDO who had only ever reported a skip
+   was missing from the Reported By list. */
+$REQUESTED_BY=array(); $REPORTED_BY=array();
+if(ccsSkipTableExists($db)){
+	$q=$db->query("select distinct requested_by from skipping where requested_by is not null and requested_by<>'' order by requested_by");
+	if($q){ while($r=$q->fetch_assoc()){ $REQUESTED_BY[]=$r['requested_by']; } }
+	$q=$db->query("select distinct reported_by from skipping where reported_by is not null and reported_by<>'' order by reported_by");
+	if($q){ while($r=$q->fetch_assoc()){ $REPORTED_BY[]=$r['reported_by']; } }
+}
+$jsonFlags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+if(defined('JSON_UNESCAPED_UNICODE')) $jsonFlags = $jsonFlags | JSON_UNESCAPED_UNICODE;
+?>
+
 <script language='javascript' src='ajax.js'></script>
 <script language="javascript">
 /* ── All JS from train_availability.php. Only the container changed:
@@ -510,9 +789,15 @@ a.LEdit:visited { color:blue; } a.LDel:visited { color:red; }
       switch add/delete handlers write chips instead of <td> cells. ── */
 var driverHTML="";
 
+var REQUESTED_BY = <?= json_encode($REQUESTED_BY,$jsonFlags) ?>;
+var REPORTED_BY  = <?= json_encode($REPORTED_BY,$jsonFlags) ?>;
+
 function setHTML(){ makeajax("processing.php?trainDriver=Y","getDriver"); }
 function setPH(){ makeajax("processing.php?ph_trams=Y","getPhTrams"); }
 function setSchool(){ makeajax("processing.php?supDriver=Y","getSchoolDriver"); }
+/* @skip -- same endpoint the legacy skip page used; nothing new is needed in
+   processing.php for any of this. */
+function setSkipping(){ makeajax("processing.php?skipLocation=Y","getSkipLocation"); }
 
 function getDriver(ajaxHTML){
 	if(ajaxHTML=="None available") return;
@@ -526,7 +811,13 @@ function getDriver(ajaxHTML){
 		driverHTML+="<option value='"+parts[0]+"'>"+parts[1].replace("_ENYE_","?")+"</option>";
 	}
 	driverHTML+="</select>";
-	document.getElementById('td').innerHTML=driverHTML;
+	var el=document.getElementById('td');
+	if(el) el.innerHTML=driverHTML;
+	/* @skip -- the legacy page carried a near-duplicate getDriver3() whose only
+	   job was to mark one <option selected> when a skip's loading form reopened.
+	   applyPrefill() does that for every control on every form, so the clone is
+	   gone. */
+	applyPrefill();
 }
 
 function getSchoolDriver(ajaxHTML){
@@ -556,7 +847,86 @@ function getPhTrams(ajaxHTML){
 	document.getElementById('ph_trams_tag').innerHTML=driverHTML;
 }
 
+/* @skip -- departure locations (departure_location: stations + turnbacks +
+   I & R area). Served by processing.php, so it is not the hardcoded 1-12 list
+   the arrival/loading pickers use. */
+function getSkipLocation(ajaxHTML){
+	if(ajaxHTML=="None available") return;
+	var h="<select name='skip_loc' id='skip_loc'>";
+	var terms=ajaxHTML.split("==>");
+	var count=(terms.length)*1-1;
+	for(var n=0;n<count;n++){
+		var parts=terms[n].split(";");
+		h+="<option value='"+parts[0]+"'>"+parts[1]+"</option>";
+	}
+	h+="</select>";
+	var el=document.getElementById('skip_location');
+	if(el) el.innerHTML=h;
+	applyPrefill();
+}
+
+/* @skip -- the 12-station list, which the legacy page spelled out twice (once
+   for Arrived Location, once for Loading Location) on top of a third copy in
+   the Inserted To picker. Values and labels are verbatim, "Ayale Ave." typo and
+   all, so this page keeps agreeing with the other two copies; fix all three or
+   none. */
+var OPS_STATIONS=[[1,'North Ave.'],[2,'Quezon Ave.'],[3,'GMA Kamuning'],[4,'Araneta - Cubao'],
+	[5,'Santolan'],[6,'Ortigas'],[7,'Shaw Boulevard'],[8,'Boni Avenue'],[9,'Guadalupe'],
+	[10,'Ayale Ave.'],[11,'Magallanes'],[12,'Taft Ave.']];
+function stationSelect(name){
+	var h="<select name='"+name+"' id='"+name+"'>";
+	for(var i=0;i<OPS_STATIONS.length;i++) h+="<option value='"+OPS_STATIONS[i][0]+"'>"+OPS_STATIONS[i][1]+"</option>";
+	return h+"</select>";
+}
+function boundSelect(){
+	return "<select name='bound' id='bound'><option value='NB'>Northbound</option><option value='SB'>Southbound</option></select>";
+}
+
+/* ── Prefill ──────────────────────────────────────────────────────────────
+   @skip -- new, and the reason it exists: in the legacy page, Edit on an
+   existing skip opened the SAME blank form as "+ Skip" and posted every field
+   over the stored row, so correcting one time blanked the driver, the
+   requesting STDO, the incident number and the arrival. formPrefill is a flat
+   map of control name -> value; applyPrefill() is idempotent and is called
+   again by each AJAX callback, because the driver and departure-location
+   selects do not exist yet when the form is first written.               */
+var formPrefill=null;
+
+function applyPrefill(){
+	if(!formPrefill) return;
+	var form=document.getElementById('add_form');
+	if(!form) return;
+	for(var k in formPrefill){
+		if(!formPrefill.hasOwnProperty(k)) continue;
+		var v=formPrefill[k];
+		if(v===null||v===undefined||v==="") continue;
+		var el=form.querySelector('[name="'+k+'"]');
+		if(el) el.value=v;
+		/* a value with no matching <option> simply leaves the select unset,
+		   which is the legacy behaviour anyway */
+	}
+}
+
+/* "2026-11-04 06:56" -> the six select values for that group ('' or '2') */
+function prefillDate(map,sfx,dt){
+	if(!dt) return;
+	var m=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/.exec(dt);
+	if(!m) return;
+	var h24=parseInt(m[4],10);
+	var ap=(h24>=12)?'pm':'am';
+	var h=h24%12; if(h===0) h=12;
+	map['year'+sfx]   = m[1];
+	map['month'+sfx]  = String(parseInt(m[2],10));
+	map['day'+sfx]    = String(parseInt(m[3],10));
+	map['hour'+sfx]   = String(h);
+	map['minute'+sfx] = String(parseInt(m[5],10));
+	map['amorpm'+sfx] = ap;
+}
+
 function setDate(){
+	var cell=document.getElementById('cell');
+	if(!cell) return;   /* editIndex / editCar have no time field; the unguarded
+	                       lookup threw there and killed the rest of this call */
 	var d=new Date();
 	var year=d.getFullYear(), mmonth=d.getMonth()*1+1, day=d.getDate();
 	var tentativehour=d.getHours(), minute=d.getMinutes(), hour=0, amorpm="AM";
@@ -584,15 +954,87 @@ function setDate(){
 	dateHTML+="<option value='am'"+(amorpm=="AM"?" selected":"")+">AM</option>";
 	dateHTML+="<option value='pm'"+(amorpm=="PM"?" selected":"")+">PM</option>";
 	dateHTML+="</select>";
-	document.getElementById('cell').innerHTML=dateHTML;
+	cell.innerHTML=dateHTML;
 }
+
+/* @skip -- second time widget (Arrived Time), the "2" group of field names.
+   Ported from the dateHTML2 half of the legacy setDate(), where the minute
+   loop wrote its `selected` into dateHTML instead of dateHTML2 -- so the
+   arrival minute was never preselected and the departure markup got a stray
+   token appended after it had already been written to the DOM. */
+function setDate2(){
+	var cell=document.getElementById('cell3');
+	if(!cell) return;
+	var d=new Date();
+	var year=d.getFullYear(), mmonth=d.getMonth()*1+1, day=d.getDate();
+	var t=d.getHours(), minute=d.getMinutes(), hour=0, amorpm="AM";
+	if(t==0){ hour=12; amorpm="AM"; }
+	else if(t>12){ hour=t-12; amorpm="PM"; }
+	else { hour=t; amorpm="AM"; }
+	var months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+	var h="<select name='month2' id='month2'><option></option>";
+	for(var i=1;i<=12;i++) h+="<option value='"+i+"'"+(mmonth==i?" selected":"")+">"+months[i-1]+"</option>";
+	h+="</select>";
+	h+="<select name='day2' id='day2'><option></option>";
+	for(var i=1;i<=31;i++) h+="<option value='"+i+"'"+(day==i?" selected":"")+">"+i+"</option>";
+	h+="</select>";
+	var yearLimit2=year*1+16;
+	h+="<select name='year2' id='year2'><option></option>";
+	for(var i=1999;i<=yearLimit2;i++) h+="<option value='"+i+"'"+(year==i?" selected":"")+">"+i+"</option>";
+	h+="</select><br>";
+	h+="<select name='hour2'><option></option>";
+	for(var i=1;i<=12;i++) h+="<option value='"+i+"'"+(hour==i?" selected":"")+">"+i+"</option>";
+	h+="</select>";
+	h+="<select name='minute2'><option></option>";
+	for(var i=0;i<=59;i++){ var label=(i<10)?"0"+i:i; h+="<option value='"+i+"'"+(minute==i?" selected":"")+">"+label+"</option>"; }
+	h+="</select>";
+	h+="<select name='amorpm2'><option></option>";
+	h+="<option value='am'"+(amorpm=="AM"?" selected":"")+">AM</option>";
+	h+="<option value='pm'"+(amorpm=="PM"?" selected":"")+">PM</option>";
+	h+="</select>";
+	cell.innerHTML=h;
+}
+
+/* @skip -- Requested By / Reported By. Free text with a suggestion list built
+   from the names already in the table, so the same STDO is not spelled three
+   ways. data-provide only fires at page load, so the plugin is initialised by
+   hand; if bootstrap's typeahead is not on the page the field degrades to a
+   plain text input instead of throwing (the legacy page assumed it). */
+function buildTypeahead(containerId,fieldName,source){
+	var c=document.getElementById(containerId);
+	if(!c) return;
+	var input=document.createElement('input');
+	input.type='text';
+	input.name=fieldName;
+	input.className='span6 typeahead';
+	input.autocomplete='off';
+	c.innerHTML='';
+	c.appendChild(input);
+	if(window.jQuery && $.fn && $.fn.typeahead){ $(input).typeahead({source:source,items:4}); }
+	applyPrefill();
+}
+function setRequest(){ buildTypeahead('request','requested_by',REQUESTED_BY); }
+function setReport(){ buildTypeahead('report','reported_by',REPORTED_BY); }
 
 /* Panel titles per form type (panel header replaces the modal's static "Edit Record") */
 var panelTitles={ add_train:"Add / Prep Train", unimog:"Add / Prep UNIMOG Train",
 	insertion:"Add Insertion", removal:"Add Removal", remarks:"Add / Edit Remarks",
-	index_switch:"Switch Index No.", editIndex:"Edit Index No.", editCar:"Edit Train Compo" };
+	index_switch:"Switch Index No.", editIndex:"Edit Index No.", editCar:"Edit Train Compo",
+	skipping:"Skipping Departure", loading:"Skipping Loading" };
+
+/* @skip -- skipId drives whether the skipping form INSERTs or UPDATEs. In the
+   legacy page it was a global that nothing ever reset, so once an operator had
+   edited one skip, every later "+ Skip" on any train still carried the hidden
+   update_skipping field and overwrote that first skip instead of adding a new
+   one. Here changeForm() clears it on every call unless the caller is one of
+   the two edit entry points, which set keepSkipContext immediately before. */
+var skipId="";
+var keepSkipContext=false;
 
 function changeForm(form_type,form_id,form_extra){
+	if(!keepSkipContext){ skipId=""; formPrefill=null; }
+	keepSkipContext=false;
+
 	var htmlCode="";
 	if(form_type=="insertion"){
 		htmlCode="<table><tr><th colspan=2>Add Insertion</th></tr>";
@@ -659,6 +1101,39 @@ function changeForm(form_type,form_id,form_extra){
 		htmlCode+="<tr><td colspan=2 align=center><button type='button' onclick='submitSwitch("+form_id+")'>Submit</button></td></tr></table>";
 	}
 	
+	/* @skip -- Skipping departure. Same field names the legacy page posted, so
+	   the handlers above are the legacy handlers. Reordered into the sequence
+	   the encoder actually works in: when and where it left, who drove, who
+	   asked and who reported, then the arrival. */
+	else if(form_type=="skipping"){
+		var editing=(skipId!=="");
+		htmlCode="<table><tr><th colspan=2>"+(editing?"Edit Skipping Departure":"Add Skipping Departure")+"</th></tr>";
+		htmlCode+="<tr><td>Time of Departure</td><td id='cell' name='cell'></td></tr>";
+		htmlCode+="<tr><td>Departure Location</td><td id='skip_location'></td></tr>";
+		htmlCode+="<tr><td>Bound</td><td>"+boundSelect()+"</td></tr>";
+		htmlCode+="<tr><td>Train Driver</td><td id='td' name='td'></td></tr>";
+		htmlCode+="<tr><td>Requested By</td><td id='request'></td></tr>";
+		htmlCode+="<tr><td>Reported By</td><td id='report'></td></tr>";
+		htmlCode+="<tr><td>Incident Number</td><td><input type='text' name='incident_no' autocomplete='off' /></td></tr>";
+		htmlCode+="<tr><td>Arrived Time</td><td id='cell3' name='cell3'></td></tr>";
+		htmlCode+="<tr><td>Arrived Location</td><td>"+stationSelect('arrived_location')+"</td></tr>";
+		htmlCode+="<tr><td colspan=2 class='submit' align=center>";
+		if(editing) htmlCode+="<input type=hidden name='update_skipping' id='update_skipping' value='"+skipId+"' />";
+		htmlCode+="<input type=hidden name='departure_id' id='departure_id' value='"+form_id+"' />";
+		htmlCode+="<input type=submit value='"+(editing?"Save":"Add")+"' /></td></tr></table>";
+	}
+	/* @skip -- Loading, the second sitting. form_id is the skipping row's id,
+	   not a train id. */
+	else if(form_type=="loading"){
+		htmlCode="<table><tr><th colspan=2>Skipping Loading</th></tr>";
+		htmlCode+="<tr><td>Time of Loading</td><td id='cell' name='cell'></td></tr>";
+		htmlCode+="<tr><td>Loading Location</td><td>"+stationSelect('loading_location')+"</td></tr>";
+		htmlCode+="<tr><td>Bound</td><td>"+boundSelect()+"</td></tr>";
+		htmlCode+="<tr><td>Train Driver<br>during Loading</td><td id='td' name='td'></td></tr>";
+		htmlCode+="<tr><td colspan=2 class='submit' align=center>";
+		htmlCode+="<input type=hidden name='loading_id' id='loading_id' value='"+form_id+"' />";
+		htmlCode+="<input type=submit value='Save' /></td></tr></table>";
+	}
 	
 	else if(form_type=="editIndex"){
 		htmlCode="<table><tr><th colspan=2>Edit Index No.</th></tr>";
@@ -719,6 +1194,44 @@ function changeForm(form_type,form_id,form_extra){
 		else if(form_extra=="schooling") setSchool();
 		else setHTML();
 	}
+	if(form_type=="skipping"){ setDate2(); setSkipping(); setHTML(); setRequest(); setReport(); }
+	if(form_type=="loading"){ setHTML(); }
+	applyPrefill();   /* the synchronous controls; the AJAX ones call it again */
+}
+
+/* @skip -- the two edit entry points. Both read the row's stored values off a
+   data-skip attribute rather than taking them as a dozen onclick arguments,
+   so a surname with an apostrophe in it cannot break the markup. */
+function openSkipEdit(el){
+	var d;
+	try { d=JSON.parse(el.getAttribute('data-skip')); } catch(e){ return; }
+	skipId=String(d.id);
+	formPrefill={
+		skip_loc:d.dep_loc, bound:d.dep_bound, train_driver:d.drv,
+		requested_by:d.req, reported_by:d.rep, incident_no:d.inc,
+		arrived_location:d.arr_loc
+	};
+	prefillDate(formPrefill,'',d.dep);
+	prefillDate(formPrefill,'2',d.arr);
+	keepSkipContext=true;
+	changeForm('skipping',d.train,'skipping');
+	return false;
+}
+function openLoadingForm(el){
+	var d;
+	try { d=JSON.parse(el.getAttribute('data-skip')); } catch(e){ return; }
+	skipId="";
+	formPrefill={
+		loading_location:d.load_loc,
+		bound:(d.load_bound?d.load_bound:d.dep_bound),
+		/* an unencoded loading keeps the departure driver preselected, which is
+		   what the legacy getDriver3() existed to do */
+		train_driver:(d.load_drv?d.load_drv:d.drv)
+	};
+	prefillDate(formPrefill,'',d.load);   /* blank -> setDate() leaves "now" */
+	keepSkipContext=true;
+	changeForm('loading',d.id,'loading');
+	return false;
 }
 
 function setPreset(check){
@@ -973,8 +1486,7 @@ function filterTrains(status,btn){
 		/* @skipping -- Skipping is an attribute, not a data-status, so it is
 		   tested against its own flag while every other pill still tests the
 		   lifecycle status. A skipping train that has been removed appears
-		   under BOTH pills, which is the point. Mirrors
-		   train_operations_admin.php exactly. */
+		   under BOTH pills, which is the point. */
 		var hit = (status==='all')
 			|| (status==='skipping'
 				? rows[j].getAttribute('data-skipping')==='1'
@@ -1132,6 +1644,7 @@ if($SRemove!="disabled"){
 	<th>Time on I336</th>
 	<th>Inserted</th>
 	<th>Removed</th>
+	<th>Skip</th>
 	<th>Remarks/Cause of Failure/Removal</th>
 	<th>L2</th>
 	<th>L3</th>
@@ -1167,27 +1680,26 @@ for($i=0; $i<$nm; $i++){
 
 	$removed = ($row2['remove_time']!="" && $row2['remove_time']!="0000-00-00 00:00:00");
 
-	/* @skipping -- This read $row2['skipping'] == "true". Two things were wrong
-	   with that, and together they made the Skipping filter permanently empty.
+	/* @skipping -- SOURCE CHANGED, and this is the point of the port.
+	   This used to read: $skipping = inserted AND inserted_to not in ("", north).
+	   That was a stand-in, chosen because nothing on this page wrote a skip and
+	   the `skipping` column it originally tested had no author at all. It is a
+	   proxy: it infers a skip from where the train was inserted, so it cannot
+	   see a skip that started mid-loop, it cannot say when or where, and it
+	   calls every Quezon insertion a skip whether or not one was recorded.
 
-	   The column is not in this page's SELECT (see the query above), so the
-	   index was undefined on every row -- a notice per train, and a value that
-	   could never equal "true". And nothing in the console writes that column
-	   at all: both this page and train_operations_admin.php record an insertion
-	   by writing inserted_to, never skipping. So the column has no author, and
-	   a flag with no author is not a source of truth.
+	   The `skipping` table has an author -- train_availability_skip.php, now
+	   also this page -- so the flag is the rows themselves. A train is skipping
+	   when it has at least one skip encoded against it.
 
-	   inserted_to is the real record: the insertion form writes 'north' or
-	   'quezon'. A train inserted anywhere other than North skipped part of the
-	   loop. The test is identical to the one in train_operations_admin.php,
-	   deliberately -- the operators' board and the management board describing
-	   the same train differently is worse than either being wrong alone.
-
-	   $inserted is required. inserted_to is empty until a train is actually
-	   inserted, and "" != "north" is true, so without it every reserve and
-	   pending train would count as skipping. */
-	$insertedTo = strtolower(trim((string)$row2['inserted_to']));
-	$skipping   = ($inserted && $insertedTo !== "" && $insertedTo !== "north");
+	   NOTE for train_operations_admin.php: it still uses the inserted_to proxy.
+	   The two boards will now disagree about which trains are skipping, which
+	   is exactly what the old comment here was trying to avoid. Port this same
+	   test over there (or decide the management board should keep counting
+	   non-North insertions, and say so in both files). */
+	$skipList = ($row['status']=="active") ? ccsLoadSkips($db,$row['id']) : array();
+	$skipN    = count($skipList);
+	$skipping = ($skipN>0);
 
 
 	if($row['status']=="cancelled"){
@@ -1202,12 +1714,13 @@ for($i=0; $i<$nm; $i++){
 	}
 
 	/* @skipping -- Carried ALONGSIDE $dataStatus, not inside it. Skipping is an
-	   attribute of a train, not a stage of its day: a train inserted at Quezon
-	   is skipping AND in service, and an hour later skipping AND removed. As a
-	   fifth branch in a single-valued cascade it has to be one or the other, so
-	   whichever branch came first stole the train from the other filter --
-	   before `removed` and every skipping train that gets removed disappears
-	   from Removed; after it and Skipping is empty for those same trains. */
+	   attribute of a train, not a stage of its day: a train that skipped at
+	   07:00 is skipping AND in service, and an hour later skipping AND removed.
+	   As a fifth branch in a single-valued cascade it has to be one or the
+	   other, so whichever branch came first stole the train from the other
+	   filter -- before `removed` and every skipping train that gets removed
+	   disappears from Removed; after it and Skipping is empty for those same
+	   trains. */
 	if($skipping){ $rowClass .= " is-skipping"; }
 
 	/* ── Status pill (verbatim) ── */
@@ -1230,7 +1743,9 @@ for($i=0; $i<$nm; $i++){
 	} else {
 		$pill = '<span class="status-pill pill--pending"><span class="led"></span>Pending</span>';
 	}
-	/* Appended, never substituted -- see the class comment above. */
+	/* Appended, never substituted -- see the class comment above. The badge
+	   carries no second state: a skip is a thing that happened, not a job in
+	   progress, and an empty loading means it loaded on arrival. */
 	if($skipping){
 		$pill .= ' <span class="status-pill pill--skipping"><span class="led"></span>Skipping</span>';
 	}
@@ -1276,6 +1791,79 @@ for($i=0; $i<$nm; $i++){
 	
 	}
 	$spanN = max(count($carsArr), 1);
+
+	/* ── Skip cell — the legacy page's two Skip columns and its 2N+1 band rows,
+	      collapsed into one stack. A skip renders as departure -> arrival, and
+	      gets a third line only when the loading was separate from the arrival
+	      (different station, or the same station at a later time). With no
+	      separate loading the arrival line is tagged "arrived / loaded", which
+	      is what the legacy column heading "Arrived/1st loading" meant. ── */
+	$skipBody = "";
+	for($k=0; $k<$skipN; $k++){
+		$sp = $skipList[$k];
+		$sj = json_encode(array_merge($sp['raw'], array('train'=>$row['id'])));
+		if($sj===false) $sj='{}';
+		$sj = htmlspecialchars($sj, ENT_QUOTES);
+
+		$skipBody .= '<div class="skip-item">';
+		/* departure */
+		$skipBody .= '<div class="skip-leg">'
+			.'<span class="skip-time">'.$sp['dep'].'</span>'
+			.'<span class="skip-stn">'.htmlspecialchars($sp['from']).'</span>'
+			.'<a href=\'#\' class="ta-act '.$SRemove.'" data-skip=\''.$sj.'\''
+			.' onclick=\'return openSkipEdit(this);\'>Edit</a>'
+			.'</div>';
+		/* arrival -- the legacy page labelled the LOADING station "Arrived:" and
+		   left the real arrival unlabelled, so the two were easy to read the
+		   wrong way round. Both are labelled here. */
+		if($sp['arr']!="" || $sp['arr_name']!=""){
+			$skipBody .= '<div class="skip-leg skip-leg--sub">'
+				.'<span class="skip-arrow">&rarr;</span>'
+				.'<span class="skip-time">'.$sp['arr'].'</span>'
+				.'<span class="skip-stn">'.htmlspecialchars($sp['arr_name']).'</span>'
+				.'<span class="skip-tag">'.($sp['sep_load']?'arrived':'arrived / loaded').'</span>'
+				/* with no separate loading this link is how one gets recorded,
+				   so it keeps the legacy wording rather than reading as a gap */
+				.($sp['sep_load'] ? ''
+					: '<a href=\'#\' class="ta-act '.$SRemove.'" data-skip=\''.$sj.'\''
+					 .' onclick=\'return openLoadingForm(this);\''
+					 .' title="Record a loading that happened at another station or time">'
+					 .'+ Loading (if separate)</a>')
+				.'</div>';
+		}
+		/* third line only when the loading was genuinely a separate event */
+		if($sp['sep_load']){
+			$skipBody .= '<div class="skip-leg skip-leg--sub">'
+				.'<span class="skip-arrow">&rarr;</span>'
+				.'<span class="skip-time">'.$sp['load'].'</span>'
+				.'<span class="skip-stn">'.htmlspecialchars($sp['to']).'</span>'
+				.'<span class="skip-tag">loaded</span>'
+				.'<a href=\'#\' class="ta-act '.$SRemove.'" data-skip=\''.$sj.'\''
+				.' onclick=\'return openLoadingForm(this);\'>Edit</a>'
+				.'</div>';
+		}
+		$meta=array();
+		if($sp['depdrv']!="")    $meta[]=htmlspecialchars($sp['depdrv']);
+		if($sp['loaddrv']!="")   $meta[]='&rarr; '.htmlspecialchars($sp['loaddrv']);
+		if($sp['requested']!="") $meta[]='Req: '.htmlspecialchars($sp['requested']);
+		if($sp['reported']!="")  $meta[]='Rep: '.htmlspecialchars($sp['reported']);
+		if(count($meta)) $skipBody .= '<div class="skip-meta">'.implode(' &middot; ',$meta).'</div>';
+		if($sp['in']!="")   $skipBody .= '<div class="skip-in">IN '.htmlspecialchars($sp['in']).'</div>';
+		if($sp['note']!="") $skipBody .= '<div class="skip-note">'.htmlspecialchars($sp['note']).'</div>';
+		$skipBody .= '</div>';
+	}
+	if($skipN==0) $skipBody = '<span class="tc-none">&mdash;</span>';
+	/* A cancelled train never ran, so it gets no "+ Skip" -- same rule the
+	   legacy page applied when it refused to load skips for one.
+	   The legacy page also carried a commented-out variant that greyed "+ Skip"
+	   out "until the previous one has loaded". That rested on the same
+	   misreading as the pending state: there is nothing to wait for, since a
+	   skip with no separate loading loaded on arrival. It stays live here. */
+	if($row['status']=="active"){
+		$skipBody .= '<div class="skip-add"><a href=\'#\' class="ta-act '.$SRemove.'"'
+			.' onclick=\'changeForm("skipping","'.$row['id'].'","skipping");return false;\'>+ Skip</a></div>';
+	}
+	$skipCell = '<td rowspan='.$spanN.' class="skip-cell">'.$skipBody.'</td>';
 
 	/* ── Boundary time (verbatim) ── */
 	$boundary_time = ($row2['boundary_time']!="" && $row2['boundary_time']!="0000-00-00 00:00:00")
@@ -1371,6 +1959,7 @@ for($i=0; $i<$nm; $i++){
 			.'<a href=\'#\' class="ta-act '.$SRemove4.'" onclick=\'changeForm("removal","'.$row['id'].'",'
 			.'"'.$trainType.'")\'>Edit</a>'
 			.'</div></div></td>';
+		$dataCells .= $skipCell;
 		$remarksEsc = htmlspecialchars(str_replace(["\r","\n"], ' ', $remove_remarks), ENT_QUOTES);
 		$dataCells .= '<td rowspan='.$spanN.' class="ta-remarks">'.$remove_remarks.$incidentClause
 			.'<br><a href=\'#\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
@@ -1402,13 +1991,16 @@ for($i=0; $i<$nm; $i++){
 		if($level4Clause=="") $level4Clause="&nbsp;";
 
 		/* Original spanned 6/5 columns (it still had Switch + Compo columns);
-		   here the same content spans I336+Inserted+Removed (3) or Inserted+Removed (2). */
+		   here the same content spans I336+Inserted+Removed (3) or Inserted+Removed (2).
+		   The Skip cell is emitted separately rather than folded into the span:
+		   a cancelled train never ran, so it shows an em dash and no "+ Skip". */
 		if($boundary_time==""){
 			$dataCells = '<td rowspan='.$spanN.' colspan=3 class="ta-cancelled-flag">CANCELLED</td>';
 		} else {
 			$dataCells = '<td rowspan='.$spanN.' class="ta-slot-cell"><span class="hl-time">'.$boundary_time.'</span></td>'
 				.'<td rowspan='.$spanN.' colspan=2 class="ta-cancelled-flag">CANCELLED</td>';
 		}
+		$dataCells .= $skipCell;
 		$remarksEsc = htmlspecialchars(str_replace(["\r","\n"], ' ', $remove_remarks), ENT_QUOTES);
 		$dataCells .= '<td rowspan='.$spanN.' class="ta-remarks">'.$remove_remarks.$incidentClause
 			.'<br><a href=\'#\' class="ta-act" onclick=\'changeForm("remarks","'.$row['id'].'","'.$remarksEsc.'")\''
@@ -1421,8 +2013,11 @@ for($i=0; $i<$nm; $i++){
 			.'<td rowspan='.$spanN.' class="lvl">'.$level4Clause.'</td>';
 	} else {
 		/* Reserve/unimog/test with no active status yet. Original emitted no
-		   cells at all here (short row); padded with blanks to keep alignment. */
-		$dataCells = str_repeat('<td rowspan='.$spanN.'>&nbsp;</td>', 7);
+		   cells at all here (short row); padded with blanks to keep alignment.
+		   3 blanks (I336/Inserted/Removed) + Skip + 4 blanks (Remarks/L2/L3/L4). */
+		$dataCells = str_repeat('<td rowspan='.$spanN.'>&nbsp;</td>', 3)
+			.$skipCell
+			.str_repeat('<td rowspan='.$spanN.'>&nbsp;</td>', 4);
 	}
 
 	/* ── Index cell: number + pill + switch trail + hover actions ── */

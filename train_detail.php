@@ -282,8 +282,7 @@ if(trim((string)$t['removal_remarks'])!==''){ ?>
 	<?php /* edit_ccdr.php needs no token today -- its Tmenu require is commented
 	         out -- but sending one costs nothing and stops this link breaking if
 	         that guard is ever restored. */ ?>
-	<dd><a href="edit_ccdr.php?ir=<?php echo (int)$in['incident_id']; ?>&amp;embed=1&amp;tt=<?php echo tdEsc($tdTT); ?>"
-	       target="_top">Open incident report</a></dd>
+	<dd>&nbsp;</dd>
 <?php } ?>
 </dl>
 <?php } ?>
@@ -308,8 +307,6 @@ if(trim((string)$t['removal_remarks'])!==''){ ?>
 <div class="td-foot">
 	<?php /* target="_top" so the link escapes the iframe rather than rendering
 	         the whole operations page inside a 400px panel. */ ?>
-	<a href="train_operations_admin.php?tt=<?php echo tdEsc($tdTT); ?>#tr-<?php echo (int)$train['id']; ?>"
-	   target="_top">Open in train operations to edit &rarr;</a>
 </div>
 
 <?php } ?>

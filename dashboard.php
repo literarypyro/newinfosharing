@@ -176,7 +176,7 @@ foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 <body>
 <?php /* @autorefresh -- the menu is chrome; a partial tick has no use for it,
          and skipping it also skips whatever queries it runs. */
-if(!$dsPartial){ require("Tmenu_2.php"); } ?>
+if(!$dsPartial){ require("Tmenu_3.php"); } ?>
 <?php
 
 /* @dashdate -- console skin for the date control. Deliberately AFTER the nav
@@ -274,7 +274,7 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 	<!-- ============================ TILES ============================ -->
 	<div class="ds-tiles">
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'service'))); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>Inserted</div>
 			<?php /* @merge -- denominator and day-on-day chip, restored from the
 			         pre-integration build. $d_trains is still computed above; the
@@ -285,7 +285,7 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			</div>
 			<?php echo dash_sparkline($sp_trains); ?>
 		</div></a>
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'skipping'))); ?>" title="Open train operations for this date"><span class="ds-rail f-ok"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-ok"></span>Skipping Trains</div>
 			<?php /* @merge -- denominator and day-on-day chip, restored from the
 			         pre-integration build. $d_trains is still computed above; the
@@ -297,7 +297,7 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			<?php echo dash_sparkline($sp_trains); ?>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'reserve'))); ?>" title="Open train operations for this date"><span class="ds-rail f-warn"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-warn"></span>Reserve</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['boundary']; ?></span>
 			</div>
@@ -310,7 +310,7 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			<div class="ds-meter"><i class="f-warn" style="width:<?php echo dash_pct($fleet['boundary'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'removed'))); ?>" title="Open train operations for this date"><span class="ds-rail f-info"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot f-info"></span>Removed</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['removed']; ?></span>
 			
@@ -319,7 +319,7 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			<div class="ds-meter"><i class="f-info" style="width:<?php echo dash_pct($fleet['removed'],$fleet['target']); ?>%"></i></div>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>" title="Open the incident summary for this date"><span class="ds-rail <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $inc['failures']?'f-bad':'f-ok'; ?>"></span>Incidents</div>
 			<div><span class="ds-val"><?php echo (int)$inc['total']; ?></span>
 			
@@ -327,7 +327,7 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			<?php echo dash_sparkline($sp_inc); ?>
 		</div></a>
 
-		<a class="ds-tile" href="<?php echo dash_h(dash_link('opsline',$view_date,'',array('lfilter'=>'cancelled'))); ?>" title="Open train operations for this date"><span class="ds-rail <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span><div class="ds-tile-body">
+		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
 			<div class="ds-tile-label"><span class="ds-dot <?php echo $fleet['cancelled']?'f-bad':'f-ok'; ?>"></span>Cancelled</div>
 			<div><span class="ds-val"><?php echo (int)$fleet['cancelled']; ?></span>
 			
@@ -602,7 +602,7 @@ dash_status_band($view_date,false);
 		<div class="ds-card">
 			<div class="ds-card-head">
 				<h2>Incidents today</h2>
-				<a class="ds-more" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>"><?php if($inc['worst']!==""){ echo "highest ".dash_h($inc['worst'])." &rarr;"; } else { echo "no service failures &rarr;"; } ?></a>
+				<a class="ds-more" href="#">&nbsp;</a>
 			</div>
 <?php if(!count($incidents)){ ?>
 			<div class="ds-empty">No incidents recorded for this date.</div>
@@ -671,7 +671,7 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 				},false);
 			})();
 			</script>
-			<div class="ds-note" style="margin-top:9px"><a class="ds-more" href="<?php echo dash_h(dash_force_date(dash_link('incidents',$view_date),$view_date)); ?>">Full register</a> &mdash; showing <?php echo (int)$shown; ?> of <?php echo (int)$inc['total']; ?>.</div>
+			<div class="ds-note" style="margin-top:9px">Showing <?php echo (int)$shown; ?> of <?php echo (int)$inc['total']; ?>.</div>
 <?php } ?>
 		</div>
 
@@ -709,7 +709,7 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 				         "2019" is simply what it shows. Placed next to Monthly --
 				         both are months, one rolling and one calendar. */
 				$dsSeg = array(
-					'year'  => 'Yearly',
+//					'year'  => 'Yearly',
 					'month' => 'Monthly',
 					'ytd'   => date("Y", strtotime($view_date)),
 					'week'  => 'Weekly',
@@ -719,17 +719,6 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 					<a class="<?php echo $trend_grain===$gk?'on':''; ?>" href="?d=<?php echo dash_h($view_date); ?>&amp;g=<?php echo $gk; ?>"><?php echo $glabel; ?></a>
 <?php		} ?>
 				</span>
-<?php	} else { ?>
-				<?php /* @grain -- dash_data.php predates dash_trend_series(): no selector,
-				         and the card draws the twelve-month series it always did. */ ?>
-				<a class="ds-more" href="<?php
-					$ym_keys = array_keys($months);
-					echo dash_h(dash_link('stats',$view_date,'',array(
-						'sd'    => (count($ym_keys) ? $ym_keys[0]."-01" : $view_date),
-						'ed'    => $view_date,
-						'range' => 'custom'
-					)));
-				?>">Statistics report &rarr;</a>
 <?php	} ?>
 			</div>
 			<div class="ds-months">
@@ -788,21 +777,7 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 					$ngap = 0; foreach($trend['counts'] as $v){ if($v===null) $ngap++; }
 					echo $ngap ? dash_h($ngap.' bucket'.($ngap==1?'':'s').' have no records') : '&nbsp;';
 				?></span>
-				<a class="ds-more" href="<?php
-					/* @grain -- Yearly goes to year_stats.php instead. A six-year span
-					   pushed into the statistics report as sd/ed would render one
-					   enormous flat table; year_stats is the page built for that
-					   question, and it derives its own range anyway. */
-					if($trend_grain === 'year'){
-						echo dash_h(dash_link('years',$view_date));
-					} else {
-						echo dash_h(dash_link('stats',$view_date,'',array(
-							'sd'    => $trend['sd'],
-							'ed'    => $trend['ed'],
-							'range' => 'custom'
-						)));
-					}
-				?>"><?php echo $trend_grain==='year' ? 'Year comparison &rarr;' : 'Statistics report &rarr;'; ?></a>
+				<a class="ds-more" href="#">&nbsp;</a>
 			</div>
 <?php	} ?>
 		</div>
