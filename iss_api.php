@@ -251,6 +251,9 @@ function iss_is_skipping($t){
 	   row exists because someone logged a skipped departure, and that
 	   remains true after the set is removed. */
 	if(!array_key_exists('skip', $t)) return false;   /* see iss_skipping_available() */
+	/* @skipbasis -- active trains only, as train_availability_skip.php
+	   draws them: a cancelled train never ran, so it carries no skips. */
+	if(isset($t['status']) && $t['status'] !== 'active') return false;
 	return ((int)$t['skip'] > 0);
 }
 
@@ -264,6 +267,109 @@ function iss_is_skipping($t){
 function iss_skipping_available($rows){
 	foreach($rows as $t){ return array_key_exists('skip', $t); }
 	return true;   /* no trains at all: nothing to be wrong about */
+}
+
+/* =====================================================================
+   @skipbasis -- the day's skips on train_availability_skip.php's basis.
+
+   Lives HERE, not in dash_data.php: the web dashboard is left exactly as
+   it is, and this is the app's own reading of the skipping table.
+
+   Matches how the ops page lists skips:
+     - keyed to the TRAIN (skipping.tar_id -> train_availability) and its
+       operating date ta.date, not date(departure_time). A skip saved with
+       the hour blank, or on a late set after midnight, is listed under the
+       train's day there, so it is counted under it here.
+     - every row, count(*) -- a blank departure_time is still a skip.
+     - active trains only.
+     - open = loading half not yet encoded (loading_time empty/zero),
+       the same test ccsSkipTime() applies.
+
+   Because the web dashboard still counts by date(departure_time) over all
+   trains, the two CAN differ on a day with a blank-time or cancelled-train
+   skip. That is expected: this one agrees with the ops page.
+   ===================================================================== */
+function iss_skip_totals($date){
+	static $cache = array();
+	if(isset($cache[$date])) return $cache[$date];
+	$out = array('skips'=>0, 'trains'=>0, 'open'=>0, 'available'=>false, 'reason'=>'');
+	if(!dash_ready() || !dash_table_exists('skipping') || !dash_table_exists('train_availability')){
+		$out['reason'] = 'skipping or train_availability not present';
+		return $cache[$date] = $out;
+	}
+	$db  = dash_db();
+	$d   = $db->real_escape_string($date);
+	$open = "(sk.loading_time is null or sk.loading_time='' or sk.loading_time='0000-00-00 00:00:00')";
+	$sql = "select count(*) as skips, count(distinct sk.tar_id) as trains,"
+	      ." sum(case when ".$open." then 1 else 0 end) as open_n"
+	      ." from skipping sk inner join train_availability ta on ta.id = sk.tar_id"
+	      ." where date(ta.date)='".$d."' and ta.status='active'";
+	$rs = @$db->query($sql);
+	if($rs && ($r = $rs->fetch_assoc())){
+		$out = array('skips'=>(int)$r['skips'], 'trains'=>(int)$r['trains'],
+		             'open'=>(int)$r['open_n'], 'available'=>true, 'reason'=>'');
+	} else {
+		/* The @ keeps a schema mismatch out of the JSON stream, but
+		   swallowing it ENTIRELY is what made this silent: the app's Skipping
+		   tile went to an em dash and nothing anywhere said why. The column
+		   names are the first thing to suspect -- sk.tar_id and sk.loading_time
+		   here, ta.date and ta.status on the join. Raw error to the PHP log, a
+		   short reason to /health. */
+		$out['reason'] = 'query failed -- see the PHP error log';
+		error_log('iss_api: iss_skip_totals('.$date.') failed: '
+		          .($db->error ? $db->error : 'no row returned'));
+	}
+	return $cache[$date] = $out;
+}
+
+/* =====================================================================
+   @skipping -- the four skipping fields, resolved in ONE place.
+
+   There are two readings of the same `skipping` table and they are not
+   interchangeable:
+
+     iss_skip_totals()  train_availability_skip.php's basis -- keyed to the
+                        train's operating date, active trains, every row.
+                        PREFERRED, because it agrees with the page
+                        operations actually works from.
+     dash_trains()      carries a per-train `skip` count from its own pass;
+                        iss_is_skipping() reads that. No state gate: the
+                        skipping row exists because a departure was logged
+                        as skipped, and that stays true after the set comes
+                        off the line. Gating on 'online' is what dropped
+                        real cases.
+
+   Preferring the first and FALLING BACK to the second is the point.
+   Sending `skipping_available` straight from iss_skip_totals() meant one
+   failing aggregate blanked the tile to an em dash while the payload was
+   still carrying a good count from dash_trains() -- a worse failure than
+   the confident 0 the flag exists to prevent, because it hid a figure that
+   was there. Unknown now means NEITHER source could answer.
+   ===================================================================== */
+function iss_skipping_fields($date, $rows){
+	$st = iss_skip_totals($date);
+	if($st['available']){
+		return array(
+			'skipping'           => $st['trains'],
+			'skipping_events'    => $st['skips'],
+			'skipping_open'      => $st['open'],
+			'skipping_available' => true,
+			'skipping_basis'     => 'skipping table, by train operating date'
+		);
+	}
+	$trains = 0; $events = 0;
+	foreach($rows as $t){
+		if(iss_is_skipping($t)){ $trains++; $events += (int)$t['skip']; }
+	}
+	$have = iss_skipping_available($rows);
+	return array(
+		'skipping'           => $have ? $trains : 0,
+		'skipping_events'    => $have ? $events : 0,
+		'skipping_open'      => null,   /* not answerable from this pass */
+		'skipping_available' => $have,
+		'skipping_basis'     => $have ? 'dash_trains() skip count' : 'unavailable',
+		'skipping_reason'    => $st['reason']
+	);
 }
 
 function iss_train($t){
@@ -320,6 +426,149 @@ function iss_incident($r, $full=false){
 	if($full){
 		$out['description'] = isset($r['description']) ? (string)$r['description'] : '';
 		$out['raw']         = $r;   /* everything this schema happens to carry */
+	}
+	return $out;
+}
+
+/* =====================================================================
+   @detail -- the rows the Incident detail screen needs that the
+   incident_report row alone cannot answer.
+
+   edit_ccdr.php is the source of truth for the shape:
+     - cars live in incident_cars (many-to-many; its own editor writes at
+       most three, so expect 1-3 even on a four-car set)
+     - equipment lives in incident_equipt (incident_id, equipt_id,
+       subitem_id); incident_defects and incident_description.equipt are
+       the pre-junction fallbacks, in that order
+     - linked_to holds an incident_report.id, NOT a number -- the console
+       resolves it to incident_no for display, so this does too
+     - cancelled loops are incident_report.cancel
+     - resolution_date is real and editable, and empty until someone
+       resolves the entry; unresolved rows can carry an epoch sentinel
+       that formats to 1970-01-01, so test the timestamp, not the string
+
+   Every table and column is probed. A table that is not there yields an
+   ABSENT KEY rather than an empty array: the screen then leaves the block
+   out instead of stating that an incident had no cars.
+   ===================================================================== */
+function iss_incident_extras($id, $r){
+	$out = array();
+	if(!dash_ready()) return $out;
+	$db  = dash_db();
+	$idc = dash_esc($id);
+
+	/* -- cars ------------------------------------------------------- */
+	if(dash_table_exists('incident_cars')){
+		$cars = array();
+		$rs = @$db->query("select car_no from incident_cars"
+		                 ." where incident_id='".$idc."' order by car_no*1");
+		if($rs){
+			while($row = $rs->fetch_assoc()){
+				$c = trim((string)$row['car_no']);
+				if($c !== '') $cars[] = $c;
+			}
+			$out['cars'] = $cars;
+		}
+	}
+
+	/* -- equipment + sub-item --------------------------------------- */
+	$eqName  = dash_table_exists('equipment')
+	           ? dash_pick_col('equipment', array('equipment_name','name','equipment')) : '';
+	$siName  = dash_table_exists('sub_item')
+	           ? dash_pick_col('sub_item', array('sub_item','sub_item_name','name','description')) : '';
+	$equip   = array();
+	$asked   = false;
+
+	if(dash_table_exists('incident_equipt') && $eqName !== ''){
+		$asked = true;
+		$sql = "select e.`".$eqName."` as eq"
+		      .($siName !== '' ? ", s.`".$siName."` as si" : ", '' as si")
+		      ." from incident_equipt ie"
+		      ." left join equipment e on e.id = ie.equipt_id"
+		      .($siName !== '' ? " left join sub_item s on s.id = ie.subitem_id" : "")
+		      ." where ie.incident_id='".$idc."'";
+		$rs = @$db->query($sql);
+		if($rs) while($row = $rs->fetch_assoc()) $equip[] = iss_equip_row($row);
+	}
+
+	/* Pre-junction fallback 1: incident_defects (external register). */
+	if(!count($equip) && dash_table_exists('incident_defects') && $eqName !== ''){
+		$asked = true;
+		$sql = "select e.`".$eqName."` as eq"
+		      .($siName !== '' ? ", s.`".$siName."` as si" : ", '' as si")
+		      ." from incident_defects d"
+		      ." left join equipment e on e.id = d.equipt_id"
+		      .($siName !== '' ? " left join sub_item s on s.id = d.sub_item_id" : "")
+		      ." where d.incident_id='".$idc."'";
+		$rs = @$db->query($sql);
+		if($rs) while($row = $rs->fetch_assoc()) $equip[] = iss_equip_row($row);
+	}
+
+	/* Pre-junction fallback 2: the single equipt/subitem pair that
+	   incident_description still carries. Only when nothing above
+	   answered -- an incident with junction rows must never also show
+	   its stale legacy value. */
+	if(!count($equip) && dash_table_exists('incident_description') && $eqName !== ''){
+		$asked = true;
+		$sql = "select e.`".$eqName."` as eq"
+		      .($siName !== '' ? ", s.`".$siName."` as si" : ", '' as si")
+		      ." from incident_description idsc"
+		      ." left join equipment e on e.id = idsc.equipt"
+		      .($siName !== '' ? " left join sub_item s on s.id = idsc.subitem" : "")
+		      ." where idsc.incident_id='".$idc."'";
+		$rs = @$db->query($sql);
+		if($rs) while($row = $rs->fetch_assoc()) $equip[] = iss_equip_row($row);
+	}
+
+	if($asked) $out['equipment'] = iss_dedupe_equip($equip);
+
+	/* -- linked entry: id -> the number a controller would say --------- */
+	$linked = isset($r['linked_to']) ? trim((string)$r['linked_to']) : '';
+	if($linked !== '' && $linked !== '0'){
+		$out['linked_id'] = $linked;
+		$out['linked_no'] = '';
+		$rs = @$db->query("select incident_no from incident_report"
+		                 ." where id='".dash_esc($linked)."' limit 1");
+		if($rs && ($row = $rs->fetch_assoc())){
+			$out['linked_no'] = trim((string)$row['incident_no']);
+		}
+	}
+
+	/* -- cancelled loops, resolution, duration ------------------------ */
+	if(isset($r['cancel']) && trim((string)$r['cancel']) !== ''){
+		$out['cancelled_loops'] = (float)$r['cancel'];
+	}
+
+	/* '' when unresolved. The epoch sentinel is NOT a resolution time:
+	   testing the string would print 1970-01-01 as a real answer. */
+	$res = isset($r['resolution_date']) ? (string)$r['resolution_date'] : '';
+	$ts  = ($res === '' ? 0 : @strtotime($res));
+	$out['resolved_at'] = ($ts && $ts > 86400) ? date("Y-m-d H:i", $ts) : '';
+
+	/* Stored, not computed, and only when the encoder judged there was
+	   one -- passed through verbatim rather than parsed into minutes. */
+	$out['duration'] = isset($r['duration']) ? trim((string)$r['duration']) : '';
+
+	return $out;
+}
+
+function iss_equip_row($row){
+	$eq = isset($row['eq']) ? trim((string)$row['eq']) : '';
+	$si = isset($row['si']) ? trim((string)$row['si']) : '';
+	return array('name' => $eq, 'subitem' => $si);
+}
+
+/* The equipment link cross-products with incident_cars elsewhere in this
+   system and the same pair can arrive twice from a UNION; a detail screen
+   listing "Line contactor" twice reads as two faults. */
+function iss_dedupe_equip($rows){
+	$seen = array(); $out = array();
+	foreach($rows as $e){
+		if($e['name'] === '' && $e['subitem'] === '') continue;
+		$k = $e['name']."\x1f".$e['subitem'];
+		if(isset($seen[$k])) continue;
+		$seen[$k] = true;
+		$out[] = $e;
 	}
 	return $out;
 }
@@ -429,6 +678,11 @@ if($seg[0] === 'health'){
 			'index_switch'       => dash_switch_table(),
 			'iss_annotation'     => iss_annotations_table()
 		),
+		/* @skipping -- whether the skips aggregate can actually ANSWER, which
+		   is not the same question as whether the table exists: a column-name
+		   mismatch fails the query with `skipping` plainly present. Read this
+		   first when the app's Skipping tile shows an em dash. */
+		'skipping'       => iss_skip_totals(iss_resolve_date('today')),
 		'writes_enabled' => (bool)ISS_API_WRITES
 	));
 }
@@ -445,23 +699,22 @@ if($seg[0] === 'days'){
 		$rows = array();
 		$c = dash_fleet_counts($date);
 		$trains = dash_trains($date);
-		$rsv = 0; $skp = 0; $skpEvents = 0;
+		$rsv = 0;
 		foreach($trains as $t){
 			$rows[] = iss_train($t);
 			if($t['state'] === 'boundary') $rsv++;
-			/* No state gate: the skipping row exists because a departure was
-			   logged as skipped, and that stays true after the set comes off
-			   the line. Gating on 'online' is what dropped real cases. */
-			if(iss_is_skipping($t)){ $skp++; $skpEvents += (int)$t['skip']; }
 		}
 		$c['reserve']  = $rsv;    /* @reserve -- same derivation as /today */
-		$c['skipping'] = $skp;
 		/* @skipping -- TRAINS that skipped, and DEPARTURES skipped. The
 		   console's own tile shows the second under a label saying "Trains",
 		   so the two figures being separate and named is the only way the app
-		   can agree with it without repeating the mislabel. */
-		$c['skipping_events'] = $skpEvents;
-		$c['skipping_available'] = iss_skipping_available($trains);
+		   can agree with it without repeating the mislabel.
+
+		   Resolved by iss_skipping_fields() so this endpoint and /days/{date}
+		   cannot report different counts for the same day. They used to: the
+		   same two blocks ran here in one order and there in the other, so
+		   whichever won differed by endpoint. */
+		$c = array_merge($c, iss_skipping_fields($date, $trains));
 		iss_ok(array(
 			'counts'   => $c,
 			'trains'   => $rows,
@@ -567,16 +820,21 @@ if($seg[0] === 'days'){
 	   about how many sets are held in reserve. */
 	$fleet = dash_fleet_counts($date);
 	$issTrains = dash_trains($date);
-	$reserve = 0; $skipping = 0; $skippingEvents = 0;
+	$reserve = 0;
 	foreach($issTrains as $t){
 		if($t['state'] === 'boundary') $reserve++;
-		/* No state gate -- see iss_is_skipping(). */
-		if(iss_is_skipping($t)){ $skipping++; $skippingEvents += (int)$t['skip']; }
 	}
-	$fleet['skipping_events'] = $skippingEvents;
-	$fleet['skipping_available'] = iss_skipping_available($issTrains);
 	$fleet['reserve']  = $reserve;   /* === boundary, named as operations names it */
-	$fleet['skipping'] = $skipping;
+	/* @skipbasis -- see iss_skip_totals() and iss_skipping_fields().
+
+	   THE REGRESSION THAT BLANKED THE TILE: this block used to end with a
+	   stale `$fleet['skipping'] = $skipping;` AFTER the skip-totals
+	   assignment, so the recorded figure was overwritten by the dash_trains()
+	   one while skipping_events, skipping_open and skipping_available stayed
+	   behind from the other source. Three fields on one basis and one on
+	   another, on the screen that prints them side by side -- and a false
+	   skipping_available=false turned the number into an em dash. */
+	$fleet = array_merge($fleet, iss_skipping_fields($date, $issTrains));
 
 	iss_ok(array(
 		'fleet'      => $fleet,
@@ -652,6 +910,11 @@ if($seg[0] === 'incidents'){
 	if($r === null) iss_error(404, 'not_found', 'No incident with id '.$id);
 
 	$out = iss_incident($r, true);
+	/* @detail -- cars, equipment with sub-items, the linked entry's number,
+	   cancelled loops, resolution and duration: the rows the mobile detail
+	   screen shows. Merged flat so the client reads one object, and every
+	   key absent rather than empty when its table could not answer. */
+	$out = array_merge($out, iss_incident_extras($id, $r));
 	$out['annotations'] = iss_annotations($id);
 	iss_ok(array('incident' => $out));
 }

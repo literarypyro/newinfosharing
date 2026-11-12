@@ -282,6 +282,8 @@ body { height: 100%; overflow: hidden; }
 		
 	</ul>
 	</li>
+		<li><a style='text-decoration:none;' href='skipping.php'>Skipping Trains</a></li>
+
 		<li><a href='#'>Train Operations</a>	
 	<ul>
 		<?php
@@ -297,6 +299,8 @@ body { height: 100%; overflow: hidden; }
 			<?php
 		}
 ?>
+
+
 		<li><a style='text-decoration:none;' href='train hourly.php'>Train Hourly Monitoring Report</a></li>
 		<li><a style='text-decoration:none;' href='onboard equipment.php'>Onboard Equipment</a></li>
 		<li><a style='text-decoration:none;' href='depot_insertion.php'>Depot Insertion Program</a></li>

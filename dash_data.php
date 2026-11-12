@@ -224,11 +224,22 @@ function dash_train_state($r){
  * The dashboard's insertion feed badges the same thing a few lines down the
  * page. Both now call this, so the tile and the badges cannot disagree -- a
  * count of 6 beside four badged rows is the kind of contradiction that costs
- * the whole dashboard its credibility. */
+ * the whole dashboard its credibility.
+ *
+ * It now reads the real `skipping` table, via the correlated subquery aliased
+ * `skip` in dash_trains(), rather than inferring from inserted_to. The proxy
+ * answered "was this train inserted somewhere other than North?", which is the
+ * COMMONEST cause of a skip but not the thing itself -- the operations page
+ * moved onto the table and this had to follow or the two pages would disagree.
+ *
+ * It stays a BOOLEAN: did this train skip, yes or no. A train with three skips
+ * on it is still one skipping train. The number of skips is a different
+ * question and belongs to a different figure -- see dash_fleet_counts2(). */
 function dash_is_skipping($r){
-	if($r['skip']>0){ return true; } else { return false; }
-	$to = strtolower(trim((string)(isset($r['inserted_to']) ? $r['inserted_to'] : "")));
-	return ($to !== "" && $to !== "north");
+	/* isset(), not a bare read: every row from dash_trains() carries `skip`,
+	   but a caller passing a row from anywhere else should get `false` rather
+	   than a notice and an accidental true. */
+	return (isset($r['skip']) && (int)$r['skip'] > 0);
 }
 
 function dash_train_state2($r){
@@ -280,35 +291,42 @@ function dash_trains($date){
 	
 	return $cache[$date]=$out;
 }
-function dash_trains2($date){
-	static $cache=array();
-	$date=dash_date($date);
-	if(isset($cache[$date])){ return $cache[$date]; }
-	$out=array();
-	if(!dash_ready() || !dash_table_exists('train_availability')){ return $cache[$date]=$out; }
+/* @skipcount -- The number of SKIP EVENTS on a date: rows in `skipping`, not
+   trains. Two skips by one train count two.
 
-	$d=dash_esc($date);
+   NOTHING CALLS THIS RIGHT NOW. The Skipping tile used to, and that is where
+   the 8-against-7 came from: this returned the day's skip rows while the
+   badges beside it counted trains. The tile moved to dash_fleet_counts2().
 
-	
-	$sql2 ="select * from skipping ";
-	$sql2.="where date(departure_time)='".$d."' ";
+   Kept rather than deleted because it is the other half of the pair, and the
+   tile's den slot is the natural home for it -- "7" with "8 skips" beside it.
+   Wiring it back is one line in dash_fleet_counts2().
 
-	
-	
+   Two things to know before relying on it:
+     - It scopes by date(departure_time), NOT by the operating day of the TAR.
+       A skip departing after midnight lands on the next calendar date while
+       its train still belongs to the previous operating day, so this figure
+       and the fleet band can legitimately disagree across the turn of a day.
+     - date(departure_time) cannot use an index, so this is a full scan of
+       `skipping`. Harmless now; worth a range condition on a big table.
+
+   The early-return used to hand back an empty ARRAY while the success path
+   returned an int. (int)array() is 0, so nothing showed, but the tile was one
+   non-empty array away from rendering "1" as a day's skip count. It returns 0
+   now, same type on every path. The unused $cache/$out are gone with it. */
+function dash_skip_events($date){
+	if(!dash_ready() || !dash_table_exists('skipping')){ return 0; }
+	$d=dash_esc(dash_date($date));
 	$db=dash_db();
-	$rs2=@$db->query($sql2);
-	if($rs2){
-		$counts=$rs2->num_rows;
-	}
-	else {
-		$counts=0;
-		
-	}
-	
-	
-	
-	return $counts;
+	$rs=@$db->query("select count(*) c from skipping where date(departure_time)='".$d."'");
+	if(!$rs){ return 0; }
+	$r=$rs->fetch_assoc();
+	return (int)$r['c'];
 }
+
+/* Old name kept so an older dashboard.php or dashboard_wall.php still resolves
+   it. Delete once nothing calls it. */
+function dash_trains2($date){ return dash_skip_events($date); }
 /* Counts keyed by state, plus the denominator the tiles divide by. */
 function dash_fleet_counts($date){
 	$rows=dash_trains($date);
@@ -322,11 +340,45 @@ function dash_fleet_counts($date){
 	$c['target']= DASH_FLEET_TARGET>0 ? DASH_FLEET_TARGET : max(1,$c['total']-$c['nonrevenue']);
 	return $c;
 }
+/* @skipcount -- The Skipping tile's figure: TRAINS that skipped, not skips.
+
+   Counted over dash_trains() through dash_is_skipping(), which is the same
+   rule and the same row set the Skipping badges in the insertion feed use, so
+   the tile and the badges below it cannot give different answers. The tile
+   links through to the operations list filtered to skipping, and that list
+   returns trains too -- a count that does not match what the click lands on is
+   the whole reason this changed.
+
+   It is also the unit the tile's neighbours use. Inserted, Reserve, Removed
+   and Cancelled are all train counts against the fleet; an event count sitting
+   in that row reads as the same kind of number and is not.
+
+   What it gives up: severity. One train skipping six times reads as 1, which
+   is a quiet tile on a bad morning. The skips figure is still one call away --
+   dash_skip_events() -- and the tile has a den slot for it.
+
+   Keyed by TRAIN ID rather than tallied in a counter, because dash_trains()
+   LEFT JOINs train_ava_time: a train with two rows there appears twice, and a
+   straight ++ would count it twice. The skip subquery is correlated so it does
+   not fan out, but the train row does. This is the fan-out that inflated the
+   admin page's skip count in September, guarded here for nothing. */
 function dash_fleet_counts2($date){
-	$rows=dash_trains2($date);
-	/* $c was never initialised as an array -- 'null' was incremented from
-	   undefined on every non-skipping train, one notice per train. */
-	$c['skipping']=$rows;	
+	$rows=dash_trains($date);
+	/* Initialised as an array: $c['skipping'] on an undefined $c is a notice
+	   under PHP 5 and the reason this function has been fixed once before. */
+	$c=array('skipping'=>0);
+	$seen=array();
+	foreach($rows as $r){
+		if(dash_is_skipping($r)){ $seen[$r['id']]=true; }
+	}
+	$c['skipping']=count($seen);
+
+	/* The event count, for the den slot. Uncomment both lines and the tile can
+	   show "7" with "8 skips" beside it; dash_skip_events() is one query.
+	   Reverting the tile to the old events figure is the first line alone. */
+	// $c['skipping'] = dash_skip_events($date);
+	// $c['skips']    = dash_skip_events($date);
+
 	return $c;
 }
 
@@ -634,6 +686,46 @@ function dash_spark_incidents($date){
 }
 function dash_spark_cancelled($date){
 	return dash_daily_series('train_availability','date',$date,DASH_SPARK_DAYS,"status='cancelled'");
+}
+
+/* @skipcount -- 14-day series for the Skipping tile: TRAINS that skipped per
+   day, matching the figure the tile prints above it.
+
+   It does NOT go through dash_daily_series(), for two reasons, and both are
+   the reason this helper exists at all:
+
+     1. That helper counts rows -- count(*). On `skipping` that is skip EVENTS,
+        so the bars would be a different unit from the number above them. A
+        sparkline in a different unit from its own tile is the 8-against-7
+        problem again, drawn instead of printed, and harder to catch.
+
+     2. It would scope by date(departure_time), the skip's own clock. The tile
+        scopes by the operating day of the TAR. Those part company after
+        midnight, so the last bar would not have to equal the tile. Joining
+        back to train_availability puts both on the operating day, and the
+        right-hand bar is then the tile's own number by construction.
+
+   count(distinct tar_id) is what makes it trains: a train with three skips
+   contributes one to its day, exactly as it contributes one to the tile.
+
+   Zero-filled across the window, same as dash_daily_series(), so a day with
+   no skips draws a floor bar rather than closing the gap and making the
+   fourteen days look like twelve. */
+function dash_spark_skipping($date){
+	$out=array();
+	$date=dash_date($date);
+	$end=strtotime($date);
+	$start=strtotime("-".((int)DASH_SPARK_DAYS-1)." day",$end);
+	for($i=0;$i<(int)DASH_SPARK_DAYS;$i++){ $out[date("Y-m-d",strtotime("+".$i." day",$start))]=0; }
+	if(!dash_ready() || !dash_table_exists('skipping') || !dash_table_exists('train_availability')){ return $out; }
+	$db=dash_db();
+	$sql ="select date(ta.date) d, count(distinct sk.tar_id) c ";
+	$sql.="from skipping sk join train_availability ta on ta.id=sk.tar_id ";
+	$sql.="where date(ta.date) between '".dash_esc(date("Y-m-d",$start))."' and '".dash_esc($date)."' ";
+	$sql.="group by d";
+	$rs=@$db->query($sql);
+	if($rs){ while($r=$rs->fetch_assoc()){ if(isset($out[$r['d']])){ $out[$r['d']]=(int)$r['c']; } } }
+	return $out;
 }
 
 /* Yesterday-vs-today delta for the tile chips.  Compares the same

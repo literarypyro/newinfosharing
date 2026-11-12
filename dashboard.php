@@ -109,6 +109,13 @@ $months      = dash_month_series($view_date,DASH_TREND_MONTHS);
 $sp_trains   = dash_spark_trains($view_date);
 $sp_inc      = dash_spark_incidents($view_date);
 $sp_cancel   = dash_spark_cancelled($view_date);
+/* @skipcount -- The Skipping tile's own series. Guarded, and the fallback is
+   an EMPTY array rather than $sp_trains: that is what the tile was drawing,
+   and a sparkline from the wrong table is worse than no sparkline, because it
+   looks right. With an older dash_data.php the tile simply has no trend line
+   until the include catches up. */
+$sp_skip     = function_exists('dash_spark_skipping')
+	? dash_spark_skipping($view_date) : array();
 
 $d_trains    = dash_delta($sp_trains,$view_date);
 $d_inc       = dash_delta($sp_inc,$view_date);
@@ -294,7 +301,13 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			         tile should never show. */ ?>
 			<div><span class="ds-val"><?php echo (int)$fleet2['skipping']; ?></span>
 			</div>
-			<?php echo dash_sparkline($sp_trains); ?>
+			<?php /* @skipcount -- $sp_skip, NOT $sp_trains. This tile was drawing the
+			         Inserted tile's series: fourteen days of train-availability
+			         records under a skipping count, identical bar for bar to the
+			         tile beside it. Copied when the tile was added and never
+			         repointed. Emitted only when the series is there, so an older
+			         dash_data.php leaves a gap rather than a wrong chart. */
+			if(count($sp_skip)){ echo dash_sparkline($sp_skip); } ?>
 		</div></a>
 
 		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
@@ -697,7 +710,16 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 
 		<div class="ds-card">
 			<div class="ds-card-head">
-				<h2><?php echo $trend ? dash_h($trend['head']) : 'Last '.(int)DASH_TREND_MONTHS.' months'; ?></h2>
+				<?php /* @trendhead -- Both series behind this card count rows in
+				         incident_report over the window: dash_trend_series() groups
+				         count(*) by bucket, and dash_month_series() is the monthly
+				         form of the same count. So "Incidents" is the subject for
+				         every grain and for the pre-selector fallback alike, and it
+				         matches the Incidents tile's own figure, which is that same
+				         total for one day -- not the L2+ subset shown beside it.
+				         If either series is ever repointed at another table, this
+				         word is what has to change with it. */ ?>
+				<h2>Incidents &middot; <?php echo $trend ? dash_h($trend['head']) : 'Last '.(int)DASH_TREND_MONTHS.' months'; ?></h2>
 <?php	if($trend){ ?>
 				<?php /* @grain -- Bucket-size selector. Anchors rather than a <select>,
 				         so the state lives in the URL: the wall display reloads into the
@@ -731,12 +753,12 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 				         the most dangerous thing this card could show. */ ?>
 				<i class="is-gap" title="<?php echo dash_h($trend['full'][$k]); ?>: no records"></i>
 <?php			} else { ?>
-				<i style="height:<?php echo dash_pct($n,$max_trend>0?$max_trend:1); ?>%" title="<?php echo dash_h($trend['full'][$k].": ".$n); ?>"></i>
+				<i style="height:<?php echo dash_pct($n,$max_trend>0?$max_trend:1); ?>%" title="<?php echo dash_h($trend['full'][$k].": ".$n." incident".($n==1?'':'s')); ?>"></i>
 <?php			}
 			}
 		} else {
 			foreach($months as $ym=>$n){ ?>
-				<i style="height:<?php echo dash_pct($n,$max_month>0?$max_month:1); ?>%" title="<?php echo dash_h($ym.": ".$n); ?>"></i>
+				<i style="height:<?php echo dash_pct($n,$max_month>0?$max_month:1); ?>%" title="<?php echo dash_h($ym.": ".$n." incident".($n==1?'':'s')); ?>"></i>
 <?php		}
 		} ?>
 			</div>
