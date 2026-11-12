@@ -636,7 +636,14 @@ function dash_type_map(){
 
 function dash_type_label($v){
 	$map=dash_type_map();
-	$k=(string)$v;
+	$db=dash_db();
+
+	$sql="select * from equipment_type where equipment_code='".$v."'";
+	$rs=@$db->query($sql);
+
+	$r=$rs->fetch_assoc();
+	$k=(string)$r['equipment_name'];
+
 	if(isset($map[$k]) && trim($map[$k])!==""){ return $map[$k]; }
 	if(trim($k)===""){ return "Unspecified"; }
 	return $k;
@@ -645,6 +652,8 @@ function dash_type_label($v){
 /* Today's incidents grouped by problem type, biggest first. */
 function dash_type_breakdown($date,$limit=6){
 	$rows=dash_incidents($date);
+	
+	
 	$agg=array();
 	foreach($rows as $r){
 		$k=dash_type_label(isset($r['incident_type'])?$r['incident_type']:"");
