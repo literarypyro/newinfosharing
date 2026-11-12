@@ -1913,8 +1913,25 @@ if($IR_EMBED){ ob_end_clean(); }
 		$conditionRS=$db->query($conditionSQL);
 		
 		$conditionRow=$conditionRS->fetch_assoc();
-		
+
 		$condition=$conditionRow['description'];
+
+		
+		if($row['level']=="1"){
+			$condition="Fault normalized. No effect on the operation";
+		}
+		else if($row['level']=="2"){
+			$condition=" Train is removed with replacement";
+			
+		}
+		else if($row['level']=="3"){
+			if(($row['cancel']>0)&&($row['level_condition']=="")){
+			$condition=" Cancelled loop(s)";
+			
+			}
+		}
+				
+		
 		
 		$link_no="";
 		$linked_to=$row['linked_to'];
