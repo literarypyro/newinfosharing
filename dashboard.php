@@ -55,7 +55,11 @@ $is_today  = ($view_date === date("Y-m-d"));
      - overlap. If a tick is still in flight when the next is due, it is
        skipped rather than queued.
    ========================================================================== */
-if(!defined('DASH_REFRESH_SECS')){ define('DASH_REFRESH_SECS', 20); }
+/* @panelkeep -- 20 was three ticks a minute, which is faster than the
+   board changes and fast enough to be felt by whoever is reading it.
+   Still overridable: define DASH_REFRESH_SECS in dash_data.php to set
+   a house value without editing this page. */
+if(!defined('DASH_REFRESH_SECS')){ define('DASH_REFRESH_SECS', 60); }
 
 /* A partial request renders the live region only -- see the ob_clean() below. */
 $dsPartial = (isset($_GET['partial']) && $_GET['partial'] === '1');
@@ -359,10 +363,25 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 
    Prefer a real extracted slide_panel.php once it exists; dash_panel.php
    is the stand-in port and can then be deleted. */
+/* @panelkeep -- Included HERE as before, so whatever it defines is in
+   scope for dash_status_band() below, but its OUTPUT is held back and
+   echoed past the end of #dsLive. Buffered rather than moved outright
+   because this page cannot see inside the panel file: if it defines PHP
+   helpers the band uses, moving the include would break the band, and
+   if it only emits markup nothing is lost by capturing it.
+
+   A tick never carries the panel at all -- the partial response ends
+   before the echo below -- so the open panel and its iframe are simply
+   not in the DOM the swap replaces. */
+$dsPanelHtml = '';
 if(file_exists(dirname(__FILE__)."/slide_panel.php")){
+	ob_start();
 	include_once(dirname(__FILE__)."/slide_panel.php");
+	$dsPanelHtml = ob_get_clean();
 } else if(file_exists(dirname(__FILE__)."/dash_panel.php")){
+	ob_start();
 	include_once(dirname(__FILE__)."/dash_panel.php");
+	$dsPanelHtml = ob_get_clean();
 }
 dash_status_band($view_date,false);
 ?>
@@ -743,6 +762,34 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 				</span>
 <?php	} ?>
 			</div>
+			<?php /* @barval -- The count printed on top of each bar, not only in the
+			         hover title. A wall board is read from across the room, where
+			         nobody hovers.
+
+			         Drawn by a ::before off a data-n attribute rather than a child
+			         element, so the bar's own box -- its height, its flex sizing,
+			         whatever dash_styles() gives it -- is untouched. bottom:100%
+			         hangs the label off the top of the bar, so it rides the bar up
+			         and down with no arithmetic here. The padding-top on the strip
+			         is the headroom the tallest bar's label needs; without it that
+			         label sits on top of the card head, or is clipped if the strip
+			         hides its overflow.
+
+			         Gap bars carry no data-n and so get no label: they are full
+			         height by design, and a number on top would read as a maximum.
+			         The footer already counts them.
+
+			         Inside #dsLive like @skiptag's block, so it travels with every
+			         partial swap. */ ?>
+			<style>
+.ds-months{padding-top:15px}
+.ds-months > i[data-n]{position:relative;overflow:visible}
+.ds-months > i[data-n]::before{content:attr(data-n);position:absolute;
+	bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:2px;
+	font-size:10px;line-height:12px;font-weight:600;font-style:normal;
+	color:var(--cf-ink-2,#3A4254);white-space:nowrap;pointer-events:none;
+	font-variant-numeric:tabular-nums}
+			</style>
 			<div class="ds-months">
 <?php	if($trend){
 			foreach($trend['keys'] as $k){
@@ -753,12 +800,12 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 				         the most dangerous thing this card could show. */ ?>
 				<i class="is-gap" title="<?php echo dash_h($trend['full'][$k]); ?>: no records"></i>
 <?php			} else { ?>
-				<i style="height:<?php echo dash_pct($n,$max_trend>0?$max_trend:1); ?>%" title="<?php echo dash_h($trend['full'][$k].": ".$n." incident".($n==1?'':'s')); ?>"></i>
+				<i data-n="<?php echo (int)$n; ?>" style="height:<?php echo dash_pct($n,$max_trend>0?$max_trend:1); ?>%" title="<?php echo dash_h($trend['full'][$k].": ".$n." incident".($n==1?'':'s')); ?>"></i>
 <?php			}
 			}
 		} else {
 			foreach($months as $ym=>$n){ ?>
-				<i style="height:<?php echo dash_pct($n,$max_month>0?$max_month:1); ?>%" title="<?php echo dash_h($ym.": ".$n." incident".($n==1?'':'s')); ?>"></i>
+				<i data-n="<?php echo (int)$n; ?>" style="height:<?php echo dash_pct($n,$max_month>0?$max_month:1); ?>%" title="<?php echo dash_h($ym.": ".$n." incident".($n==1?'':'s')); ?>"></i>
 <?php		}
 		} ?>
 			</div>
@@ -816,6 +863,10 @@ if($dsPartial){ ob_end_flush(); exit; }
 </div><!-- /#dsLive -->
 
 </div>
+<?php /* @panelkeep -- Outside #dsLive and outside .ds-wrap, so no swap
+         reaches it and no ancestor transform or overflow can box a fixed
+         overlay in. Empty string when neither panel file is present. */
+echo $dsPanelHtml; ?>
 <?php /* @autorefresh -- Emitted for EVERY date, not just today.
          Polling is today-only; swapping the region is not. The range selector
          on the trend card switches grain by loading a new URL, and that is
@@ -870,13 +921,66 @@ if($dsPartial){ ob_end_flush(); exit; }
 	   panel implementation in play; an unknown one simply means no pause,
 	   which is the safe direction -- a missed pause is one redraw, a false
 	   pause is a board that stops updating while saying it is live. */
+	/* On screen, with real size, and not hidden by any of the three usual
+	   means. The viewport test is the one that matters: a shut slide panel
+	   is normally parked off to one side at full size, so size alone would
+	   report every closed panel as open and the board would never tick. */
+	function onScreen(el){
+		if(!el || !el.getBoundingClientRect) return false;
+		var r = el.getBoundingClientRect();
+		if(!(r.width > 1 && r.height > 1)) return false;
+		var vw = window.innerWidth || document.documentElement.clientWidth;
+		var vh = window.innerHeight || document.documentElement.clientHeight;
+		if(r.right <= 0 || r.bottom <= 0 || r.left >= vw || r.top >= vh) return false;
+		if(window.getComputedStyle){
+			var cs = window.getComputedStyle(el);
+			if(cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+		}
+		return true;
+	}
+
 	function panelOpen(){
 		var ids = ['irPanel','taPanel','slidePanel','dashPanel'];
 		for(var i=0;i<ids.length;i++){
 			var el = document.getElementById(ids[i]);
 			if(el && el.className && el.className.indexOf('active') !== -1) return true;
 		}
+		/* @panelkeep -- Fallback that needs no agreement about names. Every
+		   panel this console opens is an iframe host, and the dashboard has
+		   no iframe of its own, so an iframe visible on screen IS a panel --
+		   whatever the element was called or which class marks it open. */
+		var fr = document.getElementsByTagName('iframe');
+		for(var j=0;j<fr.length;j++){ if(onScreen(fr[j])) return true; }
 		return false;
+	}
+
+	/* @panelkeep -- The other way a swap interrupts someone: a selection is
+	   lost with the nodes that carried it, so copying a figure off the board
+	   fails if a tick lands mid-drag. Selecting is deliberate and visible,
+	   and the readout says why the board stopped, so this pause cannot go
+	   unexplained. Delete the call in tick() to drop the behaviour. */
+	function selectionInRegion(){
+		if(!window.getSelection) return false;
+		var s = window.getSelection();
+		if(!s || s.isCollapsed || !s.rangeCount) return false;
+		var n = s.getRangeAt(0).commonAncestorContainer;
+		if(n && n.nodeType === 3) n = n.parentNode;
+		while(n){ if(n === region) return true; n = n.parentNode; }
+		return false;
+	}
+
+	/* @panelkeep -- The insertion log is a scroller inside the region, so a
+	   swap used to drop whoever was reading it back to the top -- every
+	   tick, with no way to stay put. Read immediately before the swap so a
+	   scroll made while the request was in flight still counts. */
+	function grabScroll(root){
+		var out = [], els = root.querySelectorAll ? root.querySelectorAll('.ds-scroll') : [];
+		for(var i=0;i<els.length;i++){ out.push(els[i].scrollTop); }
+		return out;
+	}
+	function putScroll(root, saved){
+		var els = root.querySelectorAll ? root.querySelectorAll('.ds-scroll') : [];
+		for(var i=0;i<els.length && i<saved.length;i++){ els[i].scrollTop = saved[i]; }
 	}
 
 	/* innerHTML does not execute <script>. The fleet strip and the incident
@@ -939,7 +1043,9 @@ if($dsPartial){ ob_end_flush(); exit; }
 			region.className = '';
 			var ok = (xhr.status >= 200 && xhr.status < 300 && xhr.responseText);
 			if(ok){
+				var keep = grabScroll(region);
 				region.innerHTML = xhr.responseText;
+				putScroll(region, keep);
 				runScripts(region);
 				if(push && window.history && window.history.pushState){
 					window.history.pushState({ds:1}, '', href);
@@ -958,6 +1064,7 @@ if($dsPartial){ ob_end_flush(); exit; }
 		if(toggle && !toggle.checked){ state('is-paused','paused'); return; }
 		if(document.hidden){ return; }                     /* nobody is looking */
 		if(panelOpen()){ state('is-paused','paused - panel open'); return; }
+		if(selectionInRegion()){ state('is-paused','paused - text selected'); return; }
 
 		state('is-busy','updating' + (failures ? ' - retry ' + failures : '') + '\u2026');
 		load(location.href, false, function(ok){
