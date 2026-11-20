@@ -97,14 +97,26 @@ if(!function_exists('dash_force_date')){
 }
 
 /* ==========================================================================
-   @peaks -- AM / PM peak split for the Skipping Trains tile.
+   @peaks -- AM peak / PM peak split for the Skipping Trains tile.
 
-   Counts TRAINS, not skips, so all three numbers in the tile are the same
-   unit as the tile's own figure (count(distinct tar_id), the rule settled for
-   dash_fleet_counts2): a train that skipped three times in the morning is one
-   AM-peak train. A train that skipped in both peaks counts in both cells, so
-   AM + PM need not equal the headline -- and off-peak skips (09:00-15:00, or
-   before 04:00) are in the headline but in neither cell.
+   Counts TRAINS, not skips, so every number in the tile is the same unit as
+   the tile's own figure (count(distinct tar_id), the rule settled for
+   dash_fleet_counts2).
+
+   @firstskip -- Each train is placed by its FIRST skip of the day, and in
+   exactly one cell. An earlier version counted a train in every window it
+   skipped in, so a train that skipped at 07:10 and again at 17:00 sat in both
+   AM and PM, and on 2026-11-20 the tile read 13 above 4 + 10 -- true, but read
+   as a mismatch. Now a train is in one cell at most, so AM + PM can never
+   exceed the trains counted here. Only the two peaks are shown (as asked):
+   a train whose first skip was between 09:00 and 15:00, before 04:00, or
+   has no usable departure time is in neither cell, so AM + PM can be LOWER
+   than the headline. The remainder is still returned as 'off' in case it is
+   ever wanted on screen.
+   The cost, accepted on purpose: a train that first skipped in the AM peak
+   and again in the PM peak shows only in AM, so the PM cell under-reads
+   repeat skippers. It answers "where did each train's skipping start", not
+   "how many trains skipped in this window".
 
    Windows, on the full departure timestamp:
      AM peak  04:00 up to (not including) 09:00 on the operating day
@@ -132,14 +144,24 @@ if(!function_exists('dash_skip_peaks')){
 		/* $d comes through dash_date(), so it is already Y-m-d; re-checked
 		   here because this function cannot see its caller. */
 		if(!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$d)) return null;
+		/* Inner query: one row per skipping train, with its first departure.
+		   Zero-dates ('0000-00-00 00:00:00', the legacy junk value) are left
+		   out of the min() so they cannot become a train's "first" skip; a
+		   train with no usable time is in neither peak cell. */
 		$sql = "select "
-		     . "count(distinct case when sk.departure_time >= '".$d." 04:00:00' "
-		     .                     "and sk.departure_time <  '".$d." 09:00:00' then sk.tar_id end) as am, "
-		     . "count(distinct case when sk.departure_time >= '".$d." 15:00:00' then sk.tar_id end) as pm "
-		     . "from skipping sk "
-		     . "join train_availability ta on ta.id = sk.tar_id "
-		     . "where ta.date >= '".$d." 00:00:00' and ta.date <= '".$d." 23:59:59' "
-		     . "and ta.status = 'active'";
+		     . "count(*) as total, "
+		     . "sum(case when f.first_dep >= '".$d." 04:00:00' "
+		     .          "and f.first_dep <  '".$d." 09:00:00' then 1 else 0 end) as am, "
+		     . "sum(case when f.first_dep >= '".$d." 15:00:00' then 1 else 0 end) as pm "
+		     . "from ("
+		     .   "select sk.tar_id, "
+		     .   "min(case when sk.departure_time > '1000-01-01' then sk.departure_time end) as first_dep "
+		     .   "from skipping sk "
+		     .   "join train_availability ta on ta.id = sk.tar_id "
+		     .   "where ta.date >= '".$d." 00:00:00' and ta.date <= '".$d." 23:59:59' "
+		     .   "and ta.status = 'active' "
+		     .   "group by sk.tar_id"
+		     . ") f";
 
 		$res = @$db->query($sql);
 		if(!$res || !is_object($res)) return null;
@@ -147,7 +169,10 @@ if(!function_exists('dash_skip_peaks')){
 		if(method_exists($res,'fetch_assoc'))  { $row = $res->fetch_assoc(); }   /* mysqli */
 		else if(method_exists($res,'fetch'))   { $row = $res->fetch(2); }        /* PDO, FETCH_ASSOC */
 		if(!is_array($row)) return null;
-		return array('am'=>(int)$row['am'], 'pm'=>(int)$row['pm']);
+		$am    = (int)$row['am'];
+		$pm    = (int)$row['pm'];
+		$total = (int)$row['total'];
+		return array('am'=>$am, 'pm'=>$pm, 'off'=>max(0, $total-$am-$pm), 'total'=>$total);
 	}
 }
 
@@ -392,14 +417,17 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			   0: at 11:00 a PM cell reading 0 looks like a good PM peak, the
 			   same reason the trend card hatches empty buckets rather than
 			   drawing them short. A started peak shows its running count. A
-			   past date shows both counts as they stand. */
+			   past date shows both counts as they stand.
+
+			   @firstskip -- each train sits in exactly ONE cell, by its first
+			   skip of the day; see dash_skip_peaks() above. */
 			if($skip_peaks === null){
 				if(count($sp_skip)){ echo dash_sparkline($sp_skip); }
 			} else {
 				$pkNow = $is_today ? date("H:i") : "99:99";
 				$pkCells = array(
-					array('AM peak', $skip_peaks['am'], '04:00', 'Trains that skipped, departures 04:00 to before 09:00'),
-					array('PM peak', $skip_peaks['pm'], '15:00', 'Trains that skipped, departures from 15:00 to end of revenue')
+					array('AM peak',  $skip_peaks['am'],  '04:00', 'Trains whose first skip departed 04:00 to before 09:00'),
+					array('PM peak',  $skip_peaks['pm'],  '15:00', 'Trains whose first skip departed from 15:00 to end of revenue')
 				); ?>
 			<div class="ds-peaks">
 <?php			foreach($pkCells as $pk){
