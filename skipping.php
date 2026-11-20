@@ -403,8 +403,7 @@ if(isset($_POST['switch_id'])){
 	$switchDriver=$_POST['train_driver'];
 	
 	$availability_date=date("Y-m-d H:i",strtotime($year."-".$month."-".$day." ".$hour.":".$minute));
-	db_exec($db,"insert into train_switch(train_ava_id,new_index,date_change,train_driver) values (?,?,?,?)",array($_POST['switch_id'],$_POST['new_index'],$availability_date),$switchDriver);
-	$switchRow=db_query($db,"select * from train_availability where id=? limit 1",array($_POST['switch_id']))->fetch_assoc();
+	db_exec($db,"insert into train_switch(train_ava_id,new_index,date_change,train_driver) values (?,?,?,?)",array($_POST['switch_id'],$_POST['new_index'],$availability_date,$switchDriver));	$switchRow=db_query($db,"select * from train_availability where id=? limit 1",array($_POST['switch_id']))->fetch_assoc();
 	if($switchRow['type']=="reserve"){
 		db_exec($db,"update train_availability set type='revenue' where id=?",array($_POST['switch_id']));
 	}
@@ -434,7 +433,14 @@ if(isset($_POST['edit_car'])){
    quotes, so the first STDO with an apostrophe in their surname broke the
    statement outright. Remarks-style double-quote wrapping of the two
    timestamps goes the same way. */
-
+if(isset($_POST['delete_skip'])){
+	if($ULev>=2){
+		$del_id=intval($_POST['delete_skip']);
+		if($del_id>0){
+			db_exec($db,"delete from skipping where id=? limit 1",array($del_id));
+		}
+	}
+}
 if(isset($_POST['update_skipping'])){
 	/* @skip -- departure_bound added to the UPDATE. The edit form has always
 	   shown a Bound select, and the legacy UPDATE silently dropped it, so
@@ -1226,7 +1232,22 @@ function changeForm(form_type,form_id,form_extra){
 	if(form_type=="loading"){ setHTML(); }
 	applyPrefill();   /* the synchronous controls; the AJAX ones call it again */
 }
+function deleteSkip(el){
+	var d;
+	try { d=JSON.parse(el.getAttribute('data-skip')); } catch(e){ return false; }
+	if(!d.id) return false;
+	if(!confirm("Delete this skip?\n\n"+(d.label||""))) return false;
 
+	var f=document.createElement('form');
+	f.method='post';
+	f.action='<?php echo $selfPage; ?>';
+	var i=document.createElement('input');
+	i.type='hidden'; i.name='delete_skip'; i.value=d.id;
+	f.appendChild(i);
+	document.body.appendChild(f);
+	f.submit();
+	return false;
+}
 /* @skip -- the two edit entry points. Both read the row's stored values off a
    data-skip attribute rather than taking them as a dozen onclick arguments,
    so a surname with an apostrophe in it cannot break the markup. */
@@ -1782,7 +1803,7 @@ for($i=0; $i<$nm; $i++){
 	   carries no second state: a skip is a thing that happened, not a job in
 	   progress, and an empty loading means it loaded on arrival. */
 	if($skipping){
-		$pill .= ' <span class="status-pill pill--skipping"><span class="led"></span>Skipping</span>';
+		//$pill .= ' <span class="status-pill pill--skipping"><span class="led"></span>Skipping</span>';
 	}
 
 	/* ── Switch trail: chips in the Index cell replace the 7 Switch columns.
@@ -1845,7 +1866,12 @@ for($i=0; $i<$nm; $i++){
 	
 	for($k=0; $k<$skipN; $k++){
 		$sp = $skipList[$k];
-		$sj = json_encode(array_merge($sp['raw'], array('train'=>$row['id'])));
+		
+				$sj = json_encode(array_merge($sp['raw'], array(
+			'train'=>$row['id'],
+			'label'=>trim($sp['dep'].' '.$sp['from'])
+		)));
+		
 		if($sj===false) $sj='{}';
 		$sj = htmlspecialchars($sj, ENT_QUOTES);
 
@@ -1866,11 +1892,15 @@ $skipIncident.= ($sp['in']!="")
 		/* driver and Edit share the block's second line; the </span> below closes it */
 		$skipDep.='<span class="skip-drv">'.htmlspecialchars($sp['depdrv']);
 
-					$skipDep.='<a href=\'#\' class="ta-act '.$SRemove.'" data-skip=\''.$sj.'\''
+			$skipDep.='<a href=\'#\' class="ta-act '.$SRemove.'" data-skip=\''.$sj.'\''
 			.' onclick=\'return openSkipEdit(this);\'>Edit</a>';
+			$skipDep.='<a href=\'#\' class="ta-act ta-act-cancel '.$SRemove.'" data-skip=\''.$sj.'\''
+			.' onclick=\'return deleteSkip(this);\'>Delete</a>';
 			$skipDep.="</span>";
 			
 		$skipDep.='</div>';
+		
+		
 		$skipBody .= '<div class="skip-item">';
 		/* departure */
 		$skipBody .= '<div class="skip-leg">'

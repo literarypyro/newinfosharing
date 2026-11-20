@@ -282,7 +282,21 @@ body { height: 100%; overflow: hidden; }
 		
 	</ul>
 	</li>
-		<li><a style='text-decoration:none;' href='skipping.php'>Skipping Trains</a></li>
+  	<li><a href="#">Skipping Trains</a>
+	<ul>
+		<!-- Trial balloon: Incident reporting assumed to be dependent on Train Availability, and Edit CCDR 
+		from other Pages, so disabling their independent pages -->
+	
+		<!--
+		<li><a href='incident report.php' id='dr'>Record Incident</a></li>		
+		<li><a href='edit_ccdr.php' id='dr1' >Edit Incident Details</a></li>
+		-->
+		
+		<li><a href='skipping2.php' style='text-decoration:none;'>Skipping Train Comparison</a></li>		
+		<li><a href='skipping.php' style='text-decoration:none;'>Add/Edit Skipping</a></li>
+		
+	</ul>
+	</li>
 
 		<li><a href='#'>Train Operations</a>	
 	<ul>

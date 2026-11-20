@@ -96,6 +96,61 @@ if(!function_exists('dash_force_date')){
 	}
 }
 
+/* ==========================================================================
+   @peaks -- AM / PM peak split for the Skipping Trains tile.
+
+   Counts TRAINS, not skips, so all three numbers in the tile are the same
+   unit as the tile's own figure (count(distinct tar_id), the rule settled for
+   dash_fleet_counts2): a train that skipped three times in the morning is one
+   AM-peak train. A train that skipped in both peaks counts in both cells, so
+   AM + PM need not equal the headline -- and off-peak skips (09:00-15:00, or
+   before 04:00) are in the headline but in neither cell.
+
+   Windows, on the full departure timestamp:
+     AM peak  04:00 up to (not including) 09:00 on the operating day
+     PM peak  15:00 on the operating day onward, to the end of revenue,
+              including departures logged after midnight against that day
+   Trains are picked by their operating day (ta.date), the same scoping
+   dash_spark_skipping() uses, and ACTIVE trains only, as on the skipping
+   page. A skip row on a cancelled train is a data error, and counting it
+   could make a peak cell exceed the tile's own figure. A range on ta.date rather than date(ta.date) so an index
+   can be used -- this runs on every live tick.
+
+   GUARDED like every other helper this page reaches for: defined here only
+   if dash_data.php does not already provide it (it belongs there, and a copy
+   placed there later simply wins), and it returns NULL -- not zeros -- when
+   it cannot ask the database. NULL tells the tile to keep its old trend line
+   instead of printing two confident zeros. ========================================================= */
+if(!function_exists('dash_skip_peaks')){
+	function dash_skip_peaks($d){
+		if(function_exists('dash_ready') && !dash_ready()) return null;
+		if(!function_exists('dash_db')) return null;
+		if(function_exists('dash_table_exists') && !dash_table_exists('skipping')) return null;
+		$db = dash_db();
+		if(!$db || !is_object($db) || !method_exists($db,'query')) return null;
+
+		/* $d comes through dash_date(), so it is already Y-m-d; re-checked
+		   here because this function cannot see its caller. */
+		if(!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$d)) return null;
+		$sql = "select "
+		     . "count(distinct case when sk.departure_time >= '".$d." 04:00:00' "
+		     .                     "and sk.departure_time <  '".$d." 09:00:00' then sk.tar_id end) as am, "
+		     . "count(distinct case when sk.departure_time >= '".$d." 15:00:00' then sk.tar_id end) as pm "
+		     . "from skipping sk "
+		     . "join train_availability ta on ta.id = sk.tar_id "
+		     . "where ta.date >= '".$d." 00:00:00' and ta.date <= '".$d." 23:59:59' "
+		     . "and ta.status = 'active'";
+
+		$res = @$db->query($sql);
+		if(!$res || !is_object($res)) return null;
+		$row = null;
+		if(method_exists($res,'fetch_assoc'))  { $row = $res->fetch_assoc(); }   /* mysqli */
+		else if(method_exists($res,'fetch'))   { $row = $res->fetch(2); }        /* PDO, FETCH_ASSOC */
+		if(!is_array($row)) return null;
+		return array('am'=>(int)$row['am'], 'pm'=>(int)$row['pm']);
+	}
+}
+
 /* ---- data -------------------------------------------------------- */
 $trains      = dash_trains($view_date);
 $fleet       = dash_fleet_counts($view_date);
@@ -120,6 +175,9 @@ $sp_cancel   = dash_spark_cancelled($view_date);
    until the include catches up. */
 $sp_skip     = function_exists('dash_spark_skipping')
 	? dash_spark_skipping($view_date) : array();
+/* @peaks -- NULL when the database cannot be asked; the tile then keeps its
+   trend line. See dash_skip_peaks() above. */
+$skip_peaks  = dash_skip_peaks($view_date);
 
 $d_trains    = dash_delta($sp_trains,$view_date);
 $d_inc       = dash_delta($sp_inc,$view_date);
@@ -182,6 +240,19 @@ foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 
      The matching SCRIPT tags are NOT here. See the note below Tmenu_2.php. -->
 <link rel="stylesheet" href="jquery-ui-themes-1.11.1/themes/smoothness/jquery-ui.css" />
+<!-- @peaks -- the Skipping Trains tile's AM / PM split. In <head>, not in
+     #dsLive: a tick replaces the region's contents only, so these rules are
+     sent once and survive every swap. -->
+<style>
+.ds-peaks{display:grid;grid-template-columns:1fr 1fr;margin-top:4px;padding-top:5px;
+	border-top:1px solid var(--cf-line,#E3E7EE)}
+.ds-peaks > div{min-width:0}
+.ds-peaks > div + div{border-left:1px solid var(--cf-line,#E3E7EE);padding-left:8px}
+.ds-peak-l{display:block;font-size:11px;line-height:13px;color:var(--cf-ink-3,#5A6275);white-space:nowrap}
+.ds-peak-n{display:block;font-size:15px;line-height:19px;font-weight:600;color:var(--cf-ink,#1A2233);
+	font-variant-numeric:tabular-nums}
+.ds-peak-n.is-wait{color:var(--cf-ink-3,#5A6275);font-weight:400}
+</style>
 
 </head>
 <body>
@@ -311,7 +382,35 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			         tile beside it. Copied when the tile was added and never
 			         repointed. Emitted only when the series is there, so an older
 			         dash_data.php leaves a gap rather than a wrong chart. */
-			if(count($sp_skip)){ echo dash_sparkline($sp_skip); } ?>
+			/* @peaks -- The AM / PM split takes the trend line's place, so the
+			   tile stays the height of its neighbours and shows only the day
+			   on screen. The trend line is kept, commented, as the fallback:
+			   when the split cannot be computed the tile draws it exactly as
+			   before rather than showing empty cells.
+
+			   On today's board a peak that has not STARTED shows a dash, not
+			   0: at 11:00 a PM cell reading 0 looks like a good PM peak, the
+			   same reason the trend card hatches empty buckets rather than
+			   drawing them short. A started peak shows its running count. A
+			   past date shows both counts as they stand. */
+			if($skip_peaks === null){
+				if(count($sp_skip)){ echo dash_sparkline($sp_skip); }
+			} else {
+				$pkNow = $is_today ? date("H:i") : "99:99";
+				$pkCells = array(
+					array('AM peak', $skip_peaks['am'], '04:00', 'Trains that skipped, departures 04:00 to before 09:00'),
+					array('PM peak', $skip_peaks['pm'], '15:00', 'Trains that skipped, departures from 15:00 to end of revenue')
+				); ?>
+			<div class="ds-peaks">
+<?php			foreach($pkCells as $pk){
+					$pkWaiting = ($pkNow < $pk[2]); ?>
+				<div title="<?php echo dash_h($pkWaiting ? $pk[0].' starts at '.$pk[2] : $pk[3]); ?>">
+					<span class="ds-peak-l"><?php echo dash_h($pk[0]); ?></span>
+					<span class="ds-peak-n<?php echo $pkWaiting ? ' is-wait' : ''; ?>"><?php echo $pkWaiting ? '&ndash;' : (int)$pk[1]; ?></span>
+				</div>
+<?php			} ?>
+			</div>
+<?php		} ?>
 		</div></a>
 
 		<a class="ds-tile" href="#"></span><div class="ds-tile-body">
