@@ -53,8 +53,10 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
        trail. Index is the number alone.
      - View only (@viewonly): the tables carry no Edit / + Skip / + Loading
        controls. The forms and POST handlers are still in the file, unused.
-     - A line graph (@chart) between the peak tiles and the tables, across
+     - A line graph (@chart) between the tiles and the tables, across
        both halves: skips per hour of departure, A against B.
+     - Northbound / Southbound tiles (@bound) under the peak tiles: skips per
+       departure bound, each with its own AM / PM peak split.
    ========================================================================= */
 require_once("db_connect.php"); /* shared $db + db_exec()/db_query() prepared-statement helpers (item #2) */
 
@@ -399,7 +401,8 @@ if(!function_exists('ccsBuildSkipRows')){
 function ccsBuildSkipRows($dbase,$dateCode,$SRemove,&$stats){
 	$skips=ccsLoadSkipsForDate($dbase,$dateCode);
 	$stats=array('skips'=>count($skips),'trains'=>0,'incidents'=>0,'am'=>0,'pm'=>0,
-		'hours'=>array(),'untimed'=>0);
+		'hours'=>array(),'untimed'=>0,'nb'=>0,'sb'=>0,'nobound'=>0,
+		'nb_am'=>0,'nb_pm'=>0,'sb_am'=>0,'sb_pm'=>0);
 	/* @chart -- skips per hour of departure, for the A-vs-B line graph. Keyed
 	   by hours since midnight of the section's date, so a departure logged
 	   after midnight against the same operating day is hour 24, 25 ... rather
@@ -426,10 +429,22 @@ function ccsBuildSkipRows($dbase,$dateCode,$SRemove,&$stats){
 		$tid=$sp['tar_id'];
 		$seen[$tid]=true;
 		if($sp['in']!="") $stats['incidents']++;
+		/* @bound -- skips per bound for the day, from the skip's departure_bound.
+		   The form stores NB / SB; anything else (blank, or an older spelled-out
+		   value) is read by its first letter, and a skip with no bound at all is
+		   counted as such so the three parts always add up to the skip count. */
+		$bnd=strtoupper(substr(trim((string)$sp['raw']['dep_bound']),0,1));
+		$bKey=($bnd==='N') ? 'nb' : (($bnd==='S') ? 'sb' : '');
+		if($bKey!=='') $stats[$bKey]++; else $stats['nobound']++;
 		$depTs=($sp['raw']['dep']!="" && $sp['raw']['dep']!="0000-00-00 00:00:00") ? strtotime($sp['raw']['dep']) : false;
 		if($depTs!==false){
 			if($depTs>=$amFrom && $depTs<$amTo) $stats['am']++;
 			elseif($depTs>=$pmFrom)             $stats['pm']++;
+			/* @bound -- each bound's own peak split, same windows as the tiles */
+			if($bKey!==''){
+				if($depTs>=$amFrom && $depTs<$amTo) $stats[$bKey.'_am']++;
+				elseif($depTs>=$pmFrom)             $stats[$bKey.'_pm']++;
+			}
 			$hIdx=(int)floor(($depTs-$dayStart)/3600);
 			if($hIdx>=0 && $hIdx<48){
 				$stats['hours'][$hIdx]=isset($stats['hours'][$hIdx]) ? $stats['hours'][$hIdx]+1 : 1;
@@ -515,6 +530,29 @@ function ccsBuildSkipRows($dbase,$dateCode,$SRemove,&$stats){
 			.date("F d, Y",strtotime($dateCode)).'.</td></tr>';
 	}
 	return $html;
+}
+}
+
+/* @bound -- one bound tile: the day's skips that departed on that bound, the
+   bound's own AM / PM peak split (the same windows as the peak tiles above
+   it), its share of the day's skips, and on B the difference from A.
+   Replaces the NB / SB pill that sat in the section bar. */
+if(!function_exists('ccsBoundTile')){
+function ccsBoundTile($kind,$label,$abbr,$n,$am,$pm,$total,$vs=null){
+	$d='';
+	if($vs!==null){
+		$diff=intval($n)-intval($vs);
+		$d='<span class="cmp-delta">'.($diff>0 ? '+'.$diff : ($diff<0 ? '&minus;'.abs($diff) : '&plusmn;0')).' vs A</span>';
+	}
+	$share=($total>0) ? round($n*100/$total).'% of '.intval($total) : 'no skips that day';
+	$icon=($kind=='nb') ? 'ti-arrow-up' : 'ti-arrow-down';
+	return '<div class="peak-tile bound-tile bound-tile--'.$kind.'">'
+		.'<div class="peak-head"><i class="ti '.$icon.'" aria-hidden="true"></i>'
+		.'<span class="peak-label">'.$label.'</span><span class="peak-window">'.$abbr.'</span></div>'
+		.'<div class="peak-body"><span class="peak-num">'.intval($n).'</span>'
+		.'<span class="peak-unit">skip'.(intval($n)==1?'':'s').'</span>'.$d.'</div>'
+		.'<div class="peak-share">AM peak '.intval($am).' &middot; PM peak '.intval($pm).' &middot; '.$share.'</div>'
+		.'</div>';
 }
 }
 
@@ -1203,16 +1241,16 @@ a.LEdit:visited { color:blue; } a.LDel:visited { color:red; }
    wraps in either bar. display:contents lets each section's bar and table be
    placed in the grid directly; the divider between A and B is a 1px line
    drawn down the middle of the grid. */
-.cmp-grid         { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto auto auto auto; align-items:start; padding:8px 0 6px;
+.cmp-grid         { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto auto auto auto auto; align-items:start; padding:8px 0 6px;
                     background:linear-gradient(var(--line),var(--line)) center top / 1px 100% no-repeat; }
 .cmp-section      { display:contents; }
 .cmp-section--a > * { grid-column:1; min-width:0; }
 .cmp-section--b > * { grid-column:2; min-width:0; }
 .cmp-bar          { grid-row:1; align-self:stretch; align-content:center; display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; margin:0 8px; padding:8px 10px; background:#fff; border:1px solid var(--line); border-left-width:4px; border-radius:6px; }
-.cmp-grid .ops-table-wrap { grid-row:4; margin:8px 8px 14px; }
+.cmp-grid .ops-table-wrap { grid-row:5; margin:8px 8px 14px; }
 /* @chart -- row 3, across both columns: below the peak tiles, above the
    tables. Its white card covers the A | B divider drawn behind the grid. */
-.cmp-chart        { grid-row:3; grid-column:1 / -1; position:relative; margin:8px 8px 0; padding:10px 14px 8px; background:#fff; border:1px solid var(--line); border-radius:6px; }
+.cmp-chart        { grid-row:4; grid-column:1 / -1; position:relative; margin:8px 8px 0; padding:10px 14px 8px; background:#fff; border:1px solid var(--line); border-radius:6px; }
 .cmp-chart-head   { display:flex; align-items:center; justify-content:space-between; gap:8px 18px; flex-wrap:wrap; margin-bottom:2px; }
 .cmp-chart-head h3{ margin:0; font-size:12px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--rail); }
 .cmp-chart-sub    { font-size:10.5px; font-weight:500; letter-spacing:.2px; text-transform:none; color:var(--mut); margin-left:6px; }
@@ -1283,6 +1321,15 @@ a.LEdit:visited { color:blue; } a.LDel:visited { color:red; }
 .cmp-stats        { flex-basis:100%; display:flex; gap:14px; flex-wrap:wrap; padding-left:38px; }
 .cmp-stat         { font-size:11px; color:var(--mut); white-space:nowrap; }
 .cmp-stat b       { font-size:14px; color:var(--ink); font-variant-numeric:tabular-nums; margin-right:2px; }
+/* @bound -- the Northbound / Southbound row: the same tile as the peaks
+   (sizes, type, the "vs A" chip), with its own top-border colours. Grid
+   row 3, under the peak tiles and above the chart. */
+.bound-tiles      { grid-row:3; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 8px 0; align-content:start; }
+.bound-tile--nb   { border-top-color:var(--rail); }
+.bound-tile--sb   { border-top-color:#0F6E56; }
+.bound-tile--nb .peak-head i { color:var(--rail); }
+.bound-tile--sb .peak-head i { color:#0F6E56; }
+.bound-none       { grid-column:1 / -1; font-size:10.5px; color:var(--mut); font-style:italic; padding:0 2px; }
 .cmp-delta        { margin-left:5px; font-size:10px; font-weight:600; color:#6B5A00; background:#FFF4CC; border-radius:8px; padding:0 6px; }
 /* one row per skip: the train's cars sit together in one cell */
 table.train_ava td.tc-car-cell { vertical-align:top !important; }
@@ -2201,6 +2248,17 @@ $sections = array(
 		echo ccsPeakTile('am','AM Peak','04:00 &ndash; 09:00',          $st['am'],$st['skips'], $sec['vs']!==null ? $sec['vs']['am'] : null);
 		echo ccsPeakTile('pm','PM Peak','15:00 &ndash; end of revenue', $st['pm'],$st['skips'], $sec['vs']!==null ? $sec['vs']['pm'] : null);
 		?>
+	</div>
+
+	<!-- @bound -- Northbound / Southbound tiles, a second row under the peak
+	     tiles. Grid row 3, shared by A and B, so the two sides stay level. -->
+	<div class="bound-tiles">
+		<?php
+		echo ccsBoundTile('nb','Northbound','NB', $st['nb'],$st['nb_am'],$st['nb_pm'],$st['skips'], $sec['vs']!==null ? $sec['vs']['nb'] : null);
+		echo ccsBoundTile('sb','Southbound','SB', $st['sb'],$st['sb_am'],$st['sb_pm'],$st['skips'], $sec['vs']!==null ? $sec['vs']['sb'] : null);
+		if((int)$st['nobound']>0){ ?>
+		<div class="bound-none"><?php echo (int)$st['nobound']; ?> skip<?php echo $st['nobound']==1?' has':'s have'; ?> no bound recorded and <?php echo $st['nobound']==1?'is':'are'; ?> in neither tile.</div>
+		<?php } ?>
 	</div>
 
 	<div class="ops-table-wrap">
