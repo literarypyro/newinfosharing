@@ -53,6 +53,8 @@ ini_set("date.timezone","Asia/Kuala_Lumpur");
        trail. Index is the number alone.
      - View only (@viewonly): the tables carry no Edit / + Skip / + Loading
        controls. The forms and POST handlers are still in the file, unused.
+     - A line graph (@chart) between the peak tiles and the tables, across
+       both halves: skips per hour of departure, A against B.
    ========================================================================= */
 require_once("db_connect.php"); /* shared $db + db_exec()/db_query() prepared-statement helpers (item #2) */
 
@@ -396,7 +398,15 @@ function ccsSkipTrainInfo($dbase,$taId){
 if(!function_exists('ccsBuildSkipRows')){
 function ccsBuildSkipRows($dbase,$dateCode,$SRemove,&$stats){
 	$skips=ccsLoadSkipsForDate($dbase,$dateCode);
-	$stats=array('skips'=>count($skips),'trains'=>0,'incidents'=>0,'am'=>0,'pm'=>0);
+	$stats=array('skips'=>count($skips),'trains'=>0,'incidents'=>0,'am'=>0,'pm'=>0,
+		'hours'=>array(),'untimed'=>0);
+	/* @chart -- skips per hour of departure, for the A-vs-B line graph. Keyed
+	   by hours since midnight of the section's date, so a departure logged
+	   after midnight against the same operating day is hour 24, 25 ... rather
+	   than wrapping round to the morning. A skip with no usable departure time
+	   cannot be placed on the clock: it is counted in 'untimed' and the chart
+	   says so, instead of quietly dropping it. */
+	$dayStart=strtotime($dateCode." 00:00:00");
 	/* @peak -- peak windows, judged on the full departure timestamp:
 	     AM Peak  04:00 up to (not including) 09:00 on the section's date
 	     PM Peak  15:00 on the section's date onward, to the end of revenue --
@@ -420,6 +430,14 @@ function ccsBuildSkipRows($dbase,$dateCode,$SRemove,&$stats){
 		if($depTs!==false){
 			if($depTs>=$amFrom && $depTs<$amTo) $stats['am']++;
 			elseif($depTs>=$pmFrom)             $stats['pm']++;
+			$hIdx=(int)floor(($depTs-$dayStart)/3600);
+			if($hIdx>=0 && $hIdx<48){
+				$stats['hours'][$hIdx]=isset($stats['hours'][$hIdx]) ? $stats['hours'][$hIdx]+1 : 1;
+			} else {
+				$stats['untimed']++;   /* outside the operating day: cannot be plotted */
+			}
+		} else {
+			$stats['untimed']++;
 		}
 		$t=ccsSkipTrainInfo($dbase,$tid);
 
@@ -530,6 +548,137 @@ function ccsPeakTile($kind,$label,$window,$n,$total,$vs=null){
 		.'<div class="peak-body"><span class="peak-num">'.intval($n).'</span>'
 		.'<span class="peak-unit">skip'.(intval($n)==1?'':'s').'</span>'.$d.'</div>'
 		.'<div class="peak-share">'.$share.'</div>'
+		.'</div>';
+}
+}
+
+/* =========================================================================
+   @chart -- A vs B, skips per hour of departure, one line per day.
+
+   Drawn as inline SVG by PHP, not by a chart library: this page has no chart
+   library, the console is not guaranteed a route to a CDN, and an SVG made on
+   the server is on screen the moment the page is -- nothing to load or fail.
+
+   The hours run across the operating day: 04:00 to 23:00 always, widened
+   only when a day has skips outside that (before 04:00, or after midnight on
+   the same operating day, drawn past a "midnight" marker rather than wrapped
+   to the left). The AM and PM peak bands are shaded with the same windows as
+   the tiles above, so the area under a line inside a band IS that tile's
+   number.
+
+   TODAY'S line stops at the current hour. The hours still to come have no
+   skips yet, and a line dropping to zero for them would read as a quiet
+   afternoon -- the same reason the console shows a dash for a peak that has
+   not started.
+
+   $series: array of array('key','label','hours','untimed','is_today').
+   ========================================================================= */
+if(!function_exists('ccsSkipChart')){
+function ccsSkipChart($series){
+	$colors=array('a'=>array('#00529B',''), 'b'=>array('#C98F00','7 5'));
+	$hMin=4; $hMax=23; $any=0; $untimed=0; $anyToday=false;
+	foreach($series as $sr){
+		foreach($sr['hours'] as $h=>$n){ if($n>0){ $any+=$n; if($h<$hMin) $hMin=$h; if($h>$hMax) $hMax=$h; } }
+		$untimed+=$sr['untimed'];
+		if($sr['is_today']) $anyToday=true;
+	}
+	$nowH=(int)floor((time()-strtotime(date("Y-m-d")." 00:00:00"))/3600);
+
+	/* legend + notes are HTML, so they stay sharp and wrap on a narrow screen */
+	$legend='';
+	foreach($series as $sr){
+		$c=$colors[$sr['key']];
+		$tot=0; foreach($sr['hours'] as $n){ $tot+=$n; }
+		$legend.='<span class="cmp-chart-key">'
+			.'<svg width="26" height="10" aria-hidden="true"><line x1="1" y1="5" x2="25" y2="5" stroke="'.$c[0].'" stroke-width="2.5"'
+			.($c[1]!==''?' stroke-dasharray="'.$c[1].'"':'').'/></svg>'
+			.'<b>'.strtoupper($sr['key']).'</b> '.htmlspecialchars($sr['label'])
+			.' <span class="cmp-chart-n">&middot; '.$tot.' skip'.($tot==1?'':'s').' plotted</span></span>';
+	}
+	$notes=array();
+	if($anyToday) $notes[]="Today's line stops at the current hour.";
+	if($untimed>0) $notes[]=$untimed.' skip'.($untimed==1?' has':'s have').' no departure time and '.($untimed==1?'is':'are').' not plotted.';
+
+	$head='<div class="cmp-chart-head"><h3><i class="ti ti-chart-line" aria-hidden="true"></i> Skips per hour'
+		.' <span class="cmp-chart-sub">by departure time</span></h3>'
+		.'<div class="cmp-chart-legend">'.$legend.'</div></div>';
+
+	if($any===0){
+		return '<div class="cmp-chart">'.$head
+			.'<div class="cmp-chart-empty">No skips with a departure time on either day.</div>'
+			.($notes ? '<div class="cmp-chart-note">'.htmlspecialchars(implode(' ',$notes)).'</div>' : '')
+			.'</div>';
+	}
+
+	/* geometry, in viewBox units */
+	$W=1400; $H=200; $L=42; $R=18; $T=30; $B=32;
+	$pw=$W-$L-$R; $ph=$H-$T-$B;
+	$nB=$hMax-$hMin+1;
+	$step=($nB>1) ? $pw/($nB-1) : $pw;
+	$xOf=function($h) use($L,$hMin,$step){ return $L+($h-$hMin)*$step; };
+
+	$maxN=1;
+	foreach($series as $sr){ foreach($sr['hours'] as $n){ if($n>$maxN) $maxN=$n; } }
+	$tick=($maxN<=5) ? 1 : (int)ceil($maxN/5);
+	$yTop=(int)(ceil($maxN/$tick)*$tick);
+	$yOf=function($n) use($T,$ph,$yTop){ return $T+$ph-($n/$yTop)*$ph; };
+
+	$svg='<svg class="cmp-chart-svg" viewBox="0 0 '.$W.' '.$H.'" role="img" aria-label="Skips per hour of departure, A against B">';
+
+	/* peak bands (clipped to the plotted range) */
+	$half=$step/2;
+	$bands=array(array(4,8,'AM peak','am'), array(15,$hMax,'PM peak','pm'));
+	foreach($bands as $bd){
+		$from=max($bd[0],$hMin); $to=min($bd[1],$hMax);
+		if($to<$from) continue;
+		$x1=max($L,$xOf($from)-$half); $x2=min($L+$pw,$xOf($to)+$half);
+		$svg.='<rect class="cmp-band cmp-band--'.$bd[3].'" x="'.round($x1,1).'" y="'.$T.'" width="'.round($x2-$x1,1).'" height="'.$ph.'"/>'
+			/* label ABOVE the plotting area, so a point near the top of the
+			   band can never sit on it */
+			.'<text class="cmp-band-lbl" x="'.round($x1+2,1).'" y="'.($T-9).'">'.$bd[2].'</text>';
+	}
+
+	/* horizontal gridlines + y labels */
+	for($v=0;$v<=$yTop;$v+=$tick){
+		$y=round($yOf($v),1);
+		$svg.='<line class="cmp-grid-y" x1="'.$L.'" y1="'.$y.'" x2="'.($L+$pw).'" y2="'.$y.'"/>'
+			.'<text class="cmp-ax" x="'.($L-8).'" y="'.($y+4).'" text-anchor="end">'.$v.'</text>';
+	}
+
+	/* x labels; a marker where the clock passes midnight */
+	for($h=$hMin;$h<=$hMax;$h++){
+		$x=round($xOf($h),1);
+		$svg.='<text class="cmp-ax" x="'.$x.'" y="'.($T+$ph+18).'" text-anchor="middle">'.sprintf('%02d',$h%24).'</text>';
+		if($h==24){
+			$svg.='<line class="cmp-midnight" x1="'.round($x-$half,1).'" y1="'.$T.'" x2="'.round($x-$half,1).'" y2="'.($T+$ph).'"/>'
+				.'<text class="cmp-ax cmp-ax--note" x="'.round($x-$half+4,1).'" y="'.($T+$ph-6).'">midnight</text>';
+		}
+	}
+
+	/* the lines: A first, then B's dashed line over it. Where the two days
+	   have the same count the dashes alternate gold and blue, so neither line
+	   disappears under the other. */
+	foreach($series as $sr){
+		$c=$colors[$sr['key']];
+		$last=$hMax;
+		if($sr['is_today']) $last=min($hMax,$nowH);
+		if($last<$hMin) continue;
+		$pts=array(); $dots='';
+		for($h=$hMin;$h<=$last;$h++){
+			$n=isset($sr['hours'][$h]) ? $sr['hours'][$h] : 0;
+			$x=round($xOf($h),1); $y=round($yOf($n),1);
+			$pts[]=$x.','.$y;
+			$dots.='<circle cx="'.$x.'" cy="'.$y.'" r="'.($n>0?4:2.5).'" fill="'.($n>0?$c[0]:'#fff').'" stroke="'.$c[0].'" stroke-width="1.5">'
+				.'<title>'.strtoupper($sr['key']).' '.htmlspecialchars($sr['label']).' &middot; '
+				.sprintf('%02d:00&ndash;%02d:59',$h%24,$h%24).' &middot; '.$n.' skip'.($n==1?'':'s').'</title></circle>';
+		}
+		$svg.='<polyline fill="none" stroke="'.$c[0].'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"'
+			.($c[1]!==''?' stroke-dasharray="'.$c[1].'"':'').' points="'.implode(' ',$pts).'"/>'.$dots;
+	}
+	$svg.='</svg>';
+
+	return '<div class="cmp-chart">'.$head.$svg
+		.($notes ? '<div class="cmp-chart-note">'.htmlspecialchars(implode(' ',$notes)).'</div>' : '')
 		.'</div>';
 }
 }
@@ -1054,13 +1203,33 @@ a.LEdit:visited { color:blue; } a.LDel:visited { color:red; }
    wraps in either bar. display:contents lets each section's bar and table be
    placed in the grid directly; the divider between A and B is a 1px line
    drawn down the middle of the grid. */
-.cmp-grid         { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto auto auto; align-items:start; padding:8px 0 6px;
+.cmp-grid         { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto auto auto auto; align-items:start; padding:8px 0 6px;
                     background:linear-gradient(var(--line),var(--line)) center top / 1px 100% no-repeat; }
 .cmp-section      { display:contents; }
 .cmp-section--a > * { grid-column:1; min-width:0; }
 .cmp-section--b > * { grid-column:2; min-width:0; }
 .cmp-bar          { grid-row:1; align-self:stretch; align-content:center; display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; margin:0 8px; padding:8px 10px; background:#fff; border:1px solid var(--line); border-left-width:4px; border-radius:6px; }
-.cmp-grid .ops-table-wrap { grid-row:3; margin:8px 8px 14px; }
+.cmp-grid .ops-table-wrap { grid-row:4; margin:8px 8px 14px; }
+/* @chart -- row 3, across both columns: below the peak tiles, above the
+   tables. Its white card covers the A | B divider drawn behind the grid. */
+.cmp-chart        { grid-row:3; grid-column:1 / -1; position:relative; margin:8px 8px 0; padding:10px 14px 8px; background:#fff; border:1px solid var(--line); border-radius:6px; }
+.cmp-chart-head   { display:flex; align-items:center; justify-content:space-between; gap:8px 18px; flex-wrap:wrap; margin-bottom:2px; }
+.cmp-chart-head h3{ margin:0; font-size:12px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--rail); }
+.cmp-chart-sub    { font-size:10.5px; font-weight:500; letter-spacing:.2px; text-transform:none; color:var(--mut); margin-left:6px; }
+.cmp-chart-legend { display:flex; gap:6px 18px; flex-wrap:wrap; }
+.cmp-chart-key    { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink); white-space:nowrap; }
+.cmp-chart-key b  { font-weight:700; }
+.cmp-chart-n      { color:var(--mut); }
+.cmp-chart-svg    { display:block; width:100%; height:auto; overflow:visible; }
+.cmp-chart-svg .cmp-band--am { fill:#FDB813; fill-opacity:.10; }
+.cmp-chart-svg .cmp-band--pm { fill:#6D5BD0; fill-opacity:.08; }
+.cmp-chart-svg .cmp-band-lbl { font:600 11px var(--ta-sans); fill:var(--mut); letter-spacing:.5px; text-transform:uppercase; }
+.cmp-chart-svg .cmp-grid-y   { stroke:#E6EDF5; stroke-width:1; }
+.cmp-chart-svg .cmp-midnight { stroke:#9AA6B6; stroke-width:1; stroke-dasharray:3 4; }
+.cmp-chart-svg .cmp-ax       { font:11px var(--ta-sans); fill:var(--mut); font-variant-numeric:tabular-nums; }
+.cmp-chart-svg .cmp-ax--note { font-size:11px; font-style:italic; }
+.cmp-chart-note   { font-size:10.5px; color:var(--mut); margin-top:2px; }
+.cmp-chart-empty  { font-size:12px; font-style:italic; color:var(--mut); padding:26px 0; text-align:center; }
 /* @peak -- the tiles take grid row 2, between the bars and the tables, so
    A's and B's tiles (and the tables under them) stay level too */
 .peak-tiles       { grid-row:2; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 8px 0; }
@@ -1127,6 +1296,7 @@ tr.row-empty td   { text-align:center; color:var(--mut); font-style:italic; padd
 @media (max-width:768px){
 	.cmp-grid { display:block; background:none; }
 	.cmp-section { display:block; margin-top:8px; }
+	.cmp-chart { margin:8px 6px 0; }
 
 	.ops-header, .ops-strip, .ops-section { padding-left:10px; padding-right:10px; }
 	.ops-table-wrap { margin:8px 6px 12px; }
@@ -2061,6 +2231,15 @@ $sections = array(
 	</form>
 </section>
 <?php } ?>
+<?php /* @chart -- one graph for both days, spanning A and B, between the
+         peak tiles and the tables (grid row 3; see .cmp-chart). */
+$chartToday = date("Y-m-d");
+echo ccsSkipChart(array(
+	array('key'=>'a','label'=>date("D d M",strtotime($availability_date_code)),
+	      'hours'=>$statsA['hours'],'untimed'=>$statsA['untimed'],'is_today'=>($availability_date_code===$chartToday)),
+	array('key'=>'b','label'=>date("D d M",strtotime($compare_date_code)),
+	      'hours'=>$statsB['hours'],'untimed'=>$statsB['untimed'],'is_today'=>($compare_date_code===$chartToday))
+)); ?>
 </div><!-- /.cmp-grid -->
 
 <form id="dateResetFormB" action="<?php echo $selfPage; ?>" method="post" style="display:none">

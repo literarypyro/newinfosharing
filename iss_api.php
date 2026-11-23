@@ -292,22 +292,37 @@ function iss_skipping_available($rows){
 function iss_skip_totals($date){
 	static $cache = array();
 	if(isset($cache[$date])) return $cache[$date];
-	$out = array('skips'=>0, 'trains'=>0, 'open'=>0, 'available'=>false, 'reason'=>'');
+	$out = array('skips'=>0, 'trains'=>0, 'open'=>0, 'am'=>0, 'pm'=>0, 'available'=>false, 'reason'=>'');
 	if(!dash_ready() || !dash_table_exists('skipping') || !dash_table_exists('train_availability')){
 		$out['reason'] = 'skipping or train_availability not present';
 		return $cache[$date] = $out;
 	}
 	$db  = dash_db();
 	$d   = $db->real_escape_string($date);
-	$open = "(sk.loading_time is null or sk.loading_time='' or sk.loading_time='0000-00-00 00:00:00')";
+	/* @strictdate -- "not yet loaded" = NULL, or a zero/blank date. NOT tested
+	   with loading_time='' or ='0000-00-00 00:00:00': loading_time is a
+	   DATETIME, and under MySQL strict mode comparing it with '' fails the
+	   WHOLE query ("Incorrect DATETIME value: ''"). That failure was
+	   silent -- the tile kept a number from the dash_trains() fallback --
+	   and it is why the AM / PM split never arrived. Anything before year
+	   1000 is a zero or blank date, so one valid comparison covers both. */
+	$open = "(sk.loading_time is null or sk.loading_time < '1000-01-01 00:00:00')";
 	$sql = "select count(*) as skips, count(distinct sk.tar_id) as trains,"
-	      ." sum(case when ".$open." then 1 else 0 end) as open_n"
+	      ." sum(case when ".$open." then 1 else 0 end) as open_n,"
+	      /* @peaks -- skips by the window their OWN departure is in, the rule
+	         the console's Skipping Trains tile uses (dash_skip_peaks() in
+	         dashboard.php): AM 04:00 to before 09:00, PM from 15:00 on,
+	         after-midnight departures on the same operating day included. A
+	         blank or zero departure counts in skips but in neither peak. */
+	      ." sum(case when sk.departure_time >= '".$d." 04:00:00' and sk.departure_time < '".$d." 09:00:00' then 1 else 0 end) as am_n,"
+	      ." sum(case when sk.departure_time >= '".$d." 15:00:00' then 1 else 0 end) as pm_n"
 	      ." from skipping sk inner join train_availability ta on ta.id = sk.tar_id"
 	      ." where date(ta.date)='".$d."' and ta.status='active'";
 	$rs = @$db->query($sql);
 	if($rs && ($r = $rs->fetch_assoc())){
 		$out = array('skips'=>(int)$r['skips'], 'trains'=>(int)$r['trains'],
-		             'open'=>(int)$r['open_n'], 'available'=>true, 'reason'=>'');
+		             'open'=>(int)$r['open_n'], 'am'=>(int)$r['am_n'], 'pm'=>(int)$r['pm_n'],
+		             'available'=>true, 'reason'=>'');
 	} else {
 		/* The @ keeps a schema mismatch out of the JSON stream, but
 		   swallowing it ENTIRELY is what made this silent: the app's Skipping
@@ -346,6 +361,15 @@ function iss_skip_totals($date){
    the confident 0 the flag exists to prevent, because it hid a figure that
    was there. Unknown now means NEITHER source could answer.
    ===================================================================== */
+/* @peaks -- a peak's count, or NULL when it has not started yet: today's date
+   on the SERVER's clock, before the peak's start. The phone never decides the
+   operating date or the time (see DateScope), so it does not decide this
+   either. A 0 at 11:00 for the PM peak would read as a quiet peak. */
+function iss_peak_value($date, $start, $n){
+	if($date === date('Y-m-d') && date('H:i') < $start) return null;
+	return (int)$n;
+}
+
 function iss_skipping_fields($date, $rows){
 	$st = iss_skip_totals($date);
 	if($st['available']){
@@ -353,6 +377,11 @@ function iss_skipping_fields($date, $rows){
 			'skipping'           => $st['trains'],
 			'skipping_events'    => $st['skips'],
 			'skipping_open'      => $st['open'],
+			/* @peaks -- sent only on this branch. The fallback below cannot
+			   answer them, and leaves them OUT rather than null: null means
+			   "not started", absent means "not known". */
+			'skipping_am'        => iss_peak_value($date, '04:00', $st['am']),
+			'skipping_pm'        => iss_peak_value($date, '15:00', $st['pm']),
 			'skipping_available' => true,
 			'skipping_basis'     => 'skipping table, by train operating date'
 		);

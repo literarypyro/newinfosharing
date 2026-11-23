@@ -97,26 +97,26 @@ if(!function_exists('dash_force_date')){
 }
 
 /* ==========================================================================
-   @peaks -- AM peak / PM peak split for the Skipping Trains tile.
+   @peaks -- the Skipping Trains tile's figures: the day's total and its
+   AM peak / PM peak split.
 
-   Counts TRAINS, not skips, so every number in the tile is the same unit as
-   the tile's own figure (count(distinct tar_id), the rule settled for
-   dash_fleet_counts2).
+   @skipevents (2026-11-23) -- every figure here counts SKIPS, one per row in
+   `skipping`, not trains. Asked for after the tile had counted trains since
+   2026-11-05 (count(distinct tar_id), with the peaks placing each train by
+   its first skip). A train that skipped three times is now 3, and each skip
+   falls in the window its own departure is in -- so there is no overlap to
+   explain: AM + PM can never exceed the total, and the remainder ('off') is
+   the skips that departed off-peak (09:00-15:00, before 04:00, or with no
+   usable departure time).
 
-   @firstskip -- Each train is placed by its FIRST skip of the day, and in
-   exactly one cell. An earlier version counted a train in every window it
-   skipped in, so a train that skipped at 07:10 and again at 17:00 sat in both
-   AM and PM, and on 2026-11-20 the tile read 13 above 4 + 10 -- true, but read
-   as a mismatch. Now a train is in one cell at most, so AM + PM can never
-   exceed the trains counted here. Only the two peaks are shown (as asked):
-   a train whose first skip was between 09:00 and 15:00, before 04:00, or
-   has no usable departure time is in neither cell, so AM + PM can be LOWER
-   than the headline. The remainder is still returned as 'off' in case it is
-   ever wanted on screen.
-   The cost, accepted on purpose: a train that first skipped in the AM peak
-   and again in the PM peak shows only in AM, so the PM cell under-reads
-   repeat skippers. It answers "where did each train's skipping start", not
-   "how many trains skipped in this window".
+   SAME BASIS as iss_api.php's skipping_events (iss_skip_totals(): the
+   train's operating date, active trains, every row), so this tile and the
+   ISS Monitor app's Today tile read the same number.
+
+   The headline is this function's 'total', not dash_fleet_counts2()'s
+   'skipping' -- that one is still the train count, and keeping both figures
+   in one query is what guarantees the split can never contradict the number
+   above it.
 
    Windows, on the full departure timestamp:
      AM peak  04:00 up to (not including) 09:00 on the operating day
@@ -144,24 +144,18 @@ if(!function_exists('dash_skip_peaks')){
 		/* $d comes through dash_date(), so it is already Y-m-d; re-checked
 		   here because this function cannot see its caller. */
 		if(!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$d)) return null;
-		/* Inner query: one row per skipping train, with its first departure.
-		   Zero-dates ('0000-00-00 00:00:00', the legacy junk value) are left
-		   out of the min() so they cannot become a train's "first" skip; a
-		   train with no usable time is in neither peak cell. */
+		/* One row per skip. A zero-date ('0000-00-00 00:00:00', the legacy junk
+		   value) sorts below 04:00, so it counts in the total but in neither
+		   peak -- it is a skip that happened, at a time nobody recorded. */
 		$sql = "select "
 		     . "count(*) as total, "
-		     . "sum(case when f.first_dep >= '".$d." 04:00:00' "
-		     .          "and f.first_dep <  '".$d." 09:00:00' then 1 else 0 end) as am, "
-		     . "sum(case when f.first_dep >= '".$d." 15:00:00' then 1 else 0 end) as pm "
-		     . "from ("
-		     .   "select sk.tar_id, "
-		     .   "min(case when sk.departure_time > '1000-01-01' then sk.departure_time end) as first_dep "
-		     .   "from skipping sk "
-		     .   "join train_availability ta on ta.id = sk.tar_id "
-		     .   "where ta.date >= '".$d." 00:00:00' and ta.date <= '".$d." 23:59:59' "
-		     .   "and ta.status = 'active' "
-		     .   "group by sk.tar_id"
-		     . ") f";
+		     . "sum(case when sk.departure_time >= '".$d." 04:00:00' "
+		     .          "and sk.departure_time <  '".$d." 09:00:00' then 1 else 0 end) as am, "
+		     . "sum(case when sk.departure_time >= '".$d." 15:00:00' then 1 else 0 end) as pm "
+		     . "from skipping sk "
+		     . "join train_availability ta on ta.id = sk.tar_id "
+		     . "where ta.date >= '".$d." 00:00:00' and ta.date <= '".$d." 23:59:59' "
+		     . "and ta.status = 'active'";
 
 		$res = @$db->query($sql);
 		if(!$res || !is_object($res)) return null;
@@ -173,6 +167,105 @@ if(!function_exists('dash_skip_peaks')){
 		$pm    = (int)$row['pm'];
 		$total = (int)$row['total'];
 		return array('am'=>$am, 'pm'=>$pm, 'off'=>max(0, $total-$am-$pm), 'total'=>$total);
+	}
+}
+
+/* ==========================================================================
+   @topequipt -- the equipment with the most faults over the trend card's own
+   window, shown under its chart.
+
+   SAME WINDOW AS THE CHART, taken from dash_trend_series()'s sd/ed, so the
+   list follows the Monthly / year / Weekly selector and can never describe a
+   different period from the bars above it.
+
+   UNIT: incidents per equipment -- count(distinct incident_id) grouped by
+   equipment, which is ccsCountEquipmentFailures() in incident_equipment.php
+   (incident x equipment, "the unit for which equipment fails most"). An
+   incident that names two pieces of equipment counts once for each, so the
+   three figures need not add up to the incident bars.
+
+   EQUIPMENT LINKAGE is the rule ccsEquipmentLinkSql() uses: the
+   incident_equipt junction, plus incident_report.equipt for incidents with
+   NO junction rows at all (not yet migrated). Written out here rather than
+   calling ccsEquipmentLinkSql(), for two reasons: this page does not load
+   incident_equipment.php, and the window is applied INSIDE both halves --
+   that helper's UNION is otherwise materialised over the whole of both tables,
+   and this runs on every live tick. If CCS_LEGACY_FALLBACK is defined false
+   (the migration finished), the legacy half is left out, as there.
+
+   Names from the `equipment` table (equipment_name), looked up for the three
+   ids only; an id with no name shows as "Equipment <id>" rather than vanishing.
+
+   GUARDED like dash_skip_peaks(): defined only if dash_data.php does not
+   provide it, and NULL -- not an empty list -- when the database cannot be
+   asked, so the card shows nothing rather than claiming "no faults". */
+if(!function_exists('dash_top_equipment')){
+	function dash_top_equipment($sd, $ed, $limit = 3){
+		if(function_exists('dash_ready') && !dash_ready()) return null;
+		if(!function_exists('dash_db')) return null;
+		if(function_exists('dash_table_exists') && !dash_table_exists('incident_report')) return null;
+		$db = dash_db();
+		if(!$db || !is_object($db) || !method_exists($db,'query')) return null;
+		if(!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$sd)) return null;
+		if(!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$ed)) return null;
+
+		$from  = $sd." 00:00:00";
+		$to    = date("Y-m-d", strtotime("+1 day", strtotime($ed)))." 00:00:00";   /* exclusive, as in dash_trend_series() */
+		$win   = "ir.incident_date >= '".$from."' and ir.incident_date < '".$to."'";
+		$hasJn = !function_exists('dash_table_exists') || dash_table_exists('incident_equipt');
+		$legacy= !(defined('CCS_LEGACY_FALLBACK') && !CCS_LEGACY_FALLBACK);
+
+		$parts = array();
+		if($hasJn){
+			$parts[] = "select ie.incident_id as incident_id, ie.equipt_id as equipt_id "
+			         . "from incident_equipt ie join incident_report ir on ir.id = ie.incident_id "
+			         . "where ".$win;
+		}
+		if($legacy || !$hasJn){
+			$parts[] = "select ir.id as incident_id, ir.equipt as equipt_id "
+			         . "from incident_report ir "
+			         . "where ".$win." and ir.equipt is not null and ir.equipt <> '' and ir.equipt <> '0'"
+			         . ($hasJn ? " and not exists (select 1 from incident_equipt ie2 where ie2.incident_id = ir.id)" : "");
+		}
+		$sql = "select x.equipt_id as equipt_id, count(distinct x.incident_id) as n "
+		     . "from (".implode(" union all ", $parts).") x "
+		     . "where x.equipt_id is not null and x.equipt_id <> '' and x.equipt_id <> '0' "
+		     . "group by x.equipt_id order by n desc, x.equipt_id limit ".(int)$limit;
+
+		$res = @$db->query($sql);
+		if(!$res || !is_object($res)) return null;
+		$rows = array();
+		while(true){
+			$r = method_exists($res,'fetch_assoc') ? $res->fetch_assoc()
+			   : (method_exists($res,'fetch') ? $res->fetch(2) : null);
+			if(!is_array($r)) break;
+			$rows[] = array('id'=>(string)$r['equipt_id'], 'n'=>(int)$r['n'], 'name'=>'');
+		}
+
+		/* Names, for these ids only. */
+		if(count($rows) && (!function_exists('dash_table_exists') || dash_table_exists('equipment'))){
+			$ids = array();
+			foreach($rows as $row){
+				$ids[] = "'".(function_exists('dash_esc') ? dash_esc($row['id']) : addslashes($row['id']))."'";
+			}
+			$nr = @$db->query("select id, equipment_name from equipment where id in (".implode(",",$ids).")");
+			if($nr && is_object($nr)){
+				$names = array();
+				while(true){
+					$e = method_exists($nr,'fetch_assoc') ? $nr->fetch_assoc()
+					   : (method_exists($nr,'fetch') ? $nr->fetch(2) : null);
+					if(!is_array($e)) break;
+					$names[(string)$e['id']] = trim((string)$e['equipment_name']);
+				}
+				foreach($rows as $i=>$row){
+					if(isset($names[$row['id']]) && $names[$row['id']]!==''){ $rows[$i]['name'] = $names[$row['id']]; }
+				}
+			}
+		}
+		foreach($rows as $i=>$row){
+			if($row['name']===''){ $rows[$i]['name'] = 'Equipment '.$row['id']; }
+		}
+		return $rows;
 	}
 }
 
@@ -230,6 +323,20 @@ $trend       = function_exists('dash_trend_series')
 $max_trend   = 0;
 if($trend){ foreach($trend['counts'] as $v){ if($v!==null && $v>$max_trend){ $max_trend=$v; } } }
 
+/* @topequipt -- the chart's own window. With an older dash_data.php that has
+   no dash_trend_series(), the card draws the twelve-month series instead, so
+   the window is the first of its first month through the viewed date. */
+if($trend && isset($trend['sd'])){
+	$te_sd = $trend['sd']; $te_ed = isset($trend['ed']) ? $trend['ed'] : $view_date;
+} else {
+	$te_keys = array_keys($months);
+	$te_sd = count($te_keys) ? $te_keys[0]."-01" : $view_date;
+	$te_ed = $view_date;
+}
+$top_equipt  = dash_top_equipment($te_sd, $te_ed, 3);
+$max_equipt  = 0;
+if($top_equipt){ foreach($top_equipt as $te){ if($te['n']>$max_equipt){ $max_equipt=$te['n']; } } }
+
 /* @tt -- The auth token, for URLs that do NOT pass through dash_goto.php.
 
    dash_goto.php appends tt to everything it redirects to, which is why the
@@ -277,6 +384,9 @@ foreach($types as $v){ if($v>$max_type){ $max_type=$v; } }
 .ds-peak-n{display:block;font-size:15px;line-height:19px;font-weight:600;color:var(--cf-ink,#1A2233);
 	font-variant-numeric:tabular-nums}
 .ds-peak-n.is-wait{color:var(--cf-ink-3,#5A6275);font-weight:400}
+/* @topequipt -- separates the list from the chart above it, in the same card */
+.ds-topeq{margin-top:12px;padding-top:10px;border-top:1px solid var(--cf-line,#E3E7EE)}
+.ds-topeq h3{margin:0;font-size:12px;font-weight:600;color:var(--cf-ink,#1A2233)}
 </style>
 
 </head>
@@ -399,7 +509,19 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			         markup that displayed it had been dropped. A bare count with
 			         nothing to compare it against is the one thing a dashboard
 			         tile should never show. */ ?>
-			<div><span class="ds-val"><?php echo (int)$fleet2['skipping']; ?></span>
+			<?php /* @skipevents -- SKIPS, from the same query as the AM / PM split
+			         below, so the three numbers cannot disagree. If that query
+			         could not run, the next-best skip count is used: a 'skips'
+			         key on dash_fleet_counts2() if this dash_data.php has one,
+			         then dash_skip_events() (which dates a skip by its own
+			         departure rather than the train's operating day, so it can
+			         differ by an after-midnight skip). The train count is the
+			         last resort, only so the tile is never blank. */
+			   if($skip_peaks !== null)                                 { $skipHead = $skip_peaks['total']; }
+			   else if(isset($fleet2['skips']))                         { $skipHead = $fleet2['skips']; }
+			   else if(function_exists('dash_skip_events'))             { $skipHead = dash_skip_events($view_date); }
+			   else                                                     { $skipHead = $fleet2['skipping']; } ?>
+			<div><span class="ds-val"><?php echo (int)$skipHead; ?></span>
 			</div>
 			<?php /* @skipcount -- $sp_skip, NOT $sp_trains. This tile was drawing the
 			         Inserted tile's series: fourteen days of train-availability
@@ -419,15 +541,15 @@ if($dsPartial){ ob_clean(); } else { echo '<div id="dsLive">'; }
 			   drawing them short. A started peak shows its running count. A
 			   past date shows both counts as they stand.
 
-			   @firstskip -- each train sits in exactly ONE cell, by its first
-			   skip of the day; see dash_skip_peaks() above. */
+			   @skipevents -- each skip counts in the window its own departure
+			   is in; see dash_skip_peaks() above. */
 			if($skip_peaks === null){
 				if(count($sp_skip)){ echo dash_sparkline($sp_skip); }
 			} else {
 				$pkNow = $is_today ? date("H:i") : "99:99";
 				$pkCells = array(
-					array('AM peak',  $skip_peaks['am'],  '04:00', 'Trains whose first skip departed 04:00 to before 09:00'),
-					array('PM peak',  $skip_peaks['pm'],  '15:00', 'Trains whose first skip departed from 15:00 to end of revenue')
+					array('AM peak',  $skip_peaks['am'],  '04:00', 'Skips that departed 04:00 to before 09:00'),
+					array('PM peak',  $skip_peaks['pm'],  '15:00', 'Skips that departed from 15:00 to end of revenue')
 				); ?>
 			<div class="ds-peaks">
 <?php			foreach($pkCells as $pk){
@@ -974,6 +1096,31 @@ if(preg_match('/^(.{0,72})/us', $desc, $m)){
 					echo $ngap ? dash_h($ngap.' bucket'.($ngap==1?'':'s').' have no records') : '&nbsp;';
 				?></span>
 				<a class="ds-more" href="#">&nbsp;</a>
+			</div>
+<?php	} ?>
+<?php	/* @topequipt -- under the chart, in the same card, because it covers the
+		   same window: switching Monthly / year / Weekly changes both together.
+		   Same bar markup as "Today by problem type" (.ds-bars), so it needs no
+		   styles of its own beyond the divider. Nothing at all is drawn when
+		   the query could not run (NULL); an empty period says so in words. */
+		if($top_equipt !== null){ ?>
+			<div class="ds-topeq">
+				<div class="ds-card-head" style="margin:0 0 6px">
+					<h3>Top equipment with faults</h3>
+					<span class="ds-note" title="Incidents per equipment, same period as the chart above"><?php
+						echo dash_h(date("j M Y", strtotime($te_sd))." \xE2\x80\x93 ".date("j M Y", strtotime($te_ed))); ?></span>
+				</div>
+<?php		if(!count($top_equipt)){ ?>
+				<div class="ds-empty">No equipment recorded on incidents in this period.</div>
+<?php		} else { ?>
+				<div class="ds-bars">
+<?php			foreach($top_equipt as $te){ ?>
+					<span style="color:var(--cf-ink-2)" title="<?php echo dash_h($te['name'].': '.$te['n'].' incident'.($te['n']==1?'':'s')); ?>"><?php echo dash_h($te['name']); ?></span>
+					<span class="ds-track"><i style="width:<?php echo dash_pct($te['n'],$max_equipt>0?$max_equipt:1); ?>%"></i></span>
+					<span class="ds-n"><?php echo (int)$te['n']; ?></span>
+<?php			} ?>
+				</div>
+<?php		} ?>
 			</div>
 <?php	} ?>
 		</div>
