@@ -149,6 +149,60 @@ table.exception {
     font-family: Segoe UI, sans-serif !important;
 	
 }
+
+/* @mobilehdr (2026-11-24) -- phones and narrow windows.
+   The title is a 55px <h0> beside an 80px logo, so on a phone the word
+   "Management" alone is wider than the screen and the title ran off the
+   right edge. Below 768px the logo and the title scale with the screen
+   width (clamp: never smaller than the minimum, never larger than the
+   desktop-ish maximum), the title is allowed to wrap onto two lines, and
+   the band grows to fit it.
+
+   !important and the long selectors are deliberate: header_redesign.css
+   (linked above) sets the header's height and the logo's size with
+   !important, and only a rule that is both !important AND more specific
+   can win over it. Desktop is untouched -- every rule is inside the query.
+
+   Only takes effect on pages that send <meta name="viewport"
+   content="width=device-width,..."> (dashboard.php does). A page without
+   it is laid out 980px wide by the phone and shrunk to fit, so its header
+   never ran off the edge in the first place. */
+@media (max-width:768px){
+	div.header-wrapper {
+		height: auto !important;
+		min-height: 0 !important;
+		max-width: 100% !important;
+		overflow: hidden !important;
+	}
+	div.header-wrapper table.exception {
+		width: 100% !important;
+		table-layout: auto !important;
+	}
+	div.header-wrapper table.exception td {
+		padding: 6px 8px !important;
+		vertical-align: middle !important;
+	}
+	div.header-wrapper table.exception img.site-logo {
+		height: clamp(40px, 11vw, 64px) !important;
+		width: auto !important;
+		max-width: none !important;
+	}
+	div.header-wrapper table.exception td h0 {
+		display: block !important;
+		font-size: clamp(18px, 5.6vw, 36px) !important;
+		line-height: 1.15 !important;
+		white-space: normal !important;
+		overflow-wrap: break-word !important;
+		word-wrap: break-word !important;
+	}
+	/* The second table under the title holds only &nbsp; in this file (the
+	   greeting / Log Out cells were blanked), so on a phone it is 30px of
+	   empty band. Hidden there. If the greeting is ever put back, delete
+	   this rule so it shows on phones too. */
+	div.header-wrapper table:not(.exception) {
+		display: none !important;
+	}
+}
 </style>
 
 
